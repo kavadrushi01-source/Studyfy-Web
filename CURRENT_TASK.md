@@ -9,48 +9,24 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS
-**Phase / Module:** Phase 0
+**Status:** IDLE
+**Phase / Module:** —
 **Last updated:** 2026-09-16
 
 ## What's done in this task so far
-- Read CURRENT_TASK.md, AGENT_START_HERE.md, STUDYFY_PROJECT_SPEC.md (full v3.2), RULES.md (full v3.2) — 2026-09-16
-- Step 0 analysis: read SECURITY_PATTERNS.md + ci.yml (at repo root, not .github/workflows/) and listed path/script assumptions
-- Scaffolded monorepo per spec §19: root workspaces + tsconfig.base (strict, noUncheckedIndexedAccess), apps/api (Express hello + /health, vitest), apps/web (Next 14 App Router blank page), packages/shared-types (envelope), prisma/ placeholder — lint+typecheck+test+build all green, both servers verified running
-- Full core schema §9.1 written + migrated (20260916041047_init_core_schema, 23 models, 24 tables) — validate clean, migrate status in-sync, smoke-tested TRIAL/Asia/Kolkata defaults
-- Auth (register/login/refresh) built + tested: raw-client register with collision-safe slug, optional-slug login (absent = Platform Owner), opaque 7d refresh rotation with reuse→chain-kill, bcrypt-12, 15m JWT, gates for SUSPENDED/TRIAL-expired/disabled — 12/12 tests green
-- Tenant isolation test-first: RED shown (A-token→B-students returned 200 leaking B's row), then authMiddleware + tenantMiddleware (URL-vs-token 403 TENANT_MISMATCH + subscription gate) + Prisma $extends scoping (19 TENANT_MODELS, create/createMany stamping) — GREEN, 14/14 suite green
-- platformOnlyMiddleware test-first: RED shown (3 fail, /platform/* was 404), then middleware (role check, raw client) + GET /platform/schools — GREEN, 18/18. Proven: no HTTP endpoint can create Platform Owner (register hardcodes SCHOOL_ADMIN, schema has no role field); route audit: every data route has exactly one of tenant/platform middleware, only credential-minting (auth) + health/hello are public by design
-- Correction 2026-09-16: an earlier "typecheck clean" read was truncated output — union-typed req.prisma call-sites never compiled; fixed by typing req.prisma as base PrismaClient with ONE cast at scoped-client creation (tenant.ts), platform path assigns raw directly
-- Self-scope test-first: 404-RED (no route) → tenant-only LEAK-RED (student A read student B = 200, v1's bug live) → studentSelfScope (pin STUDENT=[own], PARENT=[linked via join], 403 otherwise, lists filtered, no-profile fail-closed) — GREEN, 22/22 suite green
-- Demo seed per DEMO_DATA.md: brandColor column added (SOS #0D9488, Ramakrishna #7F1D1D); both ACTIVE; 8 students + full rosters each; Aditya Sharma 2 guardians; deterministic attendance (120 rows/school, ~86% present), fees (6 paid/1 pending/1 overdue per school), Unit Test 1 marks (24/school, 31–48), homework (6/school: graded+open), notices (3/school); all Demo@1234; live-verified 5-role logins + isolation (SOS admin sees 8, owner sees 2)
-- Hardening: helmet, CORS locked to FRONTEND_ORIGIN (exact match, no-origin passes), sliding-window limiters on login (5/15min) + register (10/hr) + public enquiries (5/15min, skipped in NODE_ENV=test), real POST /public/enquiries (Zod + honeypot trap + Enquiry table in TENANT_MODELS, same commit), /health kept, graceful SIGTERM/SIGINT shutdown drains + disconnects pool. LIVE demo: attempts 1–5 = 401, 6th = 429 RATE_LIMITED; evil Origin gets no ACAO; nosniff set, X-Powered-By gone — 27/27 green
-- RBAC: seedPermissions (students.read, platform.schools.read + 6 mappings) + requirePermission middleware (single indexed join, fail-closed on unknown role/key, 401 unauthenticated); wired auth→tenant→permission→selfscope and auth→platformOnly→permission. Tests: TEMP-role deny→grant→200 (own rows only, race-free), ghost/typo fail-closed, 401 direction — 30/30 green. Remaining literals documented as structural (platformOnly gate, selfscope strategy, login routing), not access decisions. Fixed seed re-run P2002 (@db.Date where must be midnight UTC).
-- tsconfig strict + noUncheckedIndexedAccess set explicitly in both workspaces, typecheck 0 errors
+_(nothing in progress right now — Phase 0 closed out in STATUS.md)_
 
 ## What's left in this task
-- (nothing — Phase 0 checklist complete)
+_(nothing in progress right now)_
 
 ## Exact next action
-Close Phase 0: update STATUS.md per RULES.md §6.1, reset this file to IDLE — say go.
+Phase 0 is DONE (see STATUS.md). Next session: read AGENT_START_HERE.md, then STUDYFY_PROJECT_SPEC.md §7 Phase 1 + STATUS.md, and start the first MVP module.
 
 ## Notes / decisions made mid-task
-- Step 0 finding 2026-09-16: ci.yml lives at repo ROOT, but spec §19 + SECURITY_PATTERNS.md §4 assume `.github/workflows/ci.yml` — must move it there or CI never runs.
-- Scaffold 2026-09-16: Next pinned 14.2.35 (was 14.2.5, has published vuln). Audit still reports 1 high + 1 critical on next/postcss chain — only clean fix is next 16.3.5 + React 19 (breaking, needs `next lint` removal). Deferred to pre-CI-green step.
-- Debts cleared 2026-09-16: (1) ci.yml moved to .github/workflows/ci.yml via git mv. (2) web upgraded next 14.2.35→16.3.5 + react/react-dom 18→19 + @types/react(-dom) 19, web `lint` switched `next lint`→`eslint .`; api vitest 2→5.0.1 + @types/node 20→24 (vitest 5 peer requirement). `npm audit --audit-level=high` now exits 0, 0 vulns. Remaining moderate-only vitest notices gone too. No other code touched.
-- Node local 24.15.0 vs CI 20 — .nvmrc pins 20 for CI parity.
-- Verified: GET /api/v1/hello + /health return envelope; web `next start` serves / (HTML checked).
-- Schema+migration 2026-09-16: prisma pinned 6.12.0 (NOT 6.19.x — 6.13+ pulls @prisma/config→deepmerge-ts HIGH audit fail; 6.12.0 is audit-clean, client+CLI matched pair). DB = local sandbox mysqld on 127.0.0.1:3307 (datadir in Temp/opencode/studyfy-mysql-data, root/empty pw, db studyfy_dev) — started detached via Start-Process so it survives shell exits; restart cmd in Notes history if port goes dead. Local MySQL80 (3306) credentials unknown — untouched. .env files gitignored; CI uses its own mysql:8 service. trialEndsAt has NO db default by design (registration code must set now+14d); updated_at is Prisma-managed (@updatedAt), raw SQL inserts must supply it.
+_(none — standing rules live in RULES.md, env notes in STATUS.md)_
 
 ## Repo state right now
-YES — 30/30 api tests (7 files), lint 0, typecheck clean (src+tests+seed), audit-high 0 vulns. Phase 0 checklist: every box done, only the STATUS.md close-out remains. GitHub CI run 35059993545 was all-green before this commit; re-push will re-run.
-
-## Standing instruction from founder (2026-09-16)
-If `npm audit` ever reports a REAL high/critical finding: do NOT lower the
-threshold (`--audit-level`), do NOT add an audit exception, do NOT pin
-around it silently. Stop, report what the advisory is (package, severity,
-what it affects), and present the options (upgrade / replace dep / accept
-with documented reason) for the founder to choose. The CI gate stays hard.
+YES — 30/30 api tests, lint 0, typecheck clean, audit-high 0 vulns, GitHub CI green. Sandbox MySQL on 3307 (see STATUS.md if the port is dead).
 
 ---
 

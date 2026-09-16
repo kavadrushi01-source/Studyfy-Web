@@ -208,6 +208,11 @@ hand-roll what a database index already solves.
   than guessing at the cause.
 - `npm audit --audit-level=high` runs in CI on every PR and fails the build
   on high/critical findings (`.github/workflows/ci.yml`).
+- **If an audit finding is real, never lower the gate to make it pass** —
+  no `--audit-level` downgrade, no silent pin-around, no CI exception.
+  Stop, report the advisory (package, severity, blast radius), and present
+  the options (upgrade / replace / documented accept) for the founder to
+  decide. Standing instruction, 2026-09-16.
 - **Before relying on `SECURITY_PATTERNS.md` or `.github/workflows/ci.yml`,
   treat them as patterns to adapt, not drop-in code** — type-check them
   against your actual Prisma schema and `package.json` scripts, fix any

@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** _(fill in)_ | **Last updated:** _(fill in)_
+**Started:** 2026-09-16 | **Last updated:** 2026-09-16
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -23,19 +23,24 @@
 ## Phase 0 — Foundation + Security (nothing else starts until this row is DONE)
 | Item | Status |
 |---|---|
-| Monorepo scaffold (spec §19) | NOT STARTED |
-| `tsconfig.json` strict mode, both workspaces | NOT STARTED |
-| Prisma: full core schema from §9.1 in one pass — identity tables (schools+subscriptionStatus/users/roles/subjects/auth_tokens) AND classes/sections/students/student_guardians/staff/attendance/fees/exams/homework/notices (the seed script below needs all of it) | NOT STARTED |
-| Auth: register/login (email+password, optional slug)/refresh, DB-backed tokens | NOT STARTED |
-| Tenant-scoping Prisma extension + middleware | NOT STARTED |
-| Platform-only middleware for the Platform Owner (separate from tenant middleware) | NOT STARTED |
-| RBAC middleware | NOT STARTED |
-| Student/Parent row-level self-scope | NOT STARTED |
-| Seed script (School of Science + Ramakrishna School, full roster each — `DEMO_DATA.md`) | NOT STARTED |
-| Tenant-isolation + self-scope + platform-route regression tests passing | NOT STARTED |
-| helmet / CORS / rate limiting / health check / graceful shutdown | NOT STARTED |
-| CI green (lint, typecheck, unit, audit gate) | NOT STARTED |
-| Confirmed: no paid services wired yet (spec §1) | NOT STARTED |
+| Monorepo scaffold (spec §19) | DONE — workspaces + Next 16 web / Express api / shared-types / prisma, both build + serve (verified live 2026-09-16) |
+| `tsconfig.json` strict mode, both workspaces | DONE — `strict` + `noUncheckedIndexedAccess` explicit in api/web (+ tests config), typecheck 0 errors |
+| Prisma: full core schema from §9.1 in one pass — identity tables (schools+subscriptionStatus/users/roles/subjects/auth_tokens) AND classes/sections/students/student_guardians/staff/attendance/fees/exams/homework/notices (the seed script below needs all of it) | DONE — 25 models, 4 migrations, `migrate status` in-sync, `validate` clean; + `refresh_tokens` (auth rotation) and `enquiries` (public intake), each with its migration in the same commit |
+| Auth: register/login (email+password, optional slug)/refresh, DB-backed tokens | DONE — 10 tests (gates, rotation + reuse-kill, enumeration-safe 401s) + live REST verification (register/login/refresh/429 paths) |
+| Tenant-scoping Prisma extension + middleware | DONE — test-first (RED 200-leak shown), 20 TENANT_MODELS in sync with schema, URL-vs-token 403 + subscription gate |
+| Platform-only middleware for the Platform Owner (separate from tenant middleware) | DONE — test-first (RED 404 shown), route audit proves one-middleware-per-route; no public owner creation (register hardcodes SCHOOL_ADMIN) |
+| RBAC middleware | DONE — table-driven `requirePermission` (2 keys, 6 mappings seeded), TEMP-role deny→grant test + fail-closed ghost/typo tests. Honest note: unlike the other boxes, no RED run was shown first — middleware and tests were built together (fail-closed cases would have 404'd pre-route, but that run wasn't done) |
+| Student/Parent row-level self-scope | DONE — test-first twice (404-RED, then 200-leak RED reproducing v1's bug), pins + list filtering + no-profile fail-closed |
+| Seed script (School of Science + Ramakrishna School, full roster each — `DEMO_DATA.md`) | DONE — ran on dev: both ACTIVE with brand colors, 8 students each, 2-guardian Aditya case, deterministic attendance/fees/marks/homework/notices; 5-role live logins verified |
+| Tenant-isolation + self-scope + platform-route regression tests passing | DONE — 30/30 across 7 files (auth 10, tenant 2, platform 4, self-scope 4, RBAC 3, hardening 5, hello 2) |
+| helmet / CORS / rate limiting / health check / graceful shutdown | DONE — live demo: 5×401 then 429 RATE_LIMITED on 6th login; evil Origin gets no ACAO; nosniff set; shutdown drains + disconnects pool |
+| CI green (lint, typecheck, unit, audit gate) | DONE — GitHub run 35059993545: all 5 jobs SUCCESS (fresh MySQL service, 6 test files passed in CI). Honest note: the E2E job is a green stub — real browser flows arrive with Phase 1 UI |
+| Confirmed: no paid services wired yet (spec §1) | DONE — repo-wide grep 2026-09-16: no SMS/WhatsApp/Groq/Razorpay/OpenAI keys anywhere; only empty `.env.example` placeholders |
+
+### Local dev environment (not code — operational note for the next session)
+- MySQL sandbox on `127.0.0.1:3307` (own datadir in `Temp/opencode/studyfy-mysql-data`, root/empty pw). Local MySQL80 on 3306 untouched (credentials unknown). If port 3307 is dead, re-init + `Start-Process mysqld` detached (see git history for the exact commands) — never `Start-Job` (dies with the shell).
+- `studyfy_dev` = seeded demo data (`npm run db:seed`); `studyfy_test` = test DB (migrated, roles/permissions seeded by test setup). Tests force `TEST_DATABASE_URL` — dev DB never touched.
+- Prisma pinned at 6.12.0 (6.13+ pulls a HIGH audit failure via `@prisma/config`→`deepmerge-ts`).
 
 ## Phase 1 — MVP Modules
 | Module | API | Web | Matches design board? |
