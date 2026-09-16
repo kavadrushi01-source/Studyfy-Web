@@ -17,14 +17,14 @@
 - Read CURRENT_TASK.md, AGENT_START_HERE.md, STUDYFY_PROJECT_SPEC.md (full v3.2), RULES.md (full v3.2) — 2026-09-16
 - Step 0 analysis: read SECURITY_PATTERNS.md + ci.yml (at repo root, not .github/workflows/) and listed path/script assumptions
 - Scaffolded monorepo per spec §19: root workspaces + tsconfig.base (strict, noUncheckedIndexedAccess), apps/api (Express hello + /health, vitest), apps/web (Next 14 App Router blank page), packages/shared-types (envelope), prisma/ placeholder — lint+typecheck+test+build all green, both servers verified running
-
-## What's left in this task
-- Full core Prisma schema §9.1, auth, tenant/platform/RBAC/self-scope middleware + tests first, seed, hardening, CI green
-- Both prior debts resolved this session (see Notes): ci.yml moved, audit-high green at 0 vulns
+- Full core schema §9.1 written + migrated (20260916041047_init_core_schema, 23 models, 24 tables) — validate clean, migrate status in-sync, smoke-tested TRIAL/Asia/Kolkata defaults
 - tsconfig strict + noUncheckedIndexedAccess set explicitly in both workspaces, typecheck 0 errors
 
+## What's left in this task
+- Auth (register/login/refresh), tenant/platform/RBAC/self-scope middleware + tests first, seed (DEMO_DATA.md), hardening, CI green
+
 ## Exact next action
-Full core Prisma schema §9.1 in one pass (AGENT_START_HERE.md Phase 0 box) — say go to start it.
+Auth: register/login/refresh per AGENT_START_HERE.md Phase 0 box — say go to start it.
 
 ## Notes / decisions made mid-task
 - Step 0 finding 2026-09-16: ci.yml lives at repo ROOT, but spec §19 + SECURITY_PATTERNS.md §4 assume `.github/workflows/ci.yml` — must move it there or CI never runs.
@@ -32,9 +32,10 @@ Full core Prisma schema §9.1 in one pass (AGENT_START_HERE.md Phase 0 box) — 
 - Debts cleared 2026-09-16: (1) ci.yml moved to .github/workflows/ci.yml via git mv. (2) web upgraded next 14.2.35→16.3.5 + react/react-dom 18→19 + @types/react(-dom) 19, web `lint` switched `next lint`→`eslint .`; api vitest 2→5.0.1 + @types/node 20→24 (vitest 5 peer requirement). `npm audit --audit-level=high` now exits 0, 0 vulns. Remaining moderate-only vitest notices gone too. No other code touched.
 - Node local 24.15.0 vs CI 20 — .nvmrc pins 20 for CI parity.
 - Verified: GET /api/v1/hello + /health return envelope; web `next start` serves / (HTML checked).
+- Schema+migration 2026-09-16: prisma pinned 6.12.0 (NOT 6.19.x — 6.13+ pulls @prisma/config→deepmerge-ts HIGH audit fail; 6.12.0 is audit-clean, client+CLI matched pair). DB = local sandbox mysqld on 127.0.0.1:3307 (datadir in Temp/opencode/studyfy-mysql-data, root/empty pw, db studyfy_dev) — started detached via Start-Process so it survives shell exits; restart cmd in Notes history if port goes dead. Local MySQL80 (3306) credentials unknown — untouched. .env files gitignored; CI uses its own mysql:8 service. trialEndsAt has NO db default by design (registration code must set now+14d); updated_at is Prisma-managed (@updatedAt), raw SQL inserts must supply it.
 
 ## Repo state right now
-YES — lint, typecheck x3, api vitest 2/2, build api+web, `npm audit --audit-level=high` exits 0 (0 vulns), both servers verified live. Only known gap: CI's `npx prisma migrate deploy` has no migrations yet — expected until §9.1 schema lands.
+YES — schema valid, migration in-sync (24 tables), lint + api typecheck/test green, audit-high 0 vulns. CI migrate-deploy gap closed (migrations/ now exists).
 
 ---
 
