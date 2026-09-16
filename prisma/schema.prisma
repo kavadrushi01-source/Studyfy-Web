@@ -153,6 +153,7 @@ model User {
   createdNotices   Notice[]          @relation("NoticeAuthor")
   receivedPayments FeePayment[]      @relation("PaymentReceiver")
   authTokens       AuthToken[]
+  refreshTokens    RefreshToken[]
 
   @@unique([schoolId, email])
   @@index([schoolId])
@@ -592,4 +593,27 @@ model AuthToken {
 
   @@index([userId])
   @@map("auth_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Refresh tokens — opaque, DB-backed, ROTATED (§2: 7d httpOnly cookie).
+// Each token is single-use: /refresh consumes it (revoked_at + replaced_by)
+// and issues the next. Presenting an already-rotated token means theft —
+// the whole chain is revoked. Global lookup by hash (never tenant-scoped,
+// same as auth_tokens — do NOT add to TENANT_MODELS).
+// ---------------------------------------------------------------------------
+
+model RefreshToken {
+  id          String    @id @default(cuid()) @map("id")
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id])
+  // sha256 hex of the opaque token; the raw value lives only in the cookie.
+  tokenHash   String    @unique @map("token_hash")
+  expiresAt   DateTime  @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  replacedBy  String?   @map("replaced_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }
