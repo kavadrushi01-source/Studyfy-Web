@@ -2,16 +2,18 @@ import { Router, type Request, type Response } from "express";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { platformOnlyMiddleware } from "../../middleware/platform-only.js";
+import { requirePermission } from "../../middleware/rbac.js";
 
 export const platformRouter = Router();
 
 // Every route here: authMiddleware + platformOnlyMiddleware — NEVER
-// tenantMiddleware (spec §13.4). Full billing/analytics UI is Phase 4;
-// this lists what Phase 1 already knows: schools + live counts.
+// tenantMiddleware (spec §13.4). requirePermission on top: the gate checks
+// the tenant MODEL (NULL school_id), the table grants the FEATURE.
 platformRouter.get(
   "/schools",
   authMiddleware,
   platformOnlyMiddleware,
+  requirePermission("platform.schools.read"),
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma) {
       res.status(500).json({

@@ -31,8 +31,9 @@ beforeAll(async () => {
   // Dynamic imports: run AFTER the DATABASE_URL override above, so the
   // shared Prisma singleton connects to the test DB, not the dev DB.
   const { prisma } = await import("../src/lib/prisma.js");
-  const { seedRoles } = await import("../../../prisma/seed.js");
+  const { seedRoles, seedPermissions } = await import("../../../prisma/seed.js");
   await seedRoles(prisma);
+  await seedPermissions(prisma);
   disconnect = async () => {
     await prisma.$disconnect();
   };

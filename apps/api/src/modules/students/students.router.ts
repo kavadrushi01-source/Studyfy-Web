@@ -1,19 +1,20 @@
 import { Router, type Request, type Response } from "express";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
+import { requirePermission } from "../../middleware/rbac.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 
 export const studentsRouter = Router();
 
-// Chain per route: auth -> tenant -> self-scope. Self-scope pins STUDENT to
-// [ownId] and PARENT to [linkedChildIds]; list handlers filter by it, detail
-// routes are 403-checked inside the middleware (spec §5, pattern §3).
+// Chain per route: auth -> tenant -> permission -> self-scope. The permission
+// grants ACCESS (table-driven); self-scope narrows ROWS for STUDENT/PARENT.
 // Minimal probe today (full SIS roster is a Phase 1 module).
 studentsRouter.get(
   "/schools/:schoolId/students",
   authMiddleware,
   tenantMiddleware,
+  requirePermission("students.read"),
   studentSelfScope,
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma) {
@@ -38,6 +39,7 @@ studentsRouter.get(
   "/schools/:schoolId/students/:studentId",
   authMiddleware,
   tenantMiddleware,
+  requirePermission("students.read"),
   studentSelfScope,
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma) {

@@ -38,6 +38,57 @@ export async function seedRoles(db: PrismaClient): Promise<string[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Permissions — the OTHER half of RBAC (RULES.md §6). Like roles: global,
+// seeded once, never per-school. Each Phase 1 module adds its keys in the
+// SAME commit that first enforces them; this box seeds only what the
+// current routes check (students.read, platform.schools.read).
+// ---------------------------------------------------------------------------
+
+const PERMISSIONS: { key: string; description: string }[] = [
+  { key: "students.read", description: "List and read student records (row-narrowed by self-scope for STUDENT/PARENT)" },
+  { key: "platform.schools.read", description: "List every school cross-tenant (Platform Owner only)" },
+];
+
+// Role -> permission keys. STUDENT/PARENT hold students.read because the
+// PERMISSION grants access while self-scope narrows ROWS — holding the key
+// never means seeing everyone.
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  SCHOOL_ADMIN: ["students.read"],
+  TEACHER: ["students.read"],
+  ACCOUNTANT: ["students.read"],
+  STUDENT: ["students.read"],
+  PARENT: ["students.read"],
+  PLATFORM_OWNER: ["platform.schools.read"],
+};
+
+export async function seedPermissions(db: PrismaClient): Promise<void> {
+  for (const permission of PERMISSIONS) {
+    await db.permission.upsert({
+      where: { key: permission.key },
+      update: { description: permission.description },
+      create: permission,
+    });
+  }
+  for (const [roleName, keys] of Object.entries(ROLE_PERMISSIONS)) {
+    const role = await db.role.findUnique({ where: { name: roleName } });
+    if (!role) {
+      throw new Error(`Role ${roleName} must be seeded before permissions.`);
+    }
+    for (const key of keys) {
+      const permission = await db.permission.findUnique({ where: { key } });
+      if (!permission) {
+        throw new Error(`Permission ${key} must be seeded before mappings.`);
+      }
+      await db.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } },
+        update: {},
+        create: { roleId: role.id, permissionId: permission.id },
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Demo data (DEMO_DATA.md — exact names, do not invent different ones)
 // ---------------------------------------------------------------------------
 
@@ -514,7 +565,10 @@ function lastSchoolDays(count: number): Date[] {
   // Last `count` days excluding Sundays (weekly holiday).
   const days: Date[] = [];
   const cursor = new Date();
-  cursor.setUTCHours(12, 0, 0, 0);
+  // Midnight UTC: attendance.date is @db.Date (day precision) — a where
+  // clause carrying a time component would never match the stored day,
+  // turning every re-run upsert into a P2002. Keep them day-clean.
+  cursor.setUTCHours(0, 0, 0, 0);
   while (days.length < count) {
     cursor.setUTCDate(cursor.getUTCDate() - 1);
     if (cursor.getUTCDay() === 0) {
@@ -722,6 +776,8 @@ async function main(): Promise<void> {
   try {
     const names = await seedRoles(db);
     console.log(`Seeded roles: ${names.join(", ")}`);
+    await seedPermissions(db);
+    console.log(`Seeded permissions: ${PERMISSIONS.map((p) => p.key).join(", ")}`);
     await seedDemo(db);
     console.log(`Seeded demo schools: ${SCHOOLS.map((s) => s.slug).join(", ")} + owner ${OWNER_EMAIL}`);
     console.log(`Demo password for every account: ${DEMO_PASSWORD}`);

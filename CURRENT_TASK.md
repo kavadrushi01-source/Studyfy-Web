@@ -25,13 +25,14 @@
 - Self-scope test-first: 404-RED (no route) → tenant-only LEAK-RED (student A read student B = 200, v1's bug live) → studentSelfScope (pin STUDENT=[own], PARENT=[linked via join], 403 otherwise, lists filtered, no-profile fail-closed) — GREEN, 22/22 suite green
 - Demo seed per DEMO_DATA.md: brandColor column added (SOS #0D9488, Ramakrishna #7F1D1D); both ACTIVE; 8 students + full rosters each; Aditya Sharma 2 guardians; deterministic attendance (120 rows/school, ~86% present), fees (6 paid/1 pending/1 overdue per school), Unit Test 1 marks (24/school, 31–48), homework (6/school: graded+open), notices (3/school); all Demo@1234; live-verified 5-role logins + isolation (SOS admin sees 8, owner sees 2)
 - Hardening: helmet, CORS locked to FRONTEND_ORIGIN (exact match, no-origin passes), sliding-window limiters on login (5/15min) + register (10/hr) + public enquiries (5/15min, skipped in NODE_ENV=test), real POST /public/enquiries (Zod + honeypot trap + Enquiry table in TENANT_MODELS, same commit), /health kept, graceful SIGTERM/SIGINT shutdown drains + disconnects pool. LIVE demo: attempts 1–5 = 401, 6th = 429 RATE_LIMITED; evil Origin gets no ACAO; nosniff set, X-Powered-By gone — 27/27 green
+- RBAC: seedPermissions (students.read, platform.schools.read + 6 mappings) + requirePermission middleware (single indexed join, fail-closed on unknown role/key, 401 unauthenticated); wired auth→tenant→permission→selfscope and auth→platformOnly→permission. Tests: TEMP-role deny→grant→200 (own rows only, race-free), ghost/typo fail-closed, 401 direction — 30/30 green. Remaining literals documented as structural (platformOnly gate, selfscope strategy, login routing), not access decisions. Fixed seed re-run P2002 (@db.Date where must be midnight UTC).
 - tsconfig strict + noUncheckedIndexedAccess set explicitly in both workspaces, typecheck 0 errors
 
 ## What's left in this task
-- RBAC middleware (permissions tables)
+- (nothing — Phase 0 checklist complete)
 
 ## Exact next action
-RBAC middleware (roles/permissions/role_permissions lookup, no hardcoded role if/else) — say go to start it. Then Phase 0 closes: STATUS.md update, IDLE reset.
+Close Phase 0: update STATUS.md per RULES.md §6.1, reset this file to IDLE — say go.
 
 ## Notes / decisions made mid-task
 - Step 0 finding 2026-09-16: ci.yml lives at repo ROOT, but spec §19 + SECURITY_PATTERNS.md §4 assume `.github/workflows/ci.yml` — must move it there or CI never runs.
@@ -42,7 +43,7 @@ RBAC middleware (roles/permissions/role_permissions lookup, no hardcoded role if
 - Schema+migration 2026-09-16: prisma pinned 6.12.0 (NOT 6.19.x — 6.13+ pulls @prisma/config→deepmerge-ts HIGH audit fail; 6.12.0 is audit-clean, client+CLI matched pair). DB = local sandbox mysqld on 127.0.0.1:3307 (datadir in Temp/opencode/studyfy-mysql-data, root/empty pw, db studyfy_dev) — started detached via Start-Process so it survives shell exits; restart cmd in Notes history if port goes dead. Local MySQL80 (3306) credentials unknown — untouched. .env files gitignored; CI uses its own mysql:8 service. trialEndsAt has NO db default by design (registration code must set now+14d); updated_at is Prisma-managed (@updatedAt), raw SQL inserts must supply it.
 
 ## Repo state right now
-YES — 27/27 api tests (6 files), lint 0, typecheck clean, audit-high 0 vulns. GitHub CI run 35059993545: all 5 jobs SUCCESS (lint+typecheck, audit, unit+integration with 6 test files incl. fresh MySQL service, build api+web, e2e stub). Repo: github.com/kavadrushi01-source/Studyfy-Web (private). No script mismatches existed — every CI command already resolved.
+YES — 30/30 api tests (7 files), lint 0, typecheck clean (src+tests+seed), audit-high 0 vulns. Phase 0 checklist: every box done, only the STATUS.md close-out remains. GitHub CI run 35059993545 was all-green before this commit; re-push will re-run.
 
 ## Standing instruction from founder (2026-09-16)
 If `npm audit` ever reports a REAL high/critical finding: do NOT lower the
