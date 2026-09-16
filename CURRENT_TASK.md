@@ -18,13 +18,14 @@
 - Step 0 analysis: read SECURITY_PATTERNS.md + ci.yml (at repo root, not .github/workflows/) and listed path/script assumptions
 - Scaffolded monorepo per spec §19: root workspaces + tsconfig.base (strict, noUncheckedIndexedAccess), apps/api (Express hello + /health, vitest), apps/web (Next 14 App Router blank page), packages/shared-types (envelope), prisma/ placeholder — lint+typecheck+test+build all green, both servers verified running
 - Full core schema §9.1 written + migrated (20260916041047_init_core_schema, 23 models, 24 tables) — validate clean, migrate status in-sync, smoke-tested TRIAL/Asia/Kolkata defaults
+- Auth (register/login/refresh) built + tested: raw-client register with collision-safe slug, optional-slug login (absent = Platform Owner), opaque 7d refresh rotation with reuse→chain-kill, bcrypt-12, 15m JWT, gates for SUSPENDED/TRIAL-expired/disabled — 12/12 tests green
 - tsconfig strict + noUncheckedIndexedAccess set explicitly in both workspaces, typecheck 0 errors
 
 ## What's left in this task
-- Auth (register/login/refresh), tenant/platform/RBAC/self-scope middleware + tests first, seed (DEMO_DATA.md), hardening, CI green
+- Tenant/platform/RBAC/self-scope middleware + tests first, seed demo schools (DEMO_DATA.md), hardening, CI green
 
 ## Exact next action
-Auth: register/login/refresh per AGENT_START_HERE.md Phase 0 box — say go to start it.
+Tenant middleware + Prisma scoping extension + cross-tenant regression test FIRST (SECURITY_PATTERNS.md §1) — say go to start it.
 
 ## Notes / decisions made mid-task
 - Step 0 finding 2026-09-16: ci.yml lives at repo ROOT, but spec §19 + SECURITY_PATTERNS.md §4 assume `.github/workflows/ci.yml` — must move it there or CI never runs.
@@ -35,7 +36,7 @@ Auth: register/login/refresh per AGENT_START_HERE.md Phase 0 box — say go to s
 - Schema+migration 2026-09-16: prisma pinned 6.12.0 (NOT 6.19.x — 6.13+ pulls @prisma/config→deepmerge-ts HIGH audit fail; 6.12.0 is audit-clean, client+CLI matched pair). DB = local sandbox mysqld on 127.0.0.1:3307 (datadir in Temp/opencode/studyfy-mysql-data, root/empty pw, db studyfy_dev) — started detached via Start-Process so it survives shell exits; restart cmd in Notes history if port goes dead. Local MySQL80 (3306) credentials unknown — untouched. .env files gitignored; CI uses its own mysql:8 service. trialEndsAt has NO db default by design (registration code must set now+14d); updated_at is Prisma-managed (@updatedAt), raw SQL inserts must supply it.
 
 ## Repo state right now
-YES — schema valid, migration in-sync (24 tables), lint + api typecheck/test green, audit-high 0 vulns. CI migrate-deploy gap closed (migrations/ now exists).
+YES — auth done: lint 0, typecheck x4 (api src+tests, web, shared), api tests 12/12, api build + audit-high 0 vulns. Test DB studyfy_test on sandbox 3307 (migrated + roles seeded); tests force TEST_DATABASE_URL so dev DB is never touched.
 
 ---
 
