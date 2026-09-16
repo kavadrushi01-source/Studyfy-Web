@@ -23,13 +23,14 @@
 - platformOnlyMiddleware test-first: RED shown (3 fail, /platform/* was 404), then middleware (role check, raw client) + GET /platform/schools — GREEN, 18/18. Proven: no HTTP endpoint can create Platform Owner (register hardcodes SCHOOL_ADMIN, schema has no role field); route audit: every data route has exactly one of tenant/platform middleware, only credential-minting (auth) + health/hello are public by design
 - Correction 2026-09-16: an earlier "typecheck clean" read was truncated output — union-typed req.prisma call-sites never compiled; fixed by typing req.prisma as base PrismaClient with ONE cast at scoped-client creation (tenant.ts), platform path assigns raw directly
 - Self-scope test-first: 404-RED (no route) → tenant-only LEAK-RED (student A read student B = 200, v1's bug live) → studentSelfScope (pin STUDENT=[own], PARENT=[linked via join], 403 otherwise, lists filtered, no-profile fail-closed) — GREEN, 22/22 suite green
+- Demo seed per DEMO_DATA.md: brandColor column added (SOS #0D9488, Ramakrishna #7F1D1D); both ACTIVE; 8 students + full rosters each; Aditya Sharma 2 guardians; deterministic attendance (120 rows/school, ~86% present), fees (6 paid/1 pending/1 overdue per school), Unit Test 1 marks (24/school, 31–48), homework (6/school: graded+open), notices (3/school); all Demo@1234; live-verified 5-role logins + isolation (SOS admin sees 8, owner sees 2)
 - tsconfig strict + noUncheckedIndexedAccess set explicitly in both workspaces, typecheck 0 errors
 
 ## What's left in this task
-- RBAC middleware (permissions tables), seed demo schools (DEMO_DATA.md), hardening (helmet/CORS/rate-limit/health), CI green
+- RBAC middleware (permissions tables), hardening (helmet/CORS/rate-limit), CI green
 
 ## Exact next action
-RBAC middleware (roles/permissions/role_permissions lookup, no hardcoded role if/else) + seed demo schools — say which first, or go to start RBAC.
+RBAC middleware (roles/permissions/role_permissions lookup, no hardcoded role if/else) — say go to start it.
 
 ## Notes / decisions made mid-task
 - Step 0 finding 2026-09-16: ci.yml lives at repo ROOT, but spec §19 + SECURITY_PATTERNS.md §4 assume `.github/workflows/ci.yml` — must move it there or CI never runs.

@@ -90,6 +90,9 @@ model School {
   address            String?            @map("address")
   city               String?            @map("city")
   state              String?            @map("state")
+  // Per-school theme color, injected as --school-primary (§12.6).
+  // SOS teal vs Ramakrishna maroon makes tenants visually unmistakable.
+  brandColor         String?            @map("brand_color")
   phone              String?            @map("phone")
   email              String?            @map("email")
   // IANA timezone; business-day boundaries convert UTC -> this (§12.7).
