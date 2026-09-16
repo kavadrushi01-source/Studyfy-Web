@@ -1,0 +1,11 @@
+node_modules/
+apps/web/.next/
+apps/web/out/
+apps/api/dist/
+packages/*/dist/
+coverage/
+.env
+apps/api/.env
+apps/web/.env.local
+*.tsbuildinfo
+.DS_Store

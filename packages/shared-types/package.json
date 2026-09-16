@@ -1,0 +1,17 @@
+{
+  "name": "@studyfy/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "echo \"shared-types: nothing to build yet\" && exit 0",
+    "test": "echo \"shared-types: no tests yet\" && exit 0",
+    "lint": "eslint src --max-warnings=0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "typescript": "^5.6.3"
+  }
+}

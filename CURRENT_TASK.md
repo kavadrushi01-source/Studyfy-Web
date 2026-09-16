@@ -9,26 +9,30 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE
-**Phase / Module:** —
-**Last updated:** —
+**Status:** IN PROGRESS
+**Phase / Module:** Phase 0
+**Last updated:** 2026-09-16
 
 ## What's done in this task so far
-_(nothing in progress right now)_
+- Read CURRENT_TASK.md, AGENT_START_HERE.md, STUDYFY_PROJECT_SPEC.md (full v3.2), RULES.md (full v3.2) — 2026-09-16
+- Step 0 analysis: read SECURITY_PATTERNS.md + ci.yml (at repo root, not .github/workflows/) and listed path/script assumptions
+- Scaffolded monorepo per spec §19: root workspaces + tsconfig.base (strict, noUncheckedIndexedAccess), apps/api (Express hello + /health, vitest), apps/web (Next 14 App Router blank page), packages/shared-types (envelope), prisma/ placeholder — lint+typecheck+test+build all green, both servers verified running
 
 ## What's left in this task
-_(nothing in progress right now)_
+- Full core Prisma schema §9.1, auth, tenant/platform/RBAC/self-scope middleware + tests first, seed, hardening, CI green
+- Known debt: `npm audit --audit-level=high` still fails on next/postcss chain even at 14.2.35 (fix = next 16.3.5 + React 19, breaking — do as separate step before CI-green milestone); ci.yml still at root, must move to .github/workflows/
 
 ## Exact next action
-Read `AGENT_START_HERE.md`, then `STUDYFY_PROJECT_SPEC.md` §7 / `STATUS.md`
-to pick the next item from Phase 0 (or whichever phase is current).
+Full core Prisma schema §9.1 in one pass (AGENT_START_HERE.md Phase 0 box) — say go to start it.
 
 ## Notes / decisions made mid-task
-_(none yet)_
+- Step 0 finding 2026-09-16: ci.yml lives at repo ROOT, but spec §19 + SECURITY_PATTERNS.md §4 assume `.github/workflows/ci.yml` — must move it there or CI never runs.
+- Scaffold 2026-09-16: Next pinned 14.2.35 (was 14.2.5, has published vuln). Audit still reports 1 high + 1 critical on next/postcss chain — only clean fix is next 16.3.5 + React 19 (breaking, needs `next lint` removal). Deferred to pre-CI-green step.
+- Node local 24.15.0 vs CI 20 — .nvmrc pins 20 for CI parity.
+- Verified: GET /api/v1/hello + /health return envelope; web `next start` serves / (HTML checked).
 
 ## Repo state right now
-Does it build and pass tests as of the last commit? _(fill in: YES / NO —
-if NO, fixing that is the next action, before any new work.)_
+YES — builds + passes tests as of scaffold commit (lint, typecheck x3, api vitest 2/2, build api+web green; audit-high still red, tracked above).
 
 ---
 

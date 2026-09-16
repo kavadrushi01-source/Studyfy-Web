@@ -1,0 +1,10 @@
+// Placeholder — full core schema from spec §9.1 lands in the next task.
+// Kept minimal so `prisma/` exists per spec §19 without blocking the scaffold.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
