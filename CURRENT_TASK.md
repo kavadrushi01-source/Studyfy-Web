@@ -20,13 +20,15 @@
 - Full core schema §9.1 written + migrated (20260916041047_init_core_schema, 23 models, 24 tables) — validate clean, migrate status in-sync, smoke-tested TRIAL/Asia/Kolkata defaults
 - Auth (register/login/refresh) built + tested: raw-client register with collision-safe slug, optional-slug login (absent = Platform Owner), opaque 7d refresh rotation with reuse→chain-kill, bcrypt-12, 15m JWT, gates for SUSPENDED/TRIAL-expired/disabled — 12/12 tests green
 - Tenant isolation test-first: RED shown (A-token→B-students returned 200 leaking B's row), then authMiddleware + tenantMiddleware (URL-vs-token 403 TENANT_MISMATCH + subscription gate) + Prisma $extends scoping (19 TENANT_MODELS, create/createMany stamping) — GREEN, 14/14 suite green
+- platformOnlyMiddleware test-first: RED shown (3 fail, /platform/* was 404), then middleware (role check, raw client) + GET /platform/schools — GREEN, 18/18. Proven: no HTTP endpoint can create Platform Owner (register hardcodes SCHOOL_ADMIN, schema has no role field); route audit: every data route has exactly one of tenant/platform middleware, only credential-minting (auth) + health/hello are public by design
+- Correction 2026-09-16: an earlier "typecheck clean" read was truncated output — union-typed req.prisma call-sites never compiled; fixed by typing req.prisma as base PrismaClient with ONE cast at scoped-client creation (tenant.ts), platform path assigns raw directly
 - tsconfig strict + noUncheckedIndexedAccess set explicitly in both workspaces, typecheck 0 errors
 
 ## What's left in this task
-- platformOnlyMiddleware + RBAC + Student/Parent self-scope + tests first, seed demo schools (DEMO_DATA.md), hardening, CI green
+- RBAC + Student/Parent self-scope + tests first, seed demo schools (DEMO_DATA.md), hardening, CI green
 
 ## Exact next action
-platformOnlyMiddleware + RBAC + self-scope (SECURITY_PATTERNS.md §2/§3), tests first — say go to start it.
+RBAC middleware + self-scope (SECURITY_PATTERNS.md §3), tests first — say go to start it.
 
 ## Notes / decisions made mid-task
 - Step 0 finding 2026-09-16: ci.yml lives at repo ROOT, but spec §19 + SECURITY_PATTERNS.md §4 assume `.github/workflows/ci.yml` — must move it there or CI never runs.
@@ -37,7 +39,7 @@ platformOnlyMiddleware + RBAC + self-scope (SECURITY_PATTERNS.md §2/§3), tests
 - Schema+migration 2026-09-16: prisma pinned 6.12.0 (NOT 6.19.x — 6.13+ pulls @prisma/config→deepmerge-ts HIGH audit fail; 6.12.0 is audit-clean, client+CLI matched pair). DB = local sandbox mysqld on 127.0.0.1:3307 (datadir in Temp/opencode/studyfy-mysql-data, root/empty pw, db studyfy_dev) — started detached via Start-Process so it survives shell exits; restart cmd in Notes history if port goes dead. Local MySQL80 (3306) credentials unknown — untouched. .env files gitignored; CI uses its own mysql:8 service. trialEndsAt has NO db default by design (registration code must set now+14d); updated_at is Prisma-managed (@updatedAt), raw SQL inserts must supply it.
 
 ## Repo state right now
-YES — 14/14 api tests (incl. tenant-isolation 2/2), lint 0, typecheck clean, audit-high 0 vulns. Adaptations vs SECURITY_PATTERNS.md reference: findUnique caveat documented (use findFirst), createMany stamping added, req.prisma optional + explicit 500-check instead of assertion.
+YES — 18/18 api tests (auth 10, tenant 2, platform 4), lint 0, typecheck clean (src+tests), audit-high 0 vulns.
 
 ---
 

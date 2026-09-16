@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { scopedPrismaClient } from "../lib/prisma-tenant.js";
 
@@ -50,7 +51,11 @@ export function tenantMiddleware(req: Request, res: Response, next: NextFunction
         );
         return;
       }
-      req.prisma = scopedPrismaClient(prisma, schoolId);
+      // The $extends wrapper is runtime-only row narrowing — its delegate
+      // types are intentionally incompatible with the base client, so the
+      // cast lives HERE, once, where the scoped client is born (never at
+      // call sites). req.prisma stays typed as PrismaClient.
+      req.prisma = scopedPrismaClient(prisma, schoolId) as unknown as PrismaClient;
       req.schoolId = schoolId;
       next();
     })
