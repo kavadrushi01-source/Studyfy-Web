@@ -20,7 +20,7 @@
 
 ## What's left in this task
 - Full core Prisma schema §9.1, auth, tenant/platform/RBAC/self-scope middleware + tests first, seed, hardening, CI green
-- Known debt: `npm audit --audit-level=high` still fails on next/postcss chain even at 14.2.35 (fix = next 16.3.5 + React 19, breaking — do as separate step before CI-green milestone); ci.yml still at root, must move to .github/workflows/
+- Both prior debts resolved this session (see Notes): ci.yml moved, audit-high green at 0 vulns
 
 ## Exact next action
 Full core Prisma schema §9.1 in one pass (AGENT_START_HERE.md Phase 0 box) — say go to start it.
@@ -28,11 +28,12 @@ Full core Prisma schema §9.1 in one pass (AGENT_START_HERE.md Phase 0 box) — 
 ## Notes / decisions made mid-task
 - Step 0 finding 2026-09-16: ci.yml lives at repo ROOT, but spec §19 + SECURITY_PATTERNS.md §4 assume `.github/workflows/ci.yml` — must move it there or CI never runs.
 - Scaffold 2026-09-16: Next pinned 14.2.35 (was 14.2.5, has published vuln). Audit still reports 1 high + 1 critical on next/postcss chain — only clean fix is next 16.3.5 + React 19 (breaking, needs `next lint` removal). Deferred to pre-CI-green step.
+- Debts cleared 2026-09-16: (1) ci.yml moved to .github/workflows/ci.yml via git mv. (2) web upgraded next 14.2.35→16.3.5 + react/react-dom 18→19 + @types/react(-dom) 19, web `lint` switched `next lint`→`eslint .`; api vitest 2→5.0.1 + @types/node 20→24 (vitest 5 peer requirement). `npm audit --audit-level=high` now exits 0, 0 vulns. Remaining moderate-only vitest notices gone too. No other code touched.
 - Node local 24.15.0 vs CI 20 — .nvmrc pins 20 for CI parity.
 - Verified: GET /api/v1/hello + /health return envelope; web `next start` serves / (HTML checked).
 
 ## Repo state right now
-YES — builds + passes tests as of scaffold commit (lint, typecheck x3, api vitest 2/2, build api+web green; audit-high still red, tracked above).
+YES — lint, typecheck x3, api vitest 2/2, build api+web, `npm audit --audit-level=high` exits 0 (0 vulns), both servers verified live. Only known gap: CI's `npx prisma migrate deploy` has no migrations yet — expected until §9.1 schema lands.
 
 ---
 
