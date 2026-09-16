@@ -1,0 +1,92 @@
+name: CI
+
+# Enforces RULES.md §9: lint + test + a hard audit gate on every PR.
+# A high/critical dependency vulnerability fails the build here instead of
+# sitting unresolved next to a self-reported "% complete" the way it did
+# in the v1 build.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck --workspace=@studyfy/api
+      - run: npm run typecheck --workspace=@studyfy/web
+
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # This is the gate v1 didn't have: a high/critical vuln fails CI,
+      # it doesn't just get logged in STATUS.md and left unresolved.
+      - run: npm audit --audit-level=high
+
+  unit-and-integration:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: studyfy_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping" --health-interval=10s
+          --health-timeout=5s --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: mysql://root:root@localhost:3306/studyfy_test
+      - run: npm run test --workspace=@studyfy/api
+        env:
+          DATABASE_URL: mysql://root:root@localhost:3306/studyfy_test
+          JWT_ACCESS_SECRET: test-secret
+          JWT_REFRESH_SECRET: test-refresh-secret
+
+  build:
+    needs: [lint-and-typecheck, security-audit, unit-and-integration]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace=@studyfy/api
+      - run: npm run build --workspace=@studyfy/web
+
+  e2e:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npm run test:e2e --workspace=@studyfy/web
