@@ -44,6 +44,13 @@ RBAC middleware (roles/permissions/role_permissions lookup, no hardcoded role if
 ## Repo state right now
 YES — 27/27 api tests (6 files), lint 0, typecheck clean, audit-high 0 vulns. GitHub CI run 35059993545: all 5 jobs SUCCESS (lint+typecheck, audit, unit+integration with 6 test files incl. fresh MySQL service, build api+web, e2e stub). Repo: github.com/kavadrushi01-source/Studyfy-Web (private). No script mismatches existed — every CI command already resolved.
 
+## Standing instruction from founder (2026-09-16)
+If `npm audit` ever reports a REAL high/critical finding: do NOT lower the
+threshold (`--audit-level`), do NOT add an audit exception, do NOT pin
+around it silently. Stop, report what the advisory is (package, severity,
+what it affects), and present the options (upgrade / replace dep / accept
+with documented reason) for the founder to choose. The CI gate stays hard.
+
 ---
 
 ## How to use this file (read once, then follow every session)
