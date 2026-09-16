@@ -13,6 +13,11 @@ declare global {
       // never import the raw singleton, for TENANT_MODELS reads/writes.
       prisma?: PrismaClient;
       schoolId?: string;
+      // Set by studentSelfScope for STUDENT/PARENT roles: the ONLY student
+      // ids this caller may see. Absent = unconstrained (staff/admin —
+      // RBAC refines that separately). List handlers MUST filter by it;
+      // detail routes are 403-checked by the middleware itself.
+      studentScope?: { studentIds: string[] };
     }
   }
 }
