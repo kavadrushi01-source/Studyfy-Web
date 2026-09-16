@@ -2,10 +2,17 @@ import cookieParser from "cookie-parser";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import { authRouter } from "./modules/auth/auth.router.js";
 import { platformRouter } from "./modules/platform/platform.router.js";
+import { publicRouter } from "./modules/public/public.router.js";
 import { studentsRouter } from "./modules/students/students.router.js";
+import { applyCors, applyHelmet } from "./middleware/security.js";
 
 export function createApp(): Express {
   const app = express();
+  // Behind Render's proxy in production: trust exactly one hop so
+  // rate limiters see the real client IP (spec §12.1, §13).
+  app.set("trust proxy", 1);
+  applyHelmet(app);
+  applyCors(app);
   app.use(express.json());
   app.use(cookieParser());
 
@@ -19,6 +26,7 @@ export function createApp(): Express {
   // derives school_id from. tenantMiddleware starts after this.
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/platform", platformRouter);
+  app.use("/api/v1/public", publicRouter);
   app.use("/api/v1", studentsRouter);
 
   // Liveness probe (spec §13.5 / RULES.md §4).

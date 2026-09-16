@@ -24,10 +24,11 @@
 - Correction 2026-09-16: an earlier "typecheck clean" read was truncated output — union-typed req.prisma call-sites never compiled; fixed by typing req.prisma as base PrismaClient with ONE cast at scoped-client creation (tenant.ts), platform path assigns raw directly
 - Self-scope test-first: 404-RED (no route) → tenant-only LEAK-RED (student A read student B = 200, v1's bug live) → studentSelfScope (pin STUDENT=[own], PARENT=[linked via join], 403 otherwise, lists filtered, no-profile fail-closed) — GREEN, 22/22 suite green
 - Demo seed per DEMO_DATA.md: brandColor column added (SOS #0D9488, Ramakrishna #7F1D1D); both ACTIVE; 8 students + full rosters each; Aditya Sharma 2 guardians; deterministic attendance (120 rows/school, ~86% present), fees (6 paid/1 pending/1 overdue per school), Unit Test 1 marks (24/school, 31–48), homework (6/school: graded+open), notices (3/school); all Demo@1234; live-verified 5-role logins + isolation (SOS admin sees 8, owner sees 2)
+- Hardening: helmet, CORS locked to FRONTEND_ORIGIN (exact match, no-origin passes), sliding-window limiters on login (5/15min) + register (10/hr) + public enquiries (5/15min, skipped in NODE_ENV=test), real POST /public/enquiries (Zod + honeypot trap + Enquiry table in TENANT_MODELS, same commit), /health kept, graceful SIGTERM/SIGINT shutdown drains + disconnects pool. LIVE demo: attempts 1–5 = 401, 6th = 429 RATE_LIMITED; evil Origin gets no ACAO; nosniff set, X-Powered-By gone — 27/27 green
 - tsconfig strict + noUncheckedIndexedAccess set explicitly in both workspaces, typecheck 0 errors
 
 ## What's left in this task
-- RBAC middleware (permissions tables), hardening (helmet/CORS/rate-limit), CI green
+- RBAC middleware (permissions tables), CI green
 
 ## Exact next action
 RBAC middleware (roles/permissions/role_permissions lookup, no hardcoded role if/else) — say go to start it.
@@ -41,7 +42,7 @@ RBAC middleware (roles/permissions/role_permissions lookup, no hardcoded role if
 - Schema+migration 2026-09-16: prisma pinned 6.12.0 (NOT 6.19.x — 6.13+ pulls @prisma/config→deepmerge-ts HIGH audit fail; 6.12.0 is audit-clean, client+CLI matched pair). DB = local sandbox mysqld on 127.0.0.1:3307 (datadir in Temp/opencode/studyfy-mysql-data, root/empty pw, db studyfy_dev) — started detached via Start-Process so it survives shell exits; restart cmd in Notes history if port goes dead. Local MySQL80 (3306) credentials unknown — untouched. .env files gitignored; CI uses its own mysql:8 service. trialEndsAt has NO db default by design (registration code must set now+14d); updated_at is Prisma-managed (@updatedAt), raw SQL inserts must supply it.
 
 ## Repo state right now
-YES — 22/22 api tests (auth 10, tenant 2, platform 4, self-scope 4), lint 0, typecheck clean (src+tests), audit-high 0 vulns.
+YES — 27/27 api tests (6 files), lint 0, typecheck clean (src+tests), audit-high 0 vulns. Enquiry migration applied to dev+test DBs.
 
 ---
 

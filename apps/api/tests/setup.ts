@@ -18,6 +18,13 @@ if (!process.env.JWT_ACCESS_SECRET) {
   throw new Error("Set JWT_ACCESS_SECRET (local .env or CI env) to run API tests.");
 }
 
+// Deterministic CORS origin for tests (mirrors .env.example's local value).
+// Set BEFORE any test file builds the app, since applyCors reads it at
+// createApp() time.
+if (!process.env.FRONTEND_ORIGIN) {
+  process.env.FRONTEND_ORIGIN = "http://localhost:3000";
+}
+
 let disconnect: () => Promise<void> = async () => undefined;
 
 beforeAll(async () => {

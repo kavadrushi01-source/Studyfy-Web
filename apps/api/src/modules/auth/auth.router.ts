@@ -1,5 +1,6 @@
 import { Router, type CookieOptions, type Request, type Response } from "express";
 import { catchAsync } from "../../lib/async.js";
+import { loginLimiter, registerLimiter } from "../../middleware/security.js";
 import { loginSchema, registerSchema } from "./auth.schemas.js";
 import { AuthError, login, register, rotateRefreshToken } from "./auth.service.js";
 
@@ -29,6 +30,7 @@ export const authRouter = Router();
 
 authRouter.post(
   "/register",
+  registerLimiter(),
   catchAsync(async (req: Request, res: Response) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -59,6 +61,7 @@ authRouter.post(
 
 authRouter.post(
   "/login",
+  loginLimiter(),
   catchAsync(async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {

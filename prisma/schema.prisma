@@ -126,6 +126,7 @@ model School {
   homework            Homework[]
   homeworkSubmissions HomeworkSubmission[]
   notices             Notice[]
+  enquiries           Enquiry[]
 
   @@map("schools")
 }
@@ -596,6 +597,29 @@ model AuthToken {
 
   @@index([userId])
   @@map("auth_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Admission enquiries — public intake for the Phase 2 CRM pipeline (§7 #16).
+// Submitted WITHOUT auth (like register), always for one school identified
+// by slug. Tenant-scoped on reads (admin sees own school's pipeline);
+// creation uses the raw client since no JWT exists yet. Added to
+// TENANT_MODELS in the same commit (RULES.md §3).
+// ---------------------------------------------------------------------------
+
+model Enquiry {
+  id        String   @id @default(cuid()) @map("id")
+  schoolId  String   @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id])
+  name      String   @map("name")
+  phone     String?  @map("phone")
+  email     String?  @map("email")
+  message   String   @map("message") @db.Text
+  status    String   @default("NEW") @map("status")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, createdAt])
+  @@map("enquiries")
 }
 
 // ---------------------------------------------------------------------------

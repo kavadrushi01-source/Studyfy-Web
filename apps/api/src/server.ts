@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { createApp } from "./app.js";
+import { prisma } from "./lib/prisma.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
 
@@ -11,7 +12,13 @@ const server = app.listen(PORT, () => {
 
 function shutdown(signal: NodeJS.Signals): void {
   console.log(`Received ${signal}, shutting down gracefully...`);
-  server.close(() => process.exit(0));
+  // Stop taking new work, drain connections, release the DB pool, then exit.
+  server.close(() => {
+    prisma
+      .$disconnect()
+      .catch(() => undefined)
+      .finally(() => process.exit(0));
+  });
   // Force-exit if connections hang (Render free-tier friendly).
   setTimeout(() => process.exit(1), 10_000).unref();
 }
