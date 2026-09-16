@@ -1,6 +1,7 @@
 import cookieParser from "cookie-parser";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import { authRouter } from "./modules/auth/auth.router.js";
+import { studentsRouter } from "./modules/students/students.router.js";
 
 export function createApp(): Express {
   const app = express();
@@ -16,6 +17,7 @@ export function createApp(): Express {
   // creates the school, login/refresh mint the credentials everything else
   // derives school_id from. tenantMiddleware starts after this.
   app.use("/api/v1/auth", authRouter);
+  app.use("/api/v1", studentsRouter);
 
   // Liveness probe (spec §13.5 / RULES.md §4).
   app.get("/health", (_req, res) => {
