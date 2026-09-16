@@ -21,6 +21,7 @@
 ## What's left in this task
 - Full core Prisma schema §9.1, auth, tenant/platform/RBAC/self-scope middleware + tests first, seed, hardening, CI green
 - Both prior debts resolved this session (see Notes): ci.yml moved, audit-high green at 0 vulns
+- tsconfig strict + noUncheckedIndexedAccess set explicitly in both workspaces, typecheck 0 errors
 
 ## Exact next action
 Full core Prisma schema §9.1 in one pass (AGENT_START_HERE.md Phase 0 box) — say go to start it.
