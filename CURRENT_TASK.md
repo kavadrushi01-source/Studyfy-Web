@@ -28,10 +28,10 @@
 - tsconfig strict + noUncheckedIndexedAccess set explicitly in both workspaces, typecheck 0 errors
 
 ## What's left in this task
-- RBAC middleware (permissions tables), CI green
+- RBAC middleware (permissions tables)
 
 ## Exact next action
-RBAC middleware (roles/permissions/role_permissions lookup, no hardcoded role if/else) — say go to start it.
+RBAC middleware (roles/permissions/role_permissions lookup, no hardcoded role if/else) — say go to start it. Then Phase 0 closes: STATUS.md update, IDLE reset.
 
 ## Notes / decisions made mid-task
 - Step 0 finding 2026-09-16: ci.yml lives at repo ROOT, but spec §19 + SECURITY_PATTERNS.md §4 assume `.github/workflows/ci.yml` — must move it there or CI never runs.
@@ -42,7 +42,7 @@ RBAC middleware (roles/permissions/role_permissions lookup, no hardcoded role if
 - Schema+migration 2026-09-16: prisma pinned 6.12.0 (NOT 6.19.x — 6.13+ pulls @prisma/config→deepmerge-ts HIGH audit fail; 6.12.0 is audit-clean, client+CLI matched pair). DB = local sandbox mysqld on 127.0.0.1:3307 (datadir in Temp/opencode/studyfy-mysql-data, root/empty pw, db studyfy_dev) — started detached via Start-Process so it survives shell exits; restart cmd in Notes history if port goes dead. Local MySQL80 (3306) credentials unknown — untouched. .env files gitignored; CI uses its own mysql:8 service. trialEndsAt has NO db default by design (registration code must set now+14d); updated_at is Prisma-managed (@updatedAt), raw SQL inserts must supply it.
 
 ## Repo state right now
-YES — 27/27 api tests (6 files), lint 0, typecheck clean (src+tests), audit-high 0 vulns. Enquiry migration applied to dev+test DBs.
+YES — 27/27 api tests (6 files), lint 0, typecheck clean, audit-high 0 vulns. GitHub CI run 35059993545: all 5 jobs SUCCESS (lint+typecheck, audit, unit+integration with 6 test files incl. fresh MySQL service, build api+web, e2e stub). Repo: github.com/kavadrushi01-source/Studyfy-Web (private). No script mismatches existed — every CI command already resolved.
 
 ---
 
