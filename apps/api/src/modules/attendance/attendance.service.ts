@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { AuthError } from "../auth/auth.service.js";
 import type { MarkAttendanceInput, SummaryInput } from "./attendance.schemas.js";
 
@@ -68,7 +69,60 @@ export async function markAttendance(
       }),
     ),
   );
+
+  // Absentee alerts (§7 Phase 1 #2): EVERY linked guardian gets one — the
+  // join table means plural by default, so iterate links, not students.
+  // Best-effort by design: email must never fail a marking. Failures are
+  // logged with the student/day for the office to follow up on.
+  const absentIds = input.records.filter((r) => r.status === "ABSENT").map((r) => r.studentId);
+  if (absentIds.length > 0) {
+    await sendAbsenteeAlerts(db, section.schoolId, absentIds, input.date).catch((err: unknown) => {
+      console.error("Absentee alerts failed after successful marking:", err);
+    });
+  }
   return { marked: input.records.length };
+}
+
+async function sendAbsenteeAlerts(
+  db: PrismaClient,
+  schoolId: string,
+  studentIds: string[],
+  date: string,
+): Promise<void> {
+  let send: ReturnType<typeof mailer>;
+  try {
+    send = mailer();
+  } catch (err) {
+    if (err instanceof MailerUnconfiguredError) {
+      console.warn("Skipping absentee alerts: SMTP not configured.");
+      return;
+    }
+    throw err;
+  }
+  const school = await db.school.findUnique({ where: { id: schoolId } });
+  const students = await db.student.findMany({
+    where: { id: { in: studentIds } },
+    select: {
+      id: true,
+      user: { select: { name: true } },
+      guardianLinks: { select: { parent: { select: { name: true, email: true } } } },
+    },
+  });
+  const deliveries = students.flatMap((student) =>
+    student.guardianLinks.map((link) => ({
+      to: link.parent.email,
+      guardianName: link.parent.name,
+      studentName: student.user.name,
+      date,
+      schoolName: school?.name ?? "your school",
+    })),
+  );
+  const results = await Promise.allSettled(deliveries.map((alert) => send.sendAbsenteeAlert(alert)));
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.error("Absentee alert delivery failed:", result.reason);
+    }
+  }
 }
 
 export interface StudentSummary {

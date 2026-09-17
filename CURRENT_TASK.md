@@ -26,6 +26,7 @@
 - Chunk 1 sections: classTeacherId assignable via PATCH (teacherEmail, null clears) + GET sections roster; sections.read (ADMIN/ACCOUNTANT/TEACHER) + sections.write (ADMIN-only) seeded; non-teacher/unknown emails 404, foreign sections 404; /sections UI with per-row assign/clear — 52/52 green
 - Chunk 2 marking screen: /attendance/mark matches ref-b language (white card, green/red pills, one Save) — roster toggles, mark-all-present, single save, skeleton rows; unassigned-teacher 403 surfaces as-is
 - Chunk 2 summary: GET .../attendance/summary with literal prefix sums (§11: ordered weights → cumulative array → O(1) range diff; PRESENT=1/LATE=0.5 documented); month or from/to ranges; self-scope contract (omitted id → own/linked, foreign id → 403); new attendance.read key; math proven (P,P,A,L → 62.5%) — 58/58 green
+- Chunk 2 absentee alerts: Brevo SMTP mailer (nodemailer, STARTTLS 587) hooked post-transaction — EVERY linked guardian emailed (join iterated, plural by default), present-only silence, SMTP-down/unconfigured never fails marking (logged); test seam recorder — 61/61 green. Ops step remains: free Brevo account → SMTP_* in .env (never chat).
 - Chunk 2 attendance marking: POST /schools/:schoolId/attendance bulk upsert (re-mark overwrites via studentId+date, transacted; markedBy stamped for teachers, null for admin); gate = section's class teacher or School Admin (attendance.mark keyed, authorship 403 NOT_SECTION_TEACHER distinct from key 403); outsider students 400, validation 400 — 55/55 green
 
 ## What's left in this task
