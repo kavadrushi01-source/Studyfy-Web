@@ -26,11 +26,11 @@ import { PrismaClient } from '@prisma/client';
 // schema without being added to a list just like this one.
 export const TENANT_MODELS = [
   'User', 'Student', 'Staff', 'Class', 'Section', 'AcademicYear', 'Subject',
-  'StudentGuardian', 'Attendance', 'FeeStructure', 'FeeInvoice',
-  'FeePayment', 'Exam', 'ExamSubject', 'Mark', 'TimetableSlot', 'Homework',
-  'HomeworkSubmission', 'Notice', 'Message', 'Document', 'AuditLog',
-  'Payroll', 'MessageGroup', 'Book', 'BookIssue', 'Vehicle',
-  'TransportRoute', 'StudentRoute', 'Enquiry',
+  'StudentGuardian', 'TeacherSubject', 'Attendance', 'FeeStructure',
+  'FeeInvoice', 'FeePayment', 'Exam', 'ExamSubject', 'Mark',
+  'TimetableSlot', 'Homework', 'HomeworkSubmission', 'Notice', 'Message',
+  'Document', 'AuditLog', 'Payroll', 'MessageGroup', 'Book', 'BookIssue',
+  'Vehicle', 'TransportRoute', 'StudentRoute', 'Enquiry',
   'Ticket', 'InventoryItem',
 ] as const;
 // Case in point #1: `AcademicYear` and `Subject` were missing from this
@@ -40,10 +40,16 @@ export const TENANT_MODELS = [
 // the single parent_id FK was replaced with a proper many-to-many
 // guardian relationship) was ALSO missing from this list until the same
 // kind of review caught it — added the same day the join table itself
-// was designed. Two strikes on the exact failure mode this list exists to
-// prevent, in the same file, within one build. Re-check this list against
-// §9.1 every single time the schema changes — "I'll remember" isn't a
-// control, this list having every model in it is.
+// was designed.
+// Case in point #3: `TeacherSubject` (spec §9.1) wasn't even in the
+// schema at all until it surfaced while writing Phase 1 build prompts —
+// a stage well past schema design and past several dedicated review
+// passes. If a table can go missing this late, "I'll remember to add it"
+// was never a real control.
+// Three strikes on the exact failure mode this list exists to prevent, in
+// the same file, within one build. Re-check this list against §9.1 every
+// single time the schema changes — "I'll remember" isn't a control, this
+// list having every model in it is.
 // Deliberately NOT on this list: `Role`, `Permission`, `RolePermission`.
 // Unlike Subject (genuinely different per school) these are a fixed,
 // global set the whole platform shares — "Teacher" means the same thing

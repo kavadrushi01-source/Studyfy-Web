@@ -508,10 +508,11 @@ schools (tenant root, has `timezone` §12.7 and `subscriptionStatus`/`trialEndsA
  ├── users (school_id FK, NULLABLE — see note below; roleId FK → the global roles table)
  ├── academic_years (school_id FK)
  ├── subjects (school_id FK)  ← seeded from §3's default list, editable
- ├── classes (school_id FK) ── sections (class_id FK)
+ ├── classes (school_id FK) ── sections (class_id FK, classTeacherId FK → staff — see note below)
  ├── students (user_id FK, section_id FK)
  ├── student_guardians (student_id FK, parent_user_id FK, relationship)  ← join table, not a single parent_id: real families often need 2+ guardians per student, and one parent commonly has several children
  ├── staff (user_id FK)
+ ├── teacher_subjects (staff_id FK, subject_id FK)  ← which subjects a teacher is qualified to teach; added in Phase 1 (Timetable generation and Messaging's teaching-relationship scope both need it — see §9.1's note below), not part of Phase 0's initial schema
  ├── attendance (student_id FK, marked_by FK → staff, date, status)
  ├── fee_structures (class_id FK) ── fee_invoices (student_id FK) ── fee_payments (invoice_id FK)
  ├── exams (school_id FK) ── exam_subjects (→ subjects) ── marks (student_id FK, exam_subject_id FK)
@@ -524,7 +525,7 @@ schools (tenant root, has `timezone` §12.7 and `subscriptionStatus`/`trialEndsA
  └── audit_logs (school_id FK, actor_id FK, action, entity, before/after JSON)
 ```
 
-**Six things easy to get wrong here:**
+**Eight things easy to get wrong here:**
 - **`users.school_id` is nullable, and NULL means exactly one thing: a
   Platform Owner account.** Every other role requires it. Don't make it
   nullable "for flexibility" elsewhere — that's how a tenant boundary
@@ -562,6 +563,26 @@ schools (tenant root, has `timezone` §12.7 and `subscriptionStatus`/`trialEndsA
   literally true from the first registration, not just marketing copy.
   Don't wait to add the column until Phase 4; add the field now, build the
   UI to manage it later.
+- **`sections.classTeacherId`** is a deliberately lightweight assignment —
+  not the same thing as the full `timetable_slots` schedule. Attendance
+  (§7 Phase 1 #2) needs "which teacher can mark attendance for this
+  section" from the start; the full period-by-period, subject-by-subject
+  timetable (§7 Phase 1 #5) is a separate, richer feature built later in
+  the same phase. Don't block Attendance on Timetable existing first — set
+  the class teacher during school setup (§7 Phase 0), and let Timetable
+  layer richer per-subject scheduling on top whenever it's built.
+- **`teacher_subjects`** (which subjects a teacher is qualified to teach)
+  is what Timetable's generator and Messaging's teaching-relationship
+  scope (§13.7) both actually need — and it was missing from this schema
+  entirely until it surfaced while writing the Phase 1 build prompts, not
+  during schema design itself. Worth being honest about: that's a real
+  instance of a gap slipping through review and only showing up once
+  someone tried to actually sequence the work — which is exactly why the
+  mental-simulation review passes on this plan kept finding things a pure
+  read didn't. Add this table in Phase 1 (Chunk 3, alongside Timetable),
+  and add it to `SECURITY_PATTERNS.md`'s `TENANT_MODELS` in the same
+  commit — don't let it become a fourth instance of that exact list
+  missing an entry.
 
 ### 9.2 Indexing
 Composite `attendance(school_id, section_id, date)`, `students(school_id,
