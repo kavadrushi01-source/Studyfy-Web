@@ -26,3 +26,27 @@ export const markAttendanceSchema = z.object({
 });
 
 export type MarkAttendanceInput = z.infer<typeof markAttendanceSchema>;
+
+// Monthly/term summary (§10). month defaults to the current UTC month;
+// from/to override it for custom ranges (term reports).
+export const summarySchema = z.object({
+  month: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}$/, "Month must be YYYY-MM.")
+    .optional(),
+  from: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "From must be YYYY-MM-DD.")
+    .optional(),
+  to: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "To must be YYYY-MM-DD.")
+    .optional(),
+  sectionId: z.string().trim().max(40).optional(),
+  studentId: z.string().trim().max(40).optional(),
+});
+
+export type SummaryInput = z.infer<typeof summarySchema>;
