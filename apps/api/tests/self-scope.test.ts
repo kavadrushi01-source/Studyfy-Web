@@ -11,7 +11,7 @@ function uid(): string {
   return randomUUID().slice(0, 8);
 }
 
-async function registerSchool(): Promise<{ schoolId: string; slug: string }> {
+async function registerSchool(): Promise<{ schoolId: string; slug: string; adminToken: string }> {
   const res = await request(app)
     .post("/api/v1/auth/register")
     .send({
@@ -21,7 +21,11 @@ async function registerSchool(): Promise<{ schoolId: string; slug: string }> {
       adminPassword: "password-123",
     })
     .expect(201);
-  return { schoolId: res.body.data.school.id as string, slug: res.body.data.school.slug as string };
+  return {
+    schoolId: res.body.data.school.id as string,
+    slug: res.body.data.school.slug as string,
+    adminToken: res.body.data.accessToken as string,
+  };
 }
 
 async function createSection(schoolId: string): Promise<string> {
@@ -76,6 +80,21 @@ async function createParentUser(schoolId: string, slug: string, linkedStudentId:
   await prisma.studentGuardian.create({
     data: { schoolId, studentId: linkedStudentId, parentId: parent.id, relationship: "Father" },
   });
+  const login = await request(app).post("/api/v1/auth/login").send({ email, password, schoolSlug: slug }).expect(200);
+  return login.body.data.accessToken as string;
+}
+
+async function loginAsTeacher(schoolId: string, slug: string): Promise<string> {
+  const email = `teacher-${uid()}@example.com`;
+  const password = "teacher-pass-123";
+  const role = await prisma.role.findUnique({ where: { name: "TEACHER" } });
+  if (!role) {
+    throw new Error("TEACHER role must be seeded");
+  }
+  const user = await prisma.user.create({
+    data: { schoolId, roleId: role.id, email, passwordHash: await bcrypt.hash(password, 4), name: "Scope Teacher" },
+  });
+  await prisma.staff.create({ data: { schoolId, userId: user.id, designation: "Teacher" } });
   const login = await request(app).post("/api/v1/auth/login").send({ email, password, schoolSlug: slug }).expect(200);
   return login.body.data.accessToken as string;
 }
@@ -150,5 +169,21 @@ describe("student/parent self-scope (SECURITY_PATTERNS.md §3)", () => {
     const ids = (list.body.data.students as { id: string }[]).map((s) => s.id);
     expect(ids).toEqual([childA.studentId]);
     expect(ids).not.toContain(childB.studentId);
+  });
+
+  it("lets School Admin and Teacher read any in-school student (permission, no self pin)", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const sectionId = await createSection(schoolId);
+    const studentA = await createStudentUser(schoolId, sectionId);
+    const teacherToken = await loginAsTeacher(schoolId, slug);
+
+    for (const token of [adminToken, teacherToken]) {
+      const res = await request(app)
+        .get(`/api/v1/schools/${schoolId}/students/${studentA.studentId}`)
+        .set("Authorization", `Bearer ${token}`)
+        .expect(200);
+      expect(res.body.data.student.id).toBe(studentA.studentId);
+      expect(res.body.data.student.user.email).toContain("@example.com");
+    }
   });
 });

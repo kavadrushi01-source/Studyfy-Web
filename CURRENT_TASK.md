@@ -18,6 +18,7 @@
 - Baseline re-verified per rule 2a: sandbox mysqld on 3307 had died between sessions — restarted detached (datadir intact), suite 30/30 green before any new work
 - Phase 1 groundwork: `documents` table (§9.1: owner FK, cloudinary_url, type) + code TENANT_MODELS entry in the same commit; migrated dev+test, 30/30 still green
 - Chunk 1 SIS admission: POST /schools/:schoolId/students (auth→tenant→students.write) creating users row + students row + guardian accounts/links, per-account random temp passwords returned once; new students.write permission seeded (ADMIN/ACCOUNTANT); teacher 403, foreign-section 404, dup-email 409 tested — 35/35 green; matching UI form at /students/new (token-paste dev workflow until login UI)
+- Chunk 1 profile: confirmed GET detail chain auth→tenant→students.read→selfScope in code (not assumed); added admin/teacher allow-any-in-school tests — self-scope suite 5/5, full 36/36; profile screen at /students/[id] (own/child/staff views decided server-side, 403 surfaced as-is)
 
 ## What's left in this task
 - Chunk 1: SIS #1 (admission, profile, documents, ID cards) + Notices #7 (board + email delivery)
