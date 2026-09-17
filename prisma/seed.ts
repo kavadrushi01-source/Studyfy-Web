@@ -49,6 +49,7 @@ const PERMISSIONS: { key: string; description: string }[] = [
   { key: "students.write", description: "Admit and edit students (School Admin, Accountant)" },
   { key: "sections.read", description: "List classes/sections and assignments" },
   { key: "sections.write", description: "Assign class teachers to sections (School Admin)" },
+  { key: "attendance.mark", description: "Mark attendance (class teacher of the section, School Admin)" },
   { key: "documents.read", description: "Read uploaded documents (staff; students/parents narrowed to own)" },
   { key: "documents.write", description: "Upload admission documents (School Admin, Accountant)" },
   { key: "platform.schools.read", description: "List every school cross-tenant (Platform Owner only)" },
@@ -58,8 +59,8 @@ const PERMISSIONS: { key: string; description: string }[] = [
 // PERMISSION grants access while self-scope narrows ROWS — holding the key
 // never means seeing everyone.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "documents.read", "documents.write"],
-  TEACHER: ["students.read", "sections.read", "documents.read"],
+  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "documents.read", "documents.write"],
+  TEACHER: ["students.read", "sections.read", "attendance.mark", "documents.read"],
   ACCOUNTANT: ["students.read", "students.write", "sections.read", "documents.read", "documents.write"],
   STUDENT: ["students.read", "documents.read"],
   PARENT: ["students.read", "documents.read"],
