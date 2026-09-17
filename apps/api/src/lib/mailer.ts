@@ -8,8 +8,17 @@ export interface AbsenteeAlert {
   schoolName: string;
 }
 
+export interface NoticeEmail {
+  to: string;
+  name: string;
+  title: string;
+  body: string;
+  schoolName: string;
+}
+
 export interface Mailer {
   sendAbsenteeAlert(alert: AbsenteeAlert): Promise<void>;
+  sendNoticeEmail(email: NoticeEmail): Promise<void>;
 }
 
 // Brevo free SMTP relay (spec §2: 300/day, forever, no card) — the REAL
@@ -43,6 +52,15 @@ class SmtpMailer implements Mailer {
       ].join("\n"),
     });
   }
+
+  async sendNoticeEmail(email: NoticeEmail): Promise<void> {
+    await this.transporter.sendMail({
+      from: this.from(),
+      to: email.to,
+      subject: `${email.title} — ${email.schoolName}`,
+      text: [`Dear ${email.name},`, ``, email.body, ``, `— ${email.schoolName} via Studyfy`].join("\n"),
+    });
+  }
 }
 
 export class MailerUnconfiguredError extends Error {
@@ -58,6 +76,12 @@ let override: Mailer | null = null;
 export function setMailer(mailer: Mailer | null): void {
   override = mailer;
 }
+
+// Base stub tests spread and override per-case: { ...stubMailer, sendX }.
+export const stubMailer: Mailer = {
+  sendAbsenteeAlert: async () => undefined,
+  sendNoticeEmail: async () => undefined,
+};
 
 export function mailer(): Mailer {
   if (override) {

@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** 2026-09-16 | **Last updated:** 2026-09-16
+**Started:** 2026-09-16 | **Last updated:** 2026-09-17
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -45,13 +45,13 @@
 ## Phase 1 — MVP Modules
 | Module | API | Web | Matches design board? |
 |---|---|---|---|
-| Student Information System | NOT STARTED | NOT STARTED | — |
-| Attendance | NOT STARTED | NOT STARTED | — |
+| Student Information System | DONE — admission (users+students+guardians, one-time temp passwords), self-scoped profile, teacher-scoped sortable/paginated roster, Cloudinary documents (whitelist, school folders), PDFKit ID cards, class-teacher assignment | DONE — /students (DataTable), /students/new, /students/[id], /students/[id]/id-card (print CSS), /sections; pre-shell token-paste workflow until dashboards | Partial — board language (cards, pills, tables) matched; full sidebar shell lands in Chunk 5 dashboards |
+| Attendance | IN PROGRESS (Chunk 2) — marking, summary, absentee email alerts, marking screen built; monthly/term reports UI pending | IN PROGRESS — /attendance/mark built | — |
 | Fee Management | NOT STARTED | NOT STARTED | — |
 | Exams & Gradebook | NOT STARTED | NOT STARTED | — |
 | Timetable | NOT STARTED | NOT STARTED | — |
 | Homework | NOT STARTED | NOT STARTED | — |
-| Notices | NOT STARTED | NOT STARTED | — |
+| Notices | DONE — school/class/section publish with email delivery to affected parents/staff, scope-filtered board, cross-tenant rejection tested | DONE — /notices (publish + board, target pills, skeleton loading) | Partial — same pre-shell note as SIS |
 | Parent-Teacher Chat | NOT STARTED | NOT STARTED | — |
 | Role dashboards (all 6) | NOT STARTED | NOT STARTED | — |
 | Public site + admission enquiry | NOT STARTED | NOT STARTED | — |

@@ -3,6 +3,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import { authRouter } from "./modules/auth/auth.router.js";
 import { attendanceRouter } from "./modules/attendance/attendance.router.js";
 import { documentsRouter } from "./modules/documents/documents.router.js";
+import { noticesRouter } from "./modules/notices/notices.router.js";
 import { platformRouter } from "./modules/platform/platform.router.js";
 import { publicRouter } from "./modules/public/public.router.js";
 import { sectionsRouter } from "./modules/sections/sections.router.js";
@@ -32,6 +33,7 @@ export function createApp(): Express {
   app.use("/api/v1/public", publicRouter);
   app.use("/api/v1", attendanceRouter);
   app.use("/api/v1", documentsRouter);
+  app.use("/api/v1", noticesRouter);
   app.use("/api/v1", sectionsRouter);
   app.use("/api/v1", studentsRouter);
 

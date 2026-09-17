@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
-import { setMailer, type AbsenteeAlert } from "../src/lib/mailer.js";
+import { setMailer, stubMailer, type AbsenteeAlert } from "../src/lib/mailer.js";
 
 const app = createApp();
 
@@ -15,6 +15,7 @@ const sent: AbsenteeAlert[] = [];
 
 beforeAll(() => {
   setMailer({
+    ...stubMailer,
     sendAbsenteeAlert: async (alert: AbsenteeAlert) => {
       sent.push(alert);
     },
@@ -126,6 +127,7 @@ describe("absentee alerts (§7 Phase 1 #2, Brevo SMTP)", () => {
     const student = await makeStudent(schoolId, sectionId, 1);
 
     setMailer({
+      ...stubMailer,
       sendAbsenteeAlert: async () => {
         throw new Error("SMTP relay down");
       },
@@ -139,6 +141,7 @@ describe("absentee alerts (§7 Phase 1 #2, Brevo SMTP)", () => {
       expect(res.body.data.marked).toBe(1);
     } finally {
       setMailer({
+        ...stubMailer,
         sendAbsenteeAlert: async (alert: AbsenteeAlert) => {
           sent.push(alert);
         },
@@ -155,6 +158,7 @@ describe("absentee alerts (§7 Phase 1 #2, Brevo SMTP)", () => {
         .expect(200);
     } finally {
       setMailer({
+        ...stubMailer,
         sendAbsenteeAlert: async (alert: AbsenteeAlert) => {
           sent.push(alert);
         },

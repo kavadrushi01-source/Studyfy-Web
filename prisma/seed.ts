@@ -51,6 +51,8 @@ const PERMISSIONS: { key: string; description: string }[] = [
   { key: "sections.write", description: "Assign class teachers to sections (School Admin)" },
   { key: "attendance.mark", description: "Mark attendance (class teacher of the section, School Admin)" },
   { key: "attendance.read", description: "Read attendance summaries (row-narrowed by self-scope for STUDENT/PARENT)" },
+  { key: "notices.read", description: "Read notices (students/parents see school-wide + own class/section only)" },
+  { key: "notices.write", description: "Publish notices (School Admin, Teacher)" },
   { key: "documents.read", description: "Read uploaded documents (staff; students/parents narrowed to own)" },
   { key: "documents.write", description: "Upload admission documents (School Admin, Accountant)" },
   { key: "platform.schools.read", description: "List every school cross-tenant (Platform Owner only)" },
@@ -60,11 +62,11 @@ const PERMISSIONS: { key: string; description: string }[] = [
 // PERMISSION grants access while self-scope narrows ROWS — holding the key
 // never means seeing everyone.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "documents.read", "documents.write"],
-  TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "documents.read"],
-  ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "documents.read", "documents.write"],
-  STUDENT: ["students.read", "documents.read", "attendance.read"],
-  PARENT: ["students.read", "documents.read", "attendance.read"],
+  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "documents.read", "documents.write"],
+  TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "notices.read", "notices.write", "documents.read"],
+  ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "notices.read", "documents.read", "documents.write"],
+  STUDENT: ["students.read", "documents.read", "attendance.read", "notices.read"],
+  PARENT: ["students.read", "documents.read", "attendance.read", "notices.read"],
   PLATFORM_OWNER: ["platform.schools.read"],
 };
 

@@ -9,44 +9,24 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS
-**Phase / Module:** Phase 1 — Chunk 1 (SIS + Notices)
+**Status:** IDLE
+**Phase / Module:** —
 **Last updated:** 2026-09-17
 
 ## What's done in this task so far
-- Read CURRENT_TASK.md (IDLE), STATUS.md (all Phase 0 DONE), spec §7 Phase 1 list, AGENT_START_HERE.md Phase 1 note — 2026-09-17
-- Baseline re-verified per rule 2a: sandbox mysqld on 3307 had died between sessions — restarted detached (datadir intact), suite 30/30 green before any new work
-- Phase 1 groundwork: `documents` table (§9.1: owner FK, cloudinary_url, type) + code TENANT_MODELS entry in the same commit; migrated dev+test, 30/30 still green
-- Chunk 1 SIS admission: POST /schools/:schoolId/students (auth→tenant→students.write) creating users row + students row + guardian accounts/links, per-account random temp passwords returned once; new students.write permission seeded (ADMIN/ACCOUNTANT); teacher 403, foreign-section 404, dup-email 409 tested — 35/35 green; matching UI form at /students/new (token-paste dev workflow until login UI)
-- Chunk 1 profile: confirmed GET detail chain auth→tenant→students.read→selfScope in code (not assumed); added admin/teacher allow-any-in-school tests — self-scope suite 5/5, full 36/36; profile screen at /students/[id] (own/child/staff views decided server-side, 403 surfaced as-is)
-- Chunk 1 roster: sections.classTeacherId added (§9.1 note) + deterministic seed assignments; teacherSectionScope middleware (fail-closed empty); list endpoint upgraded to real server-side sort/page/search/section-filter with meta totals (offset pagination, documented); roster tests (pagination/sort/meta, search, section filter, bad sort 400, teacher-own-sections-only, unassigned-teacher-empty) — 41/41; reusable DataTable (board styling, skeleton rows) + /students list screen
-- Chunk 1 documents: Cloudinary upload wired (school folder, random IDs) behind a storage seam — CLOUDINARY_URL unset locally so tests use a recording stub (folder asserted), real provider activates on env; POST (ADMIN/ACCOUNTANT, MIME+ext whitelist → 415, 5MB → 413, foreign owner 404) + GET (staff any, student own, parent linked) with documents.read/write seeded; cross-school proven (403 mismatch + 404 invisible + owner 200) — 46/46
-- Chunk 1 ID cards: PDFKit renderer (never Puppeteer) + self-scoped GET .../id-card.pdf endpoint + web print page with @media print (CR80, chrome hidden); Aditya Sharma's card generated live (1804 bytes, %PDF-1.3 … %%EOF), Ramakrishna admin gets 404 on it. Suite flake found + fixed honestly: bcrypt-heavy admission flow timed out under parallel load twice (once with a worker crash) — 30s timeout, green 48/48 twice in a row since.
-- SIS end-to-end demo 2026-09-17: admitted Demo Walkthrough (+guardian) via API, viewed profile as admin/student/parent (all 200, correct scoping), upload reached storage layer → honest 503 (no Cloudinary account; full path proven by stub tests), ID card PDF 200/1828 bytes, suite 48/48, demo rows cleaned (0 leftovers), server stopped. Caught live: dev seed was missing documents.* mappings (seed predated them) → re-seeded; own login limiter tripped the demo (5-in-15, working as designed — restarted server to reset the in-memory window).
-- Attendance end-to-end demo 2026-09-17: marked SOS 9-A (P/A/L/absent mix) → summary math exact (100/0/50/0%), Sneha (9-B) blocked on 9-A with 403 NOT_SECTION_TEACHER, real Brevo email fired to gmail guardian; today's 9-A marks + Mail Test Kid rows cleaned (0 leftovers), server stopped.
-- Chunk 1 sections: classTeacherId assignable via PATCH (teacherEmail, null clears) + GET sections roster; sections.read (ADMIN/ACCOUNTANT/TEACHER) + sections.write (ADMIN-only) seeded; non-teacher/unknown emails 404, foreign sections 404; /sections UI with per-row assign/clear — 52/52 green
-- Chunk 2 marking screen: /attendance/mark matches ref-b language (white card, green/red pills, one Save) — roster toggles, mark-all-present, single save, skeleton rows; unassigned-teacher 403 surfaces as-is
-- Chunk 2 summary: GET .../attendance/summary with literal prefix sums (§11: ordered weights → cumulative array → O(1) range diff; PRESENT=1/LATE=0.5 documented); month or from/to ranges; self-scope contract (omitted id → own/linked, foreign id → 403); new attendance.read key; math proven (P,P,A,L → 62.5%) — 58/58 green
-- Chunk 2 absentee alerts: Brevo SMTP mailer (nodemailer, STARTTLS 587) hooked post-transaction — EVERY linked guardian emailed (join iterated, plural by default), present-only silence, SMTP-down/unconfigured never fails marking (logged); test seam recorder — 61/61 green. Ops step remains: free Brevo account → SMTP_* in .env (never chat).
-- Chunk 2 attendance marking: POST /schools/:schoolId/attendance bulk upsert (re-mark overwrites via studentId+date, transacted; markedBy stamped for teachers, null for admin); gate = section's class teacher or School Admin (attendance.mark keyed, authorship 403 NOT_SECTION_TEACHER distinct from key 403); outsider students 400, validation 400 — 55/55 green
+_(nothing in progress right now — Chunk 1 of 5 complete: SIS + Notices DONE in STATUS.md; suite 65/65)_
 
 ## What's left in this task
-- Chunk 1: SIS #1 (admission, profile, documents, ID cards) + Notices #7 (board + email delivery)
-- Chunk 2: Attendance #2 (marking, reports, absentee email alerts) + Homework #6
-- Chunk 3: Timetable #5 (generator + teacher_subjects + classTeacherId per new §9.1) + Messaging #8 (1:1, teaching-relationship scope §13.7)
-- Chunk 4: Fees #3 (structures/invoices/payments, reminders, PDF receipts) + Exams #4 (marks, rank, PDF report cards)
-- Chunk 5: Dashboards #9 (all six, §8 exact) + Public site #10 (§8.3 exact)
-- Each chunk: API + tests (both directions) + web UI matched to boards + commit + push
+_(nothing in progress right now)_
 
 ## Exact next action
-Chunk 1 kickoff: SIS student admission + profile endpoints (extend probe routes), tests first — say go.
+Chunk 2 next: Fee Management + Exams & Gradebook (§7 Phase 1 #3–#4). Attendance (#2) is built except its reports UI; Homework (#6) untouched — both fold into later chunks. Say go to start Chunk 2.
 
 ## Notes / decisions made mid-task
-- Chunk split (2026-09-17): 10 modules into 5 pairs by weight — C1 SIS+Notices, C2 Attendance+Homework, C3 Timetable+Messaging (teacher_subjects + classTeacherId land in C3 per new §9.1), C4 Fees+Exams (PDF-heavy pair), C5 Dashboards+Public site (needs all data + boards). Adjust only by founder call.
-- 2026-09-17: sandbox 3307 was dead at session start (machine sleep/reboot kills detached mysqld) — restarted, datadir intact. Recurring ops note, not a code issue.
+_(none — Chunk 1 detail in git log + STATUS.md; standing rules in RULES.md, env notes in STATUS.md)_
 
 ## Repo state right now
-YES — suite 30/30 green on restarted sandbox; no code changes yet in Phase 1.
+YES — 65/65 api tests, lint 0, typecheck clean (api+web+seed), audit-high 0 vulns. Sandbox MySQL on 3307.
 
 ---
 
