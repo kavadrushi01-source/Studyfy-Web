@@ -16,6 +16,7 @@
 ## What's done in this task so far
 - Read CURRENT_TASK.md (IDLE), STATUS.md (all Phase 0 DONE), spec §7 Phase 1 list, AGENT_START_HERE.md Phase 1 note — 2026-09-17
 - Baseline re-verified per rule 2a: sandbox mysqld on 3307 had died between sessions — restarted detached (datadir intact), suite 30/30 green before any new work
+- Phase 1 groundwork: `documents` table (§9.1: owner FK, cloudinary_url, type) + code TENANT_MODELS entry in the same commit; migrated dev+test, 30/30 still green
 
 ## What's left in this task
 - Chunk 1: SIS #1 (admission, profile, documents, ID cards) + Notices #7 (board + email delivery)
