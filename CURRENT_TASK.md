@@ -9,24 +9,31 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE
-**Phase / Module:** —
-**Last updated:** 2026-09-16
+**Status:** IN PROGRESS
+**Phase / Module:** Phase 1 — Chunk 1 (SIS + Notices)
+**Last updated:** 2026-09-17
 
 ## What's done in this task so far
-_(nothing in progress right now — Phase 0 closed out in STATUS.md)_
+- Read CURRENT_TASK.md (IDLE), STATUS.md (all Phase 0 DONE), spec §7 Phase 1 list, AGENT_START_HERE.md Phase 1 note — 2026-09-17
+- Baseline re-verified per rule 2a: sandbox mysqld on 3307 had died between sessions — restarted detached (datadir intact), suite 30/30 green before any new work
 
 ## What's left in this task
-_(nothing in progress right now)_
+- Chunk 1: SIS #1 (admission, profile, documents, ID cards) + Notices #7 (board + email delivery)
+- Chunk 2: Attendance #2 (marking, reports, absentee email alerts) + Homework #6
+- Chunk 3: Timetable #5 (generator + teacher_subjects + classTeacherId per new §9.1) + Messaging #8 (1:1, teaching-relationship scope §13.7)
+- Chunk 4: Fees #3 (structures/invoices/payments, reminders, PDF receipts) + Exams #4 (marks, rank, PDF report cards)
+- Chunk 5: Dashboards #9 (all six, §8 exact) + Public site #10 (§8.3 exact)
+- Each chunk: API + tests (both directions) + web UI matched to boards + commit + push
 
 ## Exact next action
-Phase 0 is DONE (see STATUS.md). Next session: read AGENT_START_HERE.md, then STUDYFY_PROJECT_SPEC.md §7 Phase 1 + STATUS.md, and start the first MVP module.
+Chunk 1 kickoff: SIS student admission + profile endpoints (extend probe routes), tests first — say go.
 
 ## Notes / decisions made mid-task
-_(none — standing rules live in RULES.md, env notes in STATUS.md)_
+- Chunk split (2026-09-17): 10 modules into 5 pairs by weight — C1 SIS+Notices, C2 Attendance+Homework, C3 Timetable+Messaging (teacher_subjects + classTeacherId land in C3 per new §9.1), C4 Fees+Exams (PDF-heavy pair), C5 Dashboards+Public site (needs all data + boards). Adjust only by founder call.
+- 2026-09-17: sandbox 3307 was dead at session start (machine sleep/reboot kills detached mysqld) — restarted, datadir intact. Recurring ops note, not a code issue.
 
 ## Repo state right now
-YES — 30/30 api tests, lint 0, typecheck clean, audit-high 0 vulns, GitHub CI green. Sandbox MySQL on 3307 (see STATUS.md if the port is dead).
+YES — suite 30/30 green on restarted sandbox; no code changes yet in Phase 1.
 
 ---
 
