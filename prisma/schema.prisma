@@ -265,6 +265,11 @@ model Section {
   classId  String @map("class_id")
   class    Class  @relation(fields: [classId], references: [id])
   name     String @map("name")
+  // Class teacher: lightweight assignment answering "which teacher owns
+  // this section" (attendance marking, teacher roster scoping) — NOT the
+  // full period-by-period timetable (§9.1 note, spec v3.2 update).
+  classTeacherId String? @map("class_teacher_id")
+  classTeacher   Staff?  @relation("ClassTeacher", fields: [classTeacherId], references: [id])
 
   students       Student[]
   attendance     Attendance[]
@@ -335,6 +340,7 @@ model Staff {
   markedAttendance Attendance[]    @relation("AttendanceMarker")
   homeworkGiven    Homework[]      @relation("HomeworkTeacher")
   timetableSlots   TimetableSlot[] @relation("SlotTeacher")
+  classSections    Section[]       @relation("ClassTeacher")
 
   @@index([schoolId])
   @@map("staff")

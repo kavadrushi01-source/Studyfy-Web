@@ -18,6 +18,10 @@ declare global {
       // RBAC refines that separately). List handlers MUST filter by it;
       // detail routes are 403-checked by the middleware itself.
       studentScope?: { studentIds: string[] };
+      // Set by teacherSectionScope for TEACHER roles: the ONLY section ids
+      // this teacher owns (classTeacherId). Absent = unconstrained.
+      // Empty array = fail-closed, sees nothing. List handlers MUST apply it.
+      sectionScope?: string[];
     }
   }
 }

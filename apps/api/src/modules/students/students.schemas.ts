@@ -25,3 +25,20 @@ export const admitStudentSchema = z.object({
 });
 
 export type AdmitStudentInput = z.infer<typeof admitStudentSchema>;
+
+const SORT_FIELDS = ["name", "email", "admissionNo", "createdAt"] as const;
+
+// Server-driven table controls (§8.5): everything the DataTable claims
+// (sort/page/filter) is enforced here, in SQL — never client-side over a
+// full dump. Offset pagination (not cursor): honest at MVP scale of a few
+// thousand rows per school; revisit if a school outgrows it.
+export const listStudentsSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  sort: z.enum(SORT_FIELDS).default("name"),
+  order: z.enum(["asc", "desc"]).default("asc"),
+  search: z.string().trim().max(80).optional(),
+  sectionId: z.string().trim().max(40).optional(),
+});
+
+export type ListStudentsInput = z.infer<typeof listStudentsSchema>;

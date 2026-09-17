@@ -4,9 +4,10 @@ import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
+import { teacherSectionScope } from "../../middleware/teacher-scope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { admitStudentSchema } from "./students.schemas.js";
+import { admitStudentSchema, listStudentsSchema } from "./students.schemas.js";
 import { admitStudent } from "./students.service.js";
 
 function sendStudentError(res: Response, err: unknown): void {
@@ -71,6 +72,7 @@ studentsRouter.get(
   tenantMiddleware,
   requirePermission("students.read"),
   studentSelfScope,
+  teacherSectionScope,
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma) {
       res.status(500).json({
@@ -81,12 +83,69 @@ studentsRouter.get(
       });
       return;
     }
-    const students = await req.prisma.student.findMany({
-      where: req.studentScope ? { id: { in: req.studentScope.studentIds } } : {},
-      select: { id: true },
-      take: 100,
+    const parsed = listStudentsSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    const { page, pageSize, sort, order, search, sectionId } = parsed.data;
+
+    const filters: Prisma.StudentWhereInput[] = [];
+    if (req.studentScope) {
+      filters.push({ id: { in: req.studentScope.studentIds } });
+    }
+    if (req.sectionScope) {
+      filters.push({ sectionId: { in: req.sectionScope } });
+    }
+    if (sectionId) {
+      filters.push({ sectionId });
+    }
+    if (search) {
+      filters.push({
+        OR: [
+          { user: { name: { contains: search } } },
+          { user: { email: { contains: search } } },
+          { admissionNo: { contains: search } },
+        ],
+      });
+    }
+    const where: Prisma.StudentWhereInput = filters.length > 0 ? { AND: filters } : {};
+
+    const orderBy: Prisma.StudentOrderByWithRelationInput =
+      sort === "name"
+        ? { user: { name: order } }
+        : sort === "email"
+          ? { user: { email: order } }
+          : { [sort]: order };
+
+    const [total, students] = await Promise.all([
+      req.prisma.student.count({ where }),
+      req.prisma.student.findMany({
+        where,
+        select: {
+          id: true,
+          admissionNo: true,
+          rollNumber: true,
+          gender: true,
+          user: { select: { name: true, email: true } },
+          section: { select: { id: true, name: true, class: { select: { name: true } } } },
+        },
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    res.json({
+      success: true,
+      data: { students },
+      error: null,
+      meta: { total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
     });
-    res.json({ success: true, data: { students }, error: null, meta: null });
   }),
 );
 

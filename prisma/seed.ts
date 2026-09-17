@@ -373,6 +373,19 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
     teacherStaffIds.push(staff.id);
   }
 
+  // Class-teacher assignments (§9.1): deterministic cycle — first teacher
+  // owns the first section, and so on (SOS 9-A → Arjun Mehta, 9-B → Sneha
+  // Iyer, 10-A → Rohit Deshmukh; Ramakrishna 9-A → Anjali Kulkarni,
+  // 10-A → Deepak Chandran, 10-B → Radha Krishnan). Re-run safe (update).
+  const orderedSections = [...sectionIds.values()];
+  for (let i = 0; i < orderedSections.length; i += 1) {
+    const sectionId = orderedSections[i];
+    const staffId = teacherStaffIds[i % teacherStaffIds.length];
+    if (sectionId && staffId) {
+      await db.section.update({ where: { id: sectionId }, data: { classTeacherId: staffId } });
+    }
+  }
+
   const accountantEmail = emailFor(spec.accountantFirst, spec.accountantLast, spec.emailDomain);
   const accountantUserId = await upsertUser(
     db,
