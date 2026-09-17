@@ -28,6 +28,7 @@ export const TENANT_MODELS = [
   "HomeworkSubmission",
   "Notice",
   "Enquiry",
+  "Document",
 ] as const;
 
 const READ_OPS = new Set(["findMany", "findFirst", "findUnique", "count", "aggregate", "groupBy"]);

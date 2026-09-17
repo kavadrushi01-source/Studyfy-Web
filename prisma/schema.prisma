@@ -127,6 +127,7 @@ model School {
   homeworkSubmissions HomeworkSubmission[]
   notices             Notice[]
   enquiries           Enquiry[]
+  documents           Document[]
 
   @@map("schools")
 }
@@ -158,6 +159,7 @@ model User {
   receivedPayments FeePayment[]      @relation("PaymentReceiver")
   authTokens       AuthToken[]
   refreshTokens    RefreshToken[]
+  documents        Document[]
 
   @@unique([schoolId, email])
   @@index([schoolId])
@@ -620,6 +622,29 @@ model Enquiry {
 
   @@index([schoolId, createdAt])
   @@map("enquiries")
+}
+
+// ---------------------------------------------------------------------------
+// Documents — uploaded admission files and ID-card photos (Phase 1 SIS).
+// Deferred in Phase 0 per AGENT_START_HERE.md; needed now. Spec §9.1:
+// owner_id FK + cloudinary_url + type. §13.5: files live under a
+// `schools/{schoolId}/...` Cloudinary folder with non-guessable public IDs
+// (enforced in the upload endpoint, not the schema — the schema stores the
+// final URL). Tenant-scoped like any other school data.
+// ---------------------------------------------------------------------------
+
+model Document {
+  id        String   @id @default(cuid()) @map("id")
+  schoolId  String   @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id])
+  ownerId   String   @map("owner_id")
+  owner     User     @relation(fields: [ownerId], references: [id])
+  url       String   @map("cloudinary_url") @db.Text
+  type      String   @map("type")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, ownerId])
+  @@map("documents")
 }
 
 // ---------------------------------------------------------------------------
