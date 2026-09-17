@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { Prisma } from "@prisma/client";
 import { catchAsync } from "../../lib/async.js";
+import { generateStudentIdCard } from "../../lib/id-card.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
@@ -190,5 +191,61 @@ studentsRouter.get(
       return;
     }
     res.json({ success: true, data: { student }, error: null, meta: null });
+  }),
+);
+
+// ID card PDF (SIS). Same chain as the detail route — self-scope decides
+// WHO may render it (own / linked / staff), the PDF just draws what the
+// detail endpoint would return. Streams application/pdf inline.
+studentsRouter.get(
+  "/schools/:schoolId/students/:studentId/id-card",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("students.read"),
+  studentSelfScope,
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.schoolId) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const [student, school] = await Promise.all([
+      req.prisma.student.findFirst({
+        where: { id: req.params.studentId },
+        select: {
+          admissionNo: true,
+          dob: true,
+          user: { select: { name: true } },
+          section: { select: { name: true, class: { select: { name: true } } } },
+        },
+      }),
+      req.prisma.school.findFirst({ where: { id: req.schoolId } }),
+    ]);
+    if (!student || !school) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "Student not found." },
+        meta: null,
+      });
+      return;
+    }
+    const pdf = await generateStudentIdCard({
+      schoolName: school.name,
+      brandColor: school.brandColor ?? "#2563EB",
+      studentName: student.user.name,
+      admissionNo: student.admissionNo,
+      className: student.section.class.name,
+      sectionName: student.section.name,
+      dob: student.dob,
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="id-card-${req.params.studentId}.pdf"`);
+    res.setHeader("Content-Length", String(pdf.length));
+    res.send(pdf);
   }),
 );

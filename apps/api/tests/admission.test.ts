@@ -61,7 +61,12 @@ function admissionBody(sectionId: string, email: string) {
 }
 
 describe("POST /api/v1/schools/:schoolId/students (admission)", () => {
-  it("full admission flow", async () => {
+  it(
+    "full admission flow",
+    // Generous timeout: ~5 bcrypt cost-12 ops (register + admit + 2 logins).
+    // Under parallel workers on a laptop that takes seconds; 5s flakes.
+    { timeout: 30000 },
+    async () => {
     const { schoolId, adminToken, slug } = await registerSchool();
     const sectionId = await createSection(schoolId);
     const email = `admit-${uid()}@example.com`;
