@@ -46,6 +46,7 @@ export async function seedRoles(db: PrismaClient): Promise<string[]> {
 
 const PERMISSIONS: { key: string; description: string }[] = [
   { key: "students.read", description: "List and read student records (row-narrowed by self-scope for STUDENT/PARENT)" },
+  { key: "students.write", description: "Admit and edit students (School Admin, Accountant)" },
   { key: "platform.schools.read", description: "List every school cross-tenant (Platform Owner only)" },
 ];
 
@@ -53,9 +54,9 @@ const PERMISSIONS: { key: string; description: string }[] = [
 // PERMISSION grants access while self-scope narrows ROWS — holding the key
 // never means seeing everyone.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SCHOOL_ADMIN: ["students.read"],
+  SCHOOL_ADMIN: ["students.read", "students.write"],
   TEACHER: ["students.read"],
-  ACCOUNTANT: ["students.read"],
+  ACCOUNTANT: ["students.read", "students.write"],
   STUDENT: ["students.read"],
   PARENT: ["students.read"],
   PLATFORM_OWNER: ["platform.schools.read"],
