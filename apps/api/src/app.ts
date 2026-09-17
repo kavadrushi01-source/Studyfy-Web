@@ -4,6 +4,7 @@ import { authRouter } from "./modules/auth/auth.router.js";
 import { documentsRouter } from "./modules/documents/documents.router.js";
 import { platformRouter } from "./modules/platform/platform.router.js";
 import { publicRouter } from "./modules/public/public.router.js";
+import { sectionsRouter } from "./modules/sections/sections.router.js";
 import { studentsRouter } from "./modules/students/students.router.js";
 import { applyCors, applyHelmet } from "./middleware/security.js";
 
@@ -29,6 +30,7 @@ export function createApp(): Express {
   app.use("/api/v1/platform", platformRouter);
   app.use("/api/v1/public", publicRouter);
   app.use("/api/v1", documentsRouter);
+  app.use("/api/v1", sectionsRouter);
   app.use("/api/v1", studentsRouter);
 
   // Liveness probe (spec §13.5 / RULES.md §4).
