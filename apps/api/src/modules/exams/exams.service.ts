@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { gradeLetter, percentOf, rankAll, topK } from "../../lib/grades.js";
+import type { ReportCardData } from "../../lib/report-card.js";
 import { AuthError } from "../auth/auth.service.js";
+import { attendanceSummary } from "../attendance/attendance.service.js";
 import type { CreateExamInput, EnterMarksInput } from "./exams.schemas.js";
 
 // Exam + subject links in one transaction (§7 Phase 1 #4). Every lookup
@@ -205,4 +207,101 @@ export async function examResults(
   }
   results.sort((a, b) => a.rank - b.rank || (a.studentId < b.studentId ? -1 : 1));
   return { exam: { id: exam.id, name: exam.name }, results };
+}
+
+// Single-student report card (§7 Phase 1 #4): per-subject marks + grades,
+// totals, competition rank (over everyone who sat the exam), and attendance
+// % pulled from the ATTENDANCE module's own summary — never recomputed
+// here, so the two can never disagree. Range: the exam's dates when set,
+// otherwise the trailing 30 days.
+export async function reportCard(
+  db: PrismaClient,
+  examId: string,
+  studentId: string,
+): Promise<ReportCardData> {
+  const exam = await db.exam.findFirst({
+    where: { id: examId },
+    include: {
+      school: { select: { name: true, brandColor: true } },
+      examSubjects: { include: { subject: { select: { name: true } } }, orderBy: { subject: { name: "asc" } } },
+    },
+  });
+  if (!exam) {
+    throw new AuthError(404, "EXAM_NOT_FOUND", "Exam not found in this school.");
+  }
+  const student = await db.student.findFirst({
+    where: { id: studentId },
+    include: {
+      user: { select: { name: true } },
+      section: { select: { name: true, class: { select: { name: true } } } },
+    },
+  });
+  if (!student) {
+    throw new AuthError(404, "NOT_FOUND", "Student not found.");
+  }
+  const marks = await db.mark.findMany({
+    where: { examSubjectId: { in: exam.examSubjects.map((s) => s.id) } },
+    select: { studentId: true, examSubjectId: true, marksObtained: true },
+  });
+
+  // Totals per taker for ranking (same helpers as the results board).
+  const totals = new Map<string, number>();
+  for (const mark of marks) {
+    totals.set(mark.studentId, (totals.get(mark.studentId) ?? 0) + Number(mark.marksObtained ?? 0));
+  }
+  const ranks = rankAll([...totals].map(([id, total]) => ({ studentId: id, total })));
+
+  const maxTotal = exam.examSubjects.reduce((sum, s) => sum + Number(s.maxMarks), 0);
+  const bySubject = new Map(marks.filter((m) => m.studentId === studentId).map((m) => [m.examSubjectId, m]));
+  const subjects = exam.examSubjects.map((s) => {
+    const obtained = Number(bySubject.get(s.id)?.marksObtained ?? 0);
+    const percent = percentOf(obtained, Number(s.maxMarks));
+    return {
+      name: s.subject.name,
+      max: Number(s.maxMarks),
+      obtained,
+      percent,
+      grade: gradeLetter(percent),
+    };
+  });
+  const total = subjects.reduce((sum, s) => sum + s.obtained, 0);
+  const percent = percentOf(total, maxTotal);
+
+  let attendancePercent: number | null = null;
+  let attendanceRange: string | null = null;
+  if (exam.startDate && exam.endDate) {
+    const range = await attendanceSummary(
+      db,
+      {
+        from: exam.startDate.toISOString().slice(0, 10),
+        to: exam.endDate.toISOString().slice(0, 10),
+        studentId,
+      },
+      [studentId],
+    );
+    const row = range.summary.find((r) => r.studentId === studentId);
+    if (row && row.total > 0) {
+      attendancePercent = row.percent;
+      attendanceRange = `${range.range.from} to ${range.range.to}`;
+    }
+  }
+
+  return {
+    schoolName: exam.school.name,
+    brandColor: exam.school.brandColor ?? "#2563EB",
+    examName: exam.name,
+    studentName: student.user.name,
+    admissionNo: student.admissionNo,
+    className: student.section.class.name,
+    sectionName: student.section.name,
+    subjects,
+    total,
+    max: maxTotal,
+    percent,
+    grade: gradeLetter(percent),
+    rank: ranks.get(studentId) ?? 0,
+    rankedOutOf: totals.size,
+    attendancePercent,
+    attendanceRange,
+  };
 }

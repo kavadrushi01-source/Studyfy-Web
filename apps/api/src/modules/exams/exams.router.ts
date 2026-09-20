@@ -7,7 +7,8 @@ import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { createExamSchema, enterMarksSchema } from "./exams.schemas.js";
-import { createExam, enterMarks, examResults } from "./exams.service.js";
+import { createExam, enterMarks, examResults, reportCard } from "./exams.service.js";
+import { generateReportCard } from "../../lib/report-card.js";
 
 export const examsRouter = Router();
 
@@ -171,6 +172,42 @@ examsRouter.post(
         parsed.data,
       );
       res.status(200).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendExamsError(res, err);
+    }
+  }),
+);
+
+// Per-student report card PDF (§7 Phase 1 #4). Same chain as results —
+// params.studentId puts self-scope in charge of WHO may render it
+// (own / linked / staff). Attendance % comes from the attendance module,
+// rank from the full taker set.
+examsRouter.get(
+  "/schools/:schoolId/exams/:examId/report-cards/:studentId",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("exams.read"),
+  studentSelfScope,
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const card = await reportCard(req.prisma, req.params.examId ?? "", req.params.studentId ?? "");
+      const pdf = await generateReportCard(card);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="report-card-${req.params.examId ?? "exam"}-${req.params.studentId ?? "student"}.pdf"`,
+      );
+      res.setHeader("Content-Length", String(pdf.length));
+      res.send(pdf);
     } catch (err) {
       sendExamsError(res, err);
     }
