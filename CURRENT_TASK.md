@@ -9,24 +9,27 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE
-**Phase / Module:** —
+**Status:** IN PROGRESS
+**Phase / Module:** Phase 1 — Chunk 2 (Fee Management + Exams & Gradebook)
 **Last updated:** 2026-09-17
 
 ## What's done in this task so far
-_(nothing in progress right now — Chunk 1 of 5 complete: SIS + Notices DONE in STATUS.md; suite 65/65)_
+- Read CURRENT_TASK.md (IDLE), STATUS.md (Chunk 1 DONE) — 2026-09-17
+- Baseline: sandbox 3307 dead again at session start — restarted (datadir intact). Fresh-restart flakiness followed: Prisma engine empty-responses + timeouts under default parallel workers → capped vitest maxWorkers=2 (documented in config; suite row-isolated so no semantics change), cleaned 2 leaked TEMP_RBAC_* roles left by killed runs. Green 65/65 three consecutive runs since.
 
 ## What's left in this task
-_(nothing in progress right now)_
+- Fee Management #3 (structures, invoices, payment recording, reminders email, PDF receipts)
+- Exams & Gradebook #4 (schedules, marks entry, auto grade/rank, PDF report cards)
+- Each: API + tests both directions + web UI + commit + push
 
 ## Exact next action
-Chunk 2 next: Fee Management + Exams & Gradebook (§7 Phase 1 #3–#4). Attendance (#2) is built except its reports UI; Homework (#6) untouched — both fold into later chunks. Say go to start Chunk 2.
+Fee structures + invoices endpoints first (exam/gradebook after) — say go.
 
 ## Notes / decisions made mid-task
-_(none — Chunk 1 detail in git log + STATUS.md; standing rules in RULES.md, env notes in STATUS.md)_
+- 2026-09-17 Chunk 2 open: worker cap + TEMP-role cleanup (see above). Verify every push lands with `git log origin/main`, not just the push line.
 
 ## Repo state right now
-YES — 65/65 api tests, lint 0, typecheck clean (api+web+seed), audit-high 0 vulns. Sandbox MySQL on 3307.
+YES — 65/65 (16 files) three consecutive greens, lint 0, audit-high 0 vulns. Tree clean after this commit.
 
 ---
 
