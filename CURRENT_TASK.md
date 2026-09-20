@@ -27,6 +27,7 @@
 - Chunk 2 marks entry: POST .../exams/:id/marks bulk upsert (re-entry overwrites), gated on the same class-teacher relationship as attendance (interim per task brief — tightenable to per-subject assignment in Chunk 3 without route changes); range-checked against maxMarks, section-membership enforced — 86/86 green
 - Chunk 2 grades+ranks: pure lib (round-then-grade consistency, competition 1224 ranks, dependency-free min-heap with fair tie-inclusive top-K + id tiebreak); GET .../exams/:id/results with heap top-K path but true full-set ranks, self-scope pins — 94/94 green. Unit tests caught 2 real heap bugs (cutoff end, tie order).
 - Chunk 2 report cards: PDFKit report card (subject table, totals, grade, rank x-of-y, attendance % via the attendance module's own summary over exam dates) + self-scoped GET .../report-cards/:studentId + /students/[id]/report viewer — 96/96 green. Caught: missing topK import slipped past a skipped api typecheck (test 500 caught it) — always typecheck api before tests.
+- Chunk 2 results screen: /exams/results with exam picker + optional top-K (heap path) + grade pills; staff see full ranked board, students/parents auto-pinned to own rows (no ID specified anywhere — API defaults to caller pins, same rule as attendance)
 
 ## What's left in this task
 - Fee Management #3 (structures, invoices, payment recording, reminders email, PDF receipts)
