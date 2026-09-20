@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { gradeLetter, percentOf, rankAll, topK } from "../../lib/grades.js";
 import { AuthError } from "../auth/auth.service.js";
 import type { CreateExamInput, EnterMarksInput } from "./exams.schemas.js";
 
@@ -46,9 +47,7 @@ export async function createExam(db: PrismaClient, input: CreateExamInput) {
 interface MarksCaller {
   userId: string;
   role: string;
-}
-
-// Bulk marks entry (§7 Phase 1 #4): authorized by the SAME relationship as
+}// Bulk marks entry (§7 Phase 1 #4): authorized by the SAME relationship as
 // attendance — the section's class teacher, or a School Admin.
 // classTeacherId is the interim check here too: the fuller per-subject
 // teacher assignment arrives with Timetable (Chunk 3), and this gate can
@@ -121,4 +120,89 @@ export async function enterMarks(
     ),
   );
   return { entered: input.records.length };
+}
+
+export interface RankedResult {
+  studentId: string;
+  name: string;
+  total: number;
+  max: number;
+  percent: number;
+  grade: string;
+  rank: number;
+}
+
+// Ranked results (spec §10): per-student totals across the exam's subjects,
+// rounded percent + grade letter, competition ranks. `topK` slices the
+// board through the heap WITHOUT a full sort — but ranks are always
+// computed over the FULL set first, so a top-3 display shows true ranks
+// (1,2,2…), never ranks re-computed within the slice.
+// allowedIds = self-scope pins (null = staff, full class).
+export async function examResults(
+  db: PrismaClient,
+  examId: string,
+  options: { top?: number; studentId?: string },
+  allowedIds: string[] | null,
+): Promise<{ exam: { id: string; name: string }; results: RankedResult[] }> {
+  const exam = await db.exam.findFirst({
+    where: { id: examId },
+    include: { examSubjects: { select: { id: true, maxMarks: true } } },
+  });
+  if (!exam) {
+    throw new AuthError(404, "EXAM_NOT_FOUND", "Exam not found in this school.");
+  }
+  if (options.studentId && allowedIds && !allowedIds.includes(options.studentId)) {
+    throw new AuthError(403, "FORBIDDEN", "Not your record.");
+  }
+  const eligible =
+    options.studentId ?? (allowedIds ? { in: allowedIds } : undefined);
+  const marks = await db.mark.findMany({
+    where: {
+      examSubjectId: { in: exam.examSubjects.map((s) => s.id) },
+      marksObtained: { not: null },
+      ...(eligible === undefined ? {} : { studentId: typeof eligible === "string" ? eligible : eligible }),
+    },
+    select: {
+      studentId: true,
+      marksObtained: true,
+      student: { select: { user: { select: { name: true } } } },
+    },
+  });
+
+  const maxTotal = exam.examSubjects.reduce((sum, s) => sum + Number(s.maxMarks), 0);
+  const totals = new Map<string, { name: string; total: number }>();
+  for (const mark of marks) {
+    const entry = totals.get(mark.studentId) ?? { name: mark.student.user.name, total: 0 };
+    entry.total += Number(mark.marksObtained ?? 0);
+    totals.set(mark.studentId, entry);
+  }
+  const entries = [...totals].map(([studentId, entry]) => ({ studentId, total: entry.total }));
+  const ranks = rankAll(entries);
+
+  let shown = entries.map((e) => e.studentId);
+  if (options.top !== undefined) {
+    if (options.top <= 0) {
+      throw new AuthError(400, "VALIDATION_ERROR", "top must be a positive integer.");
+    }
+    shown = topK(entries, options.top);
+  }
+  const shownSet = new Set(shown);
+  const results: RankedResult[] = [];
+  for (const [studentId, entry] of totals) {
+    if (!shownSet.has(studentId)) {
+      continue;
+    }
+    const percent = percentOf(entry.total, maxTotal);
+    results.push({
+      studentId,
+      name: entry.name,
+      total: entry.total,
+      max: maxTotal,
+      percent,
+      grade: gradeLetter(percent),
+      rank: ranks.get(studentId) ?? 0,
+    });
+  }
+  results.sort((a, b) => a.rank - b.rank || (a.studentId < b.studentId ? -1 : 1));
+  return { exam: { id: exam.id, name: exam.name }, results };
 }

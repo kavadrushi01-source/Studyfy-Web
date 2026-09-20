@@ -1,11 +1,13 @@
 import { Router, type Request, type Response } from "express";
+import { z } from "zod";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
+import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { createExamSchema, enterMarksSchema } from "./exams.schemas.js";
-import { createExam, enterMarks } from "./exams.service.js";
+import { createExam, enterMarks, examResults } from "./exams.service.js";
 
 export const examsRouter = Router();
 
@@ -82,6 +84,54 @@ examsRouter.get(
       take: 100,
     });
     res.json({ success: true, data: { exams }, error: null, meta: null });
+  }),
+);
+
+const resultsQuerySchema = z.object({
+  top: z.coerce.number().int().min(1).max(500).optional(),
+  studentId: z.string().trim().max(40).optional(),
+});
+
+// Ranked results (§10, §11): totals + rounded percent + grade + true rank.
+// top=K takes the heap path (no full sort); ranks always reflect the whole
+// class. Self-scope pins apply exactly like the students routes.
+examsRouter.get(
+  "/schools/:schoolId/exams/:examId/results",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("exams.read"),
+  studentSelfScope,
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = resultsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await examResults(
+        req.prisma,
+        req.params.examId ?? "",
+        parsed.data,
+        req.studentScope ? req.studentScope.studentIds : null,
+      );
+      res.json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendExamsError(res, err);
+    }
   }),
 );
 
