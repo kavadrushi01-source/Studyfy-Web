@@ -5,7 +5,7 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { createStructureSchema, generateInvoicesSchema, recordPaymentSchema } from "./fees.schemas.js";
-import { createStructure, generateInvoices, recordPayment } from "./fees.service.js";
+import { createStructure, generateInvoices, recordPayment, runFeeReminders } from "./fees.service.js";
 import { generateFeeReceipt } from "../../lib/receipt.js";
 
 export const feesRouter = Router();
@@ -182,5 +182,27 @@ feesRouter.get(
     res.setHeader("Content-Disposition", `inline; filename="receipt-${payment.id.slice(0, 8)}.pdf"`);
     res.setHeader("Content-Length", String(pdf.length));
     res.send(pdf);
+  }),
+);
+
+// Run due/overdue reminders for THIS school (same fees.manage gate).
+// Manual trigger today; the §12.4 cron calls this per school, per timezone.
+feesRouter.post(
+  "/schools/:schoolId/fees/reminders/run",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("fees.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const result = await runFeeReminders(req.prisma, req.schoolId ?? "");
+    res.status(200).json({ success: true, data: result, error: null, meta: null });
   }),
 );

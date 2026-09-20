@@ -16,9 +16,20 @@ export interface NoticeEmail {
   schoolName: string;
 }
 
+export interface FeeReminderEmail {
+  to: string;
+  name: string;
+  studentName: string;
+  schoolName: string;
+  amountDue: string;
+  dueDate: string;
+  daysOverdue: number;
+}
+
 export interface Mailer {
   sendAbsenteeAlert(alert: AbsenteeAlert): Promise<void>;
   sendNoticeEmail(email: NoticeEmail): Promise<void>;
+  sendFeeReminder(email: FeeReminderEmail): Promise<void>;
 }
 
 // Brevo free SMTP relay (spec §2: 300/day, forever, no card) — the REAL
@@ -61,6 +72,28 @@ class SmtpMailer implements Mailer {
       text: [`Dear ${email.name},`, ``, email.body, ``, `— ${email.schoolName} via Studyfy`].join("\n"),
     });
   }
+
+  async sendFeeReminder(email: FeeReminderEmail): Promise<void> {
+    const headline =
+      email.daysOverdue > 0
+        ? `was due on ${email.dueDate} (${email.daysOverdue} day${email.daysOverdue === 1 ? "" : "s"} overdue)`
+        : email.daysOverdue === 0
+          ? `is due today (${email.dueDate})`
+          : `is due on ${email.dueDate}`;
+    await this.transporter.sendMail({
+      from: this.from(),
+      to: email.to,
+      subject: `Fee reminder: ${email.studentName} — ${email.amountDue} ${email.daysOverdue > 0 ? "overdue" : "due"}`,
+      text: [
+        `Dear ${email.name},`,
+        ``,
+        `A fee of ${email.amountDue} for ${email.studentName} at ${email.schoolName} ${headline}.`,
+        `Please pay at the school office or online. If already paid, ignore this reminder.`,
+        ``,
+        `— ${email.schoolName} via Studyfy`,
+      ].join("\n"),
+    });
+  }
 }
 
 export class MailerUnconfiguredError extends Error {
@@ -81,6 +114,7 @@ export function setMailer(mailer: Mailer | null): void {
 export const stubMailer: Mailer = {
   sendAbsenteeAlert: async () => undefined,
   sendNoticeEmail: async () => undefined,
+  sendFeeReminder: async () => undefined,
 };
 
 export function mailer(): Mailer {

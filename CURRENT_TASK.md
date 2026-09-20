@@ -20,6 +20,7 @@
 - Chunk 2 invoices: POST /fees/invoices/generate with exactly-one targeting mode (whole class / section / explicit list); exact structure amount, PENDING default; idempotent skip (never double-bills, skips reported); foreign ids 404, mixed modes 400, cross-tenant 403 — 71/71 green
 - Chunk 2 payments: POST .../invoices/:id/pay (manual cash/offline only — RAZORPAY method rejected at the schema so this can never mark online money paid); Decimal-only math (3333.33+6666.67 settles exactly), PARTIAL accumulation, overpay 400, settled-invoice 409 — 73/73 green
 - Chunk 2 receipts: PDFKit fee receipt (A4, brand header, line items, balance, no-signature footer) + GET .../payments/:id/receipt (fees.manage; foreign 404); /fees/receipts/[id] viewer opens PDF for browser printing (§8.5) — 75/75 green
+- Chunk 2 reminders: lastReminderAt column + runFeeReminders (school-tz calendar via Intl, 3-day approaching window, per-invoice-per-day idempotency, suspended skipped) + POST .../reminders/run; Kiritimati-vs-Kolkata same-instant test proves server-UTC independence — 78/78 green. Cron scheduling (§12.4) still open.
 
 ## What's left in this task
 - Fee Management #3 (structures, invoices, payment recording, reminders email, PDF receipts)

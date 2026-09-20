@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { AuthError } from "../auth/auth.service.js";
 import type { CreateStructureInput, GenerateInvoicesInput, RecordPaymentInput } from "./fees.schemas.js";
 
@@ -138,9 +139,7 @@ export async function generateInvoices(
 export interface RecordPaymentResult {
   invoice: { id: string; amount: string; amountPaid: string; status: string };
   payment: { id: string; amount: string; method: string };
-}
-
-// Manual counter collection (§7 Phase 1 #3): cash/UPI/card/bank-transfer
+}// Manual counter collection (§7 Phase 1 #3): cash/UPI/card/bank-transfer
 // recorded by Admin/Accountant against an invoice. All money math stays in
 // Prisma.Decimal — never floats (§13.6). Paid-in-full flips PENDING (or
 // PARTIAL) to PAID; anything short stays PARTIAL. Overpayment is rejected:
@@ -194,4 +193,112 @@ export async function recordPayment(
     },
     payment: { id: payment.id, amount: payment.amount.toString(), method: payment.method },
   };
+}
+
+export interface RunRemindersResult {
+  emailed: number;
+  skipped: number;
+}
+
+// "Today" as a calendar day in the SCHOOL's timezone (§12.7) — never server
+// UTC. Intl with en-CA yields YYYY-MM-DD directly, no date library needed.
+export function schoolDay(timezone: string, now: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
+function addDays(dayStr: string, days: number): string {
+  const d = new Date(`${dayStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function diffDays(fromStr: string, toStr: string): number {
+  const from = new Date(`${fromStr}T00:00:00Z`).getTime();
+  const to = new Date(`${toStr}T00:00:00Z`).getTime();
+  return Math.round((to - from) / (24 * 60 * 60 * 1000));
+}
+
+// Fee reminders (§7 Phase 1 #3): invoices due within 3 days (approaching)
+// or past due, per the SCHOOL's calendar. One email per guardian per
+// invoice; at most one reminder per invoice per local day (lastReminderAt);
+// suspended schools skipped. Best-effort delivery like all mailers.
+// `now` is injectable so timezone edge cases are unit-testable.
+export async function runFeeReminders(
+  db: PrismaClient,
+  schoolId: string,
+  now: Date = new Date(),
+): Promise<RunRemindersResult> {
+  const school = await db.school.findUnique({ where: { id: schoolId } });
+  if (!school || school.subscriptionStatus === "SUSPENDED") {
+    return { emailed: 0, skipped: 0 };
+  }
+  const today = schoolDay(school.timezone, now);
+  const horizon = addDays(today, 3);
+
+  const invoices = await db.feeInvoice.findMany({
+    where: {
+      schoolId,
+      status: { in: ["PENDING", "PARTIAL"] },
+      dueDate: { lte: new Date(`${horizon}T00:00:00Z`) },
+    },
+    include: {
+      student: {
+        select: {
+          user: { select: { name: true } },
+          guardianLinks: { select: { parent: { select: { name: true, email: true } } } },
+        },
+      },
+    },
+  });
+
+  let send: ReturnType<typeof mailer>;
+  try {
+    send = mailer();
+  } catch (err) {
+    if (err instanceof MailerUnconfiguredError) {
+      console.warn("Skipping fee reminders: SMTP not configured.");
+      return { emailed: 0, skipped: invoices.length };
+    }
+    throw err;
+  }
+
+  let emailed = 0;
+  let skipped = 0;
+  for (const invoice of invoices) {
+    if (invoice.lastReminderAt && schoolDay(school.timezone, invoice.lastReminderAt) === today) {
+      skipped += 1;
+      continue;
+    }
+    const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
+    if (outstanding.lessThanOrEqualTo(0)) {
+      skipped += 1;
+      continue;
+    }
+    const dueStr = invoice.dueDate.toISOString().slice(0, 10);
+    const daysOverdue = diffDays(dueStr, today);
+    const results = await Promise.allSettled(
+      invoice.student.guardianLinks.map((link) =>
+        send.sendFeeReminder({
+          to: link.parent.email,
+          name: link.parent.name,
+          studentName: invoice.student.user.name,
+          schoolName: school.name,
+          amountDue: outstanding.toFixed(2),
+          dueDate: dueStr,
+          daysOverdue,
+        }),
+      ),
+    );
+    let delivered = 0;
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        delivered += 1;
+      } else {
+        console.error("Fee reminder delivery failed:", result.reason);
+      }
+    }
+    emailed += delivered;
+    await db.feeInvoice.update({ where: { id: invoice.id }, data: { lastReminderAt: now } });
+  }
+  return { emailed, skipped };
 }

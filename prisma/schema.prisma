@@ -416,6 +416,10 @@ model FeeInvoice {
   dueDate     DateTime      @map("due_date") @db.Date
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
+  // Last reminder email sent (UTC instant). Compared in the SCHOOL's
+  // calendar day (§12.7): at most one reminder per invoice per local day,
+  // so the daily run can't spam a family for the same bill.
+  lastReminderAt DateTime?  @map("last_reminder_at")
 
   payments FeePayment[]
 
