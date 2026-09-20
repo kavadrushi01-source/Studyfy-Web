@@ -16,6 +16,7 @@
 ## What's done in this task so far
 - Read CURRENT_TASK.md (IDLE), STATUS.md (Chunk 1 DONE) — 2026-09-17
 - Baseline: sandbox 3307 dead again at session start — restarted (datadir intact). Fresh-restart flakiness followed: Prisma engine empty-responses + timeouts under default parallel workers → capped vitest maxWorkers=2 (documented in config; suite row-isolated so no semantics change), cleaned 2 leaked TEMP_RBAC_* roles left by killed runs. Green 65/65 three consecutive runs since.
+- Chunk 2 fees: term/category columns on fee_structures (category allowlist, migration both DBs); POST /fees/structures (ADMIN/ACCOUNTANT via fees.manage; amount as validated string → Decimal, §13.6); teacher 403, bad amounts 400, dup 409, foreign class 404 — 67/67 green
 
 ## What's left in this task
 - Fee Management #3 (structures, invoices, payment recording, reminders email, PDF receipts)

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `fee_structures` ADD COLUMN `category` VARCHAR(191) NOT NULL DEFAULT 'TUITION',
+    ADD COLUMN `term` VARCHAR(191) NULL;

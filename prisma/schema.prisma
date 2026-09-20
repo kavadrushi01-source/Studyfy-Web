@@ -384,6 +384,13 @@ model FeeStructure {
   academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id])
   name           String        @map("name")
   amount         Decimal       @map("amount") @db.Decimal(10, 2)
+  // Which billing period this belongs to ("Term 1", "Annual"…) — the
+  // invoice/ reminder flow groups by it. Optional: one-off charges skip it.
+  term           String?       @map("term")
+  // TUITION / TRANSPORT / LAB / EXAM / ACTIVITY / OTHER. Drives receipt
+  // line-labels and category reports; constrained in code, not enum, so a
+  // school can introduce a category without a migration.
+  category       String        @default("TUITION") @map("category")
   description    String?       @map("description")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
