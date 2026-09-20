@@ -4,8 +4,8 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { createStructureSchema } from "./fees.schemas.js";
-import { createStructure } from "./fees.service.js";
+import { createStructureSchema, generateInvoicesSchema } from "./fees.schemas.js";
+import { createStructure, generateInvoices } from "./fees.service.js";
 
 export const feesRouter = Router();
 
@@ -47,6 +47,42 @@ feesRouter.post(
     try {
       const structure = await createStructure(req.prisma, parsed.data);
       res.status(201).json({ success: true, data: { structure }, error: null, meta: null });
+    } catch (err) {
+      sendFeesError(res, err);
+    }
+  }),
+);
+
+// Bulk-generate invoices for a whole class / section / list in one action
+// (same fees.manage gate — Admin/Accountant only).
+feesRouter.post(
+  "/schools/:schoolId/fees/invoices/generate",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("fees.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = generateInvoicesSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await generateInvoices(req.prisma, parsed.data);
+      res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendFeesError(res, err);
     }

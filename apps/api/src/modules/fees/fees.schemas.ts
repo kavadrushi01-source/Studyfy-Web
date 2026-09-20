@@ -22,3 +22,28 @@ export const createStructureSchema = z.object({
 });
 
 export type CreateStructureInput = z.infer<typeof createStructureSchema>;
+
+// Bulk invoice generation: exactly ONE targeting mode per action — a whole
+// class, one section, or an explicit student list. dueDate is required:
+// an invoice without a due date can never become overdue, which breaks
+// reminders scheduling downstream.
+export const generateInvoicesSchema = z
+  .object({
+    structureId: z.string().trim().min(1).max(40),
+    classId: z.string().trim().max(40).optional(),
+    sectionId: z.string().trim().max(40).optional(),
+    studentIds: z.array(z.string().trim().min(1).max(40)).max(500).optional(),
+    dueDate: z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Due date must be YYYY-MM-DD.")
+      .refine((s) => !Number.isNaN(new Date(`${s}T00:00:00Z`).getTime()), {
+        message: "Due date is not a real calendar date.",
+      }),
+  })
+  .refine(
+    (v) => [v.classId, v.sectionId, v.studentIds].filter((x) => x !== undefined).length === 1,
+    { message: "Provide exactly one of classId, sectionId, or studentIds." },
+  );
+
+export type GenerateInvoicesInput = z.infer<typeof generateInvoicesSchema>;
