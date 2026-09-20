@@ -24,6 +24,7 @@
 - Chunk 2 fee E2E demo: structure → class invoices → partial cash payment → PDF receipt → student/parent ledgers → reminders run, all live. Live demo caught a REAL bug: reminder query excluded OVERDUE status (overdue bills went quiet) — fixed + regression tested. Also learned: Brevo synchronously refuses fake seed domains (attempt still stamped = retried tomorrow, no spam); E2E rows + stamps cleaned after.
 - Chunk 2 ledger: GET .../fees/invoices (fees.read; status/section/student filters, Decimal-exact header totals, self-scope pins with foreign-id 403); /fees UI reuses DataTable with §8.2 status pills (Paid green/Pending amber/Overdue red/Partial blue) — 81/81 green
 - Chunk 2 exams: POST /exams with name/range/subject-links in one transaction (dup subjects + backwards range 400, foreign subjects 404); GET schedules readable by all school roles; exams.manage (ADMIN/TEACHER) + exams.read seeded — 84/84 green
+- Chunk 2 marks entry: POST .../exams/:id/marks bulk upsert (re-entry overwrites), gated on the same class-teacher relationship as attendance (interim per task brief — tightenable to per-subject assignment in Chunk 3 without route changes); range-checked against maxMarks, section-membership enforced — 86/86 green
 
 ## What's left in this task
 - Fee Management #3 (structures, invoices, payment recording, reminders email, PDF receipts)

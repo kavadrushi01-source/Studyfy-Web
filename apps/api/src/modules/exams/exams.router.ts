@@ -4,8 +4,8 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { createExamSchema } from "./exams.schemas.js";
-import { createExam } from "./exams.service.js";
+import { createExamSchema, enterMarksSchema } from "./exams.schemas.js";
+import { createExam, enterMarks } from "./exams.service.js";
 
 export const examsRouter = Router();
 
@@ -82,5 +82,47 @@ examsRouter.get(
       take: 100,
     });
     res.json({ success: true, data: { exams }, error: null, meta: null });
+  }),
+);
+
+// Bulk marks entry (teachers.manage holders only; authorship narrows to
+// the section's class teacher or Admin — same interim relationship as
+// attendance, tightenable to per-subject assignment in Chunk 3).
+examsRouter.post(
+  "/schools/:schoolId/exams/:examId/marks",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("exams.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = enterMarksSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await enterMarks(
+        req.prisma,
+        req.params.examId ?? "",
+        { userId: req.user.userId, role: req.user.role },
+        parsed.data,
+      );
+      res.status(200).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendExamsError(res, err);
+    }
   }),
 );
