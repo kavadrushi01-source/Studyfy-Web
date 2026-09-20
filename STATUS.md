@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** 2026-09-16 | **Last updated:** 2026-09-17
+**Started:** 2026-09-16 | **Last updated:** 2026-09-20
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -47,8 +47,8 @@
 |---|---|---|---|
 | Student Information System | DONE — admission (users+students+guardians, one-time temp passwords), self-scoped profile, teacher-scoped sortable/paginated roster, Cloudinary documents (whitelist, school folders), PDFKit ID cards, class-teacher assignment | DONE — /students (DataTable), /students/new, /students/[id], /students/[id]/id-card (print CSS), /sections; pre-shell token-paste workflow until dashboards | Partial — board language (cards, pills, tables) matched; full sidebar shell lands in Chunk 5 dashboards |
 | Attendance | IN PROGRESS (Chunk 2) — marking, summary, absentee email alerts, marking screen built; monthly/term reports UI pending | IN PROGRESS — /attendance/mark built | — |
-| Fee Management | NOT STARTED | NOT STARTED | — |
-| Exams & Gradebook | NOT STARTED | NOT STARTED | — |
+| Fee Management | DONE — structures (term/category, exact decimals), idempotent bulk invoices, Decimal-exact manual payments (RAZORPAY structurally rejected), PDFKit receipts, school-tz reminders, self-scoped ledger with exact totals; live E2E verified | DONE — /fees (status pills, totals header), /fees/receipts/[id] print viewer | Partial — same pre-shell note as SIS |
+| Exams & Gradebook | DONE — creation with subject links, bulk marks entry (class-teacher gate), round-then-grade letters, competition ranks, heap top-K with true ranks, PDFKit report cards (attendance % included); live E2E hand-verified incl. tie ranks | DONE — /exams/results (ranked board, top-K, grade pills), /students/[id]/report print viewer | Partial — same pre-shell note as SIS |
 | Timetable | NOT STARTED | NOT STARTED | — |
 | Homework | NOT STARTED | NOT STARTED | — |
 | Notices | DONE — school/class/section publish with email delivery to affected parents/staff, scope-filtered board, cross-tenant rejection tested | DONE — /notices (publish + board, target pills, skeleton loading) | Partial — same pre-shell note as SIS |

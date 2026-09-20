@@ -9,40 +9,24 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS
-**Phase / Module:** Phase 1 — Chunk 2 (Fee Management + Exams & Gradebook)
-**Last updated:** 2026-09-17
+**Status:** IDLE
+**Phase / Module:** —
+**Last updated:** 2026-09-20
 
 ## What's done in this task so far
-- Read CURRENT_TASK.md (IDLE), STATUS.md (Chunk 1 DONE) — 2026-09-17
-- Baseline: sandbox 3307 dead again at session start — restarted (datadir intact). Fresh-restart flakiness followed: Prisma engine empty-responses + timeouts under default parallel workers → capped vitest maxWorkers=2 (documented in config; suite row-isolated so no semantics change), cleaned 2 leaked TEMP_RBAC_* roles left by killed runs. Green 65/65 three consecutive runs since.
-- Chunk 2 fees: term/category columns on fee_structures (category allowlist, migration both DBs); POST /fees/structures (ADMIN/ACCOUNTANT via fees.manage; amount as validated string → Decimal, §13.6); teacher 403, bad amounts 400, dup 409, foreign class 404 — 67/67 green
-- Chunk 2 invoices: POST /fees/invoices/generate with exactly-one targeting mode (whole class / section / explicit list); exact structure amount, PENDING default; idempotent skip (never double-bills, skips reported); foreign ids 404, mixed modes 400, cross-tenant 403 — 71/71 green
-- Chunk 2 payments: POST .../invoices/:id/pay (manual cash/offline only — RAZORPAY method rejected at the schema so this can never mark online money paid); Decimal-only math (3333.33+6666.67 settles exactly), PARTIAL accumulation, overpay 400, settled-invoice 409 — 73/73 green
-- Chunk 2 receipts: PDFKit fee receipt (A4, brand header, line items, balance, no-signature footer) + GET .../payments/:id/receipt (fees.manage; foreign 404); /fees/receipts/[id] viewer opens PDF for browser printing (§8.5) — 75/75 green
-- Chunk 2 reminders: lastReminderAt column + runFeeReminders (school-tz calendar via Intl, 3-day approaching window, per-invoice-per-day idempotency, suspended skipped) + POST .../reminders/run; Kiritimati-vs-Kolkata same-instant test proves server-UTC independence — 78/78 green. Cron scheduling (§12.4) still open.
-- Chunk 2 fee E2E demo: structure → class invoices → partial cash payment → PDF receipt → student/parent ledgers → reminders run, all live. Live demo caught a REAL bug: reminder query excluded OVERDUE status (overdue bills went quiet) — fixed + regression tested. Also learned: Brevo synchronously refuses fake seed domains (attempt still stamped = retried tomorrow, no spam); E2E rows + stamps cleaned after.
-- Chunk 2 ledger: GET .../fees/invoices (fees.read; status/section/student filters, Decimal-exact header totals, self-scope pins with foreign-id 403); /fees UI reuses DataTable with §8.2 status pills (Paid green/Pending amber/Overdue red/Partial blue) — 81/81 green
-- Chunk 2 exams: POST /exams with name/range/subject-links in one transaction (dup subjects + backwards range 400, foreign subjects 404); GET schedules readable by all school roles; exams.manage (ADMIN/TEACHER) + exams.read seeded — 84/84 green
-- Chunk 2 marks entry: POST .../exams/:id/marks bulk upsert (re-entry overwrites), gated on the same class-teacher relationship as attendance (interim per task brief — tightenable to per-subject assignment in Chunk 3 without route changes); range-checked against maxMarks, section-membership enforced — 86/86 green
-- Chunk 2 grades+ranks: pure lib (round-then-grade consistency, competition 1224 ranks, dependency-free min-heap with fair tie-inclusive top-K + id tiebreak); GET .../exams/:id/results with heap top-K path but true full-set ranks, self-scope pins — 94/94 green. Unit tests caught 2 real heap bugs (cutoff end, tie order).
-- Chunk 2 report cards: PDFKit report card (subject table, totals, grade, rank x-of-y, attendance % via the attendance module's own summary over exam dates) + self-scoped GET .../report-cards/:studentId + /students/[id]/report viewer — 96/96 green. Caught: missing topK import slipped past a skipped api typecheck (test 500 caught it) — always typecheck api before tests.
-- Chunk 2 results screen: /exams/results with exam picker + optional top-K (heap path) + grade pills; staff see full ranked board, students/parents auto-pinned to own rows (no ID specified anywhere — API defaults to caller pins, same rule as attendance)
-- Chunk 2 exams E2E demo: scheduled E2E Unit Test (Math+English), Arjun entered 9-A marks, results matched hand calc exactly incl. tie ranks (Aditya/Yash 85 B+ r1, Ishita 82 B r3); Aditya pinned to own row + 403 on Ishita's; report PDF 2184 bytes valid; demo exam rows cleaned (0 leftovers), server stopped.
+_(nothing in progress right now — Chunk 2 of 5 complete: Fee Management + Exams & Gradebook DONE in STATUS.md; suite 96/96)_
 
 ## What's left in this task
-- Fee Management #3 (structures, invoices, payment recording, reminders email, PDF receipts)
-- Exams & Gradebook #4 (schedules, marks entry, auto grade/rank, PDF report cards)
-- Each: API + tests both directions + web UI + commit + push
+_(nothing in progress right now)_
 
 ## Exact next action
-Fee structures + invoices endpoints first (exam/gradebook after) — say go.
+Chunk 3 next: Timetable + Homework (+ Messaging) (§7 Phase 1 #5–#6, #8). Note: Notices is already DONE (Chunk 1), and Attendance keeps its reports-UI gap — both fold wherever cheapest. Say go to start Chunk 3.
 
 ## Notes / decisions made mid-task
-- 2026-09-17 Chunk 2 open: worker cap + TEMP-role cleanup (see above). Verify every push lands with `git log origin/main`, not just the push line.
+_(none — Chunk 2 detail in git log + STATUS.md; standing rules in RULES.md, env notes in STATUS.md)_
 
 ## Repo state right now
-YES — 65/65 (16 files) three consecutive greens, lint 0, audit-high 0 vulns. Tree clean after this commit.
+YES — 96/96 api tests, lint 0, typecheck clean (api+web+seed), audit-high 0 vulns. Sandbox MySQL on 3307 (see STATUS.md if the port is dead).
 
 ---
 
