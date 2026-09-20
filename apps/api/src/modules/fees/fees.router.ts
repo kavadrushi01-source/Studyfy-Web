@@ -2,10 +2,11 @@ import { Router, type Request, type Response } from "express";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
+import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { createStructureSchema, generateInvoicesSchema, recordPaymentSchema } from "./fees.schemas.js";
-import { createStructure, generateInvoices, recordPayment, runFeeReminders } from "./fees.service.js";
+import { createStructureSchema, generateInvoicesSchema, listInvoicesSchema, recordPaymentSchema } from "./fees.schemas.js";
+import { createStructure, generateInvoices, listInvoices, recordPayment, runFeeReminders } from "./fees.service.js";
 import { generateFeeReceipt } from "../../lib/receipt.js";
 
 export const feesRouter = Router();
@@ -17,6 +18,48 @@ function sendFeesError(res: Response, err: unknown): void {
   }
   throw err;
 }
+
+// Ledger: every invoice in scope, filterable, with header totals.
+// STUDENT/PARENT are pinned to own/linked rows via studentSelfScope;
+// staff may narrow by status/section/student. Same §3 contract as students.
+feesRouter.get(
+  "/schools/:schoolId/fees/invoices",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("fees.read"),
+  studentSelfScope,
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = listInvoicesSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await listInvoices(
+        req.prisma,
+        parsed.data,
+        req.studentScope ? req.studentScope.studentIds : null,
+      );
+      res.json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendFeesError(res, err);
+    }
+  }),
+);
 
 // School Admin / Accountant only (fees.manage). Invoices, payments,
 // reminders, and receipts build on structures in later commits.

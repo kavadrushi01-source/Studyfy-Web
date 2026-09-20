@@ -65,3 +65,20 @@ export const recordPaymentSchema = z.object({
 });
 
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
+
+const INVOICE_STATUS = ["PENDING", "PARTIAL", "PAID", "OVERDUE", "REFUNDED"] as const;
+const INVOICE_SORT = ["dueDate", "createdAt", "amount"] as const;
+
+// Ledger controls: status/section/student filters + paging. Same honesty
+// rule as the roster — everything claimed is enforced in SQL.
+export const listInvoicesSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  sort: z.enum(INVOICE_SORT).default("dueDate"),
+  order: z.enum(["asc", "desc"]).default("asc"),
+  status: z.enum(INVOICE_STATUS).optional(),
+  sectionId: z.string().trim().max(40).optional(),
+  studentId: z.string().trim().max(40).optional(),
+});
+
+export type ListInvoicesInput = z.infer<typeof listInvoicesSchema>;

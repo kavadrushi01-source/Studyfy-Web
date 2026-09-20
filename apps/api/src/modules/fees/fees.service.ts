@@ -2,7 +2,85 @@ import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { AuthError } from "../auth/auth.service.js";
-import type { CreateStructureInput, GenerateInvoicesInput, RecordPaymentInput } from "./fees.schemas.js";
+import type { CreateStructureInput, GenerateInvoicesInput, ListInvoicesInput, RecordPaymentInput } from "./fees.schemas.js";
+
+export interface InvoiceLedger {
+  invoices: {
+    id: string;
+    status: string;
+    amount: string;
+    amountPaid: string;
+    outstanding: string;
+    dueDate: string;
+    student: { id: string; name: string };
+    structure: { name: string } | null;
+  }[];
+  totals: { outstanding: string; overdue: string; count: number };
+}
+
+// Ledger read (§7 Phase 1 #3): filterable invoice list + header totals.
+// allowedIds = self-scope pins for STUDENT/PARENT (null = staff, full
+// school). An explicit studentId outside the pins is rejected, never
+// widened. Outstanding uses Decimal throughout (§13.6).
+export async function listInvoices(
+  db: PrismaClient,
+  input: ListInvoicesInput,
+  allowedIds: string[] | null,
+): Promise<InvoiceLedger> {
+  if (input.studentId && allowedIds && !allowedIds.includes(input.studentId)) {
+    throw new AuthError(403, "FORBIDDEN", "Not your record.");
+  }
+  const where: Prisma.FeeInvoiceWhereInput = {
+    ...(input.status ? { status: input.status } : {}),
+    ...(input.sectionId ? { student: { sectionId: input.sectionId } } : {}),
+    ...(input.studentId
+      ? { studentId: input.studentId }
+      : allowedIds
+        ? { studentId: { in: allowedIds } }
+        : {}),
+  };
+  const [total, rows, open] = await Promise.all([
+    db.feeInvoice.count({ where }),
+    db.feeInvoice.findMany({
+      where,
+      include: {
+        student: { select: { id: true, user: { select: { name: true } } } },
+        structure: { select: { name: true } },
+      },
+      orderBy: { [input.sort]: input.order },
+      skip: (input.page - 1) * input.pageSize,
+      take: input.pageSize,
+    }),
+    db.feeInvoice.findMany({
+      where: { ...where, status: { in: ["PENDING", "PARTIAL", "OVERDUE"] } },
+      select: { amount: true, amountPaid: true, status: true },
+    }),
+  ]);
+  let outstanding = new Prisma.Decimal(0);
+  let overdue = new Prisma.Decimal(0);
+  for (const row of open) {
+    const due = new Prisma.Decimal(row.amount).minus(new Prisma.Decimal(row.amountPaid));
+    if (due.greaterThan(0)) {
+      outstanding = outstanding.plus(due);
+      if (row.status === "OVERDUE") {
+        overdue = overdue.plus(due);
+      }
+    }
+  }
+  return {
+    invoices: rows.map((row) => ({
+      id: row.id,
+      status: row.status,
+      amount: row.amount.toString(),
+      amountPaid: row.amountPaid.toString(),
+      outstanding: new Prisma.Decimal(row.amount).minus(new Prisma.Decimal(row.amountPaid)).toString(),
+      dueDate: row.dueDate.toISOString().slice(0, 10),
+      student: { id: row.student.id, name: row.student.user.name },
+      structure: row.structure ? { name: row.structure.name } : null,
+    })),
+    totals: { outstanding: outstanding.toString(), overdue: overdue.toString(), count: total },
+  };
+}
 
 // Fee structure per class (§7 Phase 1 #3): amount + term + category. Runs
 // on the tenant-SCOPED client, so the class lookup alone proves "this
