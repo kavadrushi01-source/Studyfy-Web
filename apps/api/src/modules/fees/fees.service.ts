@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { AuthError } from "../auth/auth.service.js";
-import type { CreateStructureInput, GenerateInvoicesInput } from "./fees.schemas.js";
+import type { CreateStructureInput, GenerateInvoicesInput, RecordPaymentInput } from "./fees.schemas.js";
 
 // Fee structure per class (§7 Phase 1 #3): amount + term + category. Runs
 // on the tenant-SCOPED client, so the class lookup alone proves "this
@@ -133,4 +133,65 @@ export async function generateInvoices(
     ),
   );
   return { generated: fresh.length, skipped };
+}
+
+export interface RecordPaymentResult {
+  invoice: { id: string; amount: string; amountPaid: string; status: string };
+  payment: { id: string; amount: string; method: string };
+}
+
+// Manual counter collection (§7 Phase 1 #3): cash/UPI/card/bank-transfer
+// recorded by Admin/Accountant against an invoice. All money math stays in
+// Prisma.Decimal — never floats (§13.6). Paid-in-full flips PENDING (or
+// PARTIAL) to PAID; anything short stays PARTIAL. Overpayment is rejected:
+// the counter cannot collect more than owed.
+export async function recordPayment(
+  db: PrismaClient,
+  invoiceId: string,
+  receivedById: string,
+  input: RecordPaymentInput,
+): Promise<RecordPaymentResult> {
+  const invoice = await db.feeInvoice.findFirst({ where: { id: invoiceId } });
+  if (!invoice) {
+    throw new AuthError(404, "INVOICE_NOT_FOUND", "Invoice not found in this school.");
+  }
+  if (invoice.status === "PAID" || invoice.status === "REFUNDED") {
+    throw new AuthError(409, "INVOICE_SETTLED", `Invoice is already ${invoice.status.toLowerCase()}.`);
+  }
+  const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
+  const paying = new Prisma.Decimal(input.amount);
+  if (paying.greaterThan(outstanding)) {
+    throw new AuthError(
+      400,
+      "OVERPAYMENT",
+      `Amount exceeds the outstanding balance of ${outstanding.toFixed(2)}.`,
+    );
+  }
+  const newPaid = new Prisma.Decimal(invoice.amountPaid).plus(paying);
+  const settled = newPaid.greaterThanOrEqualTo(new Prisma.Decimal(invoice.amount));
+
+  const [payment, updated] = await db.$transaction([
+    db.feePayment.create({
+      data: {
+        schoolId: invoice.schoolId,
+        invoiceId: invoice.id,
+        amount: paying,
+        method: input.method,
+        receivedById,
+      },
+    }),
+    db.feeInvoice.update({
+      where: { id: invoice.id },
+      data: { amountPaid: newPaid, status: settled ? "PAID" : "PARTIAL" },
+    }),
+  ]);
+  return {
+    invoice: {
+      id: updated.id,
+      amount: updated.amount.toString(),
+      amountPaid: updated.amountPaid.toString(),
+      status: updated.status,
+    },
+    payment: { id: payment.id, amount: payment.amount.toString(), method: payment.method },
+  };
 }

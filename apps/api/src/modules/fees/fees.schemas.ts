@@ -47,3 +47,21 @@ export const generateInvoicesSchema = z
   );
 
 export type GenerateInvoicesInput = z.infer<typeof generateInvoicesSchema>;
+
+// Manual payment recording (cash/offline counter collection). Amount is a
+// validated STRING for the same Decimal reasons as structures (§13.6).
+// RAZORPAY is deliberately rejected here: online money arrives ONLY via the
+// Phase 2 webhook (§13.8) — this endpoint must never be a backdoor that
+// marks online invoices paid without gateway proof.
+const MANUAL_METHODS = ["CASH", "UPI", "CARD", "BANK_TRANSFER"] as const;
+
+export const recordPaymentSchema = z.object({
+  amount: z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d{1,2})?$/, "Amount must be a positive number with at most 2 decimals.")
+    .refine((s) => Number(s) > 0, { message: "Amount must be greater than zero." }),
+  method: z.enum(MANUAL_METHODS),
+});
+
+export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;

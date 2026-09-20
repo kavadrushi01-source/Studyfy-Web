@@ -18,6 +18,7 @@
 - Baseline: sandbox 3307 dead again at session start — restarted (datadir intact). Fresh-restart flakiness followed: Prisma engine empty-responses + timeouts under default parallel workers → capped vitest maxWorkers=2 (documented in config; suite row-isolated so no semantics change), cleaned 2 leaked TEMP_RBAC_* roles left by killed runs. Green 65/65 three consecutive runs since.
 - Chunk 2 fees: term/category columns on fee_structures (category allowlist, migration both DBs); POST /fees/structures (ADMIN/ACCOUNTANT via fees.manage; amount as validated string → Decimal, §13.6); teacher 403, bad amounts 400, dup 409, foreign class 404 — 67/67 green
 - Chunk 2 invoices: POST /fees/invoices/generate with exactly-one targeting mode (whole class / section / explicit list); exact structure amount, PENDING default; idempotent skip (never double-bills, skips reported); foreign ids 404, mixed modes 400, cross-tenant 403 — 71/71 green
+- Chunk 2 payments: POST .../invoices/:id/pay (manual cash/offline only — RAZORPAY method rejected at the schema so this can never mark online money paid); Decimal-only math (3333.33+6666.67 settles exactly), PARTIAL accumulation, overpay 400, settled-invoice 409 — 73/73 green
 
 ## What's left in this task
 - Fee Management #3 (structures, invoices, payment recording, reminders email, PDF receipts)

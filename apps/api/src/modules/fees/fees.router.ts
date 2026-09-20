@@ -4,8 +4,8 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { createStructureSchema, generateInvoicesSchema } from "./fees.schemas.js";
-import { createStructure, generateInvoices } from "./fees.service.js";
+import { createStructureSchema, generateInvoicesSchema, recordPaymentSchema } from "./fees.schemas.js";
+import { createStructure, generateInvoices, recordPayment } from "./fees.service.js";
 
 export const feesRouter = Router();
 
@@ -83,6 +83,44 @@ feesRouter.post(
     try {
       const result = await generateInvoices(req.prisma, parsed.data);
       res.status(201).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendFeesError(res, err);
+    }
+  }),
+);
+
+// Manual payment recording (spec §10): Admin/Accountant records a
+// cash/offline payment against an invoice. Online (Razorpay) money is
+// Phase 2 and arrives ONLY via webhook — the schema rejects the method
+// here so this endpoint can never mark online invoices paid.
+feesRouter.post(
+  "/schools/:schoolId/fees/invoices/:invoiceId/pay",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("fees.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = recordPaymentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await recordPayment(req.prisma, req.params.invoiceId ?? "", req.user.userId, parsed.data);
+      res.status(200).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendFeesError(res, err);
     }
