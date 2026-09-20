@@ -55,6 +55,8 @@ const PERMISSIONS: { key: string; description: string }[] = [
   { key: "notices.write", description: "Publish notices (School Admin, Teacher)" },
   { key: "fees.manage", description: "Create fee structures, record payments (School Admin, Accountant)" },
   { key: "fees.read", description: "Read invoices and ledgers (staff; students/parents narrowed to own)" },
+  { key: "exams.manage", description: "Create exams and link subjects (School Admin, Teacher)" },
+  { key: "exams.read", description: "Read exam schedules (all school roles)" },
   { key: "documents.read", description: "Read uploaded documents (staff; students/parents narrowed to own)" },
   { key: "documents.write", description: "Upload admission documents (School Admin, Accountant)" },
   { key: "platform.schools.read", description: "List every school cross-tenant (Platform Owner only)" },
@@ -64,11 +66,11 @@ const PERMISSIONS: { key: string; description: string }[] = [
 // PERMISSION grants access while self-scope narrows ROWS — holding the key
 // never means seeing everyone.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "documents.read", "documents.write"],
-  TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "notices.read", "notices.write", "documents.read"],
-  ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "notices.read", "fees.manage", "fees.read", "documents.read", "documents.write"],
-  STUDENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read"],
-  PARENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read"],
+  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "documents.read", "documents.write"],
+  TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "notices.read", "notices.write", "exams.manage", "exams.read", "documents.read"],
+  ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "notices.read", "fees.manage", "fees.read", "exams.read", "documents.read", "documents.write"],
+  STUDENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read"],
+  PARENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read"],
   PLATFORM_OWNER: ["platform.schools.read"],
 };
 
