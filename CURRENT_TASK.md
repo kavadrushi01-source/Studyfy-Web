@@ -28,6 +28,7 @@
 - Chunk 2 grades+ranks: pure lib (round-then-grade consistency, competition 1224 ranks, dependency-free min-heap with fair tie-inclusive top-K + id tiebreak); GET .../exams/:id/results with heap top-K path but true full-set ranks, self-scope pins — 94/94 green. Unit tests caught 2 real heap bugs (cutoff end, tie order).
 - Chunk 2 report cards: PDFKit report card (subject table, totals, grade, rank x-of-y, attendance % via the attendance module's own summary over exam dates) + self-scoped GET .../report-cards/:studentId + /students/[id]/report viewer — 96/96 green. Caught: missing topK import slipped past a skipped api typecheck (test 500 caught it) — always typecheck api before tests.
 - Chunk 2 results screen: /exams/results with exam picker + optional top-K (heap path) + grade pills; staff see full ranked board, students/parents auto-pinned to own rows (no ID specified anywhere — API defaults to caller pins, same rule as attendance)
+- Chunk 2 exams E2E demo: scheduled E2E Unit Test (Math+English), Arjun entered 9-A marks, results matched hand calc exactly incl. tie ranks (Aditya/Yash 85 B+ r1, Ishita 82 B r3); Aditya pinned to own row + 403 on Ishita's; report PDF 2184 bytes valid; demo exam rows cleaned (0 leftovers), server stopped.
 
 ## What's left in this task
 - Fee Management #3 (structures, invoices, payment recording, reminders email, PDF receipts)
