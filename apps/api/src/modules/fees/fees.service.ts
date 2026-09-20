@@ -316,7 +316,10 @@ export async function runFeeReminders(
   const invoices = await db.feeInvoice.findMany({
     where: {
       schoolId,
-      status: { in: ["PENDING", "PARTIAL"] },
+      // OVERDUE included: it is precisely the state that needs reminding.
+      // (Live demo caught this filter missing it — PENDING-only would let
+      // every overdue bill go quiet the moment something marked it so.)
+      status: { in: ["PENDING", "PARTIAL", "OVERDUE"] },
       dueDate: { lte: new Date(`${horizon}T00:00:00Z`) },
     },
     include: {

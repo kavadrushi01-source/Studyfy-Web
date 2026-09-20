@@ -108,6 +108,20 @@ describe("fee reminders (§7 Phase 1 #3, §12.7 timezones)", () => {
     expect(emailed).toHaveLength(1);
   });
 
+  it("reminds rows already sitting in OVERDUE status (not just PENDING)", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    const overdue = await invoiceFor(schoolId, "2000-01-01");
+    await prisma.feeInvoice.updateMany({ where: { schoolId }, data: { status: "OVERDUE" } });
+    emailed.length = 0;
+
+    const res = await request(app)
+      .post(`/api/v1/schools/${schoolId}/fees/reminders/run`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    expect(res.body.data.emailed).toBe(1);
+    expect(emailed.map((e) => e.to)).toEqual([overdue.guardianEmail]);
+  });
+
   it("judges due/overdue by the SCHOOL's calendar day, not server UTC", async () => {
     // Fixed instant: 2026-09-17 10:00 UTC.
     const now = new Date("2026-09-17T10:00:00Z");

@@ -21,6 +21,7 @@
 - Chunk 2 payments: POST .../invoices/:id/pay (manual cash/offline only — RAZORPAY method rejected at the schema so this can never mark online money paid); Decimal-only math (3333.33+6666.67 settles exactly), PARTIAL accumulation, overpay 400, settled-invoice 409 — 73/73 green
 - Chunk 2 receipts: PDFKit fee receipt (A4, brand header, line items, balance, no-signature footer) + GET .../payments/:id/receipt (fees.manage; foreign 404); /fees/receipts/[id] viewer opens PDF for browser printing (§8.5) — 75/75 green
 - Chunk 2 reminders: lastReminderAt column + runFeeReminders (school-tz calendar via Intl, 3-day approaching window, per-invoice-per-day idempotency, suspended skipped) + POST .../reminders/run; Kiritimati-vs-Kolkata same-instant test proves server-UTC independence — 78/78 green. Cron scheduling (§12.4) still open.
+- Chunk 2 fee E2E demo: structure → class invoices → partial cash payment → PDF receipt → student/parent ledgers → reminders run, all live. Live demo caught a REAL bug: reminder query excluded OVERDUE status (overdue bills went quiet) — fixed + regression tested. Also learned: Brevo synchronously refuses fake seed domains (attempt still stamped = retried tomorrow, no spam); E2E rows + stamps cleaned after.
 - Chunk 2 ledger: GET .../fees/invoices (fees.read; status/section/student filters, Decimal-exact header totals, self-scope pins with foreign-id 403); /fees UI reuses DataTable with §8.2 status pills (Paid green/Pending amber/Overdue red/Partial blue) — 81/81 green
 
 ## What's left in this task
