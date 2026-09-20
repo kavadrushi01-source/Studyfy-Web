@@ -19,6 +19,7 @@
 - Chunk 2 fees: term/category columns on fee_structures (category allowlist, migration both DBs); POST /fees/structures (ADMIN/ACCOUNTANT via fees.manage; amount as validated string → Decimal, §13.6); teacher 403, bad amounts 400, dup 409, foreign class 404 — 67/67 green
 - Chunk 2 invoices: POST /fees/invoices/generate with exactly-one targeting mode (whole class / section / explicit list); exact structure amount, PENDING default; idempotent skip (never double-bills, skips reported); foreign ids 404, mixed modes 400, cross-tenant 403 — 71/71 green
 - Chunk 2 payments: POST .../invoices/:id/pay (manual cash/offline only — RAZORPAY method rejected at the schema so this can never mark online money paid); Decimal-only math (3333.33+6666.67 settles exactly), PARTIAL accumulation, overpay 400, settled-invoice 409 — 73/73 green
+- Chunk 2 receipts: PDFKit fee receipt (A4, brand header, line items, balance, no-signature footer) + GET .../payments/:id/receipt (fees.manage; foreign 404); /fees/receipts/[id] viewer opens PDF for browser printing (§8.5) — 75/75 green
 
 ## What's left in this task
 - Fee Management #3 (structures, invoices, payment recording, reminders email, PDF receipts)
