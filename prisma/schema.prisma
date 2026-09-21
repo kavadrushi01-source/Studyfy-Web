@@ -129,6 +129,7 @@ model School {
   notices             Notice[]
   enquiries           Enquiry[]
   documents           Document[]
+  messages            Message[]
 
   @@map("schools")
 }
@@ -161,6 +162,8 @@ model User {
   authTokens       AuthToken[]
   refreshTokens    RefreshToken[]
   documents        Document[]
+  sentMessages     Message[]         @relation("MessageSender")
+  receivedMessages Message[]         @relation("MessageReceiver")
 
   @@unique([schoolId, email])
   @@index([schoolId])
@@ -712,4 +715,29 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Messages — 1:1 academic chat (§7 Phase 1 #8, §13.7). Deferred from Phase 0
+// (no messaging without the access rules below). threadId is a deterministic
+// pair key (sorted user ids) so a conversation lists with one indexed
+// lookup. Tenant-scoped — Message ∈ TENANT_MODELS (same commit).
+// Who may talk to whom lives in messages.service.ts, not here.
+// ---------------------------------------------------------------------------
+
+model Message {
+  id         String   @id @default(cuid()) @map("id")
+  schoolId   String   @map("school_id")
+  school     School   @relation(fields: [schoolId], references: [id])
+  senderId   String   @map("sender_id")
+  sender     User     @relation("MessageSender", fields: [senderId], references: [id])
+  receiverId String   @map("receiver_id")
+  receiver   User     @relation("MessageReceiver", fields: [receiverId], references: [id])
+  threadId   String   @map("thread_id")
+  body       String   @map("body") @db.Text
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, threadId, createdAt])
+  @@map("messages")
 }
