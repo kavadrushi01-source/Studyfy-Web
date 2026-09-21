@@ -5,6 +5,7 @@ import { attendanceRouter } from "./modules/attendance/attendance.router.js";
 import { documentsRouter } from "./modules/documents/documents.router.js";
 import { examsRouter } from "./modules/exams/exams.router.js";
 import { homeworkRouter } from "./modules/homework/homework.router.js";
+import { messagesRouter } from "./modules/messages/messages.router.js";
 import { feesRouter } from "./modules/fees/fees.router.js";
 import { noticesRouter } from "./modules/notices/notices.router.js";
 import { platformRouter } from "./modules/platform/platform.router.js";
@@ -40,6 +41,7 @@ export function createApp(): Express {
   app.use("/api/v1", documentsRouter);
   app.use("/api/v1", examsRouter);
   app.use("/api/v1", homeworkRouter);
+  app.use("/api/v1", messagesRouter);
   app.use("/api/v1", staffRouter);
   app.use("/api/v1", timetableRouter);
   app.use("/api/v1", feesRouter);

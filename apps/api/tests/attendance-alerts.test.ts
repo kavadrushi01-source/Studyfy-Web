@@ -121,7 +121,12 @@ describe("absentee alerts (§7 Phase 1 #2, Brevo SMTP)", () => {
     expect(sent).toHaveLength(0);
   });
 
-  it("still marks when the mailer throws, and when SMTP is unconfigured", async () => {
+  it(
+    "still marks when the mailer throws, and when SMTP is unconfigured",
+    // Same bcrypt-heavy profile as admission (register + logins + marking):
+    // 30s so parallel-worker load can't flake it (see admission.test.ts).
+    { timeout: 30000 },
+    async () => {
     const { schoolId, adminToken } = await registerSchool();
     const sectionId = await makeSection(schoolId);
     const student = await makeStudent(schoolId, sectionId, 1);
@@ -167,5 +172,6 @@ describe("absentee alerts (§7 Phase 1 #2, Brevo SMTP)", () => {
 
     const row = await prisma.attendance.findFirst({ where: { schoolId, studentId: student.studentId } });
     expect(row?.status).toBe("ABSENT");
-  });
+    },
+  );
 });
