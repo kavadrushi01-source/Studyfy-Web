@@ -4,10 +4,11 @@ import { z } from "zod";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
+import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { postHomeworkSchema } from "./homework.schemas.js";
-import { gradeSubmission, postHomework, submitHomework } from "./homework.service.js";
+import { gradeSubmission, homeworkBoard, postHomework, submitHomework } from "./homework.service.js";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -129,6 +130,39 @@ homeworkRouter.post(
         req.params.submissionId ?? "",
       );
       res.json({ success: true, data: { submission }, error: null, meta: null });
+    } catch (err) {
+      sendHomeworkError(res, err);
+    }
+  }),
+);
+
+// Board read (homework.read): role-shaped rows — own submissions for
+// students/parents, authored-with-counts for teachers, everything for
+// admins. Placed FIRST among GETs so no :param route can shadow it (there
+// is none today, and this comment keeps it that way).
+homeworkRouter.get(
+  "/schools/:schoolId/homework",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("homework.read"),
+  studentSelfScope,
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await homeworkBoard(
+        req.prisma,
+        { userId: req.user.userId, role: req.user.role },
+        req.studentScope ? req.studentScope.studentIds : null,
+      );
+      res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendHomeworkError(res, err);
     }

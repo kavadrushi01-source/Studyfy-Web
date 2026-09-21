@@ -170,8 +170,7 @@ export async function submitHomework(
 // Teacher grading: same authorship gate as posting (qualified subject +
 // class-teacher-or-scheduled section, or Admin). Grading flips SUBMITTED
 // to GRADED; anything else stays as the teacher left it.
-export async function gradeSubmission(db: PrismaClient, caller: { userId: string; role: string }, submissionId: string) {
-  const submission = await db.homeworkSubmission.findFirst({
+export async function gradeSubmission(db: PrismaClient, caller: { userId: string; role: string }, submissionId: string) {  const submission = await db.homeworkSubmission.findFirst({
     where: { id: submissionId },
     include: { homework: { select: { sectionId: true, subjectId: true } } },
   });
@@ -201,4 +200,106 @@ export async function gradeSubmission(db: PrismaClient, caller: { userId: string
     where: { id: submission.id },
     data: { status: "GRADED" },
   });
+}
+
+interface BoardCaller {
+  userId: string;
+  role: string;
+}
+
+export interface BoardItem {
+  id: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  subject: { name: string };
+  section: { id: string; name: string; className: string };
+  teacher: { name: string };
+  // Present for STUDENT/PARENT: their (or linked children's) submissions.
+  mySubmissions: { studentId: string; status: string }[];
+  // Present for staff: grading workload per assignment.
+  counts: { total: number; submitted: number; graded: number } | null;
+}
+
+// Homework board (§7 Phase 1 #6): one endpoint, role-shaped rows.
+// - STUDENT/PARENT: homework for pinned students' sections, each with
+//   THEIR submission states (null = not submitted yet). The client splits
+//   pending vs graded from exactly this — no second call.
+// - TEACHER: only rows THEY authored, each with submitted/graded counts,
+//   so "what needs grading" is one glance (pending = submitted - graded).
+// - ADMIN: everything with counts. (Accountant holds no homework.read.)
+export async function homeworkBoard(
+  db: PrismaClient,
+  caller: BoardCaller,
+  studentScopeIds: string[] | null,
+): Promise<{ homework: BoardItem[] }> {
+  if (caller.role === "STUDENT" || caller.role === "PARENT") {
+    const students = await db.student.findMany({
+      where: { id: { in: studentScopeIds ?? [] } },
+      select: { id: true, sectionId: true },
+    });
+    const sectionIds = [...new Set(students.map((s) => s.sectionId))];
+    const pinned = new Set(students.map((s) => s.id));
+    const rows = await db.homework.findMany({
+      where: { sectionId: { in: sectionIds } },
+      include: {
+        subject: { select: { name: true } },
+        section: { select: { id: true, name: true, class: { select: { name: true } } } },
+        teacher: { select: { user: { select: { name: true } } } },
+        submissions: { where: { studentId: { in: [...pinned] } }, select: { studentId: true, status: true } },
+      },
+      orderBy: { dueDate: "asc" },
+      take: 100,
+    });
+    return {
+      homework: rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        dueDate: row.dueDate.toISOString().slice(0, 10),
+        subject: { name: row.subject.name },
+        section: { id: row.section.id, name: row.section.name, className: row.section.class.name },
+        teacher: { name: row.teacher.user.name },
+        mySubmissions: row.submissions.map((s) => ({ studentId: s.studentId, status: s.status })),
+        counts: null,
+      })),
+    };
+  }
+
+  let teacherId: string | null = null;
+  if (caller.role === "TEACHER") {
+    const staff = await db.staff.findFirst({ where: { userId: caller.userId } });
+    if (!staff) {
+      throw new AuthError(403, "FORBIDDEN", "No staff profile is linked to this account.");
+    }
+    teacherId = staff.id;
+  }
+  const rows = await db.homework.findMany({
+    where: teacherId ? { teacherId } : {},
+    include: {
+      subject: { select: { name: true } },
+      section: { select: { id: true, name: true, class: { select: { name: true } } } },
+      teacher: { select: { user: { select: { name: true } } } },
+      submissions: { select: { status: true } },
+    },
+    orderBy: { dueDate: "asc" },
+    take: 100,
+  });
+  return {
+    homework: rows.map((row) => {
+      const submitted = row.submissions.filter((s) => s.status !== "DRAFT").length;
+      const graded = row.submissions.filter((s) => s.status === "GRADED").length;
+      return {
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        dueDate: row.dueDate.toISOString().slice(0, 10),
+        subject: { name: row.subject.name },
+        section: { id: row.section.id, name: row.section.name, className: row.section.class.name },
+        teacher: { name: row.teacher.user.name },
+        mySubmissions: [],
+        counts: { total: row.submissions.length, submitted, graded },
+      };
+    }),
+  };
 }

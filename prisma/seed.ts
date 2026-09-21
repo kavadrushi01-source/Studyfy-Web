@@ -61,6 +61,7 @@ const PERMISSIONS: { key: string; description: string }[] = [
   { key: "timetable.manage", description: "Generate timetables (School Admin)" },
   { key: "timetable.read", description: "Read timetable boards (scoped: own section / own slots)" },
   { key: "homework.manage", description: "Post homework (teacher of the subject/section, School Admin)" },
+  { key: "homework.read", description: "Read homework boards (role-shaped: own/section/authored)" },
   { key: "homework.submit", description: "Submit homework (own section's assignments, Students only)" },
   { key: "homework.grade", description: "Grade submissions (teacher of the subject/section, School Admin)" },
   { key: "documents.read", description: "Read uploaded documents (staff; students/parents narrowed to own)" },
@@ -72,11 +73,11 @@ const PERMISSIONS: { key: string; description: string }[] = [
 // PERMISSION grants access while self-scope narrows ROWS — holding the key
 // never means seeing everyone.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.submit", "homework.grade", "documents.read", "documents.write"],
-  TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "notices.read", "notices.write", "exams.manage", "exams.read", "timetable.read", "homework.manage", "homework.grade", "documents.read"],
+  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.read", "homework.submit", "homework.grade", "documents.read", "documents.write"],
+  TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "notices.read", "notices.write", "exams.manage", "exams.read", "timetable.read", "homework.manage", "homework.read", "homework.grade", "documents.read"],
   ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "notices.read", "fees.manage", "fees.read", "exams.read", "timetable.read", "documents.read", "documents.write"],
-  STUDENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.submit"],
-  PARENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read"],
+  STUDENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.submit", "homework.read"],
+  PARENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.read"],
   PLATFORM_OWNER: ["platform.schools.read"],
 };
 
