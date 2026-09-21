@@ -16,6 +16,7 @@
 ## What's done in this task so far
 - Read CURRENT_TASK.md (IDLE) + STATUS.md (Chunk 3 DONE) — 2026-09-21
 - Baseline per rule 2a: DB up, tree clean; suite 117/117 green direct (one npm-wrapper flake, known transient)
+- Chunk 4 realtime: Socket.io server (§12.5) — handshake verifies access JWT, school_id derived server-side, dynamic /school-<id> namespace must match the token (mismatch/garbage/missing/owner rejected pre-join); http.Server rewire + room join + ready ack — 120/120 green
 
 ## What's left in this task
 - Messaging #8 (Socket.io 1:1, Teacher↔Parent + Teacher↔Student scoped to teaching relationships, no student-student, admin oversight)

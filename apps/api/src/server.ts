@@ -1,12 +1,17 @@
 import "dotenv/config";
+import { createServer } from "node:http";
 import { createApp } from "./app.js";
 import { prisma } from "./lib/prisma.js";
+import { initRealtime } from "./realtime/server.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
 
 const app = createApp();
+// Plain HTTP server (not app.listen) so Socket.io can attach (§12.5).
+const server = createServer(app);
+initRealtime(server);
 
-const server = app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`@studyfy/api listening on http://localhost:${PORT}`);
 });
 
