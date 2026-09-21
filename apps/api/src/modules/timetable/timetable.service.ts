@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { generateTimetable, type PlacedSlot, type UnresolvedDemand } from "../../lib/timetable.js";
 import { AuthError } from "../auth/auth.service.js";
-import type { AddSlotInput, GenerateTimetableInput } from "./timetable.schemas.js";
+import type { AddSlotInput, BoardQueryInput, GenerateTimetableInput } from "./timetable.schemas.js";
 
 const MAX_LESSONS = 2000;
 
@@ -158,4 +158,101 @@ export async function deleteSlot(db: PrismaClient, slotId: string): Promise<void
     throw new AuthError(404, "SLOT_NOT_FOUND", "Timetable slot not found.");
   }
   await db.timetableSlot.delete({ where: { id: slot.id } });
+}
+
+interface BoardCaller {
+  userId: string;
+  role: string;
+}
+
+export interface BoardSlot {
+  dayOfWeek: number;
+  period: number;
+  subject: { id: string; name: string };
+  teacher: { id: string; name: string };
+  section: { id: string; name: string; className: string };
+}
+
+// Board read (§7 Phase 1 #5): section lens or teacher lens, exactly one.
+// - STUDENT/PARENT: section lens pinned to own/linked sections (resolved
+//   from studentScope pins); teacher lens always 403 (no teaching role).
+// - TEACHER: section lens pinned to own class-teacher sections; teacher
+//   lens forced to self (another teacher's id => 403).
+// - ADMIN/ACCOUNTANT: either lens, any in-school id (scoped 404s foreign).
+export async function readBoard(
+  db: PrismaClient,
+  caller: BoardCaller,
+  studentScopeIds: string[] | null,
+  input: BoardQueryInput,
+): Promise<{ slots: BoardSlot[] }> {
+  if (caller.role === "STUDENT" || caller.role === "PARENT") {
+    if (input.teacherId) {
+      throw new AuthError(403, "FORBIDDEN", "Students and parents read section boards, not teacher boards.");
+    }
+    const students = await db.student.findMany({
+      where: { id: { in: studentScopeIds ?? [] } },
+      select: { sectionId: true },
+    });
+    const ownSections = [...new Set(students.map((s) => s.sectionId))];
+    if (!input.sectionId || !ownSections.includes(input.sectionId)) {
+      throw new AuthError(403, "FORBIDDEN", "Not your section.");
+    }
+    return slotsFor(db, { sectionId: input.sectionId });
+  }
+
+  if (caller.role === "TEACHER") {
+    const staff = await db.staff.findFirst({ where: { userId: caller.userId } });
+    if (!staff) {
+      throw new AuthError(403, "FORBIDDEN", "No staff profile is linked to this account.");
+    }
+    if (input.teacherId) {
+      if (input.teacherId !== staff.id) {
+        throw new AuthError(403, "FORBIDDEN", "Teachers read only their own timetable.");
+      }
+      return slotsFor(db, { teacherId: staff.id });
+    }
+    const owned = await db.section.findMany({ where: { classTeacherId: staff.id }, select: { id: true } });
+    const ownIds = owned.map((s) => s.id);
+    if (!input.sectionId || !ownIds.includes(input.sectionId)) {
+      throw new AuthError(403, "FORBIDDEN", "Teachers read only their own sections.");
+    }
+    return slotsFor(db, { sectionId: input.sectionId });
+  }
+
+  if (input.sectionId) {
+    const section = await db.section.findFirst({ where: { id: input.sectionId } });
+    if (!section) {
+      throw new AuthError(404, "SECTION_NOT_FOUND", "Section not found in this school.");
+    }
+    return slotsFor(db, { sectionId: section.id });
+  }
+  const staff = await db.staff.findFirst({ where: { id: input.teacherId } });
+  if (!staff) {
+    throw new AuthError(404, "TEACHER_NOT_FOUND", "No teacher with that id in this school.");
+  }
+  return slotsFor(db, { teacherId: staff.id });
+}
+
+async function slotsFor(
+  db: PrismaClient,
+  filter: { sectionId: string } | { teacherId: string },
+): Promise<{ slots: BoardSlot[] }> {
+  const slots = await db.timetableSlot.findMany({
+    where: filter,
+    include: {
+      subject: { select: { id: true, name: true } },
+      teacher: { select: { id: true, user: { select: { name: true } } } },
+      section: { select: { id: true, name: true, class: { select: { name: true } } } },
+    },
+    orderBy: [{ dayOfWeek: "asc" }, { period: "asc" }],
+  });
+  return {
+    slots: slots.map((s) => ({
+      dayOfWeek: s.dayOfWeek,
+      period: s.period,
+      subject: { id: s.subject.id, name: s.subject.name },
+      teacher: { id: s.teacher.id, name: s.teacher.user.name },
+      section: { id: s.section.id, name: s.section.name, className: s.section.class.name },
+    })),
+  };
 }

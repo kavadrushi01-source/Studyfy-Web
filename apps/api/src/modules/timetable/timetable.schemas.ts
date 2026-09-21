@@ -20,6 +20,19 @@ export const generateTimetableSchema = z.object({
 
 export type GenerateTimetableInput = z.infer<typeof generateTimetableSchema>;
 
+// Board read: exactly ONE lens — a section board (what students/parents
+// see) or a teacher board ("my timetable"). Scoping enforced in service.
+export const boardQuerySchema = z
+  .object({
+    sectionId: z.string().trim().max(40).optional(),
+    teacherId: z.string().trim().max(40).optional(),
+  })
+  .refine((v) => [v.sectionId, v.teacherId].filter((x) => x !== undefined).length === 1, {
+    message: "Provide exactly one of sectionId or teacherId.",
+  });
+
+export type BoardQueryInput = z.infer<typeof boardQuerySchema>;
+
 // Manual slot edit: the post-generation adjustment. Same invariants as the
 // generator (no double-booked section or teacher), PLUS the qualification
 // check the generator gets for free — a manual exception goes through the
