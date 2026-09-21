@@ -20,6 +20,7 @@
 - Chunk 3 generator: pure DSATUR-ordered greedy coloring lib (unit: zero-conflict solve, partial+reasons, fair tie handling, determinism, sub-second termination) + POST .../timetable/generate (persist+replace, timetable.manage ADMIN-only) — 105/105 green
 - Chunk 3 manual slots: POST/DELETE .../timetable/slots enforcing generator invariants (section/teacher double-book 409s) PLUS qualification (409, fixable via qualifications endpoint — one source of truth); foreign 404s, teacher 403 — 107/107 green
 - Chunk 3 boards: GET .../timetable with one-lens rule (students/parents pinned to own sections, teachers to self/sections, staff free); /timetable UI with section picker + my-timetable + period×day grid — 110/110 green
+- Chunk 3 homework posting: POST .../homework gated on real teaching relationship (qualified subject AND class-teacher-or-scheduled section; admin always, attributed to class teacher); unqualified/outsider/foreign 403-404s — 112/112 green
 - Chunk 3 timetable E2E demo: SOS qualifications listed; generated Grade 9 (10 slots, 0 unresolved, sane teacher assignments); Latin (unstaffed) → NO_QUALIFIED_TEACHER partial; 5-into-2 oversubscription → NO_FREE_SLOT partial; all HTTP 200; demo slots + Latin removed (0 leftovers), server stopped.
 
 ## What's left in this task
