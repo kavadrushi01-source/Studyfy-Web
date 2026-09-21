@@ -29,6 +29,7 @@ Messaging first (Socket.io handshake auth + teaching-relationship scope + tests)
 
 ## Notes / decisions made mid-task
 - Chunk 4 opened 2026-09-21 after 117/117 baseline re-verify.
+- Messaging E2E demo: Arjun→Aditya (linked) 201, Arjun→Priya (10-A, unlinked) 403, Aditya replies 201, Kavita oversight reads full thread (2 msgs); demo rows deleted, server stopped.
 - Session recovered mid-messaging-task: founder's backup commit f71840b (Message model + code TENANT_MODELS + seed keys) verified intact, tree clean — continued on top of it, nothing rewritten. Migration add-messages + endpoints + matrix built after.
 - Messaging design: threadId = sorted pair key; §13.7 matrix in mayMessage (student→linked-teacher, parent→linked-teacher, teacher→linked-student/parent, everything else denied); admin reads any participant's threads (oversight) but holds no send key.
 
