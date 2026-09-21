@@ -61,6 +61,16 @@ export function setDocumentStorage(storage: DocumentStorage | null): void {
   override = storage;
 }
 
+// Ready-made recording stub for tests (override upload per-file as needed).
+export function stubDocumentStorage(): DocumentStorage {
+  return {
+    upload: async (input) => ({
+      url: `https://cdn.example/${documentFolder(input.schoolId)}/fake.pdf`,
+      publicId: "fake",
+    }),
+  };
+}
+
 export function documentStorage(): DocumentStorage {
   if (override) {
     return override;

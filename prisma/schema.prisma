@@ -590,6 +590,9 @@ model HomeworkSubmission {
   studentId  String           @map("student_id")
   student    Student          @relation(fields: [studentId], references: [id])
   content    String?          @map("content") @db.Text
+  // Optional attached file (Cloudinary, same schools/{schoolId}/ folders
+  // + whitelist as admission documents — enforced in the route, not here).
+  fileUrl    String?          @map("file_url") @db.Text
   status     SubmissionStatus @default(SUBMITTED) @map("status")
   submittedAt DateTime        @default(now()) @map("submitted_at")
 
