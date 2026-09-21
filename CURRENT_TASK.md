@@ -9,24 +9,27 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE
-**Phase / Module:** —
+**Status:** IN PROGRESS
+**Phase / Module:** Phase 1 — Chunk 4 (Messaging + Dashboards)
 **Last updated:** 2026-09-21
 
 ## What's done in this task so far
-_(nothing in progress right now — Chunk 3 of 5 complete: Timetable + Homework DONE in STATUS.md; Brevo SMTP unblocked (IP authorized) with live 16-recipient proof)_
+- Read CURRENT_TASK.md (IDLE) + STATUS.md (Chunk 3 DONE) — 2026-09-21
+- Baseline per rule 2a: DB up, tree clean; suite 117/117 green direct (one npm-wrapper flake, known transient)
 
 ## What's left in this task
-_(nothing in progress right now)_
+- Messaging #8 (Socket.io 1:1, Teacher↔Parent + Teacher↔Student scoped to teaching relationships, no student-student, admin oversight)
+- Dashboards #9 (all six role boards, §8 exact: sidebar, KPIs, panels)
+- (Public site #10 stays Chunk 5)
 
 ## Exact next action
-Chunk 4 next: Messaging (#8, Socket.io 1:1 with teaching-relationship scope §13.7) + all six dashboards (#9, §8 exact). Say go to start Chunk 4.
+Messaging first (Socket.io handshake auth + teaching-relationship scope + tests) — say go.
 
 ## Notes / decisions made mid-task
-_(none — Chunk 3 detail in git log + STATUS.md; standing rules in RULES.md, env notes in STATUS.md)_
+- Chunk 4 opened 2026-09-21 after 117/117 baseline re-verify.
 
 ## Repo state right now
-YES — 117/117 api tests, lint 0, typecheck clean (api+web+seed), audit-high 0 vulns. Sandbox MySQL on 3307 (see STATUS.md if the port is dead).
+YES — 117/117 green, no code changes yet in Chunk 4. Sandbox MySQL on 3307.
 
 ---
 
