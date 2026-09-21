@@ -14,9 +14,10 @@
 **Last updated:** 2026-09-21
 
 ## What's done in this task so far
-- Read CURRENT_TASK.md (IDLE) + STATUS.md (Chunk 2 DONE) — 2026-09-21
+- Read CURRENT_TASK.md (IDLE), STATUS.md (Chunk 2 DONE) — 2026-09-21
 - Baseline per rule 2a: sandbox 3307 dead again — restarted (datadir intact), suite 96/96 green, tree clean
 - Chunk 3 qualifications: staff.manage key (ADMIN-only) + POST/GET/DELETE .../teachers/:staffId/subjects (TEACHER-role enforced, dup 409, foreign 404s, teacher-caller 403) — 98/98 green
+- Chunk 3 generator: pure DSATUR-ordered greedy coloring lib (unit: zero-conflict solve, partial+reasons, fair tie handling, determinism, sub-second termination) + POST .../timetable/generate (persist+replace, timetable.manage ADMIN-only) — 105/105 green
 
 ## What's left in this task
 - Timetable #5 (auto-generation per §10 graph coloring + teacher_subjects + views)
