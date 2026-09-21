@@ -9,6 +9,7 @@ import { noticesRouter } from "./modules/notices/notices.router.js";
 import { platformRouter } from "./modules/platform/platform.router.js";
 import { publicRouter } from "./modules/public/public.router.js";
 import { sectionsRouter } from "./modules/sections/sections.router.js";
+import { staffRouter } from "./modules/staff/staff.router.js";
 import { studentsRouter } from "./modules/students/students.router.js";
 import { applyCors, applyHelmet } from "./middleware/security.js";
 
@@ -36,6 +37,7 @@ export function createApp(): Express {
   app.use("/api/v1", attendanceRouter);
   app.use("/api/v1", documentsRouter);
   app.use("/api/v1", examsRouter);
+  app.use("/api/v1", staffRouter);
   app.use("/api/v1", feesRouter);
   app.use("/api/v1", noticesRouter);
   app.use("/api/v1", sectionsRouter);
