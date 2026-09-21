@@ -23,6 +23,7 @@
 - Chunk 3 homework posting: POST .../homework gated on real teaching relationship (qualified subject AND class-teacher-or-scheduled section; admin always, attributed to class teacher); unqualified/outsider/foreign 403-404s — 112/112 green
 - Chunk 3 submissions+grading: fileUrl column; text and/or Cloudinary file (same whitelist/folders); own-section-only submit with resubmit-reopen; teacher grading under the posting gate; homework.submit/grade keys — 115/115 green. Caught: router missing postHomework import (test 500s caught it — typecheck api before tests, always).
 - Chunk 3 homework boards: GET .../homework role-shaped (student pins + submission states, teacher authored-with-counts, admin all; empty board 200s, never 404s); /homework UI with pending/graded/needs-grading pills + real empty-state card (§8.5) — 117/117 green
+- Chunk 3 homework E2E demo: Arjun posted E2E Algebra Set; Aditya submitted (board flipped [] → SUBMITTED = pending); Arjun graded (teacher counts 1/1/1, student sees GRADED); demo rows cleaned (0 leftovers), server stopped.
 - Chunk 3 timetable E2E demo: SOS qualifications listed; generated Grade 9 (10 slots, 0 unresolved, sane teacher assignments); Latin (unstaffed) → NO_QUALIFIED_TEACHER partial; 5-into-2 oversubscription → NO_FREE_SLOT partial; all HTTP 200; demo slots + Latin removed (0 leftovers), server stopped.
 
 ## What's left in this task
