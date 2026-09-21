@@ -9,39 +9,24 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS
-**Phase / Module:** Phase 1 — Chunk 3 (Timetable + Homework)
+**Status:** IDLE
+**Phase / Module:** —
 **Last updated:** 2026-09-21
 
 ## What's done in this task so far
-- Read CURRENT_TASK.md (IDLE), STATUS.md (Chunk 2 DONE) — 2026-09-21
-- Baseline per rule 2a: sandbox 3307 dead again — restarted (datadir intact), suite 96/96 green, tree clean
-- Chunk 3 qualifications: staff.manage key (ADMIN-only) + POST/GET/DELETE .../teachers/:staffId/subjects (TEACHER-role enforced, dup 409, foreign 404s, teacher-caller 403) — 98/98 green
-- Chunk 3 generator: pure DSATUR-ordered greedy coloring lib (unit: zero-conflict solve, partial+reasons, fair tie handling, determinism, sub-second termination) + POST .../timetable/generate (persist+replace, timetable.manage ADMIN-only) — 105/105 green
-- Chunk 3 manual slots: POST/DELETE .../timetable/slots enforcing generator invariants (section/teacher double-book 409s) PLUS qualification (409, fixable via qualifications endpoint — one source of truth); foreign 404s, teacher 403 — 107/107 green
-- Chunk 3 boards: GET .../timetable with one-lens rule (students/parents pinned to own sections, teachers to self/sections, staff free); /timetable UI with section picker + my-timetable + period×day grid — 110/110 green
-- Chunk 3 homework posting: POST .../homework gated on real teaching relationship (qualified subject AND class-teacher-or-scheduled section; admin always, attributed to class teacher); unqualified/outsider/foreign 403-404s — 112/112 green
-- Chunk 3 submissions+grading: fileUrl column; text and/or Cloudinary file (same whitelist/folders); own-section-only submit with resubmit-reopen; teacher grading under the posting gate; homework.submit/grade keys — 115/115 green. Caught: router missing postHomework import (test 500s caught it — typecheck api before tests, always).
-- Chunk 3 homework boards: GET .../homework role-shaped (student pins + submission states, teacher authored-with-counts, admin all; empty board 200s, never 404s); /homework UI with pending/graded/needs-grading pills + real empty-state card (§8.5) — 117/117 green
-- Chunk 3 homework E2E demo: Arjun posted E2E Algebra Set; Aditya submitted (board flipped [] → SUBMITTED = pending); Arjun graded (teacher counts 1/1/1, student sees GRADED); demo rows cleaned (0 leftovers), server stopped.
-- Chunk 3 timetable E2E demo: SOS qualifications listed; generated Grade 9 (10 slots, 0 unresolved, sane teacher assignments); Latin (unstaffed) → NO_QUALIFIED_TEACHER partial; 5-into-2 oversubscription → NO_FREE_SLOT partial; all HTTP 200; demo slots + Latin removed (0 leftovers), server stopped.
+_(nothing in progress right now — Chunk 3 of 5 complete: Timetable + Homework DONE in STATUS.md; Brevo SMTP unblocked (IP authorized) with live 16-recipient proof)_
 
 ## What's left in this task
-- Timetable #5 (auto-generation per §10 graph coloring + teacher_subjects + views)
-- Homework #6 (post, submit, grade + views)
-- (Notices #7 already DONE in Chunk 1 — no rework; Messaging #8 folds into Chunk 4)
+_(nothing in progress right now)_
 
 ## Exact next action
-Timetable generation first (teacher_subjects table + generator + scope) — say go.
+Chunk 4 next: Messaging (#8, Socket.io 1:1 with teaching-relationship scope §13.7) + all six dashboards (#9, §8 exact). Say go to start Chunk 4.
 
 ## Notes / decisions made mid-task
-- 2026-09-21 Chunk 3 open: user listed "Timetable + Homework + Notices" — Notices already DONE (Chunk 1), so Chunk 3 = Timetable #5 + Homework #6; Messaging #8 moves to Chunk 4.
-- Teacher-qualification check: NO confusion needed — the user's own spec update (e8ddd83) already plans teacher_subjects for Chunk 3; reference list already had it. Implemented: model + migration + code TENANT_MODELS (same commit) + 19 deterministic seed rows from DEMO_DATA.md teacher/subject lists.
-- Honest correction: tests-tsconfig has been RED since exam-results.test.ts landed (4 unchecked-index errors) — earlier "typecheck clean" reads were truncated tails hiding them. Fixed + verified full output now. Rule stands: read FULL command output, never trust tail-only reads for pass/fail.
-- Notices E2E 2026-09-21: posted school-wide + Grade-9 notices live; Aditya (9-A) sees school-wide + Grade-9, Priya (10-A) sees school-wide + Grade-10 event — scoping exact. BUT emailed=0 both: Brevo replied 525 Unauthorized IP (proven by direct SMTP verify) — Brevo-side key/IP issue, NOT our code. E2E rows cleaned, server stopped.
+_(none — Chunk 3 detail in git log + STATUS.md; standing rules in RULES.md, env notes in STATUS.md)_
 
 ## Repo state right now
-YES — 117/117 green (last full run), lint 0, audit 0. Sandbox MySQL on 3307.
+YES — 117/117 api tests, lint 0, typecheck clean (api+web+seed), audit-high 0 vulns. Sandbox MySQL on 3307 (see STATUS.md if the port is dead).
 
 ---
 

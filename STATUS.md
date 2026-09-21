@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** 2026-09-16 | **Last updated:** 2026-09-20
+**Started:** 2026-09-16 | **Last updated:** 2026-09-21
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -49,8 +49,8 @@
 | Attendance | IN PROGRESS (Chunk 2) — marking, summary, absentee email alerts, marking screen built; monthly/term reports UI pending | IN PROGRESS — /attendance/mark built | — |
 | Fee Management | DONE — structures (term/category, exact decimals), idempotent bulk invoices, Decimal-exact manual payments (RAZORPAY structurally rejected), PDFKit receipts, school-tz reminders, self-scoped ledger with exact totals; live E2E verified | DONE — /fees (status pills, totals header), /fees/receipts/[id] print viewer | Partial — same pre-shell note as SIS |
 | Exams & Gradebook | DONE — creation with subject links, bulk marks entry (class-teacher gate), round-then-grade letters, competition ranks, heap top-K with true ranks, PDFKit report cards (attendance % included); live E2E hand-verified incl. tie ranks | DONE — /exams/results (ranked board, top-K, grade pills), /students/[id]/report print viewer | Partial — same pre-shell note as SIS |
-| Timetable | NOT STARTED | NOT STARTED | — |
-| Homework | NOT STARTED | NOT STARTED | — |
+| Timetable | DONE — teacher_subjects qualifications (seeded per DEMO_DATA.md) + admin assignment endpoints; DSATUR-ordered greedy generator (partial + reasons, never hangs); manual slots with conflict + qualification checks; scoped section/teacher boards; live E2E incl. both degradation modes | DONE — /timetable (section picker, my-timetable, period×day grid); qualification assignment via API | Partial — same pre-shell note as SIS |
+| Homework | DONE — posting gated on teaching relationship, text/file submissions (whitelist, school folders, resubmit-reopen), teacher grading, role-shaped boards with empty states; live E2E pending→graded lifecycle | DONE — /homework (status pills, empty-state card) | Partial — same pre-shell note as SIS |
 | Notices | DONE — school/class/section publish with email delivery to affected parents/staff, scope-filtered board, cross-tenant rejection tested | DONE — /notices (publish + board, target pills, skeleton loading) | Partial — same pre-shell note as SIS |
 | Parent-Teacher Chat | NOT STARTED | NOT STARTED | — |
 | Role dashboards (all 6) | NOT STARTED | NOT STARTED | — |
