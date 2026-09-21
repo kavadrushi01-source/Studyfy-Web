@@ -5,7 +5,8 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { sendMessageSchema, threadQuerySchema } from "./messages.schemas.js";
-import { readThread, sendMessage } from "./messages.service.js";
+import { listThreads, readThread, sendMessage } from "./messages.service.js";
+import { emitToSchool } from "../../realtime/server.js";
 
 export const messagesRouter = Router();
 
@@ -52,10 +53,42 @@ messagesRouter.post(
         parsed.data.receiverId,
         parsed.data.body,
       );
+      // Live delivery: everyone in the school room gets the event and
+      // filters by threadId client-side (payload carries no extra data
+      // beyond what the thread read would return — no leak by broadcast).
+      emitToSchool(req.schoolId ?? "", "message:new", {
+        threadId: message.threadId,
+        message: { id: message.id, senderId: message.senderId, body: message.body, createdAt: message.createdAt },
+      });
       res.status(201).json({ success: true, data: { message }, error: null, meta: null });
     } catch (err) {
       sendMessagesError(res, err);
     }
+  }),
+);
+
+// Thread list (participants: own threads; admin: every thread). Declared
+// before any :param GET so literal-vs-param order never matters here.
+messagesRouter.get(
+  "/schools/:schoolId/messages/threads",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("messages.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    // studentSelfScope deliberately NOT mounted: pins are student ROW ids,
+    // but threads are keyed by USER ids — the service scopes by the
+    // caller's own participation instead (same fail-closed shape).
+    const result = await listThreads(req.prisma, { userId: req.user.userId, role: req.user.role });
+    res.json({ success: true, data: result, error: null, meta: null });
   }),
 );
 

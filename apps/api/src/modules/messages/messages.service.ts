@@ -152,6 +152,55 @@ export interface ThreadViewer {
   role: string;
 }
 
+export interface ThreadSummary {
+  user: { id: string; name: string };
+  lastMessage: { body: string; createdAt: Date; fromMe: boolean };
+  unread: number;
+}
+
+// Thread list: one row per conversation partner, newest first. Participants
+// see their own threads; Admin sees every thread in the school (oversight).
+// Unread = messages to the viewer with readAt unset (0 for the admin view,
+// which is surveillance, not an inbox).
+export async function listThreads(db: PrismaClient, viewer: ThreadViewer): Promise<{ threads: ThreadSummary[] }> {
+  const admin = viewer.role === "SCHOOL_ADMIN";
+  const messages = await db.message.findMany({
+    where: admin ? {} : { OR: [{ senderId: viewer.userId }, { receiverId: viewer.userId }] },
+    include: {
+      sender: { select: { id: true, name: true } },
+      receiver: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+  const byThread = new Map<string, { other: { id: string; name: string }; last: (typeof messages)[number]; unread: number }>();
+  for (const message of messages) {
+    // threadId is the sorted pair key — identical in both directions, so
+    // one entry per conversation for participants and admin alike. The
+    // display partner is the counterparty (or the latest sender for the
+    // admin, who participates in none of them).
+    const other =
+      !admin && message.senderId === viewer.userId ? message.receiver : message.sender;
+    const existing = byThread.get(message.threadId);
+    if (!existing) {
+      byThread.set(message.threadId, {
+        other: { id: other.id, name: other.name },
+        last: message,
+        unread: !admin && message.receiverId === viewer.userId && !message.readAt ? 1 : 0,
+      });
+    } else if (!admin && message.receiverId === viewer.userId && !message.readAt) {
+      existing.unread += 1;
+    }
+  }
+  return {
+    threads: [...byThread.values()].map((t) => ({
+      user: t.other,
+      lastMessage: { body: t.last.body, createdAt: t.last.createdAt, fromMe: t.last.senderId === viewer.userId },
+      unread: t.unread,
+    })),
+  };
+}
+
 // Thread read: ADMIN sees any conversation in their school (oversight, not
 // participation — §13.7). Everyone else sees exactly the threads they could
 // participate in (either direction of the same matrix).
