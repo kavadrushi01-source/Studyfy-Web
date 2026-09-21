@@ -383,6 +383,24 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
       create: { schoolId: school.id, userId, designation: "Teacher" },
     });
     teacherStaffIds.push(staff.id);
+    // Qualifications (§9.1 teacher_subjects): what this teacher may be
+    // scheduled to teach — from DEMO_DATA.md's per-teacher subject lists.
+    for (const subjectName of teacher.subjects) {
+      const subject = await db.subject.findUnique({
+        where: { schoolId_name: { schoolId: school.id, name: subjectName } },
+      });
+      if (!subject) {
+        throw new Error(`Subject ${subjectName} must be seeded before teacher qualifications.`);
+      }
+      const existing = await db.teacherSubject.findUnique({
+        where: { staffId_subjectId: { staffId: staff.id, subjectId: subject.id } },
+      });
+      if (!existing) {
+        await db.teacherSubject.create({
+          data: { schoolId: school.id, staffId: staff.id, subjectId: subject.id },
+        });
+      }
+    }
   }
 
   // Class-teacher assignments (§9.1): deterministic cycle — first teacher

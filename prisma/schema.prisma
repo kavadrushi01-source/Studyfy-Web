@@ -115,6 +115,7 @@ model School {
   students            Student[]
   studentGuardians    StudentGuardian[]
   staff               Staff[]
+  teacherSubjects     TeacherSubject[]
   attendance          Attendance[]
   feeStructures       FeeStructure[]
   feeInvoices         FeeInvoice[]
@@ -235,6 +236,7 @@ model Subject {
   examSubjects   ExamSubject[]
   timetableSlots TimetableSlot[]
   homework       Homework[]
+  teacherSubjects TeacherSubject[]
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -341,9 +343,31 @@ model Staff {
   homeworkGiven    Homework[]      @relation("HomeworkTeacher")
   timetableSlots   TimetableSlot[] @relation("SlotTeacher")
   classSections    Section[]       @relation("ClassTeacher")
+  teacherSubjects  TeacherSubject[]
 
   @@index([schoolId])
   @@map("staff")
+}
+
+// ---------------------------------------------------------------------------
+// Teacher qualifications (§9.1 note): which subjects each teacher may be
+// scheduled to teach. Consumed by the Timetable generator (Chunk 3) and by
+// Messaging's teaching-relationship scope (§13.7, Chunk 4). Tenant-scoped
+// like everything else — TeacherSubject ∈ TENANT_MODELS (same commit).
+// ---------------------------------------------------------------------------
+
+model TeacherSubject {
+  id        String  @id @default(cuid()) @map("id")
+  schoolId  String  @map("school_id")
+  school    School  @relation(fields: [schoolId], references: [id])
+  staffId   String  @map("staff_id")
+  staff     Staff   @relation(fields: [staffId], references: [id])
+  subjectId String  @map("subject_id")
+  subject   Subject @relation(fields: [subjectId], references: [id])
+
+  @@unique([staffId, subjectId])
+  @@index([schoolId])
+  @@map("teacher_subjects")
 }
 
 // ---------------------------------------------------------------------------

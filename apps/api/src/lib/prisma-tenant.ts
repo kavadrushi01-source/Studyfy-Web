@@ -11,6 +11,7 @@ export const TENANT_MODELS = [
   "User",
   "Student",
   "Staff",
+  "TeacherSubject",
   "Class",
   "Section",
   "AcademicYear",

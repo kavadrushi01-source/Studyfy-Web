@@ -27,6 +27,8 @@ Timetable generation first (teacher_subjects table + generator + scope) — say 
 
 ## Notes / decisions made mid-task
 - 2026-09-21 Chunk 3 open: user listed "Timetable + Homework + Notices" — Notices already DONE (Chunk 1), so Chunk 3 = Timetable #5 + Homework #6; Messaging #8 moves to Chunk 4.
+- Teacher-qualification check: NO confusion needed — the user's own spec update (e8ddd83) already plans teacher_subjects for Chunk 3; reference list already had it. Implemented: model + migration + code TENANT_MODELS (same commit) + 19 deterministic seed rows from DEMO_DATA.md teacher/subject lists.
+- Honest correction: tests-tsconfig has been RED since exam-results.test.ts landed (4 unchecked-index errors) — earlier "typecheck clean" reads were truncated tails hiding them. Fixed + verified full output now. Rule stands: read FULL command output, never trust tail-only reads for pass/fail.
 
 ## Repo state right now
 YES — 96/96 green on restarted sandbox; no code changes yet in Chunk 3.

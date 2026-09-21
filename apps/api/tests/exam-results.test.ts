@@ -110,10 +110,10 @@ describe("GET /api/v1/schools/:schoolId/exams/:examId/results (§11)", () => {
     }[];
     expect(results).toHaveLength(4);
     const byId = new Map(results.map((r) => [r.studentId, r]));
-    expect(byId.get(studentIds[0])).toMatchObject({ percent: 95, grade: "A+", rank: 1 });
-    expect(byId.get(studentIds[1])).toMatchObject({ percent: 85, grade: "B+", rank: 2 });
-    expect(byId.get(studentIds[2])).toMatchObject({ percent: 85, grade: "B+", rank: 2 });
-    expect(byId.get(studentIds[3])).toMatchObject({ percent: 70, grade: "C", rank: 4 });
+    expect(byId.get(studentIds[0] ?? "")).toMatchObject({ percent: 95, grade: "A+", rank: 1 });
+    expect(byId.get(studentIds[1] ?? "")).toMatchObject({ percent: 85, grade: "B+", rank: 2 });
+    expect(byId.get(studentIds[2] ?? "")).toMatchObject({ percent: 85, grade: "B+", rank: 2 });
+    expect(byId.get(studentIds[3] ?? "")).toMatchObject({ percent: 70, grade: "C", rank: 4 });
   });
 
   it("top=K takes the heap path but keeps true full-set ranks", async () => {
