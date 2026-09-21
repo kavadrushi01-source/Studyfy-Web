@@ -9,24 +9,27 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE
-**Phase / Module:** —
-**Last updated:** 2026-09-20
+**Status:** IN PROGRESS
+**Phase / Module:** Phase 1 — Chunk 3 (Timetable + Homework)
+**Last updated:** 2026-09-21
 
 ## What's done in this task so far
-_(nothing in progress right now — Chunk 2 of 5 complete: Fee Management + Exams & Gradebook DONE in STATUS.md; suite 96/96)_
+- Read CURRENT_TASK.md (IDLE) + STATUS.md (Chunk 2 DONE) — 2026-09-21
+- Baseline per rule 2a: sandbox 3307 dead again — restarted (datadir intact), suite 96/96 green, tree clean
 
 ## What's left in this task
-_(nothing in progress right now)_
+- Timetable #5 (auto-generation per §10 graph coloring + teacher_subjects + views)
+- Homework #6 (post, submit, grade + views)
+- (Notices #7 already DONE in Chunk 1 — no rework; Messaging #8 folds into Chunk 4)
 
 ## Exact next action
-Chunk 3 next: Timetable + Homework (+ Messaging) (§7 Phase 1 #5–#6, #8). Note: Notices is already DONE (Chunk 1), and Attendance keeps its reports-UI gap — both fold wherever cheapest. Say go to start Chunk 3.
+Timetable generation first (teacher_subjects table + generator + scope) — say go.
 
 ## Notes / decisions made mid-task
-_(none — Chunk 2 detail in git log + STATUS.md; standing rules in RULES.md, env notes in STATUS.md)_
+- 2026-09-21 Chunk 3 open: user listed "Timetable + Homework + Notices" — Notices already DONE (Chunk 1), so Chunk 3 = Timetable #5 + Homework #6; Messaging #8 moves to Chunk 4.
 
 ## Repo state right now
-YES — 96/96 api tests, lint 0, typecheck clean (api+web+seed), audit-high 0 vulns. Sandbox MySQL on 3307 (see STATUS.md if the port is dead).
+YES — 96/96 green on restarted sandbox; no code changes yet in Chunk 3.
 
 ---
 
