@@ -41,6 +41,19 @@ export function schoolNamespaceOf(schoolId: string): string {
   return `/school-${schoolId}`;
 }
 
+// Process-wide socket server, set once by initRealtime. Route handlers
+// emit through emitToSchool; contexts without a live server (unit tests)
+// emit nowhere instead of crashing.
+let activeIo: Server | null = null;
+
+export function schoolRoomOf(schoolId: string): string {
+  return `school:${schoolId}`;
+}
+
+export function emitToSchool(schoolId: string, event: string, payload: unknown): void {
+  activeIo?.to(schoolRoomOf(schoolId)).emit(event, payload);
+}
+
 export function initRealtime(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
     cors: {
@@ -48,6 +61,7 @@ export function initRealtime(httpServer: HttpServer): Server {
       credentials: true,
     },
   });
+  activeIo = io;
 
   // Dynamic namespace: every /school-* path lands here, then gets checked.
   const schools = io.of(/^\/school-[A-Za-z0-9_-]+$/);
