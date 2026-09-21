@@ -38,9 +38,10 @@ Timetable generation first (teacher_subjects table + generator + scope) — say 
 - 2026-09-21 Chunk 3 open: user listed "Timetable + Homework + Notices" — Notices already DONE (Chunk 1), so Chunk 3 = Timetable #5 + Homework #6; Messaging #8 moves to Chunk 4.
 - Teacher-qualification check: NO confusion needed — the user's own spec update (e8ddd83) already plans teacher_subjects for Chunk 3; reference list already had it. Implemented: model + migration + code TENANT_MODELS (same commit) + 19 deterministic seed rows from DEMO_DATA.md teacher/subject lists.
 - Honest correction: tests-tsconfig has been RED since exam-results.test.ts landed (4 unchecked-index errors) — earlier "typecheck clean" reads were truncated tails hiding them. Fixed + verified full output now. Rule stands: read FULL command output, never trust tail-only reads for pass/fail.
+- Notices E2E 2026-09-21: posted school-wide + Grade-9 notices live; Aditya (9-A) sees school-wide + Grade-9, Priya (10-A) sees school-wide + Grade-10 event — scoping exact. BUT emailed=0 both: Brevo replied 525 Unauthorized IP (proven by direct SMTP verify) — Brevo-side key/IP issue, NOT our code. E2E rows cleaned, server stopped.
 
 ## Repo state right now
-YES — 96/96 green on restarted sandbox; no code changes yet in Chunk 3.
+YES — 117/117 green (last full run), lint 0, audit 0. Sandbox MySQL on 3307.
 
 ---
 
