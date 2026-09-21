@@ -19,3 +19,17 @@ export const generateTimetableSchema = z.object({
 });
 
 export type GenerateTimetableInput = z.infer<typeof generateTimetableSchema>;
+
+// Manual slot edit: the post-generation adjustment. Same invariants as the
+// generator (no double-booked section or teacher), PLUS the qualification
+// check the generator gets for free — a manual exception goes through the
+// qualifications endpoint first, keeping one source of truth.
+export const addSlotSchema = z.object({
+  sectionId: z.string().trim().min(1).max(40),
+  subjectId: z.string().trim().min(1).max(40),
+  teacherId: z.string().trim().min(1).max(40),
+  dayOfWeek: z.number().int().min(1).max(7),
+  period: z.number().int().min(1).max(20),
+});
+
+export type AddSlotInput = z.infer<typeof addSlotSchema>;

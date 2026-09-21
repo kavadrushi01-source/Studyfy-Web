@@ -1,7 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { generateTimetable, type PlacedSlot, type UnresolvedDemand } from "../../lib/timetable.js";
 import { AuthError } from "../auth/auth.service.js";
-import type { GenerateTimetableInput } from "./timetable.schemas.js";
+import type { AddSlotInput, GenerateTimetableInput } from "./timetable.schemas.js";
 
 const MAX_LESSONS = 2000;
 
@@ -93,4 +94,68 @@ export async function generateSectionTimetables(
       subjectName: subjectNames.get(u.subjectId) ?? "?",
     })),
   };
+}
+
+// Manual add (post-generation adjustment): enforces the SAME invariants
+// the generator does — section free, teacher free — plus the qualification
+// the generator gets structurally. Genuine exceptions go through the
+// qualifications endpoint first (one source of truth, no silent bypass).
+export async function addSlot(db: PrismaClient, input: AddSlotInput) {
+  const [section, subject, staff] = await Promise.all([
+    db.section.findFirst({ where: { id: input.sectionId } }),
+    db.subject.findFirst({ where: { id: input.subjectId } }),
+    db.staff.findFirst({ where: { id: input.teacherId }, include: { user: { select: { role: true } } } }),
+  ]);
+  if (!section) {
+    throw new AuthError(404, "SECTION_NOT_FOUND", "Section not found in this school.");
+  }
+  if (!subject) {
+    throw new AuthError(404, "SUBJECT_NOT_FOUND", "Subject not found in this school.");
+  }
+  if (!staff || staff.user.role.name !== "TEACHER") {
+    throw new AuthError(404, "TEACHER_NOT_FOUND", "No teacher with that id in this school.");
+  }
+  const qualified = await db.teacherSubject.findUnique({
+    where: { staffId_subjectId: { staffId: staff.id, subjectId: subject.id } },
+  });
+  if (!qualified) {
+    throw new AuthError(409, "TEACHER_NOT_QUALIFIED", "Assign the subject to the teacher first.");
+  }
+  const sectionClash = await db.timetableSlot.findFirst({
+    where: { sectionId: section.id, dayOfWeek: input.dayOfWeek, period: input.period },
+  });
+  if (sectionClash) {
+    throw new AuthError(409, "SLOT_TAKEN", "The section already has a lesson at that time.");
+  }
+  const teacherClash = await db.timetableSlot.findFirst({
+    where: { teacherId: staff.id, dayOfWeek: input.dayOfWeek, period: input.period },
+  });
+  if (teacherClash) {
+    throw new AuthError(409, "TEACHER_BUSY", "The teacher already teaches at that time.");
+  }
+  try {
+    return await db.timetableSlot.create({
+      data: {
+        schoolId: section.schoolId,
+        sectionId: section.id,
+        subjectId: subject.id,
+        teacherId: staff.id,
+        dayOfWeek: input.dayOfWeek,
+        period: input.period,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      throw new AuthError(409, "SLOT_TAKEN", "The section already has a lesson at that time.");
+    }
+    throw err;
+  }
+}
+
+export async function deleteSlot(db: PrismaClient, slotId: string): Promise<void> {
+  const slot = await db.timetableSlot.findFirst({ where: { id: slotId } });
+  if (!slot) {
+    throw new AuthError(404, "SLOT_NOT_FOUND", "Timetable slot not found.");
+  }
+  await db.timetableSlot.delete({ where: { id: slot.id } });
 }
