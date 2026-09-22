@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** 2026-09-16 | **Last updated:** 2026-09-21
+**Started:** 2026-09-16 | **Last updated:** 2026-09-22
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -52,7 +52,7 @@
 | Timetable | DONE — teacher_subjects qualifications (seeded per DEMO_DATA.md) + admin assignment endpoints; DSATUR-ordered greedy generator (partial + reasons, never hangs); manual slots with conflict + qualification checks; scoped section/teacher boards; live E2E incl. both degradation modes | DONE — /timetable (section picker, my-timetable, period×day grid); qualification assignment via API | Partial — same pre-shell note as SIS |
 | Homework | DONE — posting gated on teaching relationship, text/file submissions (whitelist, school folders, resubmit-reopen), teacher grading, role-shaped boards with empty states; live E2E pending→graded lifecycle | DONE — /homework (status pills, empty-state card) | Partial — same pre-shell note as SIS |
 | Notices | DONE — school/class/section publish with email delivery to affected parents/staff, scope-filtered board, cross-tenant rejection tested | DONE — /notices (publish + board, target pills, skeleton loading) | Partial — same pre-shell note as SIS |
-| Parent-Teacher Chat | NOT STARTED | NOT STARTED | — |
+| Parent-Teacher Chat | DONE — §13.7 matrix in mayMessage (linked only, §13.7 both-directions tests), send + thread read + threads list (previews + unread), admin oversight reads, message:new live emit via school namespace (namespace-room emit bug caught by live-delivery test + fixed); verified 2026-09-22: suite green + live dev-DB walkthrough (linked 201, unlinked 403, cross-tenant 403) | DONE — /messages (thread list + chat, always-visible Live/Reconnecting/Offline banner) | Partial — same pre-shell note as SIS |
 | Role dashboards (all 6) | NOT STARTED | NOT STARTED | — |
 | Public site + admission enquiry | NOT STARTED | NOT STARTED | — |
 
