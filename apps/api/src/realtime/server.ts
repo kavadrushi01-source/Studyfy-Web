@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import type { Server as HttpServer } from "node:http";
-import { Server, type Socket } from "socket.io";
+import { Server, type Namespace, type Socket } from "socket.io";
 import type { AuthUser } from "../middleware/auth.js";
 
 interface AccessJwt {
@@ -44,14 +44,20 @@ export function schoolNamespaceOf(schoolId: string): string {
 // Process-wide socket server, set once by initRealtime. Route handlers
 // emit through emitToSchool; contexts without a live server (unit tests)
 // emit nowhere instead of crashing.
-let activeIo: Server | null = null;
+//
+// NOTE: emits go through the dynamic /school-* namespace object, NOT the
+// root io server — rooms are per-namespace, and every client joins its
+// room inside its own /school-<id> namespace. Emitting from root would
+// target a same-named room in the default "/" namespace that nobody joins
+// (message:new silently lost — caught by message-realtime.test.ts).
+let activeSchools: Namespace | null = null;
 
 export function schoolRoomOf(schoolId: string): string {
   return `school:${schoolId}`;
 }
 
 export function emitToSchool(schoolId: string, event: string, payload: unknown): void {
-  activeIo?.to(schoolRoomOf(schoolId)).emit(event, payload);
+  activeSchools?.to(schoolRoomOf(schoolId)).emit(event, payload);
 }
 
 export function initRealtime(httpServer: HttpServer): Server {
@@ -61,10 +67,9 @@ export function initRealtime(httpServer: HttpServer): Server {
       credentials: true,
     },
   });
-  activeIo = io;
-
   // Dynamic namespace: every /school-* path lands here, then gets checked.
   const schools = io.of(/^\/school-[A-Za-z0-9_-]+$/);
+  activeSchools = schools;
 
   schools.use((socket, next) => {
     try {
