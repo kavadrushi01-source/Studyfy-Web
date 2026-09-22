@@ -11,7 +11,7 @@
 
 **Status:** IN PROGRESS
 **Phase / Module:** Phase 1 — Chunk 4 (Messaging + Dashboards)
-**Last updated:** 2026-09-21
+**Last updated:** 2026-09-22
 
 ## What's done in this task so far
 - Read CURRENT_TASK.md (IDLE) + STATUS.md (Chunk 3 DONE) — 2026-09-21
@@ -20,21 +20,21 @@
 - Chunk 4 messaging: Message model + migration + code TENANT_MODELS (same commit — founder's backup f71840b preserved underneath); §13.7 matrix (unrelated-teacher 403 both ways, no student-student, admin reads-only-oversight); threads endpoint (previews + unread, admin sees all); message:new emit on send; /messages UI with always-visible Live/Reconnecting/Offline banner — 125/125 green
 
 ## What's left in this task
-- Messaging #8 (Socket.io 1:1, Teacher↔Parent + Teacher↔Student scoped to teaching relationships, no student-student, admin oversight)
 - Dashboards #9 (all six role boards, §8 exact: sidebar, KPIs, panels)
 - (Public site #10 stays Chunk 5)
 
 ## Exact next action
-Messaging first (Socket.io handshake auth + teaching-relationship scope + tests) — say go.
+Dashboards #9 next (all six role boards, §8 exact: sidebar, KPIs, panels) — say go.
 
 ## Notes / decisions made mid-task
 - Chunk 4 opened 2026-09-21 after 117/117 baseline re-verify.
 - Messaging E2E demo: Arjun→Aditya (linked) 201, Arjun→Priya (10-A, unlinked) 403, Aditya replies 201, Kavita oversight reads full thread (2 msgs); demo rows deleted, server stopped.
 - Session recovered mid-messaging-task: founder's backup commit f71840b (Message model + code TENANT_MODELS + seed keys) verified intact, tree clean — continued on top of it, nothing rewritten. Migration add-messages + endpoints + matrix built after.
 - Messaging design: threadId = sorted pair key; §13.7 matrix in mayMessage (student→linked-teacher, parent→linked-teacher, teacher→linked-student/parent, everything else denied); admin reads any participant's threads (oversight) but holds no send key.
+- 2026-09-22 contradiction resolved: "Done" 125/125 was correct (threads commit 234a8bb added message-threads.test.ts + /messages UI after the 123/123 line was written in 214e460 and never updated); "Left" Messaging #8 + old next-action were stale — messaging verified complete in code + 125/125 direct run, so #8 moved out of "Left" and next action reset to Dashboards #9. Minor known gap: message:new is emitted on send (router) but no test asserts live socket delivery — HTTP threads cover correctness.
 
 ## Repo state right now
-YES — 123/123 green, lint 0, audit 0, both DBs migrated. Sandbox MySQL on 3307.
+YES — 125/125 green (38 files, verified direct 2026-09-22), lint 0, both DBs migrated. Sandbox MySQL on 3307.
 
 ---
 
