@@ -66,6 +66,34 @@ npm audit --audit-level=high
     structurally, with the regression tests in §4 written before the
     feature modules that expose the data, not after.
 
+## Found During Rebuild (new entries — newest last)
+
+13. **Socket.io emit from the root server never reaches namespace rooms
+    (2026-09-22).** `emitToSchool` called `io.to(room).emit(...)` on the
+    root server, but every client joins its room inside its own
+    `/school-<id>` namespace — rooms are per-namespace, so the event landed
+    in a same-named room in `/` that nobody joins. `message:new` was
+    silently lost in production while HTTP threads looked correct. Caught by
+    adding the missing live-delivery test (`message-realtime.test.ts`: join
+    over socket → send over HTTP → assert the event arrives). Fix: emit via
+    the dynamic `/school-*` namespace object. Lesson: every socket emit
+    needs a test asserting arrival on a real client, not just server-side
+    "emit was called."
+14. **Parallel test workers raced global seeding → CI-only P2002/P2034
+    (2026-09-22).** Every vitest worker's setup called `seedRoles` /
+    `seedPermissions`; Prisma `upsert()` is SELECT-then-INSERT (not atomic),
+    so workers INSERTed the same key (`roles_name_key`,
+    `permissions_key_key` — CI runs 35725384214, 35611906623) while local
+    runs stayed green by timing luck. Replaced with single-statement
+    `createMany({ skipDuplicates: true })` (atomic INSERT IGNORE) +
+    idempotent `updateMany`, wrapped in a retry that ONLY catches P2002
+    (lost insert race) and P2034 (deadlock) — both writers set identical
+    constant values, so retries always converge; all other errors throw
+    immediately. Regression: `seed-concurrency.test.ts`, including a
+    deterministic worst case (delete LIBRARIAN — held by no test user,
+    referenced by no mapping — then 20 parallel seeders, which kills old
+    code with P2002 on demand).
+
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.
 - Check API logs and the network response before changing UI selectors.

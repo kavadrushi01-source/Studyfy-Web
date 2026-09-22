@@ -10,8 +10,38 @@
 // each role and verify by hand. Never reuse this pattern for real imports.
 //
 // Run: npm run db:seed  (repo root; DATABASE_URL from env). Local/dev only.
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+
+// Parallel vitest workers share one database, so every global seed below
+// must survive concurrent identical callers. Two failure modes, both seen
+// for real (CI runs 35725384214, 35611906623; local worst-case hammering):
+// - P2002 unique violation: upsert() is SELECT-then-INSERT, so two workers
+//   INSERT the same key. Fixed with single-statement INSERT IGNORE
+//   (createMany+skipDuplicates), which cannot race with itself.
+// - P2034 deadlock: concurrent writers on the same rows. Fixed with a
+//   bounded retry — every writer sets IDENTICAL values (fixed constant
+//   lists), so a retry after a lost race always converges. Retry ONLY these
+//   two codes; anything else throws immediately, never masked.
+async function seedWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        (err.code === "P2002" || err.code === "P2034")
+      ) {
+        lastError = err;
+        await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError;
+}
 
 const ROLES: { name: string; description: string }[] = [
   { name: "PLATFORM_OWNER", description: "Cross-tenant platform owner (no school_id)" },
@@ -25,16 +55,14 @@ const ROLES: { name: string; description: string }[] = [
 ];
 
 export async function seedRoles(db: PrismaClient): Promise<string[]> {
-  const names: string[] = [];
-  for (const role of ROLES) {
-    const row = await db.role.upsert({
-      where: { name: role.name },
-      update: { description: role.description },
-      create: role,
-    });
-    names.push(row.name);
-  }
-  return names;
+  // Race-safe under parallel callers — see seedWithRetry above.
+  return seedWithRetry(async () => {
+    await db.role.createMany({ data: ROLES, skipDuplicates: true });
+    for (const role of ROLES) {
+      await db.role.updateMany({ where: { name: role.name }, data: { description: role.description } });
+    }
+    return ROLES.map((role) => role.name);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -84,30 +112,37 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 };
 
 export async function seedPermissions(db: PrismaClient): Promise<void> {
-  for (const permission of PERMISSIONS) {
-    await db.permission.upsert({
-      where: { key: permission.key },
-      update: { description: permission.description },
-      create: permission,
-    });
-  }
-  for (const [roleName, keys] of Object.entries(ROLE_PERMISSIONS)) {
-    const role = await db.role.findUnique({ where: { name: roleName } });
-    if (!role) {
-      throw new Error(`Role ${roleName} must be seeded before permissions.`);
-    }
-    for (const key of keys) {
-      const permission = await db.permission.findUnique({ where: { key } });
-      if (!permission) {
-        throw new Error(`Permission ${key} must be seeded before mappings.`);
-      }
-      await db.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } },
-        update: {},
-        create: { roleId: role.id, permissionId: permission.id },
+  // Same race-safety as seedRoles — see seedWithRetry above.
+  return seedWithRetry(async () => {
+    await db.permission.createMany({ data: PERMISSIONS, skipDuplicates: true });
+    for (const permission of PERMISSIONS) {
+      await db.permission.updateMany({
+        where: { key: permission.key },
+        data: { description: permission.description },
       });
     }
-  }
+    const [roles, permissions] = await Promise.all([
+      db.role.findMany({ select: { id: true, name: true } }),
+      db.permission.findMany({ select: { id: true, key: true } }),
+    ]);
+    const roleIdByName = new Map(roles.map((role) => [role.name, role.id]));
+    const permissionIdByKey = new Map(permissions.map((permission) => [permission.key, permission.id]));
+    const mappings: { roleId: string; permissionId: string }[] = [];
+    for (const [roleName, keys] of Object.entries(ROLE_PERMISSIONS)) {
+      const roleId = roleIdByName.get(roleName);
+      if (!roleId) {
+        throw new Error(`Role ${roleName} must be seeded before permissions.`);
+      }
+      for (const key of keys) {
+        const permissionId = permissionIdByKey.get(key);
+        if (!permissionId) {
+          throw new Error(`Permission ${key} must be seeded before mappings.`);
+        }
+        mappings.push({ roleId, permissionId });
+      }
+    }
+    await db.rolePermission.createMany({ data: mappings, skipDuplicates: true });
+  });
 }
 
 // ---------------------------------------------------------------------------

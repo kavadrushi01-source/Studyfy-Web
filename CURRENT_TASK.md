@@ -19,6 +19,7 @@
 - Chunk 4 realtime: Socket.io server (§12.5) — handshake verifies access JWT, school_id derived server-side, dynamic /school-<id> namespace must match the token (mismatch/garbage/missing/owner rejected pre-join); http.Server rewire + room join + ready ack — 120/120 green
 - Chunk 4 messaging: Message model + migration + code TENANT_MODELS (same commit — founder's backup f71840b preserved underneath); §13.7 matrix (unrelated-teacher 403 both ways, no student-student, admin reads-only-oversight); threads endpoint (previews + unread, admin sees all); message:new emit on send; /messages UI with always-visible Live/Reconnecting/Offline banner — 125/125 green
 - Chunk 4 live-delivery proof: message-realtime.test.ts (client joins school room over socket, pupil sends via HTTP, message:new arrives with matching threadId/sender/body) — caught a REAL bug: emitToSchool broadcast from root io, but rooms live in /school-<id> namespaces (event silently lost); fixed to emit via the dynamic namespace object — 126/126 green, typecheck + lint clean
+- Regression sweep pre-Dashboards (2026-09-22): full suite 129/129 (40 files) local; CI red on 0a9d285 — same P2002 seed race seen in older runs (parallel workers, non-atomic upsert in seedRoles/seedPermissions); reproduced locally (delete-LIBRARIAN worst case → P2002 on demand), fixed root cause (atomic createMany+skipDuplicates, idempotent updates, retry on P2002/P2034 only) + seed-concurrency.test.ts + BUGSFIX.md #13/#14
 
 ## What's left in this task
 - Dashboards #9 (all six role boards, §8 exact: sidebar, KPIs, panels)
@@ -35,7 +36,7 @@ Dashboards #9 next (all six role boards, §8 exact: sidebar, KPIs, panels) — s
 - 2026-09-22 contradiction resolved: "Done" 125/125 was correct (threads commit 234a8bb added message-threads.test.ts + /messages UI after the 123/123 line was written in 214e460 and never updated); "Left" Messaging #8 + old next-action were stale — messaging verified complete in code + 125/125 direct run, so #8 moved out of "Left" and next action reset to Dashboards #9. Minor known gap: message:new is emitted on send (router) but no test asserts live socket delivery — HTTP threads cover correctness.
 
 ## Repo state right now
-YES — 126/126 green (39 files, verified direct 2026-09-22), lint 0, typecheck 0, both DBs migrated. Sandbox MySQL on 3307.
+YES — 129/129 green (40 files, verified direct 2026-09-22), lint 0, typecheck 0, both DBs migrated. Sandbox MySQL on 3307. CI re-run pending on seed-race fix.
 
 ---
 
