@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { AuthError } from "../auth/auth.service.js";
+import { invalidateActivityFeed } from "../metrics/metrics.service.js";
 import type { CreateNoticeInput } from "./notices.schemas.js";
 
 // Notice board (§7 Phase 1 #7): school-wide, class-wide, or section-scoped,
@@ -28,6 +29,8 @@ export async function publishNotice(
     console.error("Notice email delivery failed:", err);
     return 0;
   });
+  // New notice → the activities feed is stale (§12.3).
+  invalidateActivityFeed(schoolId);
   return { id: notice.id, emailed };
 }
 

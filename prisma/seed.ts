@@ -96,6 +96,7 @@ const PERMISSIONS: { key: string; description: string }[] = [
   { key: "homework.grade", description: "Grade submissions (teacher of the subject/section, School Admin)" },
   { key: "documents.read", description: "Read uploaded documents (staff; students/parents narrowed to own)" },
   { key: "documents.write", description: "Upload admission documents (School Admin, Accountant)" },
+  { key: "dashboard.read", description: "Read the school admin dashboard bundle (School Admin; other roles gain it as their boards land)" },
   { key: "platform.schools.read", description: "List every school cross-tenant (Platform Owner only)" },
 ];
 
@@ -103,7 +104,7 @@ const PERMISSIONS: { key: string; description: string }[] = [
 // PERMISSION grants access while self-scope narrows ROWS — holding the key
 // never means seeing everyone.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.read", "homework.submit", "homework.grade", "messages.read", "documents.read", "documents.write"],
+  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.read", "homework.submit", "homework.grade", "messages.read", "documents.read", "documents.write", "dashboard.read"],
   TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "notices.read", "notices.write", "exams.manage", "exams.read", "timetable.read", "homework.manage", "homework.read", "homework.grade", "messages.send", "messages.read", "documents.read"],
   ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "notices.read", "fees.manage", "fees.read", "exams.read", "timetable.read", "documents.read", "documents.write"],
   STUDENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.submit", "homework.read", "messages.send", "messages.read"],

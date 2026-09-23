@@ -1,5 +1,7 @@
 import { Router, type CookieOptions, type Request, type Response } from "express";
 import { catchAsync } from "../../lib/async.js";
+import { prisma } from "../../lib/prisma.js";
+import { authMiddleware } from "../../middleware/auth.js";
 import { loginLimiter, registerLimiter } from "../../middleware/security.js";
 import { loginSchema, registerSchema } from "./auth.schemas.js";
 import { AuthError, login, register, rotateRefreshToken } from "./auth.service.js";
@@ -27,6 +29,36 @@ function sendAuthError(res: Response, err: unknown): void {
 }
 
 export const authRouter = Router();
+
+// Current identity for dashboard headers ("Good morning, {name}") and
+// role-aware navigation. Auth only — no tenant scope, so the Platform
+// Owner (no school) can call it too. Reads the row fresh so renames and
+// role changes reflect immediately instead of lingering until re-login.
+authRouter.get(
+  "/me",
+  authMiddleware,
+  catchAsync(async (req: Request, res: Response) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user?.userId ?? "" },
+      select: { id: true, name: true, email: true, schoolId: true, role: { select: { name: true } } },
+    });
+    if (!user) {
+      res.status(401).json({
+        success: false,
+        data: null,
+        error: { code: "UNAUTHENTICATED", message: "Account no longer exists." },
+        meta: null,
+      });
+      return;
+    }
+    res.json({
+      success: true,
+      data: { user: { id: user.id, name: user.name, email: user.email, schoolId: user.schoolId, role: user.role.name } },
+      error: null,
+      meta: null,
+    });
+  }),
+);
 
 authRouter.post(
   "/register",

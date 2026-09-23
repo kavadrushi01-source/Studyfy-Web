@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { AuthError } from "../auth/auth.service.js";
 import { documentStorage, StorageUnconfiguredError } from "../../lib/storage.js";
+import { invalidateActivityFeed } from "../metrics/metrics.service.js";
 import type { PostHomeworkInput } from "./homework.schemas.js";
 
 interface HomeworkCaller {
@@ -78,6 +79,10 @@ export async function postHomework(db: PrismaClient, caller: HomeworkCaller, inp
       subject: { select: { name: true } },
       teacher: { select: { user: { select: { name: true } } } },
     },
+  }).then((homework) => {
+    // New assignment → the activities feed is stale (§12.3).
+    invalidateActivityFeed(section.schoolId);
+    return homework;
   });
 }
 

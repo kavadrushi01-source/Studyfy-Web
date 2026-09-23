@@ -3,6 +3,7 @@ import { gradeLetter, percentOf, rankAll, topK } from "../../lib/grades.js";
 import type { ReportCardData } from "../../lib/report-card.js";
 import { AuthError } from "../auth/auth.service.js";
 import { attendanceSummary } from "../attendance/attendance.service.js";
+import { invalidateActivityFeed } from "../metrics/metrics.service.js";
 import type { CreateExamInput, EnterMarksInput } from "./exams.schemas.js";
 
 // Exam + subject links in one transaction (§7 Phase 1 #4). Every lookup
@@ -26,7 +27,7 @@ export async function createExam(db: PrismaClient, input: CreateExamInput) {
   if (!schoolId) {
     throw new AuthError(404, "SUBJECT_NOT_FOUND", "One or more subjects were not found in this school.");
   }
-  return db.exam.create({
+  const exam = await db.exam.create({
     data: {
       schoolId,
       academicYearId: input.academicYearId,
@@ -44,6 +45,9 @@ export async function createExam(db: PrismaClient, input: CreateExamInput) {
     },
     include: { examSubjects: { include: { subject: { select: { name: true } } } } },
   });
+  // New exam → the activities feed is stale (§12.3).
+  invalidateActivityFeed(schoolId);
+  return exam;
 }
 
 interface MarksCaller {

@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { schoolDay } from "../../lib/school-time.js";
-import { invalidateFeeKpis } from "../metrics/metrics.service.js";
+import { invalidateActivityFeed, invalidateFeeKpis } from "../metrics/metrics.service.js";
 import { AuthError } from "../auth/auth.service.js";
 import type { CreateStructureInput, GenerateInvoicesInput, ListInvoicesInput, RecordPaymentInput } from "./fees.schemas.js";
 
@@ -265,8 +265,10 @@ export async function recordPayment(
     }),
   ]);
   // Money moved → this month's cached collection for this school is stale
-  // (§12.3 invalidate on write).
+  // (§12.3 invalidate on write). Payments also appear in the activities
+  // feed, so that goes too.
   invalidateFeeKpis(invoice.schoolId);
+  invalidateActivityFeed(invoice.schoolId);
   return {
     invoice: {
       id: updated.id,

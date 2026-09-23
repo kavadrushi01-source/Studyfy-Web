@@ -10,6 +10,7 @@ import { feesRouter } from "./modules/fees/fees.router.js";
 import { noticesRouter } from "./modules/notices/notices.router.js";
 import { platformRouter } from "./modules/platform/platform.router.js";
 import { publicRouter } from "./modules/public/public.router.js";
+import { dashboardRouter } from "./modules/dashboard/dashboard.router.js";
 import { sectionsRouter } from "./modules/sections/sections.router.js";
 import { staffRouter } from "./modules/staff/staff.router.js";
 import { timetableRouter } from "./modules/timetable/timetable.router.js";
@@ -38,6 +39,7 @@ export function createApp(): Express {
   app.use("/api/v1/platform", platformRouter);
   app.use("/api/v1/public", publicRouter);
   app.use("/api/v1", attendanceRouter);
+  app.use("/api/v1", dashboardRouter);
   app.use("/api/v1", documentsRouter);
   app.use("/api/v1", examsRouter);
   app.use("/api/v1", homeworkRouter);
