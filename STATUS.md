@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** 2026-09-16 | **Last updated:** 2026-09-22
+**Started:** 2026-09-16 | **Last updated:** 2026-09-23
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -38,7 +38,7 @@
 | Confirmed: no paid services wired yet (spec §1) | DONE — repo-wide grep 2026-09-16: no SMS/WhatsApp/Groq/Razorpay/OpenAI keys anywhere; only empty `.env.example` placeholders |
 
 ### Local dev environment (not code — operational note for the next session)
-- MySQL sandbox on `127.0.0.1:3307` (own datadir in `Temp/opencode/studyfy-mysql-data`, root/empty pw). Local MySQL80 on 3306 untouched (credentials unknown). If port 3307 is dead, re-init + `Start-Process mysqld` detached (see git history for the exact commands) — never `Start-Job` (dies with the shell).
+- MySQL sandbox on `127.0.0.1:3307` (own datadir in `C:\Users\kavad\studyfy-mysql-data` — MOVED out of `Temp/` 2026-09-23 after a Temp cleanup wiped the old datadir; root/empty pw). Local MySQL80 on 3306 untouched (credentials unknown). If port 3307 is dead: kill stale `mysqld`, `Start-Process mysqld --datadir=<above> --port=3307 --bind-address=127.0.0.1 --mysqlx=OFF`, then `migrate deploy` both DBs + `db:seed` dev if tables are gone (deterministic seed rebuilds everything) — never `Start-Job` (dies with the shell). `mysql.exe` client ships with the server install for `CREATE DATABASE`.
 - `studyfy_dev` = seeded demo data (`npm run db:seed`); `studyfy_test` = test DB (migrated, roles/permissions seeded by test setup). Tests force `TEST_DATABASE_URL` — dev DB never touched.
 - Prisma pinned at 6.12.0 (6.13+ pulls a HIGH audit failure via `@prisma/config`→`deepmerge-ts`).
 
