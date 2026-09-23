@@ -698,6 +698,13 @@ export interface StudentNoticeItem {
   at: string;
 }
 
+export interface SubjectProgress {
+  subjectName: string;
+  // Average percent over SCORED marks only (awaited rows excluded).
+  percent: number;
+  scored: number;
+}
+
 export interface StudentDashboard {
   attendancePercent: number | null;
   overallMarks: number | null;
@@ -706,6 +713,7 @@ export interface StudentDashboard {
   todayTimetable: TeacherTimetableSlot[];
   recentMarks: StudentMarkItem[];
   recentNotices: StudentNoticeItem[];
+  progressBySubject: SubjectProgress[];
   asOf: { day: string };
 }
 
@@ -746,9 +754,31 @@ export async function getStudentDashboard(
   if (cached !== undefined && typeof cached === "object" && cached !== null && !Array.isArray(cached) && "recentMarks" in cached) {
     return cached;
   }
+  const board = await buildStudentBoard(db, schoolId, profile, school.timezone, now, day);
+  kpis.set(key, board);
+  return board;
+}
 
-  const { start } = schoolDayBoundsUtc(school.timezone, day);
-  const weekday = schoolWeekday(school.timezone, now);
+interface StudentBoardProfile {
+  id: string;
+  sectionId: string;
+  section: { classId: string };
+}
+
+// Shared compute for the student board AND the parent board's selected
+// child: identical numbers from either entry point, one cache key space
+// (keyed by the CHILD's user id), one invalidation set.
+async function buildStudentBoard(
+  db: PrismaClient,
+  schoolId: string,
+  profile: StudentBoardProfile,
+  timezone: string,
+  now: Date,
+  day: string,
+): Promise<StudentDashboard> {
+
+  const { start } = schoolDayBoundsUtc(timezone, day);
+  const weekday = schoolWeekday(timezone, now);
 
   const [marks, attendance, invoices, exams, slots, notices] = await Promise.all([
     db.mark.findMany({
@@ -821,6 +851,14 @@ export async function getStudentDashboard(
   );
 
   const next = exams[0];
+  const subjectTotals = new Map<string, { total: number; scored: number }>();
+  for (const mark of scored) {
+    const name = mark.examSubject.subject.name;
+    const entry = subjectTotals.get(name) ?? { total: 0, scored: 0 };
+    entry.total += Number(mark.marksObtained) / Number(mark.examSubject.maxMarks);
+    entry.scored += 1;
+    subjectTotals.set(name, entry);
+  }
   const board: StudentDashboard = {
     attendancePercent,
     overallMarks,
@@ -859,10 +897,66 @@ export async function getStudentDashboard(
       };
     }),
     recentNotices: notices.map((notice) => ({ id: notice.id, title: notice.title, at: notice.createdAt.toISOString() })),
+    progressBySubject: [...subjectTotals.entries()]
+      .map(([subjectName, entry]) => ({
+        subjectName,
+        percent: Math.round((entry.total / entry.scored) * 1000) / 10,
+        scored: entry.scored,
+      }))
+      .sort((a, b) => a.subjectName.localeCompare(b.subjectName)),
     asOf: { day },
   };
-  kpis.set(key, board);
   return board;
+}
+
+export interface ParentChild {
+  studentId: string;
+  name: string;
+}
+
+export interface ParentDashboard {
+  children: ParentChild[];
+  selectedChildId: string;
+  board: StudentDashboard;
+}
+
+// Parent board (§7 Phase 1 #9, §8.3): the child selector plus the selected
+// child's full student board. `childStudentId` selects explicitly (?with=);
+// omitted selects the first linked child. A child outside the caller's
+// links is 403, never widened — the same fail-closed shape as self-scope.
+export async function getParentDashboard(
+  db: PrismaClient,
+  schoolId: string,
+  parentUserId: string,
+  childStudentId: string | undefined,
+  now: Date = new Date(),
+): Promise<ParentDashboard> {
+  const school = await db.school.findUnique({ where: { id: schoolId }, select: { timezone: true } });
+  if (!school) {
+    throw new AuthError(404, "SCHOOL_NOT_FOUND", "School not found.");
+  }
+  const links = await db.studentGuardian.findMany({
+    where: { schoolId, parentId: parentUserId },
+    select: { student: { select: { id: true, sectionId: true, userId: true, user: { select: { name: true } }, section: { select: { classId: true } } } } },
+    orderBy: { student: { user: { name: "asc" } } },
+  });
+  if (links.length === 0) {
+    throw new AuthError(403, "NOT_A_PARENT", "This account has no linked children in this school.");
+  }
+  const children: ParentChild[] = links.map((link) => ({ studentId: link.student.id, name: link.student.user.name }));
+  const selected = childStudentId ? links.find((link) => link.student.id === childStudentId) : links[0];
+  if (!selected) {
+    throw new AuthError(403, "FORBIDDEN", "That child is not linked to your account.");
+  }
+  const day = schoolDay(school.timezone, now);
+  const key = studentBoardKey(schoolId, selected.student.userId, day);
+  const cached = kpis.get(key);
+  if (cached !== undefined && typeof cached === "object" && cached !== null && !Array.isArray(cached) && "recentMarks" in cached) {
+    return { children, selectedChildId: selected.student.id, board: cached };
+  }
+  const board = await buildStudentBoard(db, schoolId, selected.student, school.timezone, now, day);
+  kpis.set(key, board);
+  return { children, selectedChildId: selected.student.id, board };
 }
 
 // Marks, marks, money, and notices all surface here: marking, marks

@@ -4,7 +4,8 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { getAccountantDashboard, getAdminDashboard, getStudentDashboard, getTeacherDashboard } from "../metrics/metrics.service.js";
+import { getAccountantDashboard, getAdminDashboard, getParentDashboard, getStudentDashboard, getTeacherDashboard } from "../metrics/metrics.service.js";
+import { parentBoardQuerySchema } from "./dashboard.schemas.js";
 
 export const dashboardRouter = Router();
 
@@ -133,6 +134,44 @@ dashboardRouter.get(
     try {
       requireRole(req, "STUDENT");
       const dashboard = await getStudentDashboard(req.prisma, req.schoolId ?? "", req.user.userId);
+      res.json({ success: true, data: { dashboard }, error: null, meta: null });
+    } catch (err) {
+      sendDashboardError(res, err);
+    }
+  }),
+);
+
+// Parent board (§8.3): child selector (?with=<studentId>, default first
+// linked child) plus the selected child's full board: KPIs, Child Progress
+// chart data, Recent Notices. Quick Actions are pure UI links.
+dashboardRouter.get(
+  "/schools/:schoolId/dashboard/parent",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("dashboard.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = parentBoardQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      requireRole(req, "PARENT");
+      const dashboard = await getParentDashboard(req.prisma, req.schoolId ?? "", req.user.userId, parsed.data.with);
       res.json({ success: true, data: { dashboard }, error: null, meta: null });
     } catch (err) {
       sendDashboardError(res, err);

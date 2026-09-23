@@ -195,7 +195,8 @@ describe("GET /api/v1/schools/:schoolId/dashboard/student (§8.3)", () => {
       for (const [token, code] of [
         [schoolA.adminToken, "FORBIDDEN"],
         [schoolA.teacherToken, "FORBIDDEN"],
-        [parentA.token, "PERMISSION_DENIED"],
+        // Parent holds dashboard.read (own board) but not the student role.
+        [parentA.token, "FORBIDDEN"],
       ] as const) {
         const denied = await request(app)
           .get(`/api/v1/schools/${schoolA.schoolId}/dashboard/student`)
