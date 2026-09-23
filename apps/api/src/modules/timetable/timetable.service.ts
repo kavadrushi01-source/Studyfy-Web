@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { generateTimetable, type PlacedSlot, type UnresolvedDemand } from "../../lib/timetable.js";
 import { AuthError } from "../auth/auth.service.js";
+import { invalidateTeacherBoards } from "../metrics/metrics.service.js";
 import type { AddSlotInput, BoardQueryInput, GenerateTimetableInput } from "./timetable.schemas.js";
 
 const MAX_LESSONS = 2000;
@@ -83,6 +84,8 @@ export async function generateSectionTimetables(
       teacherNames.set(t.id, t.user.name);
     }
   }
+  // Persisted slots changed → teachers' "today" boards are stale (§12.3).
+  invalidateTeacherBoards(schoolId);
   return {
     placed: result.placed.map((slot) => ({
       ...slot,
@@ -134,7 +137,7 @@ export async function addSlot(db: PrismaClient, input: AddSlotInput) {
     throw new AuthError(409, "TEACHER_BUSY", "The teacher already teaches at that time.");
   }
   try {
-    return await db.timetableSlot.create({
+    const slot = await db.timetableSlot.create({
       data: {
         schoolId: section.schoolId,
         sectionId: section.id,
@@ -144,6 +147,8 @@ export async function addSlot(db: PrismaClient, input: AddSlotInput) {
         period: input.period,
       },
     });
+    invalidateTeacherBoards(section.schoolId);
+    return slot;
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       throw new AuthError(409, "SLOT_TAKEN", "The section already has a lesson at that time.");
@@ -158,6 +163,7 @@ export async function deleteSlot(db: PrismaClient, slotId: string): Promise<void
     throw new AuthError(404, "SLOT_NOT_FOUND", "Timetable slot not found.");
   }
   await db.timetableSlot.delete({ where: { id: slot.id } });
+  invalidateTeacherBoards(slot.schoolId);
 }
 
 interface BoardCaller {

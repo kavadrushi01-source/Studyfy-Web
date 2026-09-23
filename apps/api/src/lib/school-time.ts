@@ -13,8 +13,7 @@ export function schoolDay(timezone: string, now: Date): string {
   }).format(now);
 }
 
-export function schoolMonth(timezone: string, now: Date): { year: number; month: number } {
-  const parts = new Intl.DateTimeFormat("en-CA", {
+export function schoolMonth(timezone: string, now: Date): { year: number; month: number } {  const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
     year: "numeric",
     month: "2-digit",
@@ -25,6 +24,18 @@ export function schoolMonth(timezone: string, now: Date): { year: number; month:
     throw new Error(`Cannot resolve school month for timezone ${timezone}.`);
   }
   return { year, month };
+}
+
+// School-local weekday as 1 = Monday .. 7 = Sunday, matching
+// timetable_slots.day_of_week (§12.7 — a "today" timetable is the school's
+// today, not the server's).
+export function schoolWeekday(timezone: string, now: Date): number {
+  const short = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(now);
+  const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(short);
+  if (day < 0) {
+    throw new Error(`Cannot resolve school weekday for timezone ${timezone}.`);
+  }
+  return day === 0 ? 7 : day;
 }
 
 // Signed offset of `timezone` at `instant`, in milliseconds (local - UTC).

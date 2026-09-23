@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { AuthError } from "../auth/auth.service.js";
+import { invalidateTeacherBoards } from "../metrics/metrics.service.js";
 
 // Deterministic pair key (sorted user ids): one indexed lookup lists the
 // whole conversation, in either direction.
@@ -136,7 +137,7 @@ export async function sendMessage(
   if (!allowed) {
     throw new AuthError(403, "MESSAGING_NOT_ALLOWED", "You cannot message this user.");
   }
-  return db.message.create({
+  const message = await db.message.create({
     data: {
       schoolId: senderRow.schoolId,
       senderId: sender.userId,
@@ -145,6 +146,9 @@ export async function sendMessage(
       body,
     },
   });
+  // New message → unread counts and recent-threads on both boards are stale.
+  invalidateTeacherBoards(senderRow.schoolId);
+  return message;
 }
 
 export interface ThreadViewer {

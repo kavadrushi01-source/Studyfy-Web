@@ -266,7 +266,8 @@ export async function recordPayment(
   ]);
   // Money moved → this month's cached collection for this school is stale
   // (§12.3 invalidate on write). Payments also appear in the activities
-  // feed, so that goes too.
+  // feed, so that goes too (teacher boards surface recent payments only
+  // indirectly — no tboard clear needed here).
   invalidateFeeKpis(invoice.schoolId);
   invalidateActivityFeed(invoice.schoolId);
   return {

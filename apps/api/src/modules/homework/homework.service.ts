@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { AuthError } from "../auth/auth.service.js";
 import { documentStorage, StorageUnconfiguredError } from "../../lib/storage.js";
-import { invalidateActivityFeed } from "../metrics/metrics.service.js";
+import { invalidateActivityFeed, invalidateTeacherBoards } from "../metrics/metrics.service.js";
 import type { PostHomeworkInput } from "./homework.schemas.js";
 
 interface HomeworkCaller {
@@ -80,8 +80,10 @@ export async function postHomework(db: PrismaClient, caller: HomeworkCaller, inp
       teacher: { select: { user: { select: { name: true } } } },
     },
   }).then((homework) => {
-    // New assignment → the activities feed is stale (§12.3).
+    // New assignment → the activities feed and the teacher's upcoming list
+    // are stale (§12.3).
     invalidateActivityFeed(section.schoolId);
+    invalidateTeacherBoards(section.schoolId);
     return homework;
   });
 }
@@ -201,10 +203,13 @@ export async function gradeSubmission(db: PrismaClient, caller: { userId: string
       throw new AuthError(403, "NOT_SUBJECT_TEACHER", "Only the section's subject teacher may grade this.");
     }
   }
-  return db.homeworkSubmission.update({
+  const graded = await db.homeworkSubmission.update({
     where: { id: submission.id },
     data: { status: "GRADED" },
   });
+  // Pending count dropped → the grader's board is stale (§12.3).
+  invalidateTeacherBoards(submission.schoolId);
+  return graded;
 }
 
 interface BoardCaller {

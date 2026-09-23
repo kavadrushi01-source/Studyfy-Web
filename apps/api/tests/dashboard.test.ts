@@ -115,12 +115,12 @@ describe("GET /api/v1/schools/:schoolId/dashboard/admin (§7 Phase 1 #9)", () =>
     const schoolB = await registerSchool();
     const teacherToken = await makeTeacher(schoolA.schoolId, schoolA.slug);
 
-    // Teacher holds no dashboard.read (admin-only until their board lands).
+    // Teacher holds dashboard.read but the admin bundle is role-guarded.
     const denied = await request(app)
       .get(`/api/v1/schools/${schoolA.schoolId}/dashboard/admin`)
       .set("Authorization", `Bearer ${teacherToken}`)
       .expect(403);
-    expect(denied.body.error.code).toBe("PERMISSION_DENIED");
+    expect(denied.body.error.code).toBe("FORBIDDEN");
 
     // B's admin on A's URL: tenant mismatch, never A's numbers.
     const cross = await request(app)

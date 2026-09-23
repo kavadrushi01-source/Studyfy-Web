@@ -5,6 +5,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
+import { invalidateTeacherBoards } from "../metrics/metrics.service.js";
 
 export const sectionsRouter = Router();
 
@@ -92,6 +93,8 @@ sectionsRouter.patch(
           data: { classTeacherId: null },
           select: { id: true, classTeacherId: true },
         });
+        // Assignment changed → teachers' class lists are stale (§12.3).
+        invalidateTeacherBoards(req.schoolId ?? "");
         res.json({ success: true, data: { section: cleared }, error: null, meta: null });
         return;
       }
@@ -110,6 +113,7 @@ sectionsRouter.patch(
           classTeacher: { select: { id: true, user: { select: { name: true, email: true } } } },
         },
       });
+      invalidateTeacherBoards(req.schoolId ?? "");
       res.json({ success: true, data: { section: updated }, error: null, meta: null });
     } catch (err) {
       sendSectionError(res, err);

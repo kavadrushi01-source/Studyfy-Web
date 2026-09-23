@@ -1,7 +1,8 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { LruCache } from "../../lib/lru.js";
-import { schoolDay, schoolDayBoundsUtc, schoolMonth, schoolMonthBoundsUtc } from "../../lib/school-time.js";
+import { schoolDay, schoolDayBoundsUtc, schoolMonth, schoolMonthBoundsUtc, schoolWeekday } from "../../lib/school-time.js";
 import { AuthError } from "../auth/auth.service.js";
+import { listThreads } from "../messages/messages.service.js";
 
 export interface DashboardKpis {
   totalStudents: number;
@@ -20,7 +21,7 @@ export interface DashboardKpis {
 // invalidate eagerly, so TTL is the backstop, not the mechanism).
 // Key rule from the spec: every key includes school_id — no exceptions,
 // so a key can never serve one school's aggregate to another.
-const kpis = new LruCache<number | string | null | GrowthPoint[] | ActivityItem[]>({
+const kpis = new LruCache<number | string | null | GrowthPoint[] | ActivityItem[] | TeacherDashboard>({
   maxEntries: 600,
   ttlMs: 60_000,
 });
@@ -314,4 +315,217 @@ export function invalidateActivityFeed(schoolId: string): void {
 // Test seam: drop everything (each test file shares this process).
 export function clearKpiCache(): void {
   kpis.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Teacher board (§7 Phase 1 #9, §8.3 "Today" view)
+// ---------------------------------------------------------------------------
+
+export interface TeacherClassInfo {
+  id: string;
+  name: string;
+  className: string;
+}
+
+export interface TeacherAttendanceStatus {
+  sectionId: string;
+  sectionName: string;
+  className: string;
+  marked: boolean;
+  present: number;
+  total: number;
+}
+
+export interface TeacherTimetableSlot {
+  period: number;
+  subjectName: string;
+  sectionName: string;
+  className: string;
+  startTime: string | null;
+  endTime: string | null;
+}
+
+export interface UpcomingItem {
+  id: string;
+  title: string;
+  date: string | null;
+  sectionName: string | null;
+}
+
+export interface RecentMessageItem {
+  user: { id: string; name: string };
+  lastBody: string;
+  unread: number;
+}
+
+export interface TeacherDashboard {
+  myClasses: TeacherClassInfo[];
+  todayAttendance: TeacherAttendanceStatus[];
+  homeworkPending: number;
+  unreadMessages: number;
+  todayTimetable: TeacherTimetableSlot[];
+  upcomingHomework: UpcomingItem[];
+  upcomingExams: UpcomingItem[];
+  recentMessages: RecentMessageItem[];
+  asOf: { day: string };
+}
+
+function teacherBoardKey(schoolId: string, staffId: string, day: string): string {
+  return `kpi:tboard:${schoolId}:${staffId}:${day}`;
+}
+
+// "Teaches" = class teacher of the section OR scheduled there by timetable,
+// with at least one subject qualification — the same relationship
+// definition as homework posting and messaging scope, one shared meaning.
+async function teacherSections(db: PrismaClient, schoolId: string, staffId: string) {
+  const [owned, scheduled] = await Promise.all([
+    db.section.findMany({
+      where: { schoolId, classTeacherId: staffId },
+      select: { id: true, name: true, class: { select: { name: true } } },
+    }),
+    db.timetableSlot.findMany({
+      where: { schoolId, teacherId: staffId },
+      select: { section: { select: { id: true, name: true, class: { select: { name: true } } } } },
+    }),
+  ]);
+  const byId = new Map<string, { id: string; name: string; class: { name: string } }>();
+  for (const s of owned) {
+    byId.set(s.id, s);
+  }
+  for (const slot of scheduled) {
+    if (!byId.has(slot.section.id)) {
+      byId.set(slot.section.id, slot.section);
+    }
+  }
+  return [...byId.values()];
+}
+
+export async function getTeacherDashboard(
+  db: PrismaClient,
+  schoolId: string,
+  teacherUserId: string,
+  now: Date = new Date(),
+): Promise<TeacherDashboard> {
+  const school = await db.school.findUnique({ where: { id: schoolId }, select: { timezone: true } });
+  if (!school) {
+    throw new AuthError(404, "SCHOOL_NOT_FOUND", "School not found.");
+  }
+  const staff = await db.staff.findFirst({ where: { schoolId, userId: teacherUserId } });
+  if (!staff) {
+    throw new AuthError(403, "NOT_A_TEACHER", "This account has no teacher profile in this school.");
+  }
+  const day = schoolDay(school.timezone, now);
+  const key = teacherBoardKey(schoolId, staff.id, day);
+  const cached = kpis.get(key);
+  if (cached !== undefined && typeof cached === "object" && cached !== null && !Array.isArray(cached) && "myClasses" in cached) {
+    return cached;
+  }
+
+  const sections = await teacherSections(db, schoolId, staff.id);
+  const sectionIds = sections.map((s) => s.id);
+  const { start, end } = schoolDayBoundsUtc(school.timezone, day);
+  const weekday = schoolWeekday(school.timezone, now);
+
+  const [marks, submissions, unread, slots, homework, exams, threads] = await Promise.all([
+    sectionIds.length === 0
+      ? []
+      : db.attendance.findMany({
+          where: { schoolId, sectionId: { in: sectionIds }, date: { gte: start, lt: end } },
+          select: { sectionId: true, status: true },
+        }),
+    db.homeworkSubmission.count({
+      where: { schoolId, status: "SUBMITTED", homework: { teacherId: staff.id } },
+    }),
+    db.message.count({ where: { schoolId, receiverId: teacherUserId, readAt: null } }),
+    db.timetableSlot.findMany({
+      where: { schoolId, teacherId: staff.id, dayOfWeek: weekday },
+      select: {
+        period: true,
+        startTime: true,
+        endTime: true,
+        subject: { select: { name: true } },
+        section: { select: { name: true, class: { select: { name: true } } } },
+      },
+      orderBy: { period: "asc" },
+    }),
+    sectionIds.length === 0
+      ? []
+      : db.homework.findMany({
+          where: { schoolId, sectionId: { in: sectionIds }, dueDate: { gte: start } },
+          select: { id: true, title: true, dueDate: true, section: { select: { name: true } } },
+          orderBy: { dueDate: "asc" },
+          take: 5,
+        }),
+    db.exam.findMany({
+      where: { schoolId, OR: [{ startDate: { gte: start } }, { startDate: null }] },
+      select: { id: true, name: true, startDate: true },
+      orderBy: { startDate: "asc" },
+      take: 5,
+    }),
+    listThreads(db, { userId: teacherUserId, role: "TEACHER" }),
+  ]);
+
+  const marksBySection = new Map<string, { present: number; total: number }>();
+  for (const mark of marks) {
+    const entry = marksBySection.get(mark.sectionId) ?? { present: 0, total: 0 };
+    entry.total += 1;
+    if (mark.status === "PRESENT" || mark.status === "LATE") {
+      entry.present += 1;
+    }
+    marksBySection.set(mark.sectionId, entry);
+  }
+
+  const board: TeacherDashboard = {
+    myClasses: sections.map((s) => ({ id: s.id, name: s.name, className: s.class.name })),
+    todayAttendance: sections.map((s) => {
+      const entry = marksBySection.get(s.id);
+      return {
+        sectionId: s.id,
+        sectionName: s.name,
+        className: s.class.name,
+        marked: (entry?.total ?? 0) > 0,
+        present: entry?.present ?? 0,
+        total: entry?.total ?? 0,
+      };
+    }),
+    homeworkPending: submissions,
+    unreadMessages: unread,
+    todayTimetable: slots.map((slot) => ({
+      period: slot.period,
+      subjectName: slot.subject.name,
+      sectionName: slot.section.name,
+      className: slot.section.class.name,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+    })),
+    upcomingHomework: homework.map((h) => ({
+      id: h.id,
+      title: h.title,
+      date: h.dueDate.toISOString().slice(0, 10),
+      sectionName: h.section.name,
+    })),
+    upcomingExams: exams.map((e) => ({
+      id: e.id,
+      title: e.name,
+      date: e.startDate ? e.startDate.toISOString().slice(0, 10) : null,
+      sectionName: null,
+    })),
+    recentMessages: threads.threads.slice(0, 3).map((t) => ({
+      user: t.user,
+      lastBody: t.lastMessage.body,
+      unread: t.unread,
+    })),
+    asOf: { day },
+  };
+  kpis.set(key, board);
+  return board;
+}
+
+// A teacher's own writes (marking, messaging, grading) plus the admin
+// actions that reshape their board (assignments, timetable, notices,
+// exams, payments-as-activity) all funnel through here: one prefix drop
+// per school clears every staff/day variant without touching other
+// schools' entries.
+export function invalidateTeacherBoards(schoolId: string): void {
+  kpis.deletePrefix(`kpi:tboard:${schoolId}:`);
 }
