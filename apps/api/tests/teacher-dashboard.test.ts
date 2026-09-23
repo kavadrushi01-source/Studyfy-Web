@@ -175,8 +175,6 @@ describe("GET /api/v1/schools/:schoolId/dashboard/teacher (§8.3)", () => {
       const schoolB = await registerSchool();
       const cls = await prisma.class.create({ data: { schoolId: schoolA.schoolId, name: `Class ${uid()}` } });
       const section = await prisma.section.create({ data: { schoolId: schoolA.schoolId, classId: cls.id, name: "A" } });
-      const math = await prisma.subject.create({ data: { schoolId: schoolA.schoolId, name: `Subject ${uid()}`, group: "Core" } });
-      const teacher = await makeTeacher(schoolA.schoolId, schoolA.slug, section.id, [math.id]);
       const pupil = await makeStudent(schoolA.schoolId, schoolA.slug, section.id);
 
       // Admin holds the key but not the role.

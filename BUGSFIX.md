@@ -92,7 +92,15 @@ npm audit --audit-level=high
     immediately. Regression: `seed-concurrency.test.ts`, including a
     deterministic worst case (delete LIBRARIAN — held by no test user,
     referenced by no mapping — then 20 parallel seeders, which kills old
-    code with P2002 on demand).
+     code with P2002 on demand).
+15. **Workspace lint passing while CI lint failed (2026-09-23).**
+    `npm run lint --workspace=@studyfy/api` lints `src` only; CI's root
+    `npm run lint` lints everything including `tests/` — an unused variable
+    in `teacher-dashboard.test.ts` stayed green locally through four
+    dashboard builds and failed CI on three straight commits (CI runs
+    35850912329, 35859552876, 35864982904). Rule from here on: the
+    pre-commit gate is ROOT `npm run lint`, never the workspace shortcut.
+    (No regression test applies — process rule, recorded here so it sticks.)
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

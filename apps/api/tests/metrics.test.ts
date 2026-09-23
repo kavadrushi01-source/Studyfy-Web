@@ -205,6 +205,29 @@ describe("dashboard KPIs (§12.3)", () => {
     expect(await getTotalStudents(prisma, school.schoolId)).toBe(3);
   }, 30000);
 
+  it("serves repeat bundle reads from cache (DB writes bypassing invalidation stay invisible)", async () => {
+    const school = await registerSchool();
+    const { sectionId } = await makeSection(school.schoolId);
+    await admit(school.schoolId, school.adminToken, sectionId);
+    const first = await getDashboardKpis(prisma, school.schoolId);
+    expect(first.totalStudents).toBe(1);
+
+    // Bypass the write path (no invalidation): the bundle's COUNT/SUM
+    // pieces must still serve cached, not recompute.
+    const studentRole = await prisma.role.findUniqueOrThrow({ where: { name: "STUDENT" } });
+    const ghost = await prisma.user.create({
+      data: { schoolId: school.schoolId, roleId: studentRole.id, email: `ghost-${uid()}@example.com`, passwordHash: "x", name: "Ghost" },
+    });
+    await prisma.student.create({ data: { schoolId: school.schoolId, userId: ghost.id, sectionId } });
+    const second = await getDashboardKpis(prisma, school.schoolId);
+    expect(second.totalStudents).toBe(1);
+    expect(second).toStrictEqual(first);
+
+    // A real admission invalidates → fresh bundle.
+    await admit(school.schoolId, school.adminToken, sectionId);
+    expect((await getDashboardKpis(prisma, school.schoolId)).totalStudents).toBe(3);
+  }, 30000);
+
   it("returns null attendance with no marks, and isolates schools", async () => {
     const schoolA = await registerSchool();
     const schoolB = await registerSchool();
