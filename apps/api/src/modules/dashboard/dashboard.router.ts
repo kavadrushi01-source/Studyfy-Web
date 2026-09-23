@@ -4,7 +4,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { getAdminDashboard, getTeacherDashboard } from "../metrics/metrics.service.js";
+import { getAccountantDashboard, getAdminDashboard, getTeacherDashboard } from "../metrics/metrics.service.js";
 
 export const dashboardRouter = Router();
 
@@ -78,6 +78,34 @@ dashboardRouter.get(
     try {
       requireRole(req, "TEACHER");
       const dashboard = await getTeacherDashboard(req.prisma, req.schoolId ?? "", req.user.userId);
+      res.json({ success: true, data: { dashboard }, error: null, meta: null });
+    } catch (err) {
+      sendDashboardError(res, err);
+    }
+  }),
+);
+
+// Accountant board (§8.3): Total Collected, Pending Fees, Overdue Fees,
+// Total Students; Fee Collection Trend chart, Payment Status donut, Recent
+// Transactions table.
+dashboardRouter.get(
+  "/schools/:schoolId/dashboard/accountant",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("dashboard.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      requireRole(req, "ACCOUNTANT");
+      const dashboard = await getAccountantDashboard(req.prisma, req.schoolId ?? "");
       res.json({ success: true, data: { dashboard }, error: null, meta: null });
     } catch (err) {
       sendDashboardError(res, err);

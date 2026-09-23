@@ -21,7 +21,7 @@ export interface DashboardKpis {
 // invalidate eagerly, so TTL is the backstop, not the mechanism).
 // Key rule from the spec: every key includes school_id — no exceptions,
 // so a key can never serve one school's aggregate to another.
-const kpis = new LruCache<number | string | null | GrowthPoint[] | ActivityItem[] | TeacherDashboard>({
+const kpis = new LruCache<number | string | null | GrowthPoint[] | ActivityItem[] | TeacherDashboard | AccountantDashboard>({
   maxEntries: 600,
   ttlMs: 60_000,
 });
@@ -528,4 +528,151 @@ export async function getTeacherDashboard(
 // schools' entries.
 export function invalidateTeacherBoards(schoolId: string): void {
   kpis.deletePrefix(`kpi:tboard:${schoolId}:`);
+}
+
+// ---------------------------------------------------------------------------
+// Accountant board (§7 Phase 1 #9, §8.3)
+// ---------------------------------------------------------------------------
+
+export interface TrendPoint {
+  month: string;
+  collected: string;
+}
+
+export interface StatusSlice {
+  status: string;
+  count: number;
+  amount: string;
+}
+
+export interface TransactionItem {
+  id: string;
+  studentName: string;
+  amount: string;
+  method: string;
+  paidAt: string;
+  invoiceStatus: string;
+}
+
+export interface AccountantDashboard {
+  totalCollected: string;
+  pendingFees: string;
+  overdueFees: string;
+  totalStudents: number;
+  trend: TrendPoint[];
+  byStatus: StatusSlice[];
+  recentTransactions: TransactionItem[];
+  asOf: { day: string; month: string };
+}
+
+function accountantBoardKey(schoolId: string, year: number, month: number): string {
+  return `kpi:aboard:${schoolId}:${year}-${String(month).padStart(2, "0")}`;
+}
+
+// Money sums stay Decimal-exact end to end (§13.6): aggregate in the DB,
+// add up with Prisma.Decimal in JS (Prisma has no SUM(a-b)), serialize
+// with toFixed(2) at the boundary.
+export async function getAccountantDashboard(
+  db: PrismaClient,
+  schoolId: string,
+  now: Date = new Date(),
+): Promise<AccountantDashboard> {
+  const school = await db.school.findUnique({ where: { id: schoolId }, select: { timezone: true } });
+  if (!school) {
+    throw new AuthError(404, "SCHOOL_NOT_FOUND", "School not found.");
+  }
+  const { year, month } = schoolMonth(school.timezone, now);
+  const key = accountantBoardKey(schoolId, year, month);
+  const cached = kpis.get(key);
+  if (cached !== undefined && typeof cached === "object" && cached !== null && !Array.isArray(cached) && "trend" in cached) {
+    return cached;
+  }
+
+  const months: { year: number; month: number }[] = [];
+  for (let back = 5; back >= 0; back -= 1) {
+    const d = new Date(Date.UTC(year, month - 1 - back, 1));
+    months.push({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 });
+  }
+  const windowStart = schoolMonthBoundsUtc(school.timezone, months[0]!.year, months[0]!.month).start;
+
+  const [totalStudents, collected, invoices, windowPayments, recent] = await Promise.all([
+    getTotalStudents(db, schoolId),
+    db.feePayment.aggregate({ _sum: { amount: true }, where: { schoolId } }),
+    db.feeInvoice.findMany({
+      where: { schoolId },
+      select: { status: true, amount: true, amountPaid: true },
+    }),
+    db.feePayment.findMany({
+      where: { schoolId, paidAt: { gte: windowStart } },
+      select: { amount: true, paidAt: true },
+    }),
+    db.feePayment.findMany({
+      where: { schoolId },
+      select: {
+        id: true,
+        amount: true,
+        method: true,
+        paidAt: true,
+        invoice: { select: { status: true, student: { select: { user: { select: { name: true } } } } } },
+      },
+      orderBy: { paidAt: "desc" },
+      take: 8,
+    }),
+  ]);
+
+  let pending = new Prisma.Decimal(0);
+  let overdue = new Prisma.Decimal(0);
+  const byStatus = new Map<string, { count: number; amount: Prisma.Decimal }>();
+  for (const invoice of invoices) {
+    const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
+    if (invoice.status === "PENDING" || invoice.status === "PARTIAL") {
+      pending = pending.plus(outstanding);
+    }
+    if (invoice.status === "OVERDUE") {
+      overdue = overdue.plus(outstanding);
+    }
+    const slice = byStatus.get(invoice.status) ?? { count: 0, amount: new Prisma.Decimal(0) };
+    slice.count += 1;
+    slice.amount = slice.amount.plus(new Prisma.Decimal(invoice.amount));
+    byStatus.set(invoice.status, slice);
+  }
+
+  const trendTotals = new Map<string, Prisma.Decimal>();
+  for (const payment of windowPayments) {
+    const m = schoolMonth(school.timezone, payment.paidAt);
+    const k = `${m.year}-${String(m.month).padStart(2, "0")}`;
+    trendTotals.set(k, (trendTotals.get(k) ?? new Prisma.Decimal(0)).plus(new Prisma.Decimal(payment.amount)));
+  }
+
+  const day = schoolDay(school.timezone, now);
+  const board: AccountantDashboard = {
+    totalCollected: new Prisma.Decimal(collected._sum.amount ?? 0).toFixed(2),
+    pendingFees: pending.toFixed(2),
+    overdueFees: overdue.toFixed(2),
+    totalStudents,
+    trend: months.map((m) => {
+      const k = `${m.year}-${String(m.month).padStart(2, "0")}`;
+      return { month: k, collected: (trendTotals.get(k) ?? new Prisma.Decimal(0)).toFixed(2) };
+    }),
+    byStatus: [...byStatus.entries()]
+      .map(([status, slice]) => ({ status, count: slice.count, amount: slice.amount.toFixed(2) }))
+      .sort((a, b) => a.status.localeCompare(b.status)),
+    recentTransactions: recent.map((p) => ({
+      id: p.id,
+      studentName: p.invoice.student.user.name,
+      amount: new Prisma.Decimal(p.amount).toFixed(2),
+      method: p.method,
+      paidAt: p.paidAt.toISOString(),
+      invoiceStatus: p.invoice.status,
+    })),
+    asOf: { day, month: `${year}-${String(month).padStart(2, "0")}` },
+  };
+  kpis.set(key, board);
+  return board;
+}
+
+// Payments change every figure on this board; invoice generation changes
+// pending/donut (new money owed). Both funnel here.
+export function invalidateAccountantBoards(schoolId: string): void {
+  kpis.deletePrefix(`kpi:aboard:${schoolId}:`);
 }
