@@ -3,7 +3,7 @@ import { gradeLetter, percentOf, rankAll, topK } from "../../lib/grades.js";
 import type { ReportCardData } from "../../lib/report-card.js";
 import { AuthError } from "../auth/auth.service.js";
 import { attendanceSummary } from "../attendance/attendance.service.js";
-import { invalidateActivityFeed, invalidateTeacherBoards } from "../metrics/metrics.service.js";
+import { invalidateActivityFeed, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
 import type { CreateExamInput, EnterMarksInput } from "./exams.schemas.js";
 
 // Exam + subject links in one transaction (§7 Phase 1 #4). Every lookup
@@ -126,6 +126,8 @@ export async function enterMarks(
       }),
     ),
   );
+  // New scores → graded students' boards are stale (§12.3).
+  invalidateStudentBoards(section.schoolId);
   return { entered: input.records.length };
 }
 

@@ -21,7 +21,7 @@ export interface DashboardKpis {
 // invalidate eagerly, so TTL is the backstop, not the mechanism).
 // Key rule from the spec: every key includes school_id — no exceptions,
 // so a key can never serve one school's aggregate to another.
-const kpis = new LruCache<number | string | null | GrowthPoint[] | ActivityItem[] | TeacherDashboard | AccountantDashboard>({
+const kpis = new LruCache<number | string | null | GrowthPoint[] | ActivityItem[] | TeacherDashboard | AccountantDashboard | StudentDashboard>({
   maxEntries: 600,
   ttlMs: 60_000,
 });
@@ -675,4 +675,199 @@ export async function getAccountantDashboard(
 // pending/donut (new money owed). Both funnel here.
 export function invalidateAccountantBoards(schoolId: string): void {
   kpis.deletePrefix(`kpi:aboard:${schoolId}:`);
+}
+
+// ---------------------------------------------------------------------------
+// Student board (§7 Phase 1 #9, §8.3)
+// ---------------------------------------------------------------------------
+
+export interface StudentMarkItem {
+  id: string;
+  subjectName: string;
+  examName: string;
+  // null = entered on the sheet but not yet marked: shown as "awaited",
+  // never averaged as zero.
+  obtained: string | null;
+  max: string;
+  percent: number | null;
+}
+
+export interface StudentNoticeItem {
+  id: string;
+  title: string;
+  at: string;
+}
+
+export interface StudentDashboard {
+  attendancePercent: number | null;
+  overallMarks: number | null;
+  feesDue: string;
+  nextExam: { id: string; title: string; date: string | null } | null;
+  todayTimetable: TeacherTimetableSlot[];
+  recentMarks: StudentMarkItem[];
+  recentNotices: StudentNoticeItem[];
+  asOf: { day: string };
+}
+
+function studentBoardKey(schoolId: string, studentUserId: string, day: string): string {
+  return `kpi:sboard:${schoolId}:${studentUserId}:${day}`;
+}
+
+function markWeight(status: string): number {
+  if (status === "PRESENT") {
+    return 1;
+  }
+  if (status === "LATE") {
+    return 0.5;
+  }
+  return 0;
+}
+
+export async function getStudentDashboard(
+  db: PrismaClient,
+  schoolId: string,
+  studentUserId: string,
+  now: Date = new Date(),
+): Promise<StudentDashboard> {
+  const school = await db.school.findUnique({ where: { id: schoolId }, select: { timezone: true } });
+  if (!school) {
+    throw new AuthError(404, "SCHOOL_NOT_FOUND", "School not found.");
+  }
+  const profile = await db.student.findFirst({
+    where: { schoolId, userId: studentUserId },
+    select: { id: true, sectionId: true, section: { select: { classId: true } } },
+  });
+  if (!profile) {
+    throw new AuthError(403, "NOT_A_STUDENT", "This account has no student profile in this school.");
+  }
+  const day = schoolDay(school.timezone, now);
+  const key = studentBoardKey(schoolId, studentUserId, day);
+  const cached = kpis.get(key);
+  if (cached !== undefined && typeof cached === "object" && cached !== null && !Array.isArray(cached) && "recentMarks" in cached) {
+    return cached;
+  }
+
+  const { start } = schoolDayBoundsUtc(school.timezone, day);
+  const weekday = schoolWeekday(school.timezone, now);
+
+  const [marks, attendance, invoices, exams, slots, notices] = await Promise.all([
+    db.mark.findMany({
+      where: { schoolId, studentId: profile.id },
+      select: {
+        id: true,
+        marksObtained: true,
+        examSubject: { select: { maxMarks: true, subject: { select: { name: true } }, exam: { select: { name: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+    db.attendance.findMany({
+      where: { schoolId, studentId: profile.id },
+      select: { status: true },
+    }),
+    db.feeInvoice.findMany({
+      where: { schoolId, studentId: profile.id, status: { in: ["PENDING", "PARTIAL", "OVERDUE"] } },
+      select: { amount: true, amountPaid: true },
+    }),
+    db.exam.findMany({
+      where: { schoolId, OR: [{ startDate: { gte: start } }, { startDate: null }] },
+      select: { id: true, name: true, startDate: true },
+      orderBy: { startDate: "asc" },
+      take: 1,
+    }),
+    db.timetableSlot.findMany({
+      where: { schoolId, sectionId: profile.sectionId, dayOfWeek: weekday },
+      select: {
+        period: true,
+        startTime: true,
+        endTime: true,
+        subject: { select: { name: true } },
+        section: { select: { name: true, class: { select: { name: true } } } },
+      },
+      orderBy: { period: "asc" },
+    }),
+    // Same visibility as the notices board: school-wide plus own
+    // class/section — never another section's scoped notices.
+    db.notice.findMany({
+      where: {
+        schoolId,
+        OR: [{ target: "SCHOOL" }, { target: "SECTION", sectionId: profile.sectionId }, { target: "CLASS", classId: profile.section.classId }],
+      },
+      select: { id: true, title: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+  ]);
+
+  let attendancePercent: number | null = null;
+  if (attendance.length > 0) {
+    const present = attendance.reduce((sum, row) => sum + markWeight(row.status), 0);
+    attendancePercent = Math.round((present / attendance.length) * 1000) / 10;
+  }
+
+  let overallMarks: number | null = null;
+  const scored = marks.filter((mark) => mark.marksObtained !== null);
+  if (scored.length > 0) {
+    const total = scored.reduce(
+      (sum, mark) => sum + Number(mark.marksObtained) / Number(mark.examSubject.maxMarks),
+      0,
+    );
+    overallMarks = Math.round((total / scored.length) * 1000) / 10;
+  }
+
+  const due = invoices.reduce(
+    (sum, invoice) => sum.plus(new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid))),
+    new Prisma.Decimal(0),
+  );
+
+  const next = exams[0];
+  const board: StudentDashboard = {
+    attendancePercent,
+    overallMarks,
+    feesDue: due.toFixed(2),
+    nextExam: next
+      ? { id: next.id, title: next.name, date: next.startDate ? next.startDate.toISOString().slice(0, 10) : null }
+      : null,
+    todayTimetable: slots.map((slot) => ({
+      period: slot.period,
+      subjectName: slot.subject.name,
+      sectionName: slot.section.name,
+      className: slot.section.class.name,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+    })),
+    recentMarks: marks.slice(0, 5).map((mark) => {
+      const max = Number(mark.examSubject.maxMarks);
+      if (mark.marksObtained === null) {
+        return {
+          id: mark.id,
+          subjectName: mark.examSubject.subject.name,
+          examName: mark.examSubject.exam.name,
+          obtained: null,
+          max: new Prisma.Decimal(mark.examSubject.maxMarks).toFixed(2),
+          percent: null,
+        };
+      }
+      const obtained = Number(mark.marksObtained);
+      return {
+        id: mark.id,
+        subjectName: mark.examSubject.subject.name,
+        examName: mark.examSubject.exam.name,
+        obtained: new Prisma.Decimal(mark.marksObtained).toFixed(2),
+        max: new Prisma.Decimal(mark.examSubject.maxMarks).toFixed(2),
+        percent: max === 0 ? null : Math.round((obtained / max) * 1000) / 10,
+      };
+    }),
+    recentNotices: notices.map((notice) => ({ id: notice.id, title: notice.title, at: notice.createdAt.toISOString() })),
+    asOf: { day },
+  };
+  kpis.set(key, board);
+  return board;
+}
+
+// Marks, marks, money, and notices all surface here: marking, marks
+// entry, payments, invoice generation, and notice publishing each clear
+// every student/day variant for the school.
+export function invalidateStudentBoards(schoolId: string): void {
+  kpis.deletePrefix(`kpi:sboard:${schoolId}:`);
 }

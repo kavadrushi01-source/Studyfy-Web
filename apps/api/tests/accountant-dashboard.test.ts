@@ -187,7 +187,7 @@ describe("GET /api/v1/schools/:schoolId/dashboard/accountant (§8.3)", () => {
         .get(`/api/v1/schools/${schoolA.schoolId}/dashboard/accountant`)
         .set("Authorization", `Bearer ${pupilA}`)
         .expect(403);
-      expect(pupilDenied.body.error.code).toBe("PERMISSION_DENIED");
+      expect(pupilDenied.body.error.code).toBe("FORBIDDEN");
 
       const cross = await request(app)
         .get(`/api/v1/schools/${schoolA.schoolId}/dashboard/accountant`)

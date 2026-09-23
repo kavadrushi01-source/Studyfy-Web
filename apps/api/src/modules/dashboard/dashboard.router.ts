@@ -4,7 +4,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { getAccountantDashboard, getAdminDashboard, getTeacherDashboard } from "../metrics/metrics.service.js";
+import { getAccountantDashboard, getAdminDashboard, getStudentDashboard, getTeacherDashboard } from "../metrics/metrics.service.js";
 
 export const dashboardRouter = Router();
 
@@ -106,6 +106,33 @@ dashboardRouter.get(
     try {
       requireRole(req, "ACCOUNTANT");
       const dashboard = await getAccountantDashboard(req.prisma, req.schoolId ?? "");
+      res.json({ success: true, data: { dashboard }, error: null, meta: null });
+    } catch (err) {
+      sendDashboardError(res, err);
+    }
+  }),
+);
+
+// Student board (§8.3): Attendance %, Overall Marks, Fees Due, Next Exam,
+// Today's Timetable, Recent Marks, Recent Notices. Quick Links are pure UI.
+dashboardRouter.get(
+  "/schools/:schoolId/dashboard/student",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("dashboard.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      requireRole(req, "STUDENT");
+      const dashboard = await getStudentDashboard(req.prisma, req.schoolId ?? "", req.user.userId);
       res.json({ success: true, data: { dashboard }, error: null, meta: null });
     } catch (err) {
       sendDashboardError(res, err);

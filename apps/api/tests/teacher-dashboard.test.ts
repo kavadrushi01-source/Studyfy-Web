@@ -186,12 +186,12 @@ describe("GET /api/v1/schools/:schoolId/dashboard/teacher (§8.3)", () => {
         .expect(403);
       expect(adminDenied.body.error.code).toBe("FORBIDDEN");
 
-      // Student holds no dashboard.read at all.
+      // Student holds dashboard.read (own board) but not the teacher role.
       const pupilDenied = await request(app)
         .get(`/api/v1/schools/${schoolA.schoolId}/dashboard/teacher`)
         .set("Authorization", `Bearer ${pupil.token}`)
         .expect(403);
-      expect(pupilDenied.body.error.code).toBe("PERMISSION_DENIED");
+      expect(pupilDenied.body.error.code).toBe("FORBIDDEN");
 
       // B's teacher on A's URL: tenant mismatch before anything else.
       const other = await makeTeacher(schoolB.schoolId, schoolB.slug, null, []);

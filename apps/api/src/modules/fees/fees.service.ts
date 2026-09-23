@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { schoolDay } from "../../lib/school-time.js";
-import { invalidateAccountantBoards, invalidateActivityFeed, invalidateFeeKpis } from "../metrics/metrics.service.js";
+import { invalidateAccountantBoards, invalidateActivityFeed, invalidateFeeKpis, invalidateStudentBoards } from "../metrics/metrics.service.js";
 import { AuthError } from "../auth/auth.service.js";
 import type { CreateStructureInput, GenerateInvoicesInput, ListInvoicesInput, RecordPaymentInput } from "./fees.schemas.js";
 
@@ -215,6 +215,7 @@ export async function generateInvoices(
   );
   // New money owed → pending totals and the status donut are stale (§12.3).
   invalidateAccountantBoards(structure.schoolId);
+  invalidateStudentBoards(structure.schoolId);
   return { generated: fresh.length, skipped };
 }
 
@@ -273,6 +274,7 @@ export async function recordPayment(
   invalidateFeeKpis(invoice.schoolId);
   invalidateActivityFeed(invoice.schoolId);
   invalidateAccountantBoards(invoice.schoolId);
+  invalidateStudentBoards(invoice.schoolId);
   return {
     invoice: {
       id: updated.id,
