@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { AuthError } from "../auth/auth.service.js";
+import { invalidateStudentKpis } from "../metrics/metrics.service.js";
 import type { AdmitStudentInput } from "./students.schemas.js";
 
 const BCRYPT_COST = 12;
@@ -117,6 +118,10 @@ export async function admitStudent(db: PrismaClient, input: AdmitStudentInput): 
       tempPassword: fresh,
     });
   }
+
+  // Roster changed → the cached student count for this school is stale
+  // (§12.3 invalidate on write).
+  invalidateStudentKpis(schoolId);
 
   return {
     student: {

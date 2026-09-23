@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { AuthError } from "../auth/auth.service.js";
+import { invalidateAttendanceKpis } from "../metrics/metrics.service.js";
 import type { MarkAttendanceInput, SummaryInput } from "./attendance.schemas.js";
 
 interface Caller {
@@ -80,6 +81,9 @@ export async function markAttendance(
       console.error("Absentee alerts failed after successful marking:", err);
     });
   }
+  // Marks changed → today's cached attendance % for this school is stale
+  // (§12.3 invalidate on write).
+  invalidateAttendanceKpis(section.schoolId);
   return { marked: input.records.length };
 }
 

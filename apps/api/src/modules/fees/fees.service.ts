@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
+import { schoolDay } from "../../lib/school-time.js";
+import { invalidateFeeKpis } from "../metrics/metrics.service.js";
 import { AuthError } from "../auth/auth.service.js";
 import type { CreateStructureInput, GenerateInvoicesInput, ListInvoicesInput, RecordPaymentInput } from "./fees.schemas.js";
 
@@ -262,6 +264,9 @@ export async function recordPayment(
       data: { amountPaid: newPaid, status: settled ? "PAID" : "PARTIAL" },
     }),
   ]);
+  // Money moved → this month's cached collection for this school is stale
+  // (§12.3 invalidate on write).
+  invalidateFeeKpis(invoice.schoolId);
   return {
     invoice: {
       id: updated.id,
@@ -278,11 +283,10 @@ export interface RunRemindersResult {
   skipped: number;
 }
 
-// "Today" as a calendar day in the SCHOOL's timezone (§12.7) — never server
-// UTC. Intl with en-CA yields YYYY-MM-DD directly, no date library needed.
-export function schoolDay(timezone: string, now: Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-}
+// "Today" as a calendar day in the SCHOOL's timezone — schoolDay() in
+// lib/school-time.js (§12.7). Re-exported here so existing importers keep
+// working; new code imports from the lib directly.
+export { schoolDay } from "../../lib/school-time.js";
 
 function addDays(dayStr: string, days: number): string {
   const d = new Date(`${dayStr}T00:00:00Z`);

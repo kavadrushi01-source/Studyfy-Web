@@ -11,7 +11,7 @@
 
 **Status:** IN PROGRESS
 **Phase / Module:** Phase 1 — Chunk 4 (Messaging + Dashboards)
-**Last updated:** 2026-09-22
+**Last updated:** 2026-09-23
 
 ## What's done in this task so far
 - Read CURRENT_TASK.md (IDLE) + STATUS.md (Chunk 3 DONE) — 2026-09-21
@@ -21,6 +21,7 @@
 - Chunk 4 live-delivery proof: message-realtime.test.ts (client joins school room over socket, pupil sends via HTTP, message:new arrives with matching threadId/sender/body) — caught a REAL bug: emitToSchool broadcast from root io, but rooms live in /school-<id> namespaces (event silently lost); fixed to emit via the dynamic namespace object — 126/126 green, typecheck + lint clean
 - Regression sweep pre-Dashboards (2026-09-22): full suite 129/129 (40 files) local; CI red on 0a9d285 — same P2002 seed race seen in older runs (parallel workers, non-atomic upsert in seedRoles/seedPermissions); reproduced locally (delete-LIBRARIAN worst case → P2002 on demand), fixed root cause (atomic createMany+skipDuplicates, idempotent updates, retry on P2002/P2034 only) + seed-concurrency.test.ts + BUGSFIX.md #13/#14
 - Sweep closed 2026-09-22: CI green on fc23ee1 (all 5 jobs, 40 files / 129 tests, 0 skipped); security subset 11 files / 41 tests green; live dev-DB walkthrough 29/29 ALL GREEN (SIS admit+profile+ID-card PDF, attendance mark/summary/blocked, invoice+pay+receipt PDF+cross-tenant block, marks+results+report-card PDF, timetable board, homework post→submit→grade, notice post+scoped delivery, messaging linked/unlinked/cross-tenant); demo data verified untouched after (48 users, 0 messages, 0 REG leftovers); scratch walkthrough scripts deleted
+- KPI cache pre-Dashboards (§12.3, 2026-09-23): dependency-free LRU lib (TTL + prefix invalidation) + school-time lib (schoolDay moved out of fees.service, + schoolMonth/month+day UTC bounds with 2-pass DST handling) + metrics.service (totalStudents / todayAttendancePercent weighted like summary / monthFeeCollection Decimal-exact, keys always include school_id, 600 entries / 60s TTL); invalidation wired into admitStudent / markAttendance / recordPayment; metrics.test.ts 13 tests (eviction, recency, TTL, DST bounds, stale-proof caching, school isolation, invoice-≠-collection) — 142/142 green, typecheck + lint clean. No HTTP route yet on purpose: GET /dashboard scoping (auth+tenant+RBAC) lands with Module 9.
 
 ## What's left in this task
 - Dashboards #9 (all six role boards, §8 exact: sidebar, KPIs, panels)
@@ -37,7 +38,7 @@ Dashboards #9 next (all six role boards, §8 exact: sidebar, KPIs, panels) — s
 - 2026-09-22 contradiction resolved: "Done" 125/125 was correct (threads commit 234a8bb added message-threads.test.ts + /messages UI after the 123/123 line was written in 214e460 and never updated); "Left" Messaging #8 + old next-action were stale — messaging verified complete in code + 125/125 direct run, so #8 moved out of "Left" and next action reset to Dashboards #9. Minor known gap: message:new is emitted on send (router) but no test asserts live socket delivery — HTTP threads cover correctness.
 
 ## Repo state right now
-YES — 129/129 green local (40 files) + CI green on fc23ee1 (all 5 jobs) + live walkthrough 29/29 ALL GREEN, demo data untouched. Sandbox MySQL on 3307.
+YES — 142/142 green local (41 files, verified direct 2026-09-23), lint 0, typecheck 0, both DBs migrated. Sandbox MySQL on 3307 (restarted 2026-09-23: two zombie mysqld PIDs unkillable, fresh detached server answers fine).
 
 ---
 
