@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { signAccessToken } from "../../lib/jwt.js";
 import { slugifyName, uniqueSlug } from "../../lib/slug.js";
+import { invalidateOwnerBoards } from "../metrics/metrics.service.js";
 import type { LoginInput, RegisterInput } from "./auth.schemas.js";
 
 const BCRYPT_COST = 12; // spec §8.3 / RULES.md §2: cost ≥ 10
@@ -145,6 +146,8 @@ export async function register(
   }
 
   const auth = await loginUser(admin, input.adminPassword);
+  // A new tenant reshapes every platform-board figure (§12.3).
+  invalidateOwnerBoards();
   return { ...auth, school: { id: school.id, name: school.name, slug: school.slug } };
 }
 

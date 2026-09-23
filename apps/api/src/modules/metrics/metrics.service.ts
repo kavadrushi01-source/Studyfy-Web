@@ -21,7 +21,7 @@ export interface DashboardKpis {
 // invalidate eagerly, so TTL is the backstop, not the mechanism).
 // Key rule from the spec: every key includes school_id — no exceptions,
 // so a key can never serve one school's aggregate to another.
-const kpis = new LruCache<number | string | null | GrowthPoint[] | ActivityItem[] | TeacherDashboard | AccountantDashboard | StudentDashboard>({
+const kpis = new LruCache<number | string | null | GrowthPoint[] | ActivityItem[] | TeacherDashboard | AccountantDashboard | StudentDashboard | OwnerDashboard>({
   maxEntries: 600,
   ttlMs: 60_000,
 });
@@ -964,4 +964,124 @@ export async function getParentDashboard(
 // every student/day variant for the school.
 export function invalidateStudentBoards(schoolId: string): void {
   kpis.deletePrefix(`kpi:sboard:${schoolId}:`);
+}
+
+// ---------------------------------------------------------------------------
+// Platform Owner board (§7 Phase 1 #9, §8.3 + sequencing note)
+// ---------------------------------------------------------------------------
+
+export interface OwnerSchoolRow {
+  id: string;
+  name: string;
+  slug: string;
+  subscriptionStatus: string;
+  trialEndsAt: string | null;
+  createdAt: string;
+  users: number;
+  students: number;
+}
+
+export interface OwnerAnalyticsPoint {
+  month: string;
+  schools: number;
+}
+
+export interface OwnerDashboard {
+  totalSchools: number;
+  activeSchools: number;
+  // TRIAL schools (= "pending" conversion). No PENDING status exists in the
+  // schema — when one does, it belongs in this count too.
+  trialPending: number;
+  // Phase 4 (#24) billing data doesn't exist yet: an honest zero, never a
+  // projection (§8.1's no-fabricated-data rule + §8.3's sequencing note).
+  totalRevenue: string;
+  schools: OwnerSchoolRow[];
+  analytics: OwnerAnalyticsPoint[];
+  // Subscription plan mix renders from billing data that doesn't exist
+  // until Phase 4: empty by design, same rule as revenue above.
+  plans: { plan: string; schools: number }[];
+  asOf: { month: string };
+}
+
+function ownerBoardKey(year: number, month: number): string {
+  return `kpi:owner:${year}-${String(month).padStart(2, "0")}`;
+}
+
+// Platform scope has no school timezone (UTC calendar months) and no
+// tenant middleware — the ROUTE carries platformOnlyMiddleware instead,
+// so this function must only ever be called from there.
+export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()): Promise<OwnerDashboard> {
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1;
+  const key = ownerBoardKey(year, month);
+  const cached = kpis.get(key);
+  if (cached !== undefined && typeof cached === "object" && cached !== null && !Array.isArray(cached) && "schools" in cached && "analytics" in cached) {
+    return cached;
+  }
+
+  const months: { year: number; month: number }[] = [];
+  for (let back = 5; back >= 0; back -= 1) {
+    const d = new Date(Date.UTC(year, month - 1 - back, 1));
+    months.push({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 });
+  }
+  const windowStart = new Date(Date.UTC(months[0]!.year, months[0]!.month - 1, 1));
+
+  const [statuses, recent, schools] = await Promise.all([
+    db.school.groupBy({ by: ["subscriptionStatus"], _count: { id: true } }),
+    db.school.findMany({
+      where: { createdAt: { gte: windowStart } },
+      select: { createdAt: true },
+    }),
+    db.school.findMany({
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        subscriptionStatus: true,
+        trialEndsAt: true,
+        createdAt: true,
+        _count: { select: { users: true, students: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+  ]);
+
+  const countOf = (status: string): number => statuses.find((s) => s.subscriptionStatus === status)?._count.id ?? 0;
+  const perMonth = new Map<string, number>();
+  for (const school of recent) {
+    const k = `${school.createdAt.getUTCFullYear()}-${String(school.createdAt.getUTCMonth() + 1).padStart(2, "0")}`;
+    perMonth.set(k, (perMonth.get(k) ?? 0) + 1);
+  }
+
+  const board: OwnerDashboard = {
+    totalSchools: statuses.reduce((sum, s) => sum + s._count.id, 0),
+    activeSchools: countOf("ACTIVE"),
+    trialPending: countOf("TRIAL"),
+    totalRevenue: "0.00",
+    schools: schools.map((school) => ({
+      id: school.id,
+      name: school.name,
+      slug: school.slug,
+      subscriptionStatus: school.subscriptionStatus,
+      trialEndsAt: school.trialEndsAt ? school.trialEndsAt.toISOString() : null,
+      createdAt: school.createdAt.toISOString(),
+      users: school._count.users,
+      students: school._count.students,
+    })),
+    analytics: months.map((m) => {
+      const k = `${m.year}-${String(m.month).padStart(2, "0")}`;
+      return { month: k, schools: perMonth.get(k) ?? 0 };
+    }),
+    plans: [],
+    asOf: { month: `${year}-${String(month).padStart(2, "0")}` },
+  };
+  kpis.set(key, board);
+  return board;
+}
+
+// New school registrations reshape every figure here (counts, table,
+// analytics). Subscription/billing writes will join this set in Phase 4.
+export function invalidateOwnerBoards(): void {
+  kpis.deletePrefix("kpi:owner:");
 }
