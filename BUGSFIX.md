@@ -104,6 +104,12 @@ npm audit --audit-level=high
     preserved), applied mechanically to all 19 files (84-line diff).
     Regression: web typecheck + build (no web unit harness exists);
     rule — never `in`-check an API body, always `isFailure()`.
+17. **Login limiter blocked legitimate hand-testing (2026-09-24).** 5/15min
+    is correct for production (§11) but makes trying 6+ demo roles
+    impossible — the founder hit the wall mid-session. Fix keeps default 5
+    everywhere (CI/prod untouched) with a `LOGIN_RATE_LIMIT_MAX` override
+    for the gitignored local `.env` only (currently 200), documented in
+    `.env.example` as never-for-production. Deliberate exception, not drift.
 15. **Workspace lint passing while CI lint failed (2026-09-23).**
     `npm run lint --workspace=@studyfy/api` lints `src` only; CI's root
     `npm run lint` lints everything including `tests/` — an unused variable

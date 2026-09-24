@@ -58,11 +58,21 @@ function maybeLimit(...args: Parameters<typeof rateLimit>) {
 }
 
 // 5 attempts / 15 min: slow enough to blunt credential stuffing (§11
-// sliding window), generous enough for real typo retries.
+// sliding window), generous enough for real typo retries. Overridable via
+// LOGIN_RATE_LIMIT_MAX for LOCAL hand-testing only (a full role walkthrough
+// needs a dozen logins) — never set it anywhere near production; CI and
+// production run the default 5.
+function loginLimit(): number {
+  const raw = Number(process.env.LOGIN_RATE_LIMIT_MAX);
+  if (Number.isInteger(raw) && raw > 0) {
+    return raw;
+  }
+  return 5;
+}
 export const loginLimiter = () =>
   maybeLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 5,
+    limit: loginLimit(),
     standardHeaders: true,
     legacyHeaders: false,
     handler: (_req, res) => {
