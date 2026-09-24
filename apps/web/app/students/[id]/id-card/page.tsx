@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { isFailure } from "../../../../lib/api";
 
 interface Profile {
   user: { name: string; email: string };
@@ -32,9 +33,8 @@ export default function IdCardPrintPage() {
       const body = (await response.json()) as
         | { data: { student: Profile & { section: { class: { name: string } } } } }
         | { error: { message: string } };
-      if (!response.ok || "error" in body) {
-        const message = "error" in body ? (body.error?.message ?? `Request failed (${response.status}).`) : `Request failed (${response.status}).`;
-        setError(message);
+      if (isFailure(response, body)) {
+                setError(body.error?.message ?? `Request failed (${response.status}).`);
         return;
       }
       setProfile(body.data.student);

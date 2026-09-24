@@ -15,6 +15,7 @@
 
 ## What's done in this task so far
 - Chunk 5 public site (§7 #10, §8.3): POST /enquiries already existed — added 4 tests (store, contact variants, 404/400, honeypot silence); web landing (spec-exact copy, exclusions honored), /login (no tabs, no dead buttons, token handoff), /signup 3-step wizard against live register schema, /enquiry form; dev index → /dev. Verified: 166/166 (48 files), root lint clean, web build prerenders all routes; live (stored 201, 404 bad slug, honeypot stored nothing, demo row deleted after).
+- Login crash fix (2026-09-24, found by founder hand-testing): `"error" in body` is true on EVERY API success (envelope always carries `error: null`) — login + all 19 data pages crashed exactly when calls succeeded. Shared `isFailure()` guard in web/lib/api.ts, 19 files, typecheck+lint+build clean, success+failure paths proven live. BUGSFIX.md #16.
 
 ## What's left in this task
 ## What's left in this task

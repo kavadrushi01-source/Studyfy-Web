@@ -93,6 +93,17 @@ npm audit --audit-level=high
     deterministic worst case (delete LIBRARIAN — held by no test user,
     referenced by no mapping — then 20 parallel seeders, which kills old
      code with P2002 on demand).
+16. **Web `"error" in body` check vs the API's nullable envelope
+    (2026-09-24).** Every API response carries `error: null` on success,
+    so `"error" in body` is true on EVERY call — login and all 19
+    data-fetching pages crashed with "Cannot read properties of null
+    (reading 'message')" exactly when things worked. It survived because
+    curl-level checks read fields directly, API tests assert truthiness,
+    and tsc accepts `in`-narrowing as valid. Fix: shared `isFailure()`
+    type guard in `apps/web/lib/api.ts` (value check + narrowing
+    preserved), applied mechanically to all 19 files (84-line diff).
+    Regression: web typecheck + build (no web unit harness exists);
+    rule — never `in`-check an API body, always `isFailure()`.
 15. **Workspace lint passing while CI lint failed (2026-09-23).**
     `npm run lint --workspace=@studyfy/api` lints `src` only; CI's root
     `npm run lint` lints everything including `tests/` — an unused variable

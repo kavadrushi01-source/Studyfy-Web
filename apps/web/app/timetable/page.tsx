@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, type FormEvent } from "react";
+import { isFailure } from "../../lib/api";
 
 interface BoardSlot {
   dayOfWeek: number;
@@ -46,8 +47,8 @@ export default function TimetablePage() {
   const loadSections = useCallback(async () => {
     const response = await fetch(`${api}/api/v1/schools/${schoolId}/sections`, { headers: auth });
     const body = (await response.json()) as { data: { sections: SectionOption[] } } | ApiError;
-    if (!response.ok || "error" in body) {
-      throw new Error("error" in body ? (body.error?.message ?? "Failed to load sections.") : "Failed to load sections.");
+    if (isFailure(response, body)) {
+      throw new Error(body.error?.message ?? "Failed to load sections.");
     }
     return body.data.sections;
   }, [api, schoolId, token]);
@@ -59,8 +60,8 @@ export default function TimetablePage() {
       try {
         const response = await fetch(`${api}/api/v1/schools/${schoolId}/timetable?${params}`, { headers: auth });
         const body = (await response.json()) as { data: { slots: BoardSlot[] } } | ApiError;
-        if (!response.ok || "error" in body) {
-          throw new Error("error" in body ? (body.error?.message ?? "Failed to load board.") : "Failed to load board.");
+        if (isFailure(response, body)) {
+          throw new Error(body.error?.message ?? "Failed to load board.");
         }
         setSlots(body.data.slots);
       } catch (err) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, type FormEvent } from "react";
+import { isFailure } from "../../../lib/api";
 
 interface SectionOption {
   id: string;
@@ -44,8 +45,8 @@ export default function MarkAttendancePage() {
   const loadSections = useCallback(async () => {
     const response = await fetch(`${api}/api/v1/schools/${schoolId}/sections`, { headers: auth });
     const body = (await response.json()) as { data: { sections: SectionOption[] } } | ApiError;
-    if (!response.ok || "error" in body) {
-      throw new Error("error" in body ? (body.error?.message ?? "Failed to load sections.") : "Failed to load sections.");
+    if (isFailure(response, body)) {
+      throw new Error(body.error?.message ?? "Failed to load sections.");
     }
     return body.data.sections;
   }, [api, schoolId, token]);
@@ -59,8 +60,8 @@ export default function MarkAttendancePage() {
         const params = new URLSearchParams({ sectionId: nextSection, pageSize: "100", sort: "name", order: "asc" });
         const response = await fetch(`${api}/api/v1/schools/${schoolId}/students?${params}`, { headers: auth });
         const body = (await response.json()) as { data: { students: RosterRow[] } } | ApiError;
-        if (!response.ok || "error" in body) {
-          throw new Error("error" in body ? (body.error?.message ?? "Failed to load roster.") : "Failed to load roster.");
+        if (isFailure(response, body)) {
+          throw new Error(body.error?.message ?? "Failed to load roster.");
         }
         setRows(body.data.students);
         const initial: Record<string, Mark> = {};
@@ -121,8 +122,8 @@ export default function MarkAttendancePage() {
         body: JSON.stringify({ sectionId, date, records }),
       });
       const body = (await response.json()) as { data: { marked: number } } | ApiError;
-      if (!response.ok || "error" in body) {
-        throw new Error("error" in body ? (body.error?.message ?? "Save failed.") : "Save failed.");
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Save failed.");
       }
       setNotice(`Saved attendance for ${body.data.marked} students on ${date}.`);
     } catch (err) {

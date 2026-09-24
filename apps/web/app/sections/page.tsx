@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, type FormEvent } from "react";
+import { isFailure } from "../../lib/api";
 
 interface SectionRow {
   id: string;
@@ -37,10 +38,8 @@ export default function SectionsPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const body = (await response.json()) as { data: { sections: SectionRow[] } } | ApiError;
-      if (!response.ok || "error" in body) {
-        const message =
-          "error" in body ? (body.error?.message ?? `Request failed (${response.status}).`) : `Request failed (${response.status}).`;
-        setError(message);
+      if (isFailure(response, body)) {
+                setError(body.error?.message ?? `Request failed (${response.status}).`);
         return;
       }
       setRows(body.data.sections);
@@ -68,10 +67,8 @@ export default function SectionsPage() {
         body: JSON.stringify({ teacherEmail }),
       });
       const body = (await response.json()) as { data: { section: unknown } } | ApiError;
-      if (!response.ok || "error" in body) {
-        const message =
-          "error" in body ? (body.error?.message ?? `Request failed (${response.status}).`) : `Request failed (${response.status}).`;
-        setError(message);
+      if (isFailure(response, body)) {
+                setError(body.error?.message ?? `Request failed (${response.status}).`);
         return;
       }
       setNotice(teacherEmail ? `Assigned ${teacherEmail}.` : "Assignment cleared.");

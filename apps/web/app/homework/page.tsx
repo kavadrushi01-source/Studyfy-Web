@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, type FormEvent } from "react";
+import { isFailure } from "../../lib/api";
 
 interface BoardItem {
   id: string;
@@ -39,10 +40,8 @@ export default function HomeworkPage() {
     try {
       const response = await fetch(`${api}/api/v1/schools/${schoolId}/homework`, { headers: auth });
       const body = (await response.json()) as { data: { homework: BoardItem[] } } | ApiError;
-      if (!response.ok || "error" in body) {
-        const message =
-          "error" in body ? (body.error?.message ?? `Request failed (${response.status}).`) : `Request failed (${response.status}).`;
-        setError(message);
+      if (isFailure(response, body)) {
+                setError(body.error?.message ?? `Request failed (${response.status}).`);
         return;
       }
       setItems(body.data.homework);

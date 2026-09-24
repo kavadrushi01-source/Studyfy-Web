@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, type FormEvent } from "react";
+import { isFailure } from "../../lib/api";
 
 interface Notice {
   id: string;
@@ -40,10 +41,8 @@ export default function NoticesPage() {
     try {
       const response = await fetch(`${api}/api/v1/schools/${schoolId}/notices`, { headers: auth });
       const data = (await response.json()) as { data: { notices: Notice[] } } | ApiError;
-      if (!response.ok || "error" in data) {
-        const message =
-          "error" in data ? (data.error?.message ?? `Request failed (${response.status}).`) : `Request failed (${response.status}).`;
-        setError(message);
+      if (isFailure(response, data)) {
+                setError(data.error?.message ?? `Request failed (${response.status}).`);
         return;
       }
       setNotices(data.data.notices);
@@ -71,10 +70,8 @@ export default function NoticesPage() {
         body: JSON.stringify({ title, body, target: "SCHOOL" }),
       });
       const data = (await response.json()) as { data: { emailed: number } } | ApiError;
-      if (!response.ok || "error" in data) {
-        const message =
-          "error" in data ? (data.error?.message ?? `Request failed (${response.status}).`) : `Request failed (${response.status}).`;
-        setError(message);
+      if (isFailure(response, data)) {
+                setError(data.error?.message ?? `Request failed (${response.status}).`);
         return;
       }
       setTitle("");

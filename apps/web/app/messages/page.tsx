@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { io, type Socket } from "socket.io-client";
+import { isFailure } from "../../lib/api";
 
 interface ThreadRow {
   user: { id: string; name: string };
@@ -54,8 +55,8 @@ export default function MessagesPage() {
   const loadThreads = useCallback(async () => {
     const response = await fetch(`${api}/api/v1/schools/${schoolId}/messages/threads`, { headers: auth });
     const body = (await response.json()) as { data: { threads: ThreadRow[] } } | ApiError;
-    if (!response.ok || "error" in body) {
-      throw new Error("error" in body ? (body.error?.message ?? "Failed to load threads.") : "Failed to load threads.");
+    if (isFailure(response, body)) {
+      throw new Error(body.error?.message ?? "Failed to load threads.");
     }
     setThreads(body.data.threads);
   }, [api, schoolId, token]);
@@ -67,8 +68,8 @@ export default function MessagesPage() {
       try {
         const response = await fetch(`${api}/api/v1/schools/${schoolId}/messages?with=${userId}`, { headers: auth });
         const body = (await response.json()) as { data: { messages: ChatMessage[] } } | ApiError;
-        if (!response.ok || "error" in body) {
-          throw new Error("error" in body ? (body.error?.message ?? "Failed to load messages.") : "Failed to load messages.");
+        if (isFailure(response, body)) {
+          throw new Error(body.error?.message ?? "Failed to load messages.");
         }
         setMessages(body.data.messages);
         setActiveUserId(userId);
@@ -158,10 +159,8 @@ export default function MessagesPage() {
         body: JSON.stringify({ receiverId: activeUserId, body: draft.trim() }),
       });
       const body = (await response.json()) as { data: { message: unknown } } | ApiError;
-      if (!response.ok || "error" in body) {
-        const message =
-          "error" in body ? (body.error?.message ?? "Send failed.") : "Send failed.";
-        throw new Error(message);
+      if (isFailure(response, body)) {
+                throw new Error(body.error?.message ?? "Send failed.");
       }
       setDraft("");
       await loadThread(activeUserId);

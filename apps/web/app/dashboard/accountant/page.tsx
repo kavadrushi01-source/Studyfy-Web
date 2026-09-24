@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, type FormEvent, type ReactNode } from "react";
+import { isFailure } from "../../../lib/api";
 
 interface Me {
   id: string;
@@ -244,15 +245,15 @@ export default function AccountantDashboardPage() {
           fetch(`${api}/api/v1/schools/${schoolId}/dashboard/accountant`, { headers: auth }),
         ]);
         const meBody = (await meRes.json()) as { data: { user: Me } } | ApiError;
-        if (!meRes.ok || "error" in meBody) {
-          throw new Error("error" in meBody ? (meBody.error?.message ?? "Sign-in failed.") : "Sign-in failed.");
+        if (isFailure(meRes, meBody)) {
+          throw new Error(meBody.error?.message ?? "Sign-in failed.");
         }
         if (meBody.data.user.role !== "ACCOUNTANT") {
           throw new Error("This board is for accountants — your account holds a different role.");
         }
         const dashBody = (await dashRes.json()) as { data: { dashboard: AccountantBundle } } | ApiError;
-        if (!dashRes.ok || "error" in dashBody) {
-          throw new Error("error" in dashBody ? (dashBody.error?.message ?? "Dashboard unavailable.") : "Dashboard unavailable.");
+        if (isFailure(dashRes, dashBody)) {
+          throw new Error(dashBody.error?.message ?? "Dashboard unavailable.");
         }
         setMe(meBody.data.user);
         setBundle(dashBody.data.dashboard);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { isFailure } from "../../../lib/api";
 
 interface Guardian {
   relationship: string;
@@ -47,7 +48,7 @@ export default function StudentProfilePage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const body = (await response.json()) as { data: { student: StudentProfile } } | ApiError;
-      if (!response.ok || "error" in body) {
+      if (isFailure(response, body)) {
         setError((body as ApiError).error?.message ?? `Request failed (${response.status}).`);
         return;
       }

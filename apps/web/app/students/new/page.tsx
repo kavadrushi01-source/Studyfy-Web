@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { isFailure } from "../../../lib/api";
 
 interface AdmitSuccess {
   student: { id: string; user: { email: string; name: string } };
@@ -52,7 +53,7 @@ export default function AdmitStudentPage() {
         }),
       });
       const body = (await response.json()) as AdmitSuccess | ApiError;
-      if (!response.ok || "error" in body) {
+      if (isFailure(response, body)) {
         setError((body as ApiError).error?.message ?? `Request failed (${response.status}).`);
         return;
       }

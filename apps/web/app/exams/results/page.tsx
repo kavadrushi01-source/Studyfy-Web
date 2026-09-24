@@ -2,6 +2,7 @@
 
 import { useCallback, useState, type FormEvent } from "react";
 import { DataTable } from "../../../components/ui/data-table";
+import { isFailure } from "../../../lib/api";
 
 interface ExamOption {
   id: string;
@@ -45,8 +46,8 @@ export default function ExamResultsPage() {
   const loadExams = useCallback(async () => {
     const response = await fetch(`${api}/api/v1/schools/${schoolId}/exams`, { headers: auth });
     const body = (await response.json()) as { data: { exams: ExamOption[] } } | ApiError;
-    if (!response.ok || "error" in body) {
-      throw new Error("error" in body ? (body.error?.message ?? "Failed to load exams.") : "Failed to load exams.");
+    if (isFailure(response, body)) {
+      throw new Error(body.error?.message ?? "Failed to load exams.");
     }
     return body.data.exams;
   }, [api, schoolId, token]);
@@ -68,8 +69,8 @@ export default function ExamResultsPage() {
         const body = (await response.json()) as
           | { data: { exam: { name: string }; results: ResultRow[] } }
           | ApiError;
-        if (!response.ok || "error" in body) {
-          throw new Error("error" in body ? (body.error?.message ?? "Failed to load results.") : "Failed to load results.");
+        if (isFailure(response, body)) {
+          throw new Error(body.error?.message ?? "Failed to load results.");
         }
         setRows(body.data.results);
         setExamName(body.data.exam.name);

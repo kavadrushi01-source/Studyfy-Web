@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { isFailure } from "../../lib/api";
 
 interface Me {
   id: string;
@@ -64,15 +65,15 @@ export default function LoginPage() {
       const loginBody = (await loginRes.json()) as
         | { data: { accessToken: string } }
         | { error: { code: string; message: string } };
-      if (!loginRes.ok || "error" in loginBody) {
-        throw new Error("error" in loginBody ? loginBody.error.message : "Sign-in failed.");
+      if (isFailure(loginRes, loginBody)) {
+        throw new Error(loginBody.error?.message ?? "Sign-in failed.");
       }
       const accessToken = loginBody.data.accessToken;
       const meRes = await fetch(`${api}/api/v1/auth/me`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const meBody = (await meRes.json()) as { data: { user: Me } } | { error: { message: string } };
-      if (!meRes.ok || "error" in meBody) {
+      if (isFailure(meRes, meBody)) {
         throw new Error("Signed in, but could not load your profile.");
       }
       if (remember && typeof window !== "undefined") {

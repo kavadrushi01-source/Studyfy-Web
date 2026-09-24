@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { isFailure } from "../../lib/api";
 
 const PRIMARY = "#2563EB";
 const NAVY = "#0F172A";
@@ -41,8 +42,8 @@ export default function EnquiryPage() {
         }),
       });
       const body = (await res.json()) as { data: { received: boolean } } | { error: { message: string } };
-      if (!res.ok || "error" in body) {
-        throw new Error("error" in body ? body.error.message : "Could not send your enquiry.");
+      if (isFailure(res, body)) {
+        throw new Error(body.error?.message ?? "Could not send your enquiry.");
       }
       setSent(true);
     } catch (err) {

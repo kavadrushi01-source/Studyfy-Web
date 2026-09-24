@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, type FormEvent, type ReactNode } from "react";
+import { isFailure } from "../../../lib/api";
 
 interface Me {
   id: string;
@@ -135,8 +136,8 @@ export default function ParentDashboardPage() {
           : `${api}/api/v1/schools/${schoolId}/dashboard/parent?with=${childId}`;
       const dashRes = await fetch(url, { headers: auth });
       const dashBody = (await dashRes.json()) as { data: { dashboard: ParentBundle } } | ApiError;
-      if (!dashRes.ok || "error" in dashBody) {
-        throw new Error("error" in dashBody ? (dashBody.error?.message ?? "Dashboard unavailable.") : "Dashboard unavailable.");
+      if (isFailure(dashRes, dashBody)) {
+        throw new Error(dashBody.error?.message ?? "Dashboard unavailable.");
       }
       setBundle(dashBody.data.dashboard);
     },
@@ -152,8 +153,8 @@ export default function ParentDashboardPage() {
         const auth = { Authorization: `Bearer ${token}` };
         const meRes = await fetch(`${api}/api/v1/auth/me`, { headers: auth });
         const meBody = (await meRes.json()) as { data: { user: Me } } | ApiError;
-        if (!meRes.ok || "error" in meBody) {
-          throw new Error("error" in meBody ? (meBody.error?.message ?? "Sign-in failed.") : "Sign-in failed.");
+        if (isFailure(meRes, meBody)) {
+          throw new Error(meBody.error?.message ?? "Sign-in failed.");
         }
         if (meBody.data.user.role !== "PARENT") {
           throw new Error("This board is for parents — your account holds a different role.");
