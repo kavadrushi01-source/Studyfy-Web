@@ -21,8 +21,15 @@ export function tenantMiddleware(req: Request, res: Response, next: NextFunction
 
   // URL school must match the token — a mismatch is a hand-edited URL or a
   // cross-tenant attempt (this exact check is what the red test exercises).
+  // The message names the commonest innocent cause (slug pasted instead of
+  // ID) because "Forbidden." alone sent a founder in circles.
   if (req.params.schoolId && req.params.schoolId !== schoolId) {
-    reject(res, 403, "TENANT_MISMATCH", "Forbidden.");
+    reject(
+      res,
+      403,
+      "TENANT_MISMATCH",
+      "This school does not match your login. Boards want the school ID (from your login screen), not the school slug.",
+    );
     return;
   }
 

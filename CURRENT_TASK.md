@@ -23,6 +23,7 @@
 Chunk 5 — public site, deploy, and Phase 1 close-out (spec §7 Phase 1 #10) — say go.
 
 ## Notes / decisions made mid-task
+- Slug-vs-ID confusion (2026-09-24, founder pasted slug into School ID box → bare "Forbidden."): TENANT_MISMATCH message now names the cause + login screen shows the copyable school ID. Verified live (code + message proven).
 - UI/UX remediation pass 2026-09-24 (founder-directed, pre-Chunk-5): audited every page vs §8.2–§8.5 text (docs/designs/ absent from repo — no images exist to compare against). Fixed: shared Shell + role-boards config + EmptyState/SkeletonBlocks/Card (all 6 dashboards adopted), globals.css tokens/breakpoints/shimmer, Inter + viewport in layout, lucide-react installed (audit 0), KPI 24 unified, chart empty branches, owner revenue/plans wired live, parent upcoming-exams noted as single-nextExam (API shape — kept honest), homework post/submit/grade UI + notice audience targeting built against verified endpoints, messages stacks + real Retry, print kept only where meaningful (ID card; report/receipts print via PDF viewer by design), teal/brown pill colors remapped to spec, dead onSort/onPage left wired (DataTable requires props), dev page font/logo fixed, landing shadows + feature icons + responsive grids. Deliberate keeps: inline styles (no Tailwind migration), report/receipt window.open flow + pop-up fallback. Verified: 166/166 (48 files), root lint 0, typecheck 0, api+web builds clean, live teacher page 200 + login OK; no API logic touched (git diff on apps/api empty).
 
 ## What's left in this task

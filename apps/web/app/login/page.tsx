@@ -147,6 +147,12 @@ export default function LoginPage() {
                 Your access token — paste it into any board
                 <textarea readOnly value={token} rows={4} style={{ ...input, fontFamily: "monospace", fontSize: 12 }} />
               </label>
+              {me.schoolId ? (
+                <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>
+                  School ID for the board pages: <strong style={{ fontFamily: "monospace" }}>{me.schoolId}</strong>{" "}
+                  (this ID — not the school slug)
+                </p>
+              ) : null}
               <div style={{ display: "flex", gap: 8 }}>
                 <button type="button" onClick={copyToken} style={{ flex: 1, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1", background: "#fff", fontWeight: 600, cursor: "pointer" }}>
                   {copied ? "Copied!" : "Copy token"}
