@@ -57,11 +57,10 @@ function maybeLimit(...args: Parameters<typeof rateLimit>) {
   return rateLimit(...args);
 }
 
-// 5 attempts / 15 min: slow enough to blunt credential stuffing (§11
-// sliding window), generous enough for real typo retries. Overridable via
-// LOGIN_RATE_LIMIT_MAX for LOCAL hand-testing only (a full role walkthrough
-// needs a dozen logins) — never set it anywhere near production; CI and
-// production run the default 5.
+// Login brute-force guard (§11 sliding window). CURRENTLY DISCONNECTED from
+// POST /auth/login for the dev/testing period (see RATE_LIMITING.md —
+// restore it before any real-business use). CI and production must run the
+// default 5; LOGIN_RATE_LIMIT_MAX stays as the local-only override knob.
 function loginLimit(): number {
   const raw = Number(process.env.LOGIN_RATE_LIMIT_MAX);
   if (Number.isInteger(raw) && raw > 0) {

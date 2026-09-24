@@ -17,6 +17,7 @@
 - Chunk 5 public site (§7 #10, §8.3): POST /enquiries already existed — added 4 tests (store, contact variants, 404/400, honeypot silence); web landing (spec-exact copy, exclusions honored), /login (no tabs, no dead buttons, token handoff), /signup 3-step wizard against live register schema, /enquiry form; dev index → /dev. Verified: 166/166 (48 files), root lint clean, web build prerenders all routes; live (stored 201, 404 bad slug, honeypot stored nothing, demo row deleted after).
 - Login crash fix (2026-09-24, found by founder hand-testing): `"error" in body` is true on EVERY API success (envelope always carries `error: null`) — login + all 19 data pages crashed exactly when calls succeeded. Shared `isFailure()` guard in web/lib/api.ts, 19 files, typecheck+lint+build clean, success+failure paths proven live. BUGSFIX.md #16.
 - Login limiter vs hand-testing (2026-09-24): founder blocked at 5 logins mid-session. Default stays 5 (CI/prod untouched); gitignored local .env raises it to 200 via new LOGIN_RATE_LIMIT_MAX override (documented never-for-production). Rebuilt, restarted, 7/7 rapid logins proven live. BUGSFIX.md #17.
+- Limiter fully detached (2026-09-24, founder request): unlimited logins for the testing period; restore doc written as RATE_LIMITING.md (exact re-attach code + verify steps). loginLimiter kept dormant in security.ts. Verified: 166/166, 8/8 rapid logins.
 
 ## What's left in this task
 ## What's left in this task

@@ -2,7 +2,7 @@ import { Router, type CookieOptions, type Request, type Response } from "express
 import { catchAsync } from "../../lib/async.js";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
-import { loginLimiter, registerLimiter } from "../../middleware/security.js";
+import { registerLimiter } from "../../middleware/security.js";
 import { loginSchema, registerSchema } from "./auth.schemas.js";
 import { AuthError, login, register, rotateRefreshToken } from "./auth.service.js";
 
@@ -93,7 +93,8 @@ authRouter.post(
 
 authRouter.post(
   "/login",
-  loginLimiter(),
+  // NOTE (dev/testing period): the login rate limiter is deliberately OFF
+  // (see RATE_LIMITING.md — restore it before any real-business use).
   catchAsync(async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
