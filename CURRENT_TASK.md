@@ -9,29 +9,34 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS
-**Phase / Module:** Phase 1 — Chunk 5 (Public site → deploy → close-out)
-**Last updated:** 2026-09-23
+**Status:** IDLE
+**Phase / Module:** —
+**Last updated:** 2026-09-24
 
 ## What's done in this task so far
-- Chunk 5 public site (§7 #10, §8.3): POST /enquiries already existed — added 4 tests (store, contact variants, 404/400, honeypot silence); web landing (spec-exact copy, exclusions honored), /login (no tabs, no dead buttons, token handoff), /signup 3-step wizard against live register schema, /enquiry form; dev index → /dev. Verified: 166/166 (48 files), root lint clean, web build prerenders all routes; live (stored 201, 404 bad slug, honeypot stored nothing, demo row deleted after).
-- Login crash fix (2026-09-24, found by founder hand-testing): `"error" in body` is true on EVERY API success (envelope always carries `error: null`) — login + all 19 data pages crashed exactly when calls succeeded. Shared `isFailure()` guard in web/lib/api.ts, 19 files, typecheck+lint+build clean, success+failure paths proven live. BUGSFIX.md #16.
-- Login limiter vs hand-testing (2026-09-24): founder blocked at 5 logins mid-session. Default stays 5 (CI/prod untouched); gitignored local .env raises it to 200 via new LOGIN_RATE_LIMIT_MAX override (documented never-for-production). Rebuilt, restarted, 7/7 rapid logins proven live. BUGSFIX.md #17.
-- Limiter fully detached (2026-09-24, founder request): unlimited logins for the testing period; restore doc written as RATE_LIMITING.md (exact re-attach code + verify steps). loginLimiter kept dormant in security.ts. Verified: 166/166, 8/8 rapid logins.
+- (UI/UX remediation pass complete — full history in git log + STATUS.md)
 
 ## What's left in this task
+- (none — Chunk 5 next, see Exact next action)
+
+## Exact next action
+Chunk 5 — public site, deploy, and Phase 1 close-out (spec §7 Phase 1 #10) — say go.
+
+## Notes / decisions made mid-task
+- UI/UX remediation pass 2026-09-24 (founder-directed, pre-Chunk-5): audited every page vs §8.2–§8.5 text (docs/designs/ absent from repo — no images exist to compare against). Fixed: shared Shell + role-boards config + EmptyState/SkeletonBlocks/Card (all 6 dashboards adopted), globals.css tokens/breakpoints/shimmer, Inter + viewport in layout, lucide-react installed (audit 0), KPI 24 unified, chart empty branches, owner revenue/plans wired live, parent upcoming-exams noted as single-nextExam (API shape — kept honest), homework post/submit/grade UI + notice audience targeting built against verified endpoints, messages stacks + real Retry, print kept only where meaningful (ID card; report/receipts print via PDF viewer by design), teal/brown pill colors remapped to spec, dead onSort/onPage left wired (DataTable requires props), dev page font/logo fixed, landing shadows + feature icons + responsive grids. Deliberate keeps: inline styles (no Tailwind migration), report/receipt window.open flow + pop-up fallback. Verified: 166/166 (48 files), root lint 0, typecheck 0, api+web builds clean, live teacher page 200 + login OK; no API logic touched (git diff on apps/api empty).
+
 ## What's left in this task
 - Deploy definition + execution (env secrets, production DB migrate, owner seed, live smoke)
 - Phase 1 close-out (final suite + CI green, STATUS/CURRENT_TASK wrap-up)
 
 ## Exact next action
-Define the deploy checklist, then execute it — say go.
+Chunk 5 — public site, deploy, and Phase 1 close-out (spec §7 Phase 1 #10) — say go.
 
 ## Notes / decisions made mid-task
 - Module 9 verification pass 2026-09-23: suite 162/162 (47 files) local ×3 consecutive green (2 earlier parallel-load flakes, no captured identity, unreproduced since); CI all-5-green on 29720fc; bundle cache proven (stale-proof + same-read reads); all boards static-checked vs §8.3/§8.4 (docs/designs/ absent — text only); live both-schools matrix (distinct KPIs/feeds per tenant, Arjun 9-A-only, Suresh→Aditya/Sunita→Krishna-only, owner sees both, all cross-tenant 403, revenue 0.00/plans []); module E2E group 27 files/74 tests green. Fixed en route: CI lint failure (unused var in teacher-dashboard.test.ts — workspace lint skips tests/, root lint doesn't; BUGSFIX.md #15 + process rule: gate on root lint).
 
 ## Repo state right now
-YES — 166/166 green local (48 files), root lint 0, typecheck 0, api+web builds clean, both DBs migrated + dev re-seeded (enquiries 0 after live-test cleanup). Sandbox MySQL on 3307, datadir C:\Users\kavad\studyfy-mysql-data.
+YES — 166/166 green local (48 files), root lint 0, typecheck 0, api+web builds clean (incl. remediation: lucide-react, audit 0), both DBs migrated + dev re-seeded. Sandbox MySQL on 3307, datadir C:\Users\kavad\studyfy-mysql-data.
 
 ---
 

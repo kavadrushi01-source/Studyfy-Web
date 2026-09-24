@@ -79,7 +79,7 @@ export default function EnquiryPage() {
                 Your name
                 <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} style={input} />
               </label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="sf-form-2col">
                 <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
                   Phone
                   <input value={phone} onChange={(e) => setPhone(e.target.value)} style={input} />

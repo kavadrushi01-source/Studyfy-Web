@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useState, type FormEvent } from "react";
+import { ClipboardList, RefreshCw, Save, Users } from "lucide-react";
+import { EmptyState, SkeletonBlocks } from "../../../components/ui/shell";
 import { isFailure } from "../../../lib/api";
 
 interface SectionOption {
@@ -125,7 +127,7 @@ export default function MarkAttendancePage() {
       if (isFailure(response, body)) {
         throw new Error(body.error?.message ?? "Save failed.");
       }
-      setNotice(`Saved attendance for ${body.data.marked} students on ${date}.`);
+      setNotice(`Saved attendance for ${body.data.marked} students on ${fmtDay(date)}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
@@ -133,7 +135,57 @@ export default function MarkAttendancePage() {
     }
   }
 
-  const input = { display: "block", width: "100%", margin: "4px 0 12px", padding: 8 } as const;
+  function fmtDay(iso: string): string {
+    const parsed = new Date(`${iso}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleDateString("en-GB");
+  }
+
+  const page: React.CSSProperties = {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: 28,
+    fontFamily: "Inter, system-ui, sans-serif",
+    background: "#F8FAFC",
+    minHeight: "100vh",
+  };
+  const input: React.CSSProperties = {
+    display: "block",
+    width: "100%",
+    margin: "4px 0 12px",
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #CBD5E1",
+  };
+  const primaryBtn: React.CSSProperties = {
+    background: "#2563EB",
+    color: "#fff",
+    border: 0,
+    borderRadius: 10,
+    padding: "10px 16px",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+  };
+  const quietBtn: React.CSSProperties = {
+    background: "#fff",
+    color: "#334155",
+    border: "1px solid #E2E8F0",
+    borderRadius: 10,
+    padding: "10px 16px",
+    fontWeight: 500,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+  };
+  const card: React.CSSProperties = {
+    background: "#fff",
+    borderRadius: 14,
+    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
+    overflow: "hidden",
+  };
   const pill = (active: boolean, color: string): React.CSSProperties => ({
     padding: "4px 12px",
     borderRadius: 999,
@@ -143,12 +195,16 @@ export default function MarkAttendancePage() {
     cursor: "pointer",
     fontSize: 13,
   });
+  const saveDisabled = saving || loading || rows.length === 0;
 
   return (
-    <main style={{ maxWidth: 900, margin: "32px auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
-      <h1>Mark Attendance</h1>
+    <main style={page}>
+      <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A" }}>Mark Attendance</h1>
+      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
+        White-card roster — green Present, red Absent, one Save.
+      </p>
       {!connected ? (
-        <form onSubmit={connect}>
+        <form onSubmit={connect} style={{ ...card, padding: 20 }}>
           <label>
             School ID
             <input style={input} value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required />
@@ -157,12 +213,14 @@ export default function MarkAttendancePage() {
             Bearer token (dev only — login screen replaces this)
             <input style={input} value={token} onChange={(e) => setToken(e.target.value)} required />
           </label>
-          <button type="submit">Connect</button>
+          <button type="submit" style={primaryBtn}>
+            Connect
+          </button>
         </form>
       ) : (
         <>
-          <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-            <label style={{ flex: 1 }}>
+          <div className="sf-row-wrap" style={{ marginBottom: 12 }}>
+            <label style={{ flex: 1, minWidth: 220 }}>
               Section
               <select style={input} value={sectionId} onChange={pickSection} aria-label="Section">
                 <option value="">— pick a section —</option>
@@ -180,39 +238,45 @@ export default function MarkAttendancePage() {
           </div>
           {sectionId ? (
             <>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <button type="button" onClick={markAllPresent}>
-                  Mark all present
+              <div className="sf-row-wrap" style={{ marginBottom: 12 }}>
+                <button type="button" onClick={markAllPresent} style={quietBtn}>
+                  <Users size={14} aria-hidden="true" /> Mark all present
                 </button>
-                <button type="button" onClick={() => void loadRoster(sectionId)} disabled={loading}>
-                  Reload
+                <button
+                  type="button"
+                  onClick={() => void loadRoster(sectionId)}
+                  disabled={loading}
+                  style={{ ...quietBtn, opacity: loading ? 0.6 : 1 }}
+                >
+                  <RefreshCw size={14} aria-hidden="true" /> Reload
                 </button>
               </div>
-              <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: "left", padding: "10px 12px", color: "#2563EB", fontSize: 13, borderBottom: "1px solid #E2E8F0" }}>
-                        Student
-                      </th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", color: "#2563EB", fontSize: 13, borderBottom: "1px solid #E2E8F0" }}>
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading
-                      ? Array.from({ length: 6 }, (_, i) => (
-                          <tr key={`skeleton-${i}`}>
-                            <td style={{ padding: "10px 12px", borderBottom: "1px solid #F1F5F9" }}>
-                              <div style={{ height: 14, borderRadius: 6, background: "#F1F5F9" }} />
-                            </td>
-                            <td style={{ padding: "10px 12px", borderBottom: "1px solid #F1F5F9" }}>
-                              <div style={{ height: 14, borderRadius: 6, background: "#F1F5F9" }} />
-                            </td>
-                          </tr>
-                        ))
-                      : rows.map((row) => (
+              {loading ? (
+                <SkeletonBlocks rows={6} height={48} />
+              ) : rows.length === 0 ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <EmptyState
+                    icon={<ClipboardList size={22} aria-hidden="true" />}
+                    title="No students in this section"
+                    detail="Nothing to mark here yet — pick another section or check enrolments. Save stays disabled until a roster loads."
+                  />
+                </div>
+              ) : (
+                <div style={card}>
+                  <div className="sf-table-scroll">
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: "left", padding: "10px 12px", color: "#2563EB", fontSize: 13, borderBottom: "1px solid #E2E8F0" }}>
+                            Student
+                          </th>
+                          <th style={{ textAlign: "left", padding: "10px 12px", color: "#2563EB", fontSize: 13, borderBottom: "1px solid #E2E8F0" }}>
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row) => (
                           <tr key={row.id}>
                             <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9" }}>
                               {row.user.name}
@@ -229,11 +293,18 @@ export default function MarkAttendancePage() {
                             </td>
                           </tr>
                         ))}
-                  </tbody>
-                </table>
-              </div>
-              <button type="button" onClick={() => void save()} disabled={saving || loading || rows.length === 0} style={{ marginTop: 12 }}>
-                {saving ? "Saving…" : `Save attendance (${rows.length})`}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => void save()}
+                disabled={saveDisabled}
+                style={{ ...primaryBtn, marginTop: 12, opacity: saveDisabled ? 0.6 : 1, cursor: saveDisabled ? "not-allowed" : "pointer" }}
+              >
+                <Save size={14} aria-hidden="true" /> {saving ? "Saving…" : `Save attendance (${rows.length})`}
               </button>
             </>
           ) : null}

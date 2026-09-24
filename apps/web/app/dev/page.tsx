@@ -1,5 +1,8 @@
 import Link from "next/link";
 
+const PRIMARY = "#2563EB";
+const NAVY = "#0F172A";
+
 const SCREENS: { href: string; title: string; detail: string }[] = [
   { href: "/students", title: "Students", detail: "Teacher-scoped sortable roster with search and pages." },
   { href: "/students/new", title: "Admit Student", detail: "New admission with guardian linking and one-time passwords." },
@@ -28,9 +31,16 @@ const SCREENS: { href: string; title: string; detail: string }[] = [
 // Not linked from anywhere public; local development convenience only.
 export default function DevIndex() {
   return (
-    <main style={{ maxWidth: 900, margin: "32px auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
-      <h1>Studyfy — dev index</h1>
-      <p>Development index - every screen below takes a pasted bearer token until login lands.</p>
+    <div style={{ fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh", background: "#F8FAFC", display: "flex", flexDirection: "column" }}>
+      <header style={{ padding: "16px 32px", maxWidth: 1120, margin: "0 auto", width: "100%" }}>
+        <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+          <span style={{ width: 32, height: 32, borderRadius: 9, background: PRIMARY, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18 }}>S</span>
+          <span style={{ fontWeight: 700, fontSize: 18, color: NAVY }}>Studyfy</span>
+        </Link>
+      </header>
+      <main style={{ maxWidth: 900, margin: "0 auto", padding: 16, width: "100%" }}>
+      <h1 style={{ color: NAVY }}>Studyfy — dev index</h1>
+      <p style={{ color: "#64748B" }}>Development index - every screen below takes a pasted bearer token until login lands.</p>
       <ul style={{ listStyle: "none", padding: 0 }}>
         {SCREENS.map((screen) => (
           <li
@@ -50,6 +60,7 @@ export default function DevIndex() {
           </li>
         ))}
       </ul>
-    </main>
+      </main>
+    </div>
   );
 }

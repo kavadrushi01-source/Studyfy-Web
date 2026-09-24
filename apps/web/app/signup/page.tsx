@@ -118,7 +118,7 @@ export default function SignupPage() {
                 Login slug <span style={{ color: "#64748B", fontSize: 12 }}>(auto-derived, editable)</span>
                 <input value={slug} onChange={(e) => { setSlug(e.target.value); setSlugTouched(true); }} placeholder="my-school-name" style={input} />
               </label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="sf-form-2col">
                 <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
                   School Type
                   <input value={schoolType} onChange={(e) => setSchoolType(e.target.value)} placeholder="Co-ed secondary" style={input} />
@@ -132,7 +132,7 @@ export default function SignupPage() {
                 Email
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={input} />
               </label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="sf-form-2col">
                 <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
                   City
                   <input value={city} onChange={(e) => setCity(e.target.value)} style={input} />

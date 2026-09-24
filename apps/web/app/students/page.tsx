@@ -22,6 +22,13 @@ interface ListResponse {
 // own sections (classTeacherId), enforced API-side, not here.
 // Auth UI doesn't exist yet: school + bearer token are pasted (dev
 // workflow only — the dashboard shell + login replace this in Chunk 5).
+// Role-agnostic staff page: NOT wrapped in Shell (Shell requires a role
+// prop — forcing one would badge the wrong role), so this page carries the
+// light-canvas background, Inter font, and 1120/padding-28 rhythm directly.
+// NOTE: DataTable's onSort/onPage/page/totalPages/total props are required
+// by its API (see components/ui/data-table.tsx), so the live handlers stay
+// wired here — DataTable itself is unchanged. Its internal skeleton rows
+// cover loading and its internal empty state covers no-results.
 export default function StudentsPage() {
   const [schoolId, setSchoolId] = useState("");
   const [token, setToken] = useState("");
@@ -93,12 +100,35 @@ export default function StudentsPage() {
   }
 
   const input = { display: "block", width: "100%", margin: "4px 0 12px", padding: 8 } as const;
+  const primaryBtn = {
+    background: "#2563EB",
+    color: "#fff",
+    border: "1px solid #2563EB",
+    borderRadius: 8,
+    padding: "8px 16px",
+    cursor: "pointer",
+  } as const;
+  const card = {
+    background: "#fff",
+    borderRadius: 16,
+    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
+    padding: 20,
+  } as const;
 
   return (
-    <main style={{ maxWidth: 900, margin: "32px auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
-      <h1>Students</h1>
+    <main
+      style={{
+        maxWidth: 1120,
+        margin: "0 auto",
+        padding: 28,
+        fontFamily: "Inter, system-ui, sans-serif",
+        background: "#F8FAFC",
+        minHeight: "100vh",
+      }}
+    >
+      <h1 style={{ color: "#0F172A" }}>Students</h1>
       {!connected ? (
-        <form onSubmit={connect}>
+        <form onSubmit={connect} style={{ ...card, maxWidth: 640 }}>
           <label>
             School ID
             <input style={input} value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required />
@@ -107,19 +137,23 @@ export default function StudentsPage() {
             Bearer token (dev only — login screen replaces this)
             <input style={input} value={token} onChange={(e) => setToken(e.target.value)} required />
           </label>
-          <button type="submit">Connect</button>
+          <button type="submit" style={primaryBtn}>
+            Connect
+          </button>
         </form>
       ) : (
         <>
-          <form onSubmit={applySearch} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <form onSubmit={applySearch} className="sf-row-wrap" style={{ marginBottom: 12 }}>
             <input
-              style={{ flex: 1, padding: 8 }}
+              style={{ flex: 1, minWidth: 200, padding: 8 }}
               placeholder="Search name or email…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Search students"
             />
-            <button type="submit">Search</button>
+            <button type="submit" style={primaryBtn}>
+              Search
+            </button>
           </form>
           <DataTable<StudentRow>
             columns={[
@@ -142,6 +176,7 @@ export default function StudentsPage() {
             total={meta.total}
             onPage={changePage}
             loading={loading}
+            emptyMessage="No students found — try a different search."
           />
         </>
       )}

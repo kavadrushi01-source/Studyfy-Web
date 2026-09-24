@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { io, type Socket } from "socket.io-client";
+import { MessageCircle, RefreshCw, Send } from "lucide-react";
+import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 
 interface ThreadRow {
@@ -34,7 +36,8 @@ type ConnState = "offline" | "connecting" | "live" | "reconnecting";
 // cold-starts the API after inactivity and drops the socket — a normal,
 // expected event here, not a bug. The banner always shows the true state:
 // live (green), connecting/reconnecting (amber, with the attempt count),
-// offline (red, retry button). Never a silently dead chat.
+// offline (red, with a real retry button that reconnects the same socket).
+// Never a silently dead chat.
 export default function MessagesPage() {
   const [schoolId, setSchoolId] = useState("");
   const [token, setToken] = useState("");
@@ -135,6 +138,28 @@ export default function MessagesPage() {
     };
   }, [connected, schoolId, token]);
 
+  // Manual retry for the offline badge: reconnects the SAME socket (keeps
+  // every listener + the auto-reconnect config intact). Falls back to a
+  // plain threads refresh when the socket is gone entirely.
+  function retrySocket(): void {
+    setError("");
+    const socket = socketRef.current;
+    if (socket) {
+      setConn("connecting");
+      socket.connect();
+      return;
+    }
+    void (async () => {
+      try {
+        setConn("connecting");
+        await loadThreads();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Network error.");
+        setConn("offline");
+      }
+    })();
+  }
+
   async function connect(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setError("");
@@ -160,7 +185,7 @@ export default function MessagesPage() {
       });
       const body = (await response.json()) as { data: { message: unknown } } | ApiError;
       if (isFailure(response, body)) {
-                throw new Error(body.error?.message ?? "Send failed.");
+        throw new Error(body.error?.message ?? "Send failed.");
       }
       setDraft("");
       await loadThread(activeUserId);
@@ -170,32 +195,92 @@ export default function MessagesPage() {
     }
   }
 
-  const input = { display: "block", width: "100%", margin: "4px 0 12px", padding: 8 } as const;
+  const page: React.CSSProperties = {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: 28,
+    fontFamily: "Inter, system-ui, sans-serif",
+    background: "#F8FAFC",
+    minHeight: "100vh",
+  };
+  const input: React.CSSProperties = {
+    display: "block",
+    width: "100%",
+    margin: "4px 0 12px",
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #CBD5E1",
+  };
+  const primaryBtn: React.CSSProperties = {
+    background: "#2563EB",
+    color: "#fff",
+    border: 0,
+    borderRadius: 10,
+    padding: "10px 16px",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+  };
+  const threadsCard: React.CSSProperties = {
+    width: 280,
+    flexShrink: 0,
+    background: "#fff",
+    borderRadius: 14,
+    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
+    padding: 12,
+  };
+  const chatCard: React.CSSProperties = {
+    flex: 1,
+    minWidth: 0,
+    background: "#fff",
+    borderRadius: 14,
+    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    minHeight: 400,
+  };
   const connColor = conn === "live" ? "#059669" : conn === "offline" ? "#DC2626" : "#D97706";
-  const connLabel =
-    conn === "live"
-      ? "Live"
-      : conn === "offline"
-        ? "Offline — Retry"
-        : attempts > 0
-          ? `Reconnecting… (attempt ${attempts})`
-          : "Connecting…";
+  const connPill: React.CSSProperties = {
+    fontSize: 13,
+    padding: "4px 12px",
+    borderRadius: 999,
+    border: `1px solid ${connColor}`,
+    color: connColor,
+    background: "#fff",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+  };
 
   return (
-    <main style={{ maxWidth: 1000, margin: "32px auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <h1 style={{ flex: 1 }}>Messages</h1>
+    <main style={page}>
+      <div className="sf-row-wrap" style={{ justifyContent: "space-between", marginBottom: 4 }}>
+        <h1 style={{ fontSize: 26, margin: 0, color: "#0F172A", flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
+          <MessageCircle size={22} aria-hidden="true" color="#2563EB" /> Messages
+        </h1>
         {connected ? (
-          <span
-            role="status"
-            style={{ fontSize: 13, padding: "4px 12px", borderRadius: 999, border: `1px solid ${connColor}`, color: connColor }}
-          >
-            {connLabel}
-          </span>
+          conn === "offline" ? (
+            <button type="button" onClick={retrySocket} style={{ ...connPill, cursor: "pointer", fontWeight: 600 }} title="Reconnect the live socket">
+              <RefreshCw size={13} aria-hidden="true" /> Offline — Retry
+            </button>
+          ) : (
+            <span role="status" style={connPill}>
+              {conn === "live" ? "Live" : attempts > 0 ? `Reconnecting… (attempt ${attempts})` : "Connecting…"}
+            </span>
+          )
         ) : null}
       </div>
+      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
+        1:1 academic chat — the socket is live updates only; sending always works over HTTP.
+      </p>
       {!connected ? (
-        <form onSubmit={connect}>
+        <form
+          onSubmit={connect}
+          style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}
+        >
           <label>
             School ID
             <input style={input} value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required />
@@ -204,14 +289,20 @@ export default function MessagesPage() {
             Bearer token (dev only — login screen replaces this)
             <input style={input} value={token} onChange={(e) => setToken(e.target.value)} required />
           </label>
-          <button type="submit">Connect</button>
+          <button type="submit" style={primaryBtn}>
+            Connect
+          </button>
         </form>
       ) : (
-        <div style={{ display: "flex", gap: 16 }}>
-          <section style={{ width: 280, background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 12 }}>
+        <div className="sf-split">
+          <section style={threadsCard}>
             <h3 style={{ marginTop: 0 }}>Threads</h3>
             {threads.length === 0 ? (
-              <p style={{ color: "#64748B" }}>No conversations yet.</p>
+              <EmptyState
+                icon={<MessageCircle size={22} aria-hidden="true" />}
+                title="No conversations yet"
+                detail="Threads appear here once someone writes to you."
+              />
             ) : (
               <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {threads.map((t) => (
@@ -223,7 +314,7 @@ export default function MessagesPage() {
                         width: "100%",
                         textAlign: "left",
                         padding: 8,
-                        borderRadius: 8,
+                        borderRadius: 12,
                         border: t.user.id === activeUserId ? "1px solid #2563EB" : "1px solid #E2E8F0",
                         background: t.user.id === activeUserId ? "#EFF6FF" : "#fff",
                         cursor: "pointer",
@@ -247,20 +338,24 @@ export default function MessagesPage() {
               </ul>
             )}
           </section>
-          <section style={{ flex: 1, background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 12, display: "flex", flexDirection: "column", minHeight: 400 }}>
+          <section style={chatCard}>
             {!activeUserId ? (
-              <p style={{ color: "#64748B" }}>Pick a thread to read and reply.</p>
+              <EmptyState
+                icon={<MessageCircle size={22} aria-hidden="true" />}
+                title="Pick a thread"
+                detail="Choose a conversation to read and reply."
+              />
             ) : (
               <>
                 <div style={{ flex: 1, overflowY: "auto", marginBottom: 12 }}>
                   {loading ? (
-                    <div>
-                      {[0, 1, 2].map((i) => (
-                        <div key={i} style={{ height: 40, borderRadius: 8, background: "#F1F5F9", marginBottom: 8 }} />
-                      ))}
-                    </div>
+                    <SkeletonBlocks rows={3} height={40} />
                   ) : messages.length === 0 ? (
-                    <p style={{ color: "#64748B" }}>No messages yet — say hello.</p>
+                    <EmptyState
+                      icon={<MessageCircle size={22} aria-hidden="true" />}
+                      title="No messages yet"
+                      detail="Say hello — it lands instantly over HTTP."
+                    />
                   ) : (
                     messages.map((m) => (
                       <div key={m.id} style={{ marginBottom: 8 }}>
@@ -272,15 +367,17 @@ export default function MessagesPage() {
                     ))
                   )}
                 </div>
-                <form onSubmit={send} style={{ display: "flex", gap: 8 }}>
+                <form onSubmit={send} className="sf-row-wrap">
                   <input
-                    style={{ flex: 1, padding: 8 }}
+                    style={{ flex: 1, minWidth: 180, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }}
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     placeholder="Write a message…"
                     aria-label="Message"
                   />
-                  <button type="submit">Send</button>
+                  <button type="submit" style={primaryBtn}>
+                    <Send size={14} aria-hidden="true" /> Send
+                  </button>
                 </form>
               </>
             )}

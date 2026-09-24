@@ -1,1 +1,172 @@
-html, body { margin: 0; padding: 0; }
+:root {
+  --color-sidebar-bg: #0f172a;
+  --color-sidebar-bg-2: #111827;
+  --color-primary: #2563eb;
+  --color-canvas: #f8fafc;
+  --color-canvas-2: #f1f5f9;
+  --color-card-bg: #ffffff;
+  --color-success: #059669;
+  --color-success-bright: #10b981;
+  --color-warning: #f59e0b;
+  --color-warning-deep: #d97706;
+  --color-danger: #dc2626;
+  --color-danger-bright: #ef4444;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+  --color-line: #e2e8f0;
+  --radius-card: 16px;
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+/* Responsive grids — inline styles cannot do breakpoints, so layout
+   responsiveness lives here (§8.5 mobile-first for Student/Parent). */
+.sf-grid-kpi {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.sf-grid-2-1 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+.sf-grid-1-1 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+/* Landing grids: 3-col cards + 2-col hero that stack on narrow screens. */
+.sf-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.sf-grid-hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: center;
+  padding: 32px 0 64px;
+}
+@media (max-width: 900px) {
+  .sf-grid-3,
+  .sf-grid-hero {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .sf-grid-hero {
+    gap: 24px;
+    padding: 16px 0 40px;
+  }
+}
+@media (max-width: 1024px) {
+  .sf-grid-kpi {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .sf-grid-2-1,
+  .sf-grid-1-1 {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .sf-grid-kpi {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* App shell: sidebar + content; collapses to a top strip on narrow screens. */
+.sf-shell {
+  display: flex;
+  min-height: 100vh;
+}
+.sf-sidebar {
+  width: 248px;
+  flex-shrink: 0;
+}
+.sf-main {
+  flex: 1;
+  min-width: 0;
+  padding: 28px;
+}
+@media (max-width: 900px) {
+  .sf-shell {
+    flex-direction: column;
+  }
+  .sf-sidebar {
+    width: 100%;
+  }
+  .sf-main {
+    padding: 16px;
+  }
+}
+
+/* Horizontal table scroll on narrow viewports. */
+.sf-table-scroll {
+  overflow-x: auto;
+}
+
+/* Skeleton shimmer (§8.5 — skeletons, never spinners). */
+@keyframes sf-shimmer {
+  0% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.55;
+  }
+}
+.sf-skeleton {
+  animation: sf-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Two-column form rows that stack on phones. */
+.sf-form-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 560px) {
+  .sf-form-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Flex rows that wrap instead of squeezing. */
+.sf-row-wrap {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Two-pane split (e.g. messages threads + chat) that stacks on narrow. */
+.sf-split {
+  display: flex;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .sf-split {
+    flex-direction: column;
+  }
+}

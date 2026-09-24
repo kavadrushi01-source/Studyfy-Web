@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useState, type FormEvent, type ReactNode } from "react";
+import { AlertTriangle, Clock, Inbox, IndianRupee, PieChart, TrendingUp, Users } from "lucide-react";
+import { Card, EmptyState, SectionTitle, Shell, SkeletonBlocks } from "../../../components/ui/shell";
 import { isFailure } from "../../../lib/api";
 
 interface Me {
@@ -46,32 +48,21 @@ interface ApiError {
   error: { code: string; message: string };
 }
 
-// Accountant board (§7 Phase 1 #9, §8.3): purple accountant badge, the
-// canonical accountant nav (§8.4), greeting, 4 KPI cards (Total Collected,
-// Pending Fees, Overdue Fees, Total Students), Fee Collection Trend chart,
-// Payment Status donut, Recent Transactions table. Same rules as the other
-// boards: every figure from GET .../dashboard/accountant, zeros are zeros
-// (§8.1), token-paste until login, skeleton loading (§8.5). Charts are
-// hand-rolled SVG — no chart dependency, no audit surface.
+// Accountant board (§7 Phase 1 #9, §8.3): shared Shell with the canonical
+// accountant nav (§8.4 — Invoices / Payments & Receipts point at /fees until
+// distinct pages exist), greeting, 4 KPI cards (Total Collected, Pending
+// Fees, Overdue Fees, Total Students), Fee Collection Trend chart, Payment
+// Status donut, Recent Transactions table. Same rules as the other boards:
+// every figure from GET .../dashboard/accountant, zeros are zeros (§8.1),
+// token-paste until login, skeleton loading (§8.5). Charts are hand-rolled
+// SVG — no chart dependency, no audit surface.
 
 const NAVY = "#0F172A";
 const ACCOUNTANT_PURPLE = "#7C3AED";
 const PRIMARY = "#2563EB";
-const CANVAS = "#F8FAFC";
 const SUCCESS = "#059669";
 const WARNING = "#D97706";
 const DANGER = "#DC2626";
-
-const NAV: { label: string; href: string | null }[] = [
-  { label: "Dashboard", href: "/dashboard/accountant" },
-  { label: "Fees & Payments", href: "/fees" },
-  { label: "Invoices", href: "/fees" },
-  { label: "Payments & Receipts", href: "/fees" },
-  { label: "Collection Reports", href: null },
-  { label: "Student Fee Ledger", href: null },
-  { label: "Reports & Analytics", href: null },
-  { label: "Settings", href: null },
-];
 
 const STATUS_COLORS: Record<string, string> = {
   PAID: SUCCESS,
@@ -104,14 +95,6 @@ function inr(amount: string): string {
     return `₹${amount}`;
   }
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function Icon({ d }: { d: string }): ReactNode {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={d} />
-    </svg>
-  );
 }
 
 function TrendChart({ trend }: { trend: TrendPoint[] }): ReactNode {
@@ -169,6 +152,11 @@ function StatusDonut({ slices }: { slices: StatusSlice[] }): ReactNode {
   const radius = 70;
   const circumference = 2 * Math.PI * radius;
   const total = slices.reduce((sum, s) => sum + Number(s.amount), 0);
+  if (slices.length === 0 || total <= 0) {
+    return (
+      <EmptyState icon={<PieChart size={22} />} title="No invoices yet" detail="Invoice status breakdown will appear here once fees are raised." />
+    );
+  }
   let offset = 0;
   const segments = slices.map((slice) => {
     const fraction = total > 0 ? Number(slice.amount) / total : 0;
@@ -207,20 +195,10 @@ function StatusDonut({ slices }: { slices: StatusSlice[] }): ReactNode {
             <span style={{ color: "#64748B" }}>{inr(slice.amount)}</span>
           </li>
         ))}
-        {slices.length === 0 ? <li style={{ color: "#64748B" }}>No invoices yet.</li> : null}
       </ul>
     </div>
   );
 }
-
-const card: React.CSSProperties = {
-  background: "#fff",
-  borderRadius: 16,
-  boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-  padding: 20,
-};
-
-const skeleton: React.CSSProperties = { height: 64, borderRadius: 14, background: "#F1F5F9", marginBottom: 12 };
 
 export default function AccountantDashboardPage() {
   const [schoolId, setSchoolId] = useState("");
@@ -288,145 +266,107 @@ export default function AccountantDashboardPage() {
         </form>
         {loading ? (
           <div style={{ marginTop: 20 }}>
-            {[0, 1, 2].map((i) => (
-              <div key={i} style={skeleton} />
-            ))}
+            <SkeletonBlocks rows={3} />
           </div>
         ) : null}
       </main>
     );
   }
 
-  const kpis = [
-    { label: "Total Collected", value: inr(bundle.totalCollected), color: SUCCESS, icon: "M21 12V7H5a2 2 0 0 1 0-4h14v4 M3 5v14a2 2 0 0 0 2 2h16V7 M18 12a2 2 0 0 0 0 4h-4a2 2 0 0 1 0-4z" },
-    { label: "Pending Fees", value: inr(bundle.pendingFees), color: WARNING, icon: "M12 9v4 M12 17h.01 M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" },
-    { label: "Overdue Fees", value: inr(bundle.overdueFees), color: DANGER, icon: "M12 8v4l3 3 M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z" },
-    { label: "Total Students", value: String(bundle.totalStudents), color: PRIMARY, icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75" },
+  const kpis: { label: string; value: string; color: string; icon: ReactNode }[] = [
+    { label: "Total Collected", value: inr(bundle.totalCollected), color: SUCCESS, icon: <IndianRupee size={22} /> },
+    { label: "Pending Fees", value: inr(bundle.pendingFees), color: WARNING, icon: <Clock size={22} /> },
+    { label: "Overdue Fees", value: inr(bundle.overdueFees), color: DANGER, icon: <AlertTriangle size={22} /> },
+    { label: "Total Students", value: String(bundle.totalStudents), color: PRIMARY, icon: <Users size={22} /> },
   ];
 
+  const trendEmpty = bundle.trend.length === 0 || bundle.trend.every((p) => Number(p.collected) === 0);
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "Inter, system-ui, sans-serif", background: CANVAS }}>
-      <aside style={{ width: 248, background: NAVY, color: "#E2E8F0", padding: "20px 14px", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 8px 16px" }}>
-          <span style={{ width: 36, height: 36, borderRadius: 10, background: PRIMARY, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20 }}>S</span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: "#fff" }}>Studyfy</span>
-        </div>
-        <div style={{ margin: "0 8px 16px", display: "inline-block", fontSize: 12, fontWeight: 600, background: ACCOUNTANT_PURPLE, color: "#fff", borderRadius: 999, padding: "4px 12px" }}>
-          Accountant
-        </div>
-        <nav style={{ display: "grid", gap: 2 }}>
-          {NAV.map((item) =>
-            item.href ? (
-              <a
-                key={item.label}
-                href={item.href}
-                style={{
-                  display: "block",
-                  padding: "9px 12px",
-                  borderRadius: 10,
-                  fontSize: 14,
-                  textDecoration: "none",
-                  background: item.href === "/dashboard/accountant" ? ACCOUNTANT_PURPLE : "transparent",
-                  color: item.href === "/dashboard/accountant" ? "#fff" : "#CBD5E1",
-                  fontWeight: item.href === "/dashboard/accountant" ? 600 : 400,
-                }}
-              >
-                {item.label}
-              </a>
-            ) : (
-              <span key={item.label} style={{ display: "block", padding: "9px 12px", fontSize: 14, color: "#475569" }}>
-                {item.label}
-              </span>
-            ),
-          )}
-        </nav>
-      </aside>
+    <Shell role="ACCOUNTANT" activeHref="/dashboard/accountant">
+      <header style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 26, margin: 0, color: NAVY }}>
+          {greeting(new Date())}, {me.name}
+        </h1>
+        <p style={{ color: "#64748B", margin: "4px 0 0", fontSize: 14 }}>
+          Fee collection at a glance · {bundle.asOf.day}
+        </p>
+      </header>
 
-      <main style={{ flex: 1, padding: 28, maxWidth: 1120 }}>
-        <header style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 26, margin: 0, color: NAVY }}>
-            {greeting(new Date())}, {me.name}
-          </h1>
-          <p style={{ color: "#64748B", margin: "4px 0 0", fontSize: 14 }}>
-            Fee collection at a glance · {bundle.asOf.day}
-          </p>
-        </header>
-
-        <section style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
-          {kpis.map((kpi) => (
-            <div key={kpi.label} style={card}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <span style={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>{kpi.label}</span>
-                <span style={{ color: kpi.color }}>
-                  <Icon d={kpi.icon} />
-                </span>
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: NAVY }}>{kpi.value}</div>
+      <section className="sf-grid-kpi" style={{ marginBottom: 20 }}>
+        {kpis.map((kpi) => (
+          <Card key={kpi.label}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <span style={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>{kpi.label}</span>
+              <span style={{ color: kpi.color }}>{kpi.icon}</span>
             </div>
-          ))}
-        </section>
+            <div style={{ fontSize: 24, fontWeight: 700, color: NAVY }}>{kpi.value}</div>
+          </Card>
+        ))}
+      </section>
 
-        <section style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 20 }}>
-          <div style={card}>
-            <h2 style={{ fontSize: 16, margin: "0 0 4px", color: NAVY }}>Fee Collection Trend</h2>
-            <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 12px" }}>Collected per month, last 6 months</p>
-            <TrendChart trend={bundle.trend} />
-          </div>
-          <div style={card}>
-            <h2 style={{ fontSize: 16, margin: "0 0 12px", color: NAVY }}>Payment Status</h2>
-            <StatusDonut slices={bundle.byStatus} />
-          </div>
-        </section>
-
-        <section style={card}>
-          <h2 style={{ fontSize: 16, margin: "0 0 12px", color: NAVY }}>Recent Transactions</h2>
-          {bundle.recentTransactions.length === 0 ? (
-            <div style={{ border: "1px dashed #CBD5E1", borderRadius: 12, padding: 24, textAlign: "center", color: "#64748B", fontSize: 14 }}>
-              No payments recorded yet — collections will appear here.
-            </div>
+      <section className="sf-grid-2-1" style={{ marginBottom: 20 }}>
+        <Card>
+          <SectionTitle>Fee Collection Trend</SectionTitle>
+          <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 12px" }}>Collected per month, last 6 months</p>
+          {trendEmpty ? (
+            <EmptyState icon={<TrendingUp size={22} />} title="No collection data yet" detail="Collected amounts per month will appear here once fees are paid." />
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    {["Student", "Amount", "Method", "Paid", "Invoice"].map((header) => (
-                      <th key={header} style={{ textAlign: "left", padding: "10px 12px", color: PRIMARY, fontSize: 13, borderBottom: "1px solid #E2E8F0", whiteSpace: "nowrap" }}>
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {bundle.recentTransactions.map((tx) => (
-                    <tr key={tx.id}>
-                      <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9", color: NAVY }}>{tx.studentName}</td>
-                      <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9", fontWeight: 600 }}>{inr(tx.amount)}</td>
-                      <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9", color: "#64748B" }}>{tx.method}</td>
-                      <td style={{ padding: "10px 12px", fontSize: 13, borderBottom: "1px solid #F1F5F9", color: "#64748B" }}>
-                        {new Date(tx.paidAt).toLocaleDateString()}
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9" }}>
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 600,
-                            borderRadius: 999,
-                            padding: "3px 10px",
-                            background: tx.invoiceStatus === "PAID" ? "#D1FAE5" : tx.invoiceStatus === "OVERDUE" ? "#FEE2E2" : "#FEF3C7",
-                            color: tx.invoiceStatus === "PAID" ? SUCCESS : tx.invoiceStatus === "OVERDUE" ? DANGER : WARNING,
-                          }}
-                        >
-                          {tx.invoiceStatus}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TrendChart trend={bundle.trend} />
           )}
-        </section>
-      </main>
-    </div>
+        </Card>
+        <Card>
+          <SectionTitle>Payment Status</SectionTitle>
+          <StatusDonut slices={bundle.byStatus} />
+        </Card>
+      </section>
+
+      <Card>
+        <SectionTitle>Recent Transactions</SectionTitle>
+        {bundle.recentTransactions.length === 0 ? (
+          <EmptyState icon={<Inbox size={22} />} title="No payments yet" detail="No payments recorded yet — collections will appear here." />
+        ) : (
+          <div className="sf-table-scroll">
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {["Student", "Amount", "Method", "Paid", "Invoice"].map((header) => (
+                    <th key={header} style={{ textAlign: "left", padding: "10px 12px", color: PRIMARY, fontSize: 13, borderBottom: "1px solid #E2E8F0", whiteSpace: "nowrap" }}>
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {bundle.recentTransactions.map((tx) => (
+                  <tr key={tx.id}>
+                    <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9", color: NAVY }}>{tx.studentName}</td>
+                    <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9", fontWeight: 600 }}>{inr(tx.amount)}</td>
+                    <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9", color: "#64748B" }}>{tx.method}</td>
+                    <td style={{ padding: "10px 12px", fontSize: 13, borderBottom: "1px solid #F1F5F9", color: "#64748B" }}>
+                      {new Date(tx.paidAt).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9" }}>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          borderRadius: 999,
+                          padding: "3px 10px",
+                          background: tx.invoiceStatus === "PAID" ? "#D1FAE5" : tx.invoiceStatus === "OVERDUE" ? "#FEE2E2" : "#FEF3C7",
+                          color: tx.invoiceStatus === "PAID" ? SUCCESS : tx.invoiceStatus === "OVERDUE" ? DANGER : WARNING,
+                        }}
+                      >
+                        {tx.invoiceStatus}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </Shell>
   );
 }

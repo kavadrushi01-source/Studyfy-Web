@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useState, type FormEvent, type ReactNode } from "react";
+import { GraduationCap, Inbox, School, TrendingUp, Users, Wallet } from "lucide-react";
+import { Card, EmptyState, SectionTitle, Shell, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 
 interface Me {
@@ -36,36 +38,19 @@ interface ApiError {
   error: { code: string; message: string };
 }
 
-// School Admin dashboard (§7 Phase 1 #9, §8.3): navy sidebar with the
+// School Admin dashboard (§7 Phase 1 #9, §8.3): shared Shell with the
 // canonical admin nav (§8.4), greeting header, 4 KPI cards, Student Growth
 // chart, Recent Activities feed, Quick Actions. Every number comes from
 // GET .../dashboard/admin — zeros render as zeros, never as mockup filler
 // (§8.1: no fabricated stats). Same token-paste dev workflow as the other
 // boards until login lands. Chart is hand-rolled SVG (no chart dependency,
-// no audit surface); icons are inline SVG in the Lucide stroke style
-// (§8.5: Lucide only, no second icon set).
+// no audit surface); icons are lucide-react (§8.5: Lucide only).
 
 const NAVY = "#0F172A";
 const PRIMARY = "#2563EB";
-const CANVAS = "#F8FAFC";
 const SUCCESS = "#059669";
 const WARNING = "#D97706";
 const DANGER = "#DC2626";
-
-const NAV: { label: string; href: string | null }[] = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Students", href: "/students" },
-  { label: "Teachers", href: null },
-  { label: "Classes & Sections", href: "/sections" },
-  { label: "Attendance", href: "/attendance/mark" },
-  { label: "Fees & Payments", href: "/fees" },
-  { label: "Exams & Marks", href: "/exams/results" },
-  { label: "Timetable", href: "/timetable" },
-  { label: "Homework", href: "/homework" },
-  { label: "Communication", href: "/messages" },
-  { label: "Reports", href: null },
-  { label: "Settings", href: null },
-];
 
 const KIND_COLORS: Record<ActivityItem["kind"], string> = {
   notice: PRIMARY,
@@ -98,14 +83,6 @@ function inr(amount: string): string {
     return `₹${amount}`;
   }
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function Icon({ d }: { d: string }): ReactNode {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={d} />
-    </svg>
-  );
 }
 
 function GrowthChart({ growth }: { growth: GrowthPoint[] }): ReactNode {
@@ -156,13 +133,6 @@ function GrowthChart({ growth }: { growth: GrowthPoint[] }): ReactNode {
     </svg>
   );
 }
-
-const card: React.CSSProperties = {
-  background: "#fff",
-  borderRadius: 16,
-  boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-  padding: 20,
-};
 
 export default function DashboardPage() {
   const [schoolId, setSchoolId] = useState("");
@@ -225,132 +195,105 @@ export default function DashboardPage() {
           </button>
           {error ? <p style={{ color: DANGER, fontSize: 14 }}>{error}</p> : null}
         </form>
+        {loading ? (
+          <div style={{ marginTop: 20 }}>
+            <SkeletonBlocks rows={3} />
+          </div>
+        ) : null}
       </main>
     );
   }
 
-  const kpis = [
-    { label: "Total Students", value: String(bundle.totalStudents), color: PRIMARY, icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75" },
-    { label: "Total Teachers", value: String(bundle.totalTeachers), color: SUCCESS, icon: "M22 10 12 5 2 10l10 5 10-5 M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5" },
-    { label: "Total Classes", value: String(bundle.totalClasses), color: "#7C3AED", icon: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10" },
-    { label: "Fee Collection", value: inr(bundle.feeCollection), color: WARNING, icon: "M21 12V7H5a2 2 0 0 1 0-4h14v4 M3 5v14a2 2 0 0 0 2 2h16V7 M18 12a2 2 0 0 0 0 4h-4a2 2 0 0 1 0-4z" },
+  const kpis: { label: string; value: string; color: string; icon: ReactNode }[] = [
+    { label: "Total Students", value: String(bundle.totalStudents), color: PRIMARY, icon: <Users size={22} /> },
+    { label: "Total Teachers", value: String(bundle.totalTeachers), color: SUCCESS, icon: <GraduationCap size={22} /> },
+    { label: "Total Classes", value: String(bundle.totalClasses), color: "#7C3AED", icon: <School size={22} /> },
+    { label: "Fee Collection", value: inr(bundle.feeCollection), color: WARNING, icon: <Wallet size={22} /> },
   ];
 
+  const growthEmpty = bundle.growth.length === 0 || bundle.growth.every((p) => p.count === 0);
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "Inter, system-ui, sans-serif", background: CANVAS }}>
-      <aside style={{ width: 248, background: NAVY, color: "#E2E8F0", padding: "20px 14px", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 8px 16px" }}>
-          <span style={{ width: 36, height: 36, borderRadius: 10, background: PRIMARY, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20 }}>S</span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: "#fff" }}>Studyfy</span>
-        </div>
-        <div style={{ margin: "0 8px 16px", display: "inline-block", fontSize: 12, fontWeight: 600, background: PRIMARY, color: "#fff", borderRadius: 999, padding: "4px 12px" }}>
-          School Admin
-        </div>
-        <nav style={{ display: "grid", gap: 2 }}>
-          {NAV.map((item) =>
-            item.href ? (
-              <a
-                key={item.label}
-                href={item.href}
-                style={{
-                  display: "block",
-                  padding: "9px 12px",
-                  borderRadius: 10,
-                  fontSize: 14,
-                  textDecoration: "none",
-                  background: item.href === "/dashboard" ? PRIMARY : "transparent",
-                  color: item.href === "/dashboard" ? "#fff" : "#CBD5E1",
-                  fontWeight: item.href === "/dashboard" ? 600 : 400,
-                }}
-              >
-                {item.label}
-              </a>
-            ) : (
-              <span key={item.label} style={{ display: "block", padding: "9px 12px", fontSize: 14, color: "#475569" }}>
-                {item.label}
-              </span>
-            ),
-          )}
-        </nav>
-      </aside>
+    <Shell role="SCHOOL_ADMIN" activeHref="/dashboard">
+      <header style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 26, margin: 0, color: NAVY }}>
+          {greeting(new Date())}, {me.name}
+        </h1>
+        <p style={{ color: "#64748B", margin: "4px 0 0", fontSize: 14 }}>
+          Here is what is happening at your school today · {bundle.asOf.day}
+        </p>
+      </header>
 
-      <main style={{ flex: 1, padding: 28, maxWidth: 1120 }}>
-        <header style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 26, margin: 0, color: NAVY }}>
-            {greeting(new Date())}, {me.name}
-          </h1>
-          <p style={{ color: "#64748B", margin: "4px 0 0", fontSize: 14 }}>
-            Here is what is happening at your school today · {bundle.asOf.day}
-          </p>
-        </header>
-
-        <section style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
-          {kpis.map((kpi) => (
-            <div key={kpi.label} style={card}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <span style={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>{kpi.label}</span>
-                <span style={{ color: kpi.color }}>
-                  <Icon d={kpi.icon} />
-                </span>
-              </div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: NAVY }}>{kpi.value}</div>
+      <section className="sf-grid-kpi" style={{ marginBottom: 20 }}>
+        {kpis.map((kpi) => (
+          <Card key={kpi.label}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <span style={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>{kpi.label}</span>
+              <span style={{ color: kpi.color }}>{kpi.icon}</span>
             </div>
-          ))}
-        </section>
+            <div style={{ fontSize: 24, fontWeight: 700, color: NAVY }}>{kpi.value}</div>
+          </Card>
+        ))}
+      </section>
 
-        <section style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 20 }}>
-          <div style={card}>
-            <h2 style={{ fontSize: 16, margin: "0 0 4px", color: NAVY }}>Student Growth</h2>
-            <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 12px" }}>Admissions per month, last 6 months</p>
-            <GrowthChart growth={bundle.growth} />
-          </div>
-          <div style={card}>
-            <h2 style={{ fontSize: 16, margin: "0 0 12px", color: NAVY }}>Quick Actions</h2>
-            <div style={{ display: "grid", gap: 10 }}>
-              {[
-                { label: "Admit Student", href: "/students/new" },
-                { label: "Mark Attendance", href: "/attendance/mark" },
-                { label: "Collect Fee", href: "/fees" },
-                { label: "Post Notice", href: "/notices" },
-              ].map((action) => (
-                <a
-                  key={action.label}
-                  href={action.href}
-                  style={{ display: "block", textAlign: "center", padding: "11px 0", borderRadius: 10, background: PRIMARY, color: "#fff", fontWeight: 600, fontSize: 14, textDecoration: "none" }}
-                >
-                  {action.label}
-                </a>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section style={card}>
-          <h2 style={{ fontSize: 16, margin: "0 0 12px", color: NAVY }}>Recent Activities</h2>
-          {bundle.activities.length === 0 ? (
-            <div style={{ border: "1px dashed #CBD5E1", borderRadius: 12, padding: 24, textAlign: "center", color: "#64748B", fontSize: 14 }}>
-              Nothing yet — notices, homework, exams, and payments will appear here as they happen.
-            </div>
+      <section className="sf-grid-2-1" style={{ marginBottom: 20 }}>
+        <Card>
+          <SectionTitle>Student Growth</SectionTitle>
+          <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 12px" }}>Admissions per month, last 6 months</p>
+          {growthEmpty ? (
+            <EmptyState icon={<TrendingUp size={22} />} title="No growth data yet" detail="Admissions per month will appear here once students enroll." />
           ) : (
-            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 0 }}>
-              {bundle.activities.map((activity, index) => (
-                <li
-                  key={`${activity.kind}-${activity.at}-${index}`}
-                  style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderTop: index === 0 ? 0 : "1px solid #F1F5F9" }}
-                >
-                  <span style={{ width: 10, height: 10, borderRadius: 999, background: KIND_COLORS[activity.kind], marginTop: 5, flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, color: NAVY }}>{activity.title}</div>
-                    <div style={{ fontSize: 12, color: "#64748B", textTransform: "capitalize" }}>
-                      {activity.kind} · {new Date(activity.at).toLocaleString()}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <GrowthChart growth={bundle.growth} />
           )}
-        </section>
-      </main>
-    </div>
+        </Card>
+        <Card>
+          <SectionTitle>Quick Actions</SectionTitle>
+          <div style={{ display: "grid", gap: 10 }}>
+            {[
+              { label: "Admit Student", href: "/students/new" },
+              { label: "Mark Attendance", href: "/attendance/mark" },
+              { label: "Collect Fee", href: "/fees" },
+              { label: "Post Notice", href: "/notices" },
+            ].map((action) => (
+              <a
+                key={action.label}
+                href={action.href}
+                style={{ display: "block", textAlign: "center", padding: "11px 0", borderRadius: 10, background: PRIMARY, color: "#fff", fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+              >
+                {action.label}
+              </a>
+            ))}
+          </div>
+        </Card>
+      </section>
+
+      <Card>
+        <SectionTitle>Recent Activities</SectionTitle>
+        {bundle.activities.length === 0 ? (
+          <EmptyState
+            icon={<Inbox size={22} />}
+            title="Nothing yet"
+            detail="Notices, homework, exams, and payments will appear here as they happen."
+          />
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 0 }}>
+            {bundle.activities.map((activity, index) => (
+              <li
+                key={`${activity.kind}-${activity.at}-${index}`}
+                style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 0", borderTop: index === 0 ? 0 : "1px solid #F1F5F9" }}
+              >
+                <span style={{ width: 10, height: 10, borderRadius: 999, background: KIND_COLORS[activity.kind], marginTop: 5, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, color: NAVY }}>{activity.title}</div>
+                  <div style={{ fontSize: 12, color: "#64748B", textTransform: "capitalize" }}>
+                    {activity.kind} · {new Date(activity.at).toLocaleString()}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </Shell>
   );
 }

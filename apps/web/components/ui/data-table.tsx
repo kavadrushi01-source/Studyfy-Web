@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Inbox } from "lucide-react";
 
 export interface DataTableColumn<T> {
   key: string;
@@ -20,6 +21,11 @@ interface DataTableProps<T> {
   onPage: (page: number) => void;
   // Skeleton rows while loading (§8.5/RULES.md §5 — never spinners).
   loading: boolean;
+  // Friendly empty state (§8.5) — shown instead of a blank body.
+  emptyMessage?: string;
+  // Hide the pager for single-page boards (e.g. ranked exam results).
+  // Defaults to true so every existing consumer keeps its pager.
+  showPager?: boolean;
 }
 
 // Shared table language from the design boards (§8.2): white card,
@@ -38,6 +44,8 @@ export function DataTable<T>({
   total,
   onPage,
   loading,
+  emptyMessage = "No records to show yet.",
+  showPager = true,
 }: DataTableProps<T>): ReactNode {
   const card: React.CSSProperties = {
     background: "#fff",
@@ -60,7 +68,7 @@ export function DataTable<T>({
         <tr key={`skeleton-${i}`}>
           {columns.map((c) => (
             <td key={c.key} style={td}>
-              <div style={{ height: 14, borderRadius: 6, background: "#F1F5F9" }} />
+              <div className="sf-skeleton" style={{ height: 14, borderRadius: 6, background: "#F1F5F9" }} />
             </td>
           ))}
         </tr>
@@ -78,6 +86,7 @@ export function DataTable<T>({
   return (
     <div>
       <div style={card}>
+        <div className="sf-table-scroll">
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -87,10 +96,17 @@ export function DataTable<T>({
                     <button
                       type="button"
                       onClick={() => onSort(c.key)}
-                      style={{ all: "unset", cursor: "pointer", color: "#2563EB", fontWeight: sort === c.key ? 700 : 400 }}
+                      style={{ all: "unset", cursor: "pointer", color: "#2563EB", fontWeight: sort === c.key ? 700 : 400, display: "inline-flex", alignItems: "center", gap: 4 }}
                       aria-sort={sort === c.key ? (order === "asc" ? "ascending" : "descending") : "none"}
                     >
-                      {c.label} {sort === c.key ? (order === "asc" ? "▲" : "▼") : ""}
+                      {c.label}{" "}
+                      {sort === c.key ? (
+                        order === "asc" ? (
+                          <ChevronUp size={14} aria-hidden="true" />
+                        ) : (
+                          <ChevronDown size={14} aria-hidden="true" />
+                        )
+                      ) : null}
                     </button>
                   ) : (
                     c.label
@@ -101,18 +117,48 @@ export function DataTable<T>({
           </thead>
           <tbody>{body}</tbody>
         </table>
+        </div>
+        {!loading && rows.length === 0 ? (
+          <div
+            style={{
+              borderTop: "1px solid #F1F5F9",
+              padding: 24,
+              textAlign: "center",
+              color: "#64748B",
+              fontSize: 14,
+              display: "grid",
+              gap: 8,
+              justifyItems: "center",
+            }}
+          >
+            <Inbox size={22} color="#94A3B8" aria-hidden="true" />
+            <span>{emptyMessage}</span>
+          </div>
+        ) : null}
       </div>
+      {showPager ? (
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, fontSize: 14 }}>
-        <button type="button" disabled={page <= 1 || loading} onClick={() => onPage(page - 1)}>
-          ← Prev
+        <button
+          type="button"
+          disabled={page <= 1 || loading}
+          onClick={() => onPage(page - 1)}
+          style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+        >
+          <ChevronLeft size={14} aria-hidden="true" /> Prev
         </button>
         <span>
           Page {page} of {totalPages} · {total} total
         </span>
-        <button type="button" disabled={page >= totalPages || loading} onClick={() => onPage(page + 1)}>
-          Next →
+        <button
+          type="button"
+          disabled={page >= totalPages || loading}
+          onClick={() => onPage(page + 1)}
+          style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+        >
+          Next <ChevronRight size={14} aria-hidden="true" />
         </button>
       </div>
+      ) : null}
     </div>
   );
 }

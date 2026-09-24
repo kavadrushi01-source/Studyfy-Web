@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useRef, useState, type FormEvent } from "react";
+import { BookOpen, CheckCircle2, Plus, RefreshCw, Send } from "lucide-react";
+import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 
 interface BoardItem {
@@ -9,7 +11,7 @@ interface BoardItem {
   description: string;
   dueDate: string;
   subject: { name: string };
-  section: { name: string; className: string };
+  section: { id: string; name: string; className: string };
   teacher: { name: string };
   mySubmissions: { studentId: string; status: string }[];
   counts: { total: number; submitted: number; graded: number } | null;
@@ -21,8 +23,10 @@ interface ApiError {
 
 // Homework board (§7 Phase 1 #6). One call shapes rows per role: students
 // split pending vs graded from mySubmissions, teachers see authored rows
-// with needs-grading counts, admins everything. Empty states are real
-// cards per §8.5 — never a blank page, never a spinner.
+// with needs-grading counts, admins everything. Posting, submitting (text
+// + file), and grading all hit the real endpoints below — the board list
+// keeps its status pills. Empty states are real cards per §8.5 — never a
+// blank page, never a spinner.
 export default function HomeworkPage() {
   const [schoolId, setSchoolId] = useState("");
   const [token, setToken] = useState("");
@@ -30,6 +34,24 @@ export default function HomeworkPage() {
   const [items, setItems] = useState<BoardItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  // Post form (teacher): POST /schools/:schoolId/homework
+  // { sectionId, subjectId, title, description, dueDate YYYY-MM-DD }.
+  const [phSection, setPhSection] = useState("");
+  const [phSubject, setPhSubject] = useState("");
+  const [phTitle, setPhTitle] = useState("");
+  const [phDesc, setPhDesc] = useState("");
+  const [phDue, setPhDue] = useState("");
+  const [posting, setPosting] = useState(false);
+  // Submit UI (student): multipart content + file ("file") to
+  // POST /schools/:schoolId/homework/:homeworkId/submissions.
+  const [contents, setContents] = useState<Record<string, string>>({});
+  const [files, setFiles] = useState<Record<string, File | null>>({});
+  const [submittingId, setSubmittingId] = useState("");
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Grade action (teacher): POST /schools/:schoolId/submissions/:id/grade.
+  const [gradeId, setGradeId] = useState("");
+  const [grading, setGrading] = useState(false);
 
   const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
   const auth = { Authorization: `Bearer ${token}` };
@@ -41,7 +63,7 @@ export default function HomeworkPage() {
       const response = await fetch(`${api}/api/v1/schools/${schoolId}/homework`, { headers: auth });
       const body = (await response.json()) as { data: { homework: BoardItem[] } } | ApiError;
       if (isFailure(response, body)) {
-                setError(body.error?.message ?? `Request failed (${response.status}).`);
+        setError(body.error?.message ?? `Request failed (${response.status}).`);
         return;
       }
       setItems(body.data.homework);
@@ -58,7 +80,152 @@ export default function HomeworkPage() {
     void load();
   }
 
-  const input = { display: "block", width: "100%", margin: "4px 0 12px", padding: 8 } as const;
+  async function postHomework(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setPosting(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`${api}/api/v1/schools/${schoolId}/homework`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({
+          sectionId: phSection.trim(),
+          subjectId: phSubject.trim(),
+          title: phTitle.trim(),
+          description: phDesc.trim(),
+          dueDate: phDue,
+        }),
+      });
+      const body = (await response.json()) as { data: { homework: { id: string } } } | ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Post failed.");
+      }
+      setPhSection("");
+      setPhSubject("");
+      setPhTitle("");
+      setPhDesc("");
+      setPhDue("");
+      setNotice("Homework posted to the section board.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  async function submitItem(id: string): Promise<void> {
+    const content = (contents[id] ?? "").trim();
+    const file = files[id] ?? null;
+    if (!content && !file) {
+      setError("Write an answer or attach a file first.");
+      return;
+    }
+    setSubmittingId(id);
+    setError("");
+    setNotice("");
+    try {
+      const form = new FormData();
+      if (content) {
+        form.append("content", content);
+      }
+      if (file) {
+        form.append("file", file);
+      }
+      const response = await fetch(`${api}/api/v1/schools/${schoolId}/homework/${id}/submissions`, {
+        method: "POST",
+        headers: { ...auth },
+        body: form,
+      });
+      const body = (await response.json()) as { data: { submission: { id: string } } } | ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Submit failed.");
+      }
+      setContents((prev) => ({ ...prev, [id]: "" }));
+      setFiles((prev) => ({ ...prev, [id]: null }));
+      const input = fileRefs.current[id];
+      if (input) {
+        input.value = "";
+      }
+      setNotice("Submitted — your teacher will grade it soon.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setSubmittingId("");
+    }
+  }
+
+  async function gradeSubmission(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setGrading(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`${api}/api/v1/schools/${schoolId}/submissions/${gradeId.trim()}/grade`, {
+        method: "POST",
+        headers: { ...auth },
+      });
+      const body = (await response.json()) as { data: { submission: { id: string } } } | ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Grading failed.");
+      }
+      setGradeId("");
+      setNotice("Submission marked as graded.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setGrading(false);
+    }
+  }
+
+  function fmtDue(iso: string): string {
+    const parsed = new Date(`${iso}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleDateString("en-GB");
+  }
+
+  const page: React.CSSProperties = {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: 28,
+    fontFamily: "Inter, system-ui, sans-serif",
+    background: "#F8FAFC",
+    minHeight: "100vh",
+  };
+  const input: React.CSSProperties = {
+    display: "block",
+    width: "100%",
+    margin: "4px 0 12px",
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #CBD5E1",
+  };
+  const primaryBtn: React.CSSProperties = {
+    background: "#2563EB",
+    color: "#fff",
+    border: 0,
+    borderRadius: 10,
+    padding: "10px 16px",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+  };
+  const quietBtn: React.CSSProperties = {
+    background: "#fff",
+    color: "#334155",
+    border: "1px solid #E2E8F0",
+    borderRadius: 10,
+    padding: "10px 16px",
+    fontWeight: 500,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+  };
   const card: React.CSSProperties = {
     background: "#fff",
     borderRadius: 14,
@@ -91,13 +258,22 @@ export default function HomeworkPage() {
       : { label: "Submitted", color: "#2563EB" };
   };
 
+  const sectionOptions = [...new Map(items.map((i) => [i.section.id, i.section])).values()];
   const empty = !loading && connected && items.length === 0;
 
   return (
-    <main style={{ maxWidth: 900, margin: "32px auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
-      <h1>Homework</h1>
+    <main style={page}>
+      <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
+        <BookOpen size={22} aria-hidden="true" color="#2563EB" /> Homework
+      </h1>
+      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
+        One board per role — post it, submit it, grade it.
+      </p>
       {!connected ? (
-        <form onSubmit={connect}>
+        <form
+          onSubmit={connect}
+          style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}
+        >
           <label>
             School ID
             <input style={input} value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required />
@@ -106,27 +282,120 @@ export default function HomeworkPage() {
             Bearer token (dev only — login screen replaces this)
             <input style={input} value={token} onChange={(e) => setToken(e.target.value)} required />
           </label>
-          <button type="submit">Connect</button>
+          <button type="submit" style={primaryBtn}>
+            Connect
+          </button>
         </form>
       ) : (
         <>
-          <button type="button" onClick={() => void load()} disabled={loading} style={{ marginBottom: 12 }}>
-            Reload
-          </button>
+          <div className="sf-row-wrap" style={{ marginBottom: 12 }}>
+            <button type="button" onClick={() => void load()} disabled={loading} style={{ ...quietBtn, opacity: loading ? 0.6 : 1 }}>
+              <RefreshCw size={14} aria-hidden="true" /> Reload
+            </button>
+          </div>
+          <section style={card}>
+            <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A", display: "flex", alignItems: "center", gap: 6 }}>
+              <Plus size={16} aria-hidden="true" /> Post homework (teacher)
+            </h2>
+            <form onSubmit={postHomework}>
+              <div className="sf-row-wrap">
+                <label style={{ flex: 1, minWidth: 200 }}>
+                  Section
+                  {sectionOptions.length > 0 ? (
+                    <select
+                      style={input}
+                      value={phSection}
+                      onChange={(e) => setPhSection(e.target.value)}
+                      aria-label="Section ID"
+                    >
+                      <option value="">— pick a section —</option>
+                      {sectionOptions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.className} {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      style={input}
+                      value={phSection}
+                      onChange={(e) => setPhSection(e.target.value)}
+                      placeholder="Section ID"
+                      required
+                      aria-label="Section ID"
+                    />
+                  )}
+                </label>
+                <label style={{ flex: 1, minWidth: 200 }}>
+                  Subject ID
+                  <input
+                    style={input}
+                    value={phSubject}
+                    onChange={(e) => setPhSubject(e.target.value)}
+                    placeholder="Subject ID you teach"
+                    required
+                  />
+                </label>
+                <label style={{ flex: 1, minWidth: 200 }}>
+                  Due date
+                  <input style={input} type="date" value={phDue} onChange={(e) => setPhDue(e.target.value)} required />
+                </label>
+              </div>
+              <label>
+                Title
+                <input
+                  style={input}
+                  value={phTitle}
+                  onChange={(e) => setPhTitle(e.target.value)}
+                  placeholder="Algebra Worksheet 2"
+                  required
+                />
+              </label>
+              <label>
+                Description
+                <textarea
+                  style={{ ...input, minHeight: 72 }}
+                  value={phDesc}
+                  onChange={(e) => setPhDesc(e.target.value)}
+                  placeholder="Solve problems 21 through 40 from chapter 3 before Friday."
+                  required
+                />
+              </label>
+              <button type="submit" disabled={posting} style={{ ...primaryBtn, opacity: posting ? 0.6 : 1 }}>
+                <Plus size={14} aria-hidden="true" /> {posting ? "Posting…" : "Post homework"}
+              </button>
+            </form>
+          </section>
+          <section style={card}>
+            <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A", display: "flex", alignItems: "center", gap: 6 }}>
+              <CheckCircle2 size={16} aria-hidden="true" /> Grade a submission (teacher)
+            </h2>
+            <form onSubmit={gradeSubmission} className="sf-row-wrap">
+              <input
+                style={{ flex: 1, minWidth: 220, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }}
+                value={gradeId}
+                onChange={(e) => setGradeId(e.target.value)}
+                placeholder="Submission ID from a student's submit"
+                required
+                aria-label="Submission ID"
+              />
+              <button type="submit" disabled={grading} style={{ ...quietBtn, opacity: grading ? 0.6 : 1 }}>
+                <CheckCircle2 size={14} aria-hidden="true" /> {grading ? "Grading…" : "Mark graded"}
+              </button>
+            </form>
+          </section>
           {loading ? (
-            <div>
-              {[0, 1, 2].map((i) => (
-                <div key={i} style={{ height: 96, borderRadius: 14, background: "#F1F5F9", marginBottom: 12 }} />
-              ))}
-            </div>
+            <SkeletonBlocks rows={3} height={96} />
           ) : empty ? (
-            <div style={{ ...card, textAlign: "center", padding: 32 }}>
-              <h2 style={{ marginTop: 0 }}>Nothing pending</h2>
-              <p style={{ color: "#64748B" }}>No homework assigned here yet — you are all caught up.</p>
-            </div>
+            <EmptyState
+              icon={<BookOpen size={22} aria-hidden="true" />}
+              title="Nothing pending"
+              detail="No homework assigned here yet — you are all caught up."
+            />
           ) : (
             items.map((item) => {
               const status = statusOf(item);
+              const busy = submittingId === item.id;
               return (
                 <article key={item.id} style={card}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -136,14 +405,46 @@ export default function HomeworkPage() {
                   <p style={{ color: "#334155" }}>{item.description}</p>
                   <small style={{ color: "#64748B" }}>
                     {item.subject.name} · {item.section.className} {item.section.name} · {item.teacher.name} · due{" "}
-                    {item.dueDate}
+                    {fmtDue(item.dueDate)}
                   </small>
+                  <div style={{ marginTop: 12, borderTop: "1px solid #F1F5F9", paddingTop: 12 }}>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 4 }}>
+                      Your answer (student)
+                    </label>
+                    <textarea
+                      style={{ ...input, minHeight: 64 }}
+                      value={contents[item.id] ?? ""}
+                      onChange={(e) => setContents((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                      placeholder="Type your answers here…"
+                      aria-label={`Answer for ${item.title}`}
+                    />
+                    <div className="sf-row-wrap">
+                      <input
+                        ref={(el) => {
+                          fileRefs.current[item.id] = el;
+                        }}
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf"
+                        onChange={(e) => setFiles((prev) => ({ ...prev, [item.id]: e.target.files?.[0] ?? null }))}
+                        aria-label={`File for ${item.title}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void submitItem(item.id)}
+                        disabled={busy}
+                        style={{ ...quietBtn, opacity: busy ? 0.6 : 1 }}
+                      >
+                        <Send size={14} aria-hidden="true" /> {busy ? "Submitting…" : "Submit"}
+                      </button>
+                    </div>
+                  </div>
                 </article>
               );
             })
           )}
         </>
       )}
+      {notice ? <p style={{ color: "#059669" }}>{notice}</p> : null}
       {error ? (
         <p role="alert" style={{ color: "#DC2626" }}>
           {error}

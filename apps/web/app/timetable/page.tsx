@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useState, type FormEvent } from "react";
+import { CalendarDays } from "lucide-react";
+import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 
 interface BoardSlot {
@@ -103,7 +105,53 @@ export default function TimetablePage() {
   const cell = (day: number, period: number): BoardSlot | undefined =>
     slots.find((s) => s.dayOfWeek === day && s.period === period);
 
-  const input = { display: "block", width: "100%", margin: "4px 0 12px", padding: 8 } as const;
+  const page: React.CSSProperties = {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: 28,
+    fontFamily: "Inter, system-ui, sans-serif",
+    background: "#F8FAFC",
+    minHeight: "100vh",
+  };
+  const input: React.CSSProperties = {
+    display: "block",
+    width: "100%",
+    margin: "4px 0 12px",
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #CBD5E1",
+  };
+  const primaryBtn: React.CSSProperties = {
+    background: "#2563EB",
+    color: "#fff",
+    border: 0,
+    borderRadius: 10,
+    padding: "10px 16px",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+  };
+  const quietBtn: React.CSSProperties = {
+    background: "#fff",
+    color: "#334155",
+    border: "1px solid #E2E8F0",
+    borderRadius: 10,
+    padding: "10px 16px",
+    fontWeight: 500,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+  };
+  const lensBtn = (active: boolean): React.CSSProperties => ({
+    ...quietBtn,
+    borderColor: active ? "#2563EB" : "#E2E8F0",
+    color: active ? "#2563EB" : "#334155",
+    background: active ? "#EFF6FF" : "#fff",
+    fontWeight: active ? 600 : 500,
+  });
   const th: React.CSSProperties = {
     padding: "10px 12px",
     color: "#2563EB",
@@ -113,10 +161,18 @@ export default function TimetablePage() {
   const td: React.CSSProperties = { padding: "10px 12px", fontSize: 13, border: "1px solid #F1F5F9", minWidth: 120 };
 
   return (
-    <main style={{ maxWidth: 1000, margin: "32px auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
-      <h1>Timetable</h1>
+    <main style={page}>
+      <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
+        <CalendarDays size={22} aria-hidden="true" color="#2563EB" /> Timetable
+      </h1>
+      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
+        Section board first — flip the lens for your own teaching week.
+      </p>
       {!connected ? (
-        <form onSubmit={connect}>
+        <form
+          onSubmit={connect}
+          style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}
+        >
           <label>
             School ID
             <input style={input} value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required />
@@ -125,22 +181,24 @@ export default function TimetablePage() {
             Bearer token (dev only — login screen replaces this)
             <input style={input} value={token} onChange={(e) => setToken(e.target.value)} required />
           </label>
-          <button type="submit">Connect</button>
+          <button type="submit" style={primaryBtn}>
+            Connect
+          </button>
         </form>
       ) : (
         <>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }} role="group" aria-label="Board lens">
-            <button type="button" onClick={() => setMode("section")} disabled={mode === "section"}>
+          <div className="sf-row-wrap" style={{ marginBottom: 12 }} role="group" aria-label="Board lens">
+            <button type="button" onClick={() => setMode("section")} style={lensBtn(mode === "section")}>
               Section board
             </button>
-            <button type="button" onClick={() => setMode("teacher")} disabled={mode === "teacher"}>
+            <button type="button" onClick={() => setMode("teacher")} style={lensBtn(mode === "teacher")}>
               My timetable
             </button>
           </div>
           {mode === "section" ? (
-            <form onSubmit={showSection} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <form onSubmit={showSection} className="sf-row-wrap" style={{ marginBottom: 12 }}>
               <select
-                style={{ flex: 1, padding: 8 }}
+                style={{ flex: 1, minWidth: 220, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }}
                 value={sectionId}
                 onChange={(e) => setSectionId(e.target.value)}
                 aria-label="Section"
@@ -152,28 +210,39 @@ export default function TimetablePage() {
                   </option>
                 ))}
               </select>
-              <button type="submit">Show</button>
+              <button type="submit" style={primaryBtn}>
+                Show
+              </button>
             </form>
           ) : (
-            <form onSubmit={showMine} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <input
-                style={{ flex: 1, padding: 8 }}
-                placeholder="My staff ID (dev only — login resolves this later)"
-                value={teacherId}
-                onChange={(e) => setTeacherId(e.target.value)}
-                aria-label="My staff ID"
-              />
-              <button type="submit">Show mine</button>
+            <form onSubmit={showMine} style={{ marginBottom: 12 }}>
+              <div className="sf-row-wrap">
+                <label style={{ flex: 1, minWidth: 220 }}>
+                  My staff ID (dev-only)
+                  <input
+                    style={{ ...input, marginBottom: 4 }}
+                    placeholder="Paste staff ID for now"
+                    value={teacherId}
+                    onChange={(e) => setTeacherId(e.target.value)}
+                    aria-label="My staff ID"
+                  />
+                </label>
+                <button type="submit" style={{ ...quietBtn, alignSelf: "flex-end", marginBottom: 4 }}>
+                  Show mine
+                </button>
+              </div>
+              <small style={{ color: "#64748B" }}>
+                Login will resolve your identity automatically later — pasting an ID is a dev stopgap only.
+              </small>
             </form>
           )}
           {loading ? (
-            <div>
-              {[0, 1, 2].map((i) => (
-                <div key={i} style={{ height: 48, borderRadius: 14, background: "#F1F5F9", marginBottom: 8 }} />
-              ))}
-            </div>
+            <SkeletonBlocks rows={3} height={48} />
           ) : slots.length > 0 ? (
-            <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", overflowX: "auto" }}>
+            <div
+              className="sf-table-scroll"
+              style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)" }}
+            >
               <table style={{ borderCollapse: "collapse", minWidth: "100%" }}>
                 <thead>
                   <tr>
@@ -212,7 +281,11 @@ export default function TimetablePage() {
               </table>
             </div>
           ) : (
-            <p style={{ color: "#64748B" }}>No slots to show yet — pick a section or load your board.</p>
+            <EmptyState
+              icon={<CalendarDays size={22} aria-hidden="true" />}
+              title="No slots to show yet"
+              detail="Pick a section or load your board to see the week."
+            />
           )}
         </>
       )}

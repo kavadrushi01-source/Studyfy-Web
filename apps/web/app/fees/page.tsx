@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, type FormEvent } from "react";
+import { Clock, ReceiptText, Wallet } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
 
 interface InvoiceRow {
@@ -92,6 +93,11 @@ export default function FeesPage() {
     void load({ status: appliedStatus, page: next });
   }
 
+  function fmtDue(iso: string): string {
+    const parsed = new Date(iso);
+    return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleDateString("en-GB");
+  }
+
   const pill = (value: string): React.CSSProperties => {
     const color =
       value === "PAID" ? "#059669" : value === "PENDING" ? "#D97706" : value === "OVERDUE" ? "#DC2626" : value === "PARTIAL" ? "#2563EB" : "#64748B";
@@ -105,13 +111,52 @@ export default function FeesPage() {
     };
   };
 
-  const input = { display: "block", width: "100%", margin: "4px 0 12px", padding: 8 } as const;
+  const pageStyle: React.CSSProperties = {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: 28,
+    fontFamily: "Inter, system-ui, sans-serif",
+    background: "#F8FAFC",
+    minHeight: "100vh",
+  };
+  const input: React.CSSProperties = {
+    display: "block",
+    width: "100%",
+    margin: "4px 0 12px",
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #CBD5E1",
+  };
+  const primaryBtn: React.CSSProperties = {
+    background: "#2563EB",
+    color: "#fff",
+    border: 0,
+    borderRadius: 10,
+    padding: "10px 16px",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+  };
+
+  const headerStats = [
+    { label: "Outstanding", value: `₹${totals.outstanding}`, color: "#0F172A", icon: <Wallet size={16} aria-hidden="true" /> },
+    { label: "Overdue", value: `₹${totals.overdue}`, color: "#DC2626", icon: <Clock size={16} aria-hidden="true" /> },
+    { label: "Invoices", value: String(totals.count), color: "#0F172A", icon: <ReceiptText size={16} aria-hidden="true" /> },
+  ];
 
   return (
-    <main style={{ maxWidth: 900, margin: "32px auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
-      <h1>Fees &amp; Payments</h1>
+    <main style={pageStyle}>
+      <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A" }}>Fees &amp; Payments</h1>
+      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
+        Live ledger — header totals plus the invoice table.
+      </p>
       {!connected ? (
-        <form onSubmit={connect}>
+        <form
+          onSubmit={connect}
+          style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}
+        >
           <label>
             School ID
             <input style={input} value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required />
@@ -120,37 +165,40 @@ export default function FeesPage() {
             Bearer token (dev only — login screen replaces this)
             <input style={input} value={token} onChange={(e) => setToken(e.target.value)} required />
           </label>
-          <button type="submit">Connect</button>
+          <button type="submit" style={primaryBtn}>
+            Connect
+          </button>
         </form>
       ) : (
         <>
           <div
             style={{
               display: "flex",
-              gap: 16,
+              gap: 24,
+              flexWrap: "wrap",
               marginBottom: 12,
               background: "#fff",
               borderRadius: 14,
               boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-              padding: 12,
+              padding: 16,
             }}
           >
-            <div>
-              <small style={{ color: "#64748B" }}>Outstanding</small>
-              <div style={{ fontWeight: 700, fontSize: 18 }}>₹{totals.outstanding}</div>
-            </div>
-            <div>
-              <small style={{ color: "#64748B" }}>Overdue</small>
-              <div style={{ fontWeight: 700, fontSize: 18, color: "#DC2626" }}>₹{totals.overdue}</div>
-            </div>
-            <div>
-              <small style={{ color: "#64748B" }}>Invoices</small>
-              <div style={{ fontWeight: 700, fontSize: 18 }}>{totals.count}</div>
-            </div>
+            {headerStats.map((stat) => (
+              <div key={stat.label}>
+                <small style={{ color: "#64748B", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ color: "#94A3B8", display: "inline-flex" }}>{stat.icon}</span> {stat.label}
+                </small>
+                {loading ? (
+                  <div className="sf-skeleton" style={{ height: 26, width: 110, borderRadius: 6, background: "#F1F5F9", marginTop: 4 }} />
+                ) : (
+                  <div style={{ fontWeight: 700, fontSize: 18, color: stat.color }}>{stat.value}</div>
+                )}
+              </div>
+            ))}
           </div>
-          <form onSubmit={applyFilter} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <form onSubmit={applyFilter} className="sf-row-wrap" style={{ marginBottom: 12 }}>
             <select
-              style={{ flex: 1, padding: 8 }}
+              style={{ flex: 1, minWidth: 200, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }}
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               aria-label="Filter by status"
@@ -162,7 +210,9 @@ export default function FeesPage() {
               <option value="OVERDUE">Overdue</option>
               <option value="REFUNDED">Refunded</option>
             </select>
-            <button type="submit">Filter</button>
+            <button type="submit" style={primaryBtn}>
+              Filter
+            </button>
           </form>
           <DataTable<InvoiceRow>
             columns={[
@@ -170,7 +220,7 @@ export default function FeesPage() {
               { key: "head", label: "Fee head", render: (r) => r.structure?.name ?? "—" },
               { key: "amount", label: "Amount", render: (r) => `₹${r.amount}` },
               { key: "paid", label: "Paid", render: (r) => `₹${r.amountPaid}` },
-              { key: "due", label: "Due", render: (r) => r.dueDate },
+              { key: "due", label: "Due", render: (r) => fmtDue(r.dueDate) },
               { key: "status", label: "Status", render: (r) => <span style={pill(r.status)}>{r.status}</span> },
             ]}
             rows={rows}

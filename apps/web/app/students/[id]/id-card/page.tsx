@@ -13,12 +13,17 @@ interface Profile {
 // Printable ID card (spec §8.5: print stylesheets for ID cards). The PDF
 // endpoint is the downloadable artifact; this page is the print path —
 // same data, CR80-sized card, app chrome hidden in print.
+// Role-agnostic page: NOT wrapped in Shell (Shell requires a role prop —
+// forcing one would badge the wrong role), so this page carries the
+// light-canvas background, Inter font, and 1120/padding-28 rhythm directly.
+// The school name input starts empty and is required: a placeholder name
+// must never be printed on a real card.
 export default function IdCardPrintPage() {
   const [schoolId, setSchoolId] = useState("");
   const [studentId, setStudentId] = useState("");
   const [token, setToken] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [schoolName, setSchoolName] = useState("Studyfy School");
+  const [schoolName, setSchoolName] = useState("");
   const [error, setError] = useState("");
 
   async function onLoad(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -34,7 +39,7 @@ export default function IdCardPrintPage() {
         | { data: { student: Profile & { section: { class: { name: string } } } } }
         | { error: { message: string } };
       if (isFailure(response, body)) {
-                setError(body.error?.message ?? `Request failed (${response.status}).`);
+        setError(body.error?.message ?? `Request failed (${response.status}).`);
         return;
       }
       setProfile(body.data.student);
@@ -43,8 +48,40 @@ export default function IdCardPrintPage() {
     }
   }
 
+  const primaryBtn = {
+    background: "#2563EB",
+    color: "#fff",
+    border: "1px solid #2563EB",
+    borderRadius: 8,
+    padding: "8px 16px",
+    cursor: "pointer",
+  } as const;
+  const secondaryBtn = {
+    background: "#fff",
+    color: "#0F172A",
+    border: "1px solid #CBD5E1",
+    borderRadius: 8,
+    padding: "8px 16px",
+    cursor: "pointer",
+  } as const;
+  const card = {
+    background: "#fff",
+    borderRadius: 16,
+    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
+    padding: 20,
+  } as const;
+
   return (
-    <main style={{ maxWidth: 560, margin: "32px auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
+    <main
+      style={{
+        maxWidth: 1120,
+        margin: "0 auto",
+        padding: 28,
+        fontFamily: "Inter, system-ui, sans-serif",
+        background: "#F8FAFC",
+        minHeight: "100vh",
+      }}
+    >
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -57,15 +94,16 @@ export default function IdCardPrintPage() {
           @page { size: 3.375in 2.125in; margin: 0; }
         }
       `}</style>
-      <div className="no-print">
-        <h1>ID Card — Print</h1>
-        <form onSubmit={onLoad}>
+      <div className="no-print" style={{ maxWidth: 640 }}>
+        <h1 style={{ color: "#0F172A" }}>ID Card — Print</h1>
+        <form onSubmit={onLoad} style={card}>
           <label>
-            School name (printed header)
+            School name (as printed)
             <input
               style={{ display: "block", width: "100%", margin: "4px 0 12px", padding: 8 }}
               value={schoolName}
               onChange={(e) => setSchoolName(e.target.value)}
+              required
             />
           </label>
           <label>
@@ -95,7 +133,9 @@ export default function IdCardPrintPage() {
               required
             />
           </label>
-          <button type="submit">Load card</button>
+          <button type="submit" style={secondaryBtn}>
+            Load card
+          </button>
         </form>
         {error ? (
           <p role="alert" style={{ color: "#DC2626" }}>
@@ -117,7 +157,7 @@ export default function IdCardPrintPage() {
               marginTop: 16,
             }}
           >
-            <div style={{ background: "#0D9488", color: "#fff", padding: "6px 10px" }}>
+            <div style={{ background: "#0F172A", color: "#fff", padding: "6px 10px" }}>
               <div style={{ fontWeight: 700, fontSize: 13 }}>{schoolName}</div>
               <div style={{ fontSize: 9, letterSpacing: 1 }}>STUDENT IDENTITY CARD</div>
             </div>
@@ -132,7 +172,7 @@ export default function IdCardPrintPage() {
                   alignItems: "center",
                   justifyContent: "center",
                   fontWeight: 700,
-                  color: "#0D9488",
+                  color: "#0F172A",
                   fontSize: 20,
                 }}
               >
@@ -153,7 +193,7 @@ export default function IdCardPrintPage() {
               </div>
             </div>
           </div>
-          <button type="button" className="no-print" style={{ marginTop: 12 }} onClick={() => window.print()}>
+          <button type="button" className="no-print" style={{ ...primaryBtn, marginTop: 12 }} onClick={() => window.print()}>
             Print card
           </button>
         </>

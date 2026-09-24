@@ -1,4 +1,16 @@
 import Link from "next/link";
+import {
+  Award,
+  BarChart3,
+  Bell,
+  CalendarDays,
+  ClipboardCheck,
+  FileText,
+  MessageCircle,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 
 // Public marketing site (§7 Phase 1 #10, copy per §8.3). Exclusions
 // honored (§8.1): no invented customer stats, no app-store badges, and the
@@ -8,16 +20,16 @@ import Link from "next/link";
 const PRIMARY = "#2563EB";
 const NAVY = "#0F172A";
 
-const FEATURES: { title: string; detail: string }[] = [
-  { title: "Student Management", detail: "Admissions, profiles, documents, and printable ID cards." },
-  { title: "Attendance", detail: "Daily marking with monthly summaries and absentee email alerts." },
-  { title: "Fees & Payments", detail: "Structures, invoices, counter collections, and PDF receipts." },
-  { title: "Exams & Marks", detail: "Schedules, bulk marks entry, auto grades, ranks, and report cards." },
-  { title: "Timetable", detail: "Conflict-free auto-generated weekly timetables." },
-  { title: "Homework", detail: "Post assignments, collect submissions, grade them." },
-  { title: "Notices", detail: "School, class, and section announcements with email delivery." },
-  { title: "Parent Communication", detail: "Scoped 1:1 teacher–parent messaging with admin oversight." },
-  { title: "Reports & Analytics", detail: "Role dashboards with live KPIs for every stakeholder." },
+const FEATURES: { title: string; detail: string; icon: LucideIcon }[] = [
+  { title: "Student Management", detail: "Admissions, profiles, documents, and printable ID cards.", icon: Users },
+  { title: "Attendance", detail: "Daily marking with monthly summaries and absentee email alerts.", icon: ClipboardCheck },
+  { title: "Fees & Payments", detail: "Structures, invoices, counter collections, and PDF receipts.", icon: Wallet },
+  { title: "Exams & Marks", detail: "Schedules, bulk marks entry, auto grades, ranks, and report cards.", icon: Award },
+  { title: "Timetable", detail: "Conflict-free auto-generated weekly timetables.", icon: CalendarDays },
+  { title: "Homework", detail: "Post assignments, collect submissions, grade them.", icon: FileText },
+  { title: "Notices", detail: "School, class, and section announcements with email delivery.", icon: Bell },
+  { title: "Parent Communication", detail: "Scoped 1:1 teacher–parent messaging with admin oversight.", icon: MessageCircle },
+  { title: "Reports & Analytics", detail: "Role dashboards with live KPIs for every stakeholder.", icon: BarChart3 },
 ];
 
 const PLANS: { name: string; price: string; popular: boolean; points: string[] }[] = [
@@ -65,7 +77,7 @@ export default function LandingPage() {
       </header>
 
       <main id="top" style={{ maxWidth: 1120, margin: "0 auto", padding: "48px 32px" }}>
-        <section style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, alignItems: "center", padding: "32px 0 64px" }}>
+        <section className="sf-grid-hero">
           <div>
             <h1 style={{ fontSize: 44, lineHeight: 1.15, margin: "0 0 16px" }}>Modern School Management System for a Brighter Future</h1>
             <p style={{ fontSize: 17, color: "#475569", margin: "0 0 8px" }}>
@@ -99,21 +111,27 @@ export default function LandingPage() {
         <section id="features" style={{ padding: "32px 0" }}>
           <h2 style={{ fontSize: 30, textAlign: "center", margin: "0 0 8px" }}>Everything You Need in One Platform</h2>
           <p style={{ textAlign: "center", color: "#64748B", margin: "0 0 28px" }}>Nine modules that cover the full school day.</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-            {FEATURES.map((feature) => (
-              <div key={feature.title} style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 16, padding: 20 }}>
+          <div className="sf-grid-3">
+            {FEATURES.map((feature) => {
+              const Icon = feature.icon;
+              return (
+              <div key={feature.title} style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 16, padding: 20, boxShadow: "0 1px 3px rgba(15,23,42,.08)" }}>
+                <span style={{ color: PRIMARY, display: "inline-flex", marginBottom: 8 }}>
+                  <Icon size={22} />
+                </span>
                 <h3 style={{ fontSize: 16, margin: "0 0 6px" }}>{feature.title}</h3>
                 <p style={{ fontSize: 14, color: "#64748B", margin: 0 }}>{feature.detail}</p>
               </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
         <section id="pricing" style={{ padding: "48px 0" }}>
           <h2 style={{ fontSize: 30, textAlign: "center", margin: "0 0 28px" }}>Simple, Transparent Pricing</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+          <div className="sf-grid-3">
             {PLANS.map((plan) => (
-              <div key={plan.name} style={{ border: plan.popular ? `2px solid ${PRIMARY}` : "1px solid #E2E8F0", borderRadius: 16, padding: 24, position: "relative", background: "#fff" }}>
+              <div key={plan.name} style={{ border: plan.popular ? `2px solid ${PRIMARY}` : "1px solid #E2E8F0", borderRadius: 16, padding: 24, position: "relative", background: "#fff", boxShadow: "0 1px 3px rgba(15,23,42,.08)" }}>
                 {plan.popular ? (
                   <span style={{ position: "absolute", top: -12, left: 24, background: PRIMARY, color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 999, padding: "3px 12px" }}>Most Popular</span>
                 ) : null}
