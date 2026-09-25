@@ -143,6 +143,11 @@ npm audit --audit-level=high
     difference was the API + web dev servers competing for CPU/MySQL.
     Rule: stop dev servers before a verification suite run, or treat a
     lone red run as suspect until one clean re-run.
+21. **Grade-by-typing-a-submission-ID (2026-09-24).** The homework grade
+    box needed an ID no screen ever displayed — grading through the UI
+    was effectively impossible. Teacher board rows now carry pending
+    submission ids + names (students get null — no leak), and the box is
+    per-submission Grade buttons. Regression test asserts both sides.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

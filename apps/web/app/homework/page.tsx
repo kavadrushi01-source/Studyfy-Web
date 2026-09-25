@@ -17,6 +17,7 @@ interface BoardItem {
   teacher: { name: string };
   mySubmissions: { studentId: string; status: string }[];
   counts: { total: number; submitted: number; graded: number } | null;
+  pending: { id: string; studentName: string }[] | null;
 }
 
 interface ApiError {
@@ -52,8 +53,9 @@ export default function HomeworkPage() {
   const [subjectOptions, setSubjectOptions] = useState<{ id: string; name: string }[]>([]);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   // Grade action (teacher): POST /schools/:schoolId/submissions/:id/grade.
-  const [gradeId, setGradeId] = useState("");
-  const [grading, setGrading] = useState(false);
+  // Buttons render per pending submission from the board rows — no ID
+  // hunting (ids come from the same call that shows the counts).
+  const [gradingId, setGradingId] = useState("");
 
   const load = useCallback(async () => {
     if (!schoolId) {
@@ -177,30 +179,28 @@ export default function HomeworkPage() {
     }
   }
 
-  async function gradeSubmission(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
+  async function gradeOne(submissionId: string): Promise<void> {
     if (!schoolId) {
       setError("Please sign in to grade a submission.");
       return;
     }
-    setGrading(true);
+    setGradingId(submissionId);
     setError("");
     setNotice("");
     try {
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/submissions/${gradeId.trim()}/grade`, {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/submissions/${submissionId}/grade`, {
         method: "POST",
       });
       const body = (await response.json()) as { data: { submission: { id: string } } } | ApiError;
       if (isFailure(response, body)) {
         throw new Error(body.error?.message ?? "Grading failed.");
       }
-      setGradeId("");
       setNotice("Submission marked as graded.");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
-      setGrading(false);
+      setGradingId("");
     }
   }
 
@@ -415,21 +415,34 @@ export default function HomeworkPage() {
       </section>
       <section style={card}>
         <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A", display: "flex", alignItems: "center", gap: 6 }}>
-          <CheckCircle2 size={16} aria-hidden="true" /> Grade a submission (teacher)
+          <CheckCircle2 size={16} aria-hidden="true" /> Grade submissions (teacher)
         </h2>
-        <form onSubmit={gradeSubmission} className="sf-row-wrap">
-          <input
-            style={{ flex: 1, minWidth: 220, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }}
-            value={gradeId}
-            onChange={(e) => setGradeId(e.target.value)}
-            placeholder="Submission ID from a student's submit"
-            required
-            aria-label="Submission ID"
-          />
-          <button type="submit" disabled={grading} style={{ ...quietBtn, opacity: grading ? 0.6 : 1 }}>
-            <CheckCircle2 size={14} aria-hidden="true" /> {grading ? "Grading…" : "Mark graded"}
-          </button>
-        </form>
+        {items.every((item) => (item.pending ?? []).length === 0) ? (
+          <p style={{ color: "#64748B", fontSize: 14, margin: 0 }}>Nothing waiting for a grade right now.</p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+            {items.flatMap((item) =>
+              (item.pending ?? []).map((sub) => (
+                <li
+                  key={sub.id}
+                  style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid #F1F5F9", fontSize: 14 }}
+                >
+                  <span style={{ flex: 1, color: "#0F172A" }}>
+                    {sub.studentName} <span style={{ color: "#64748B" }}>· {item.title}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void gradeOne(sub.id)}
+                    disabled={gradingId === sub.id}
+                    style={{ ...quietBtn, opacity: gradingId === sub.id ? 0.6 : 1 }}
+                  >
+                    <CheckCircle2 size={14} aria-hidden="true" /> {gradingId === sub.id ? "Grading…" : "Mark graded"}
+                  </button>
+                </li>
+              )),
+            )}
+          </ul>
+        )}
       </section>
       {loading ? (
         <SkeletonBlocks rows={3} height={96} />

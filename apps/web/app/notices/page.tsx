@@ -36,6 +36,7 @@ export default function NoticesPage() {
   const [target, setTarget] = useState<Target>("SCHOOL");
   const [classId, setClassId] = useState("");
   const [sectionId, setSectionId] = useState("");
+  const [sectionOptions, setSectionOptions] = useState<{ id: string; name: string; classId: string; className: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
@@ -55,6 +56,16 @@ export default function NoticesPage() {
         return;
       }
       setNotices(data.data.notices);
+      // Class/section dropdowns for targeting (names, not IDs).
+      const sectionsRes = await apiFetch(`/api/v1/schools/${schoolId}/sections`);
+      const sectionsBody = (await sectionsRes.json()) as {
+        data: { sections: { id: string; name: string; class: { id: string; name: string } }[] };
+      } | ApiError;
+      if (!isFailure(sectionsRes, sectionsBody)) {
+        setSectionOptions(
+          sectionsBody.data.sections.map((s) => ({ id: s.id, name: s.name, classId: s.class.id, className: s.class.name })),
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
@@ -208,26 +219,48 @@ export default function NoticesPage() {
             </label>
             {target === "CLASS" ? (
               <label style={{ flex: 1, minWidth: 180 }}>
-                Class ID
-                <input
-                  style={input}
-                  value={classId}
-                  onChange={(e) => setClassId(e.target.value)}
-                  placeholder="Class ID for class-wide notice"
-                  required
-                />
+                Class
+                {sectionOptions.length > 0 ? (
+                  <select style={input} value={classId} onChange={(e) => setClassId(e.target.value)} required aria-label="Class">
+                    <option value="">— pick a class —</option>
+                    {[...new Map(sectionOptions.map((s) => [s.classId, s.className])).entries()].map(([id, name]) => (
+                      <option key={id} value={id}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    style={input}
+                    value={classId}
+                    onChange={(e) => setClassId(e.target.value)}
+                    placeholder="Class ID for class-wide notice"
+                    required
+                  />
+                )}
               </label>
             ) : null}
             {target === "SECTION" ? (
               <label style={{ flex: 1, minWidth: 180 }}>
-                Section ID
-                <input
-                  style={input}
-                  value={sectionId}
-                  onChange={(e) => setSectionId(e.target.value)}
-                  placeholder="Section ID for section notice"
-                  required
-                />
+                Section
+                {sectionOptions.length > 0 ? (
+                  <select style={input} value={sectionId} onChange={(e) => setSectionId(e.target.value)} required aria-label="Section">
+                    <option value="">— pick a section —</option>
+                    {sectionOptions.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.className} {s.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    style={input}
+                    value={sectionId}
+                    onChange={(e) => setSectionId(e.target.value)}
+                    placeholder="Section ID for section notice"
+                    required
+                  />
+                )}
               </label>
             ) : null}
           </div>

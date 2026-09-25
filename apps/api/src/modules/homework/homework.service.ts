@@ -235,6 +235,10 @@ export interface BoardItem {
   mySubmissions: { studentId: string; status: string }[];
   // Present for staff: grading workload per assignment.
   counts: { total: number; submitted: number; graded: number } | null;
+  // Staff only: ungraded submissions with author names, so grading needs
+  // no ID hunting (null for students/parents — submission ids of other
+  // pupils must never leak to them).
+  pending: { id: string; studentName: string }[] | null;
 }
 
 // Homework board (§7 Phase 1 #6): one endpoint, role-shaped rows.
@@ -278,6 +282,7 @@ export async function homeworkBoard(
         teacher: { name: row.teacher.user.name },
         mySubmissions: row.submissions.map((s) => ({ studentId: s.studentId, status: s.status })),
         counts: null,
+        pending: null,
       })),
     };
   }
@@ -296,7 +301,11 @@ export async function homeworkBoard(
       subject: { select: { name: true } },
       section: { select: { id: true, name: true, class: { select: { name: true } } } },
       teacher: { select: { user: { select: { name: true } } } },
-      submissions: { select: { status: true } },
+      submissions: {
+        select: { id: true, status: true, student: { select: { user: { select: { name: true } } } } },
+        orderBy: { submittedAt: "asc" },
+        take: 100,
+      },
     },
     orderBy: { dueDate: "asc" },
     take: 100,
@@ -315,6 +324,10 @@ export async function homeworkBoard(
         teacher: { name: row.teacher.user.name },
         mySubmissions: [],
         counts: { total: row.submissions.length, submitted, graded },
+        pending: row.submissions
+          .filter((s) => s.status === "SUBMITTED")
+          .slice(0, 20)
+          .map((s) => ({ id: s.id, studentName: s.student.user.name })),
       };
     }),
   };

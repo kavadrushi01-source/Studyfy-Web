@@ -104,6 +104,7 @@ interface BoardItem {
   title: string;
   mySubmissions: { studentId: string; status: string }[];
   counts: { total: number; submitted: number; graded: number } | null;
+  pending: { id: string; studentName: string }[] | null;
 }
 
 describe("GET /api/v1/schools/:schoolId/homework (boards)", () => {
@@ -151,6 +152,13 @@ describe("GET /api/v1/schools/:schoolId/homework (boards)", () => {
     expect(teacherRows.map((r) => r.id).sort()).toEqual([hwA, hwB].sort());
     const hwARow = teacherRows.find((r) => r.id === hwA);
     expect(hwARow?.counts).toEqual({ total: 1, submitted: 1, graded: 0 });
+    // Pending carries gradeable ids + names (no ID hunting in the UI)...
+    expect(hwARow?.pending).toHaveLength(1);
+    expect(hwARow?.pending?.[0]?.studentName).toBe("Board Student");
+
+    // ...while pupils see none of it (no other pupil's submission ids leak).
+    const pupilRow = (after.body.data.homework as BoardItem[])[0];
+    expect(pupilRow?.pending).toBeNull();
 
     // Admin: everything.
     const adminBoard = await request(app)

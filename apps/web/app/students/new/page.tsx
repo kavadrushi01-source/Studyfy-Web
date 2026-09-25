@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { SkeletonBlocks } from "../../../components/ui/shell";
 import { isFailure } from "../../../lib/api";
@@ -35,6 +35,30 @@ export default function AdmitStudentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<AdmitSuccess | null>(null);
   const [error, setError] = useState("");
+  const [sectionOptions, setSectionOptions] = useState<{ id: string; name: string; className: string }[]>([]);
+
+  // Section dropdown (names, not IDs — a typed ID 404s with
+  // "Section not found in this school").
+  useEffect(() => {
+    if (!ready || !token || !schoolId) {
+      return;
+    }
+    void (async () => {
+      try {
+        const response = await apiFetch(`/api/v1/schools/${schoolId}/sections`);
+        const body = (await response.json()) as {
+          data: { sections: { id: string; name: string; class: { name: string } }[] };
+        } | ApiError;
+        if (!isFailure(response, body)) {
+          setSectionOptions(
+            body.data.sections.map((s) => ({ id: s.id, name: s.name, className: s.class.name })),
+          );
+        }
+      } catch {
+        // Dropdown stays a text input below — posting still validates.
+      }
+    })();
+  }, [ready, token, schoolId, apiFetch]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -134,8 +158,19 @@ export default function AdmitStudentPage() {
           <input style={input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </label>
         <label>
-          Section ID
-          <input style={input} value={sectionId} onChange={(e) => setSectionId(e.target.value)} required />
+          Section
+          {sectionOptions.length > 0 ? (
+            <select style={input} value={sectionId} onChange={(e) => setSectionId(e.target.value)} required aria-label="Section">
+              <option value="">— pick a section —</option>
+              {sectionOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.className} {s.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input style={input} value={sectionId} onChange={(e) => setSectionId(e.target.value)} required placeholder="Section ID" aria-label="Section ID" />
+          )}
         </label>
         <label>
           Admission no. (optional)
