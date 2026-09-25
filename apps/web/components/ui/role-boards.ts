@@ -57,7 +57,7 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
       { label: "Dashboard", href: "/dashboard/accountant" },
       { label: "Fees & Payments", href: "/fees" },
       { label: "Invoices", href: "/fees" },
-      { label: "Payments & Receipts", href: "/fees" },
+      { label: "Payments & Receipts", href: "/fees/payments" },
       { label: "Collection Reports", href: null },
       { label: "Student Fee Ledger", href: null },
       { label: "Reports & Analytics", href: null },

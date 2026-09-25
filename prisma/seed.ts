@@ -502,8 +502,15 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
     );
     const profile = await db.student.upsert({
       where: { userId },
-      update: { sectionId },
-      create: { schoolId: school.id, userId, sectionId },
+      // admissionNo set on update too: re-running the seed backfills rows
+      // admitted before numbers existed, so the roster never shows blanks.
+      update: { sectionId, admissionNo: `ADM-${school.slug === "school-of-science" ? "SOS" : "RKS"}-2026-${String(index + 1).padStart(3, "0")}` },
+      create: {
+        schoolId: school.id,
+        userId,
+        sectionId,
+        admissionNo: `ADM-${school.slug === "school-of-science" ? "SOS" : "RKS"}-2026-${String(index + 1).padStart(3, "0")}`,
+      },
     });
     for (const guardian of student.guardians) {
       const guardianEmail = emailFor(guardian.first, guardian.last, spec.emailDomain);

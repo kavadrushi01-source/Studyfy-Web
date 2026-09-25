@@ -4,7 +4,7 @@ import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { schoolDay } from "../../lib/school-time.js";
 import { invalidateAccountantBoards, invalidateActivityFeed, invalidateFeeKpis, invalidateStudentBoards } from "../metrics/metrics.service.js";
 import { AuthError } from "../auth/auth.service.js";
-import type { CreateStructureInput, GenerateInvoicesInput, ListInvoicesInput, RecordPaymentInput } from "./fees.schemas.js";
+import type { CreateStructureInput, GenerateInvoicesInput, ListInvoicesInput, ListPaymentsInput, RecordPaymentInput } from "./fees.schemas.js";
 
 export interface InvoiceLedger {
   invoices: {
@@ -18,6 +18,60 @@ export interface InvoiceLedger {
     structure: { name: string } | null;
   }[];
   totals: { outstanding: string; overdue: string; count: number };
+}
+
+export interface PaymentHistory {
+  payments: {
+    id: string;
+    amount: string;
+    method: string;
+    paidAt: string;
+    invoiceStatus: string;
+    student: { id: string; name: string };
+  }[];
+  total: number;
+}
+
+// Payment history (§7 Phase 1 #3): newest first, paged. Same self-scope
+// contract as the ledger — pins for STUDENT/PARENT, null for staff.
+export async function listPayments(
+  db: PrismaClient,
+  input: ListPaymentsInput,
+  allowedIds: string[] | null,
+): Promise<PaymentHistory> {
+  if (input.studentId && allowedIds && !allowedIds.includes(input.studentId)) {
+    throw new AuthError(403, "FORBIDDEN", "Not your record.");
+  }
+  const where: Prisma.FeePaymentWhereInput = {
+    ...(input.studentId
+      ? { invoice: { studentId: input.studentId } }
+      : allowedIds
+        ? { invoice: { studentId: { in: allowedIds } } }
+        : {}),
+  };
+  const [total, rows] = await Promise.all([
+    db.feePayment.count({ where }),
+    db.feePayment.findMany({
+      where,
+      include: {
+        invoice: { select: { status: true, student: { select: { id: true, user: { select: { name: true } } } } } },
+      },
+      orderBy: { paidAt: "desc" },
+      skip: (input.page - 1) * input.pageSize,
+      take: input.pageSize,
+    }),
+  ]);
+  return {
+    payments: rows.map((row) => ({
+      id: row.id,
+      amount: new Prisma.Decimal(row.amount).toFixed(2),
+      method: row.method,
+      paidAt: row.paidAt.toISOString(),
+      invoiceStatus: row.invoice.status,
+      student: { id: row.invoice.student.id, name: row.invoice.student.user.name },
+    })),
+    total,
+  };
 }
 
 // Ledger read (§7 Phase 1 #3): filterable invoice list + header totals.

@@ -216,7 +216,7 @@ export default function FeesPage() {
           { key: "head", label: "Fee head", render: (r) => r.structure?.name ?? "—" },
           { key: "amount", label: "Amount", render: (r) => `₹${r.amount}` },
           { key: "paid", label: "Paid", render: (r) => `₹${r.amountPaid}` },
-          { key: "due", label: "Due", render: (r) => fmtDue(r.dueDate) },
+          { key: "due", label: "Due date", render: (r) => fmtDue(r.dueDate) },
           { key: "status", label: "Status", render: (r) => <span style={pill(r.status)}>{r.status}</span> },
         ]}
         rows={rows}

@@ -26,6 +26,7 @@
 Chunk 5 — public site, deploy, and Phase 1 close-out (spec §7 Phase 1 #10) — say go.
 
 ## Notes / decisions made mid-task
+- Accountant nav split + admission numbers (2026-09-24, founder screenshots): Fees/Invoices/Payments all landed on /fees — built GET /fees/payments (paged, self-scoped, Decimal-exact via toFixed — caught missing zeros in test) + /fees/payments page with receipt links; Invoices stays /fees (it IS the ledger); "Due" → "Due date". Roster "—" blanks: seed never set admissionNo — seed stamps deterministic ADM-SOS/RKS-2026-00n on update too (re-runs backfill), admitStudent auto-numbers when blank. Verified: 175/175 (50 files), live 6 payments + paging + real roster numbers.
 - Homework pending freeze (2026-09-24, founder felt homework broken): submitHomework never invalidated the teacher board (post+grade did) — count lagged to TTL; fixed + regression test; live 6→7 instant. Module files 16/16 green on re-run; full live chain green (mark/post/submit/grade/marks/msg/threads/notice); file uploads need Cloudinary creds (503 by design, text path green). BUGSFIX.md #18.
 - Module re-check 2026-09-24 (founder felt attendance/homework/marks/messages/notices broken): integration files 16/16 green on re-run (one transient parallel flake first run, unreproduced); live dev chain ALL GREEN (mark 200, post 201, submit 201, grade 200, marks 200, linked-msg 201, threads 200, notice 201 + board sees it, demo rows cleaned). Nothing broken — likely felt causes: 15-min access tokens expiring mid-session (re-login fixes), Brevo SMTP 525 from this IP (posts save, emails undelivered — known since Chunk 3).
 - Slug-vs-ID confusion (2026-09-24, founder pasted slug into School ID box → bare "Forbidden."): TENANT_MISMATCH message now names the cause + login screen shows the copyable school ID. Verified live (code + message proven).
@@ -42,7 +43,7 @@ Chunk 5 — public site, deploy, and Phase 1 close-out (spec §7 Phase 1 #10) �
 - Module 9 verification pass 2026-09-23: suite 162/162 (47 files) local ×3 consecutive green (2 earlier parallel-load flakes, no captured identity, unreproduced since); CI all-5-green on 29720fc; bundle cache proven (stale-proof + same-read reads); all boards static-checked vs §8.3/§8.4 (docs/designs/ absent — text only); live both-schools matrix (distinct KPIs/feeds per tenant, Arjun 9-A-only, Suresh→Aditya/Sunita→Krishna-only, owner sees both, all cross-tenant 403, revenue 0.00/plans []); module E2E group 27 files/74 tests green. Fixed en route: CI lint failure (unused var in teacher-dashboard.test.ts — workspace lint skips tests/, root lint doesn't; BUGSFIX.md #15 + process rule: gate on root lint).
 
 ## Repo state right now
-YES — 166/166 green local (48 files), root lint 0, typecheck 0, api+web builds clean (incl. remediation: lucide-react, audit 0), both DBs migrated + dev re-seeded. Sandbox MySQL on 3307, datadir C:\Users\kavad\studyfy-mysql-data.
+YES — 175/175 green local (50 files), root lint 0, typecheck 0, api+web builds clean, both DBs migrated + dev re-seeded (admission numbers backfilled). Sandbox MySQL on 3307, datadir C:\Users\kavad\studyfy-mysql-data.
 
 ---
 

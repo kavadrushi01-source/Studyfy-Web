@@ -82,3 +82,13 @@ export const listInvoicesSchema = z.object({
 });
 
 export type ListInvoicesInput = z.infer<typeof listInvoicesSchema>;
+
+// Payment history: same paging honesty as the ledger. Every payment links
+// its receipt viewer, so this is the "Payments & Receipts" destination.
+export const listPaymentsSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  studentId: z.string().trim().max(40).optional(),
+});
+
+export type ListPaymentsInput = z.infer<typeof listPaymentsSchema>;

@@ -165,4 +165,17 @@ describe("POST /api/v1/schools/:schoolId/students (admission)", () => {
       .send(admissionBody(sectionId, `anon-${uid()}@example.com`))
       .expect(401);
   });
+
+  it("auto-numbers the admission when the office leaves it blank", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    const sectionId = await createSection(schoolId);
+    const { admissionNo, ...withoutNumber } = admissionBody(sectionId, `nonum-${uid()}@example.com`);
+    void admissionNo;
+    const res = await request(app)
+      .post(`/api/v1/schools/${schoolId}/students`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send(withoutNumber)
+      .expect(201);
+    expect(res.body.data.student.admissionNo).toMatch(/^ADM-\d{4}-[0-9A-F]{4}$/);
+  }, 30000);
 });

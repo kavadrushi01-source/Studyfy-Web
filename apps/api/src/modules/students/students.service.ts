@@ -73,7 +73,12 @@ export async function admitStudent(db: PrismaClient, input: AdmitStudentInput): 
       schoolId,
       userId: studentUser.id,
       sectionId: section.id,
-      admissionNo: input.admissionNo,
+      // Auto-number when the office leaves it blank: the roster column must
+      // never show a blank for a real admission. Explicit numbers pass
+      // through untouched.
+      admissionNo:
+        input.admissionNo ??
+        `ADM-${new Date().getUTCFullYear()}-${randomBytes(2).toString("hex").toUpperCase()}`,
       rollNumber: input.rollNumber,
       dob: input.dob ? new Date(`${input.dob}T00:00:00Z`) : undefined,
       gender: input.gender,

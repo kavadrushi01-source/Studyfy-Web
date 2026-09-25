@@ -170,3 +170,84 @@ describe("POST /api/v1/schools/:schoolId/fees/invoices/:invoiceId/pay", () => {
       .expect(401);
   });
 });
+
+describe("GET /api/v1/schools/:schoolId/fees/payments", () => {
+  it("lists newest-first with paging for staff, pins pupils/parents to own", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const cls = await prisma.class.create({ data: { schoolId, name: `Class ${uid()}` } });
+    const section = await prisma.section.create({ data: { schoolId, classId: cls.id, name: "A" } });
+    async function loginablePupil(): Promise<{ token: string; studentId: string; userId: string }> {
+      const email = `paylist-pupil-${uid()}@example.com`;
+      const password = "pupil-pass-123";
+      const role = await prisma.role.findUniqueOrThrow({ where: { name: "STUDENT" } });
+      const user = await prisma.user.create({
+        data: { schoolId, roleId: role.id, email, passwordHash: await bcrypt.hash(password, 4), name: "Pay Pupil" },
+      });
+      const profile = await prisma.student.create({ data: { schoolId, userId: user.id, sectionId: section.id } });
+      const login = await request(app).post("/api/v1/auth/login").send({ email, password, schoolSlug: slug }).expect(200);
+      return { token: login.body.data.accessToken as string, studentId: profile.id, userId: user.id };
+    }
+    const pupilA = await loginablePupil();
+    const pupilB = await loginablePupil();
+
+    const structure = await request(app)
+      .post(`/api/v1/schools/${schoolId}/fees/structures`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ classId: cls.id, name: "Term 1 Tuition", amount: "10000", term: "Term 1", category: "TUITION" })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/fees/invoices/generate`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ structureId: structure.body.data.structure.id as string, sectionId: section.id, dueDate: "2026-11-15" })
+      .expect(201);
+    const invoiceA = await prisma.feeInvoice.findFirstOrThrow({ where: { schoolId, studentId: pupilA.studentId } });
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/fees/invoices/${invoiceA.id}/pay`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ amount: "1000", method: "UPI" })
+      .expect(200);
+
+    // Staff sees everything, newest first, with totals.
+    const all = await request(app)
+      .get(`/api/v1/schools/${schoolId}/fees/payments`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    expect(all.body.data.total).toBe(1);
+    expect(all.body.data.payments[0]).toMatchObject({ amount: "1000.00", method: "UPI", student: { id: pupilA.studentId } });
+
+    // Pupil sees only their own; explicit other-student filter is denied.
+    const mine = await request(app)
+      .get(`/api/v1/schools/${schoolId}/fees/payments`)
+      .set("Authorization", `Bearer ${pupilA.token}`)
+      .expect(200);
+    expect(mine.body.data.total).toBe(1);
+    const empty = await request(app)
+      .get(`/api/v1/schools/${schoolId}/fees/payments`)
+      .set("Authorization", `Bearer ${pupilB.token}`)
+      .expect(200);
+    expect(empty.body.data.total).toBe(0);
+    const denied = await request(app)
+      .get(`/api/v1/schools/${schoolId}/fees/payments?studentId=${pupilA.studentId}`)
+      .set("Authorization", `Bearer ${pupilB.token}`)
+      .expect(403);
+    expect(denied.body.error.code).toBe("FORBIDDEN");
+
+    // Teacher holds no fees.read at all.
+    const teacherToken = await loginAs(schoolId, slug, "TEACHER");
+    const teacherDenied = await request(app)
+      .get(`/api/v1/schools/${schoolId}/fees/payments`)
+      .set("Authorization", `Bearer ${teacherToken}`)
+      .expect(403);
+    expect(teacherDenied.body.error.code).toBe("PERMISSION_DENIED");
+
+    // Cross-tenant: other school sees nothing here.
+    const schoolB = await registerSchool();
+    const cross = await request(app)
+      .get(`/api/v1/schools/${schoolId}/fees/payments`)
+      .set("Authorization", `Bearer ${schoolB.adminToken}`)
+      .expect(403);
+    expect(cross.body.error.code).toBe("TENANT_MISMATCH");
+
+    await request(app).get(`/api/v1/schools/${schoolId}/fees/payments`).expect(401);
+  }, 30000);
+});
