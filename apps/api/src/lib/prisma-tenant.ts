@@ -42,9 +42,10 @@ const WRITE_OPS = new Set(["update", "delete", "updateMany", "deleteMany", "upse
 //
 // Two known limits of this shape (same as the reference pattern), handled by
 // convention, not cleverness:
-// - findUnique + injected where: Prisma rejects a non-unique filter on
-//   findUnique, so tenant reads MUST use findFirst/findMany (fail-closed:
-//   it throws instead of leaking — but write findFirst, not findUnique).
+// - findUnique + injected where: verified live on Prisma 6.12 (2026-09-24)
+//   that `{ id, schoolId }` resolves normally same-tenant and returns null
+//   cross-tenant — no leak either way. Tenant reads still prefer
+//   findFirst/findMany by convention.
 // - createMany with an array payload is stamped per-row below.
 export function scopedPrismaClient(prisma: PrismaClient, schoolId: string) {
   return prisma.$extends({
