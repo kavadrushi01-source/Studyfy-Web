@@ -133,6 +133,11 @@ npm audit --audit-level=high
     offers. Widened to `fees.read` + ownership pin check (same shape as
     the ledger), proven live (own 200 PDF, stranger 403, cross-tenant
     404) + regression test. Teachers still 403 (hold neither key).
+20. **Full suite flakes when dev servers run alongside it (2026-09-24).**
+    A 3-file failure run went fully green on immediate re-run — the only
+    difference was the API + web dev servers competing for CPU/MySQL.
+    Rule: stop dev servers before a verification suite run, or treat a
+    lone red run as suspect until one clean re-run.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

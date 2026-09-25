@@ -1,0 +1,9 @@
+
+ RUN  v5.0.1 C:/Users/kavad/Downloads/Studyfy-Web/apps/api
+
+
+ Test Files  50 passed (50)
+      Tests  173 passed (173)
+   Start at  11:45:44
+   Duration  214.61s (tests 81%, import 17%, transform 2%)
+

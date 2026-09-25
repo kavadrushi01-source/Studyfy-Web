@@ -10,16 +10,13 @@
 > scratch.
 
 **Status:** IN PROGRESS
-**Phase / Module:** Full-application verification pass (founder-directed, pre-deploy)
+**Phase / Module:** Deep verification pass 2 — untested-depth areas (founder-directed)
 **Last updated:** 2026-09-24
 
 ## What's done in this task so far
-- Foundation re-verified: tenant/owner/self-scope audit of every route chain (all scoped, param routes guarded, list routes filtered); security files 25/25; live IDOR 404/403, student-defaults-to-own, owner-sees-both, admin-off-platform.
-- Fixed: pupil/parent receipt reads (fees.read + pin check) + regression test.
-- Built: password reset per §13.3 (forgot enumeration-safe, single-use 1h tokens, expiry/reuse identical rejects, DB-change assert, reset kills sessions) + 4 tests + /forgot-password + /reset-password pages + honest login link.
-- Live E2E all modules green (admit/mark/pay+receipt/marks+ranks/board/hw lifecycle/notice/msg linked+unlinked/parent-links); dashboards SOS≠RK correct, owner sees 3 incl. founder's mega-school; suspended gate proven live on throwaway school (403, then fully deleted); demo data untouched.
-
-## What's done in this task so far
+- Deep areas proven live, all green, demo rows cleaned: timetable generate (5 placed, 0 unresolved, 0 conflicts, slots deleted after); sections assign→clear→restored; exam create→deleted; qualifications read; trial-expiry gate on throwaway school (403 TRIAL_EXPIRED, school deleted after); refresh rotation + reuse-kill + chain-death + re-login recovery; all 8 public/board routes render 200.
+- Companion rule learned: stop dev servers before suite runs (3-file flake under contention, green on re-run) — BUGSFIX.md #20.
+- Earlier in pass: receipt self-scope fix + regression test; password reset per §13.3 (forgot/reset/mailer/recorder-tested) + forgot/reset pages + honest login link; checkbox boolean fix.
 - Sessions (2026-09-24): POST /auth/logout (revokes chain, clears cookie, never 401s) + auth-logout.test.ts; AuthProvider (login/logout/silent+proactive refresh/persist) in root layout; all 6 dashboards + 14 module pages off paste-boxes onto useAuth/apiFetch (timetable staff-ID kept — readBoard requires teacherId); sidebar logout; /profile page + Profile nav live (Teacher/Student/Parent); login via context (token box dropped). Verified: 167/167 (49 files), root lint 0, typecheck 0, web build (/profile prerendered); live cookie chain proven (login→refresh rotates→board→logout→refresh 401).
 
 ## What's left in this task
