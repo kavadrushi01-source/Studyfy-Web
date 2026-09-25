@@ -26,3 +26,18 @@ export const loginSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email().max(160),
+  // Same slug semantics as login: omitted means the Platform Owner path.
+  schoolSlug: z.string().trim().max(80).optional(),
+});
+
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+export const resetPasswordSchema = z.object({
+  token: z.string().trim().min(16).max(256),
+  newPassword: z.string().min(8).max(128),
+});
+
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

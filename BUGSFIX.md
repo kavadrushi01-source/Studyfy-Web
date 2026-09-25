@@ -127,6 +127,12 @@ npm audit --audit-level=high
     pending +1). Companion finding, not a bug: file submit 503s without
     Cloudinary creds (`STORAGE_UNCONFIGURED` — needs free-tier keys in
     dev `.env` to test uploads); text path fully green.
+19. **Students/parents could not open fee receipts at all (2026-09-24).**
+    The receipt route required `fees.manage` (staff-only) — found in the
+    full verification pass while checking every role can use what the UI
+    offers. Widened to `fees.read` + ownership pin check (same shape as
+    the ledger), proven live (own 200 PDF, stranger 403, cross-tenant
+    404) + regression test. Teachers still 403 (hold neither key).
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

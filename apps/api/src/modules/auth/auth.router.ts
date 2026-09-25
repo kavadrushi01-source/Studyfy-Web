@@ -3,8 +3,8 @@ import { catchAsync } from "../../lib/async.js";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { registerLimiter } from "../../middleware/security.js";
-import { loginSchema, registerSchema } from "./auth.schemas.js";
-import { AuthError, login, logout, register, rotateRefreshToken } from "./auth.service.js";
+import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema } from "./auth.schemas.js";
+import { AuthError, login, logout, register, requestPasswordReset, resetPassword, rotateRefreshToken } from "./auth.service.js";
 
 export const REFRESH_COOKIE = "studyfy_refresh";
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -166,5 +166,52 @@ authRouter.post(
     res
       .clearCookie(REFRESH_COOKIE, { path: "/api/v1/auth" })
       .json({ success: true, data: { loggedOut: true }, error: null, meta: null });
+  }),
+);
+
+// POST /auth/forgot-password — enumeration-safe: identical 200 whatever
+// was looked up, whatever was found. registerLimiter covers this rare
+// unauthenticated write (shared bucket is fine — both are human-paced).
+authRouter.post(
+  "/forgot-password",
+  registerLimiter(),
+  catchAsync(async (req: Request, res: Response) => {
+    const parsed = forgotPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    await requestPasswordReset(prisma, parsed.data);
+    // The raw token NEVER leaves in the response — it travels by email.
+    res.json({ success: true, data: { received: true }, error: null, meta: null });
+  }),
+);
+
+// POST /auth/reset-password — consumes the single-use token (§13.3).
+authRouter.post(
+  "/reset-password",
+  registerLimiter(),
+  catchAsync(async (req: Request, res: Response) => {
+    const parsed = resetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      await resetPassword(prisma, parsed.data);
+      res.json({ success: true, data: { reset: true }, error: null, meta: null });
+    } catch (err) {
+      sendAuthError(res, err);
+    }
   }),
 );

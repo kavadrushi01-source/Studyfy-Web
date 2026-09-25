@@ -27,9 +27,9 @@ const DASHBOARD_BY_ROLE: Record<string, string> = {
 };
 
 // Login (§8.3, rebuilt per §8.1 — no role tabs; the account determines the
-// role server-side). Deliberate omissions, not oversights: no "Sign in with
-// Google" (OAuth isn't wired — a dead button would lie), no "Forgot
-// password?" (no reset flow exists yet). Remember-me is functional: it
+// role server-side). Deliberate omission, not oversight: no "Sign in with
+// Google" (OAuth isn't wired — a dead button would lie). "Forgot password?"
+// links to /forgot-password (real flow, §13.3). Remember-me is functional: it
 // remembers the email in this browser only. After signing in, the page
 // shows the signer's name plus a direct link to their own board; the
 // session itself lives in the shared AuthProvider (no token paste).
@@ -134,6 +134,9 @@ export default function LoginPage() {
               <button type="submit" disabled={loading} style={{ padding: 12, borderRadius: 10, border: 0, background: PRIMARY, color: "#fff", fontWeight: 600, cursor: "pointer" }}>
                 {loading ? "Signing in…" : "Login"}
               </button>
+              <p style={{ fontSize: 13, margin: 0 }}>
+                <Link href="/forgot-password" style={{ color: PRIMARY, fontWeight: 600 }}>Forgot password?</Link>
+              </p>
               {error ? <p style={{ color: DANGER, fontSize: 14, margin: 0 }}>{error}</p> : null}
               <p style={{ fontSize: 14, color: "#64748B", margin: 0 }}>
                 Don&apos;t have an account? <Link href="/signup" style={{ color: PRIMARY, fontWeight: 600 }}>Sign up</Link>

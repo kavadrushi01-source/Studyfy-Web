@@ -26,10 +26,18 @@ export interface FeeReminderEmail {
   daysOverdue: number;
 }
 
+export interface PasswordResetEmail {
+  to: string;
+  name: string;
+  link: string;
+  schoolName: string;
+}
+
 export interface Mailer {
   sendAbsenteeAlert(alert: AbsenteeAlert): Promise<void>;
   sendNoticeEmail(email: NoticeEmail): Promise<void>;
   sendFeeReminder(email: FeeReminderEmail): Promise<void>;
+  sendPasswordResetEmail(email: PasswordResetEmail): Promise<void>;
 }
 
 // Brevo free SMTP relay (spec §2: 300/day, forever, no card) — the REAL
@@ -94,6 +102,26 @@ class SmtpMailer implements Mailer {
       ].join("\n"),
     });
   }
+
+  async sendPasswordResetEmail(email: PasswordResetEmail): Promise<void> {
+    await this.transporter.sendMail({
+      from: this.from(),
+      to: email.to,
+      subject: `Reset your Studyfy password — ${email.schoolName}`,
+      text: [
+        `Dear ${email.name},`,
+        ``,
+        `Someone requested a password reset for your Studyfy account at ${email.schoolName}.`,
+        `Use this link within 1 hour (single use — it dies after one reset):`,
+        ``,
+        email.link,
+        ``,
+        `If that was not you, ignore this email — your password stays unchanged.`,
+        ``,
+        `— ${email.schoolName} via Studyfy`,
+      ].join("\n"),
+    });
+  }
 }
 
 export class MailerUnconfiguredError extends Error {
@@ -115,6 +143,7 @@ export const stubMailer: Mailer = {
   sendAbsenteeAlert: async () => undefined,
   sendNoticeEmail: async () => undefined,
   sendFeeReminder: async () => undefined,
+  sendPasswordResetEmail: async () => undefined,
 };
 
 export function mailer(): Mailer {

@@ -3,8 +3,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { signAccessToken } from "../../lib/jwt.js";
 import { slugifyName, uniqueSlug } from "../../lib/slug.js";
+import { MailerUnconfiguredError, mailer } from "../../lib/mailer.js";
 import { invalidateOwnerBoards } from "../metrics/metrics.service.js";
-import type { LoginInput, RegisterInput } from "./auth.schemas.js";
+import type { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput } from "./auth.schemas.js";
 
 const BCRYPT_COST = 12; // spec §8.3 / RULES.md §2: cost ≥ 10
 const TRIAL_DAYS = 14;
@@ -254,4 +255,82 @@ export async function logout(rawToken: string | undefined): Promise<{ loggedOut:
     }
   }
   return { loggedOut: true };
+}
+
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour, single use (§13.3).
+
+export interface ForgotPasswordResult {
+  emailed: boolean;
+  // Raw token for in-process tests ONLY — the router never sends it (the
+  // requester gets the same generic success either way; the token travels
+  // by email). Returning it from the service keeps tests off the mailbox.
+  debugToken: string | null;
+}
+
+// POST /auth/forgot-password — enumeration-safe by design: unknown email,
+// wrong slug, and disabled accounts all return the identical success, so
+// callers can't probe which accounts exist. A fresh token replaces any
+// live ones (one active reset per user, never a pile). Email delivery is
+// best-effort like every other mail path — the token row is the source of
+// truth, not the inbox.
+export async function requestPasswordReset(db: typeof prisma, input: ForgotPasswordInput): Promise<ForgotPasswordResult> {
+  const user = input.schoolSlug
+    ? await db.user.findFirst({
+        where: { schoolId: { not: null }, email: input.email, school: { slug: input.schoolSlug } },
+        include: { role: true, school: { select: { name: true } } },
+      })
+    : await db.user.findFirst({
+        where: { schoolId: null, email: input.email },
+        include: { role: true, school: { select: { name: true } } },
+      });
+  if (!user || !user.isActive) {
+    return { emailed: false, debugToken: null };
+  }
+  await db.authToken.deleteMany({ where: { userId: user.id, type: "PASSWORD_RESET", consumedAt: null } });
+  const raw = randomBytes(32).toString("hex");
+  await db.authToken.create({
+    data: { userId: user.id, type: "PASSWORD_RESET", tokenHash: hashToken(raw), expiresAt: new Date(Date.now() + RESET_TTL_MS) },
+  });
+  let emailed = false;
+  try {
+    const frontend = process.env.FRONTEND_ORIGIN?.split(",")[0]?.trim() || "http://localhost:3000";
+    await mailer().sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      link: `${frontend}/reset-password?token=${raw}`,
+      schoolName: user.school?.name ?? "Studyfy",
+    });
+    emailed = true;
+  } catch (err) {
+    if (!(err instanceof MailerUnconfiguredError)) {
+      console.error("Password reset email delivery failed:", err);
+    }
+  }
+  return { emailed, debugToken: raw };
+}
+
+// POST /auth/reset-password — the §13.3 single-use rule: unknown, expired,
+// and already-consumed tokens all fail IDENTICALLY (no oracle for leaked
+// links). Success consumes the token AND kills every live refresh chain,
+// so a password change logs out all sessions including a thief's.
+export async function resetPassword(
+  db: typeof prisma,
+  input: ResetPasswordInput,
+): Promise<{ reset: boolean }> {
+  const row = await db.authToken.findUnique({
+    where: { tokenHash: hashToken(input.token) },
+    include: { user: true },
+  });
+  if (!row || row.type !== "PASSWORD_RESET" || row.consumedAt || row.expiresAt.getTime() < Date.now()) {
+    throw new AuthError(401, "INVALID_RESET_TOKEN", "This reset link is invalid or has expired.");
+  }
+  if (!row.user.isActive) {
+    throw new AuthError(403, "ACCOUNT_DISABLED", "This account has been disabled.");
+  }
+  await db.$transaction([
+    db.authToken.update({ where: { id: row.id }, data: { consumedAt: new Date() } }),
+    db.user.update({ where: { id: row.userId }, data: { passwordHash: await bcrypt.hash(input.newPassword, BCRYPT_COST) } }),
+    db.refreshToken.deleteMany({ where: { userId: row.userId, revokedAt: null } }),
+  ]);
+  return { reset: true };
 }

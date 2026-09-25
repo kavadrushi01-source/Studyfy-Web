@@ -178,7 +178,8 @@ feesRouter.get(
   "/schools/:schoolId/fees/payments/:paymentId/receipt",
   authMiddleware,
   tenantMiddleware,
-  requirePermission("fees.manage"),
+  requirePermission("fees.read"),
+  studentSelfScope,
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma) {
       res.status(500).json({
@@ -202,6 +203,17 @@ feesRouter.get(
         success: false,
         data: null,
         error: { code: "NOT_FOUND", message: "Payment not found." },
+        meta: null,
+      });
+      return;
+    }
+    // Students/parents hold fees.read too — narrow to their own rows the
+    // same way the ledger does. Staff (no pins) skip this check.
+    if (req.studentScope && !req.studentScope.studentIds.includes(payment.invoice.studentId)) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: { code: "FORBIDDEN", message: "Not your receipt." },
         meta: null,
       });
       return;

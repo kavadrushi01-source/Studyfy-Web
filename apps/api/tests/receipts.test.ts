@@ -134,4 +134,80 @@ describe("fee receipt PDF (§7 Phase 1 #3, §8.5)", () => {
 
     await request(app).get(`/api/v1/schools/${schoolA.schoolId}/fees/payments/${paymentId}/receipt`).expect(401);
   });
+
+  it("serves a pupil their own receipt, blocks others' — parents see linked only", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const cls = await prisma.class.create({ data: { schoolId, name: `Class ${uid()}` } });
+    const section = await prisma.section.create({ data: { schoolId, classId: cls.id, name: "A" } });
+
+    async function loginablePupil(): Promise<{ token: string; studentId: string; userId: string }> {
+      const email = `receipt-pupil-${uid()}@example.com`;
+      const password = "pupil-pass-123";
+      const role = await prisma.role.findUniqueOrThrow({ where: { name: "STUDENT" } });
+      const user = await prisma.user.create({
+        data: { schoolId, roleId: role.id, email, passwordHash: await bcrypt.hash(password, 4), name: "Receipt Pupil" },
+      });
+      const profile = await prisma.student.create({ data: { schoolId, userId: user.id, sectionId: section.id } });
+      const login = await request(app).post("/api/v1/auth/login").send({ email, password, schoolSlug: slug }).expect(200);
+      return { token: login.body.data.accessToken as string, studentId: profile.id, userId: user.id };
+    }
+    const pupilA = await loginablePupil();
+    const pupilB = await loginablePupil();
+
+    const structure = await request(app)
+      .post(`/api/v1/schools/${schoolId}/fees/structures`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ classId: cls.id, name: "Term 1 Tuition", amount: "5000", term: "Term 1", category: "TUITION" })
+      .expect(201);
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/fees/invoices/generate`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ structureId: structure.body.data.structure.id as string, sectionId: section.id, dueDate: "2026-11-15" })
+      .expect(201);
+    const invoiceA = await prisma.feeInvoice.findFirstOrThrow({ where: { schoolId, studentId: pupilA.studentId } });
+    const pay = await request(app)
+      .post(`/api/v1/schools/${schoolId}/fees/invoices/${invoiceA.id}/pay`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ amount: "2000", method: "CASH" })
+      .expect(200);
+    const paymentId = pay.body.data.payment.id as string;
+
+    // Own receipt: 200 + PDF.
+    const own = await request(app)
+      .get(`/api/v1/schools/${schoolId}/fees/payments/${paymentId}/receipt`)
+      .set("Authorization", `Bearer ${pupilA.token}`)
+      .expect(200);
+    expect(own.headers["content-type"]).toContain("application/pdf");
+
+    // Another pupil's receipt: 403, not the PDF.
+    const stranger = await request(app)
+      .get(`/api/v1/schools/${schoolId}/fees/payments/${paymentId}/receipt`)
+      .set("Authorization", `Bearer ${pupilB.token}`)
+      .expect(403);
+    expect(stranger.body.error.code).toBe("FORBIDDEN");
+
+    // Linked parent reads it; unlinked parent is denied.
+    const parentRole = await prisma.role.findUniqueOrThrow({ where: { name: "PARENT" } });
+    async function loginableParent(studentId: string): Promise<string> {
+      const email = `receipt-parent-${uid()}@example.com`;
+      const password = "parent-pass-123";
+      const user = await prisma.user.create({
+        data: { schoolId, roleId: parentRole.id, email, passwordHash: await bcrypt.hash(password, 4), name: "Receipt Parent" },
+      });
+      await prisma.studentGuardian.create({ data: { schoolId, studentId, parentId: user.id, relationship: "Mother" } });
+      const login = await request(app).post("/api/v1/auth/login").send({ email, password, schoolSlug: slug }).expect(200);
+      return login.body.data.accessToken as string;
+    }
+    const linkedToken = await loginableParent(pupilA.studentId);
+    await request(app)
+      .get(`/api/v1/schools/${schoolId}/fees/payments/${paymentId}/receipt`)
+      .set("Authorization", `Bearer ${linkedToken}`)
+      .expect(200);
+    const unlinkedToken = await loginableParent(pupilB.studentId);
+    const unlinked = await request(app)
+      .get(`/api/v1/schools/${schoolId}/fees/payments/${paymentId}/receipt`)
+      .set("Authorization", `Bearer ${unlinkedToken}`)
+      .expect(403);
+    expect(unlinked.body.error.code).toBe("FORBIDDEN");
+  }, 30000);
 });
