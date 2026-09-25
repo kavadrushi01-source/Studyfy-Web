@@ -171,6 +171,12 @@ export async function submitHomework(
       fileUrl,
       status: "SUBMITTED",
     },
+  }).then((submission) => {
+    // New submission → the teacher's pending count is stale (§12.3). This
+    // was the actual "pending never moves" report: post + grade
+    // invalidated, submit did not, so the count lagged up to the 60s TTL.
+    invalidateTeacherBoards(homework.schoolId);
+    return submission;
   });
 }
 

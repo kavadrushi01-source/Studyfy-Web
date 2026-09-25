@@ -119,6 +119,15 @@ npm audit --audit-level=high
     pre-commit gate is ROOT `npm run lint`, never the workspace shortcut.
     (No regression test applies — process rule, recorded here so it sticks.)
 
+18. **Teacher pending count froze after pupil submits (2026-09-24).**
+    Post + grade invalidated the teacher board cache but submit did not —
+    the count lagged up to the 60s TTL, looking exactly like "submitting
+    does nothing" (live: stale 6 vs real 7). One-line root-cause fix in
+    `submitHomework` + regression test (prime → submit via HTTP →
+    pending +1). Companion finding, not a bug: file submit 503s without
+    Cloudinary creds (`STORAGE_UNCONFIGURED` — needs free-tier keys in
+    dev `.env` to test uploads); text path fully green.
+
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.
 - Check API logs and the network response before changing UI selectors.

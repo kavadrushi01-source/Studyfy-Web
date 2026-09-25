@@ -169,6 +169,42 @@ describe("GET /api/v1/schools/:schoolId/dashboard/teacher (§8.3)", () => {
   );
 
   it(
+    "reflects a pupil submission through the route (submit invalidates pending)",
+    async () => {
+      const { schoolId, slug } = await registerSchool();
+      const cls = await prisma.class.create({ data: { schoolId, name: `Class ${uid()}` } });
+      const section = await prisma.section.create({ data: { schoolId, classId: cls.id, name: "A" } });
+      const math = await prisma.subject.create({ data: { schoolId, name: `Subject ${uid()}`, group: "Core" } });
+      const teacher = await makeTeacher(schoolId, slug, section.id, [math.id]);
+      const pupil = await makeStudent(schoolId, slug, section.id);
+      const hw = await request(app)
+        .post(`/api/v1/schools/${schoolId}/homework`)
+        .set("Authorization", `Bearer ${teacher.token}`)
+        .send({ sectionId: section.id, subjectId: math.id, title: "Pending Watch", description: "Submit to move the counter.", dueDate: "2026-12-01" })
+        .expect(201);
+
+      const before = await request(app)
+        .get(`/api/v1/schools/${schoolId}/dashboard/teacher`)
+        .set("Authorization", `Bearer ${teacher.token}`)
+        .expect(200);
+      expect((before.body.data.dashboard as TeacherBundle).homeworkPending).toBe(0);
+
+      await request(app)
+        .post(`/api/v1/schools/${schoolId}/homework/${hw.body.data.homework.id as string}/submissions`)
+        .set("Authorization", `Bearer ${pupil.token}`)
+        .field("content", "Here are my answers.")
+        .expect(201);
+
+      const after = await request(app)
+        .get(`/api/v1/schools/${schoolId}/dashboard/teacher`)
+        .set("Authorization", `Bearer ${teacher.token}`)
+        .expect(200);
+      expect((after.body.data.dashboard as TeacherBundle).homeworkPending).toBe(1);
+    },
+    30000,
+  );
+
+  it(
     "is teacher-only: admin, students, strangers, and cross-tenant all denied",
     async () => {
       const schoolA = await registerSchool();
