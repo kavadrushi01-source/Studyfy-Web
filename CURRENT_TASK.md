@@ -10,13 +10,13 @@
 > scratch.
 
 **Status:** IN PROGRESS
-**Phase / Module:** Deep verification pass 2 — untested-depth areas (founder-directed)
+**Phase / Module:** Deep verification pass 3 — every route + every button (founder-directed)
 **Last updated:** 2026-09-24
 
 ## What's done in this task so far
-- Deep areas proven live, all green, demo rows cleaned: timetable generate (5 placed, 0 unresolved, 0 conflicts, slots deleted after); sections assign→clear→restored; exam create→deleted; qualifications read; trial-expiry gate on throwaway school (403 TRIAL_EXPIRED, school deleted after); refresh rotation + reuse-kill + chain-death + re-login recovery; all 8 public/board routes render 200.
-- Companion rule learned: stop dev servers before suite runs (3-file flake under contention, green on re-run) — BUGSFIX.md #20.
-- Earlier in pass: receipt self-scope fix + regression test; password reset per §13.3 (forgot/reset/mailer/recorder-tested) + forgot/reset pages + honest login link; checkbox boolean fix.
+- Route inventory: all 54 API routes mapped; exam-list suspected untested but proven covered (asserted inside creation test) — no gap, no change needed.
+- Live deep probes, all green, dev verified pristine after (slots 0, Arjun Maths-only, 3 schools, 0 live rows/tokens): timetable generate (5/0 unresolved/0 conflicts, slots removed), sections assign→clear→restored, exam create→deleted, qualifications add→list→removed, forgot token row lifecycle, documents honest 503, trial-expiry + suspend gates on throwaways (both fully deleted), refresh reuse-kill + recovery, 8/8 routes render 200.
+- Suite 175/175 (50 files), root lint clean, audit 0 — this session.
 - Sessions (2026-09-24): POST /auth/logout (revokes chain, clears cookie, never 401s) + auth-logout.test.ts; AuthProvider (login/logout/silent+proactive refresh/persist) in root layout; all 6 dashboards + 14 module pages off paste-boxes onto useAuth/apiFetch (timetable staff-ID kept — readBoard requires teacherId); sidebar logout; /profile page + Profile nav live (Teacher/Student/Parent); login via context (token box dropped). Verified: 167/167 (49 files), root lint 0, typecheck 0, web build (/profile prerendered); live cookie chain proven (login→refresh rotates→board→logout→refresh 401).
 
 ## What's left in this task
