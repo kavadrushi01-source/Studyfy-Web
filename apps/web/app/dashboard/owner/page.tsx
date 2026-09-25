@@ -1,17 +1,11 @@
 "use client";
 
-import { useCallback, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { Building2, ChartNoAxesColumn, CheckCircle2, Hourglass, IndianRupee, PieChart, School } from "lucide-react";
 import { Card, EmptyState, SectionTitle, Shell, SkeletonBlocks } from "../../../components/ui/shell";
+import { useAuth } from "@/lib/auth-context";
 import { isFailure } from "../../../lib/api";
-
-interface Me {
-  id: string;
-  name: string;
-  email: string;
-  schoolId: string | null;
-  role: string;
-}
 
 interface OwnerSchoolRow {
   id: string;
@@ -205,71 +199,82 @@ function PlansDonut({ plans }: { plans: { plan: string; schools: number }[] }): 
 }
 
 export default function OwnerDashboardPage() {
-  const [token, setToken] = useState("");
-  const [connected, setConnected] = useState(false);
-  const [me, setMe] = useState<Me | null>(null);
+  const { token, user, ready, apiFetch } = useAuth();
   const [bundle, setBundle] = useState<OwnerBundle | null>(null);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-  const connect = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
+  useEffect(() => {
+    if (!ready || !token) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
       setLoading(true);
       setError("");
       try {
-        const auth = { Authorization: `Bearer ${token}` };
-        const [meRes, dashRes] = await Promise.all([
-          fetch(`${api}/api/v1/auth/me`, { headers: auth }),
-          fetch(`${api}/api/v1/platform/dashboard`, { headers: auth }),
-        ]);
-        const meBody = (await meRes.json()) as { data: { user: Me } } | ApiError;
-        if (isFailure(meRes, meBody)) {
-          throw new Error(meBody.error?.message ?? "Sign-in failed.");
-        }
-        if (meBody.data.user.role !== "PLATFORM_OWNER") {
-          throw new Error("This board is for the platform owner — your account holds a different role.");
-        }
+        const dashRes = await apiFetch(`/api/v1/platform/dashboard`);
         const dashBody = (await dashRes.json()) as { data: { dashboard: OwnerBundle } } | ApiError;
         if (isFailure(dashRes, dashBody)) {
           throw new Error(dashBody.error?.message ?? "Dashboard unavailable.");
         }
-        setMe(meBody.data.user);
-        setBundle(dashBody.data.dashboard);
-        setConnected(true);
+        if (!cancelled) {
+          setBundle(dashBody.data.dashboard);
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Network error.");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Network error.");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    },
-    [api, token],
-  );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, token, apiFetch]);
 
-  if (!connected || !me || !bundle) {
+  if (!ready) {
     return (
       <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif" }}>
-        <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Platform Dashboard</h1>
-        <p style={{ color: "#64748B", margin: "0 0 20px" }}>Paste a platform-owner token to load the live board (no school slug — owners sign in without one).</p>
-        <form onSubmit={connect} style={{ display: "grid", gap: 12 }}>
-          <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
-            Owner token
-            <input value={token} onChange={(e) => setToken(e.target.value)} required style={{ padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }} />
-          </label>
-          <button type="submit" disabled={loading} style={{ padding: 12, borderRadius: 10, border: 0, background: NAVY, color: "#fff", fontWeight: 600, cursor: "pointer" }}>
-            {loading ? "Loading…" : "Load dashboard"}
-          </button>
-          {error ? <p style={{ color: DANGER, fontSize: 14 }}>{error}</p> : null}
-        </form>
-        {loading ? (
-          <div style={{ marginTop: 20 }}>
-            <SkeletonBlocks rows={3} />
-          </div>
-        ) : null}
+        <SkeletonBlocks rows={3} />
       </main>
+    );
+  }
+
+  if (!token) {
+    return (
+      <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
+        <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Please sign in</h1>
+        <p style={{ color: "#64748B", margin: "0 0 20px" }}>Sign in to view the platform dashboard.</p>
+        <Link
+          href="/login"
+          style={{ display: "inline-block", padding: "12px 24px", borderRadius: 10, background: NAVY, color: "#fff", fontWeight: 600, textDecoration: "none" }}
+        >
+          Go to sign in
+        </Link>
+      </main>
+    );
+  }
+
+  if (user && user.role !== "PLATFORM_OWNER") {
+    return (
+      <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
+        <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Platform Dashboard</h1>
+        <p style={{ color: DANGER, fontSize: 14 }}>This board is for the platform owner — your account holds a different role.</p>
+      </main>
+    );
+  }
+
+  if (loading || !bundle) {
+    return (
+      <Shell role="PLATFORM_OWNER" activeHref="/dashboard/owner">
+        {error ? <p style={{ color: DANGER, fontSize: 14 }}>{error}</p> : null}
+        <SkeletonBlocks rows={3} />
+      </Shell>
     );
   }
 
@@ -300,7 +305,7 @@ export default function OwnerDashboardPage() {
     <Shell role="PLATFORM_OWNER" activeHref="/dashboard/owner">
       <header style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 26, margin: 0, color: NAVY }}>
-          {greeting(new Date())}, {me.name}
+          {greeting(new Date())}, {user?.name ?? ""}
         </h1>
         <p style={{ color: "#64748B", margin: "4px 0 0", fontSize: 14 }}>
           The whole platform at a glance · {bundle.asOf.month}

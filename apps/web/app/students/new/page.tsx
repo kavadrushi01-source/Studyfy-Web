@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { SkeletonBlocks } from "../../../components/ui/shell";
 import { isFailure } from "../../../lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 interface AdmitSuccess {
   student: { id: string; user: { email: string; name: string } };
@@ -13,18 +16,16 @@ interface ApiError {
   error: { code: string; message: string };
 }
 
-// Pre-dashboard admission form (Phase 1 Chunk 1). Posts to the SIS admission
-// endpoint; mirrors its fields 1:1. Auth UI doesn't exist yet, so an admin
-// pastes a bearer token (dev workflow only — the login screen replaces this
-// in the dashboard chunk). Temp passwords are shown ONCE, like the API
-// returns them once.
+// Admission form (Phase 1 Chunk 1). Posts to the SIS admission endpoint;
+// mirrors its fields 1:1. Identity comes from the shared session (useAuth)
+// — apiFetch attaches the bearer token and the school id. Temp passwords
+// are shown ONCE, like the API returns them once.
 // Role-agnostic staff page: NOT wrapped in Shell (Shell requires a role
 // prop — forcing one would badge the wrong role), so this page carries the
 // light-canvas background, Inter font, and 1120/padding-28 rhythm directly.
 // Form submit keeps its button text by design (no skeleton for submits).
 export default function AdmitStudentPage() {
-  const [schoolId, setSchoolId] = useState("");
-  const [token, setToken] = useState("");
+  const { token, schoolId, ready, apiFetch } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [sectionId, setSectionId] = useState("");
@@ -37,14 +38,17 @@ export default function AdmitStudentPage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (!schoolId) {
+      setError("Please sign in to admit a student.");
+      return;
+    }
     setSubmitting(true);
     setResult(null);
     setError("");
     try {
-      const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-      const response = await fetch(`${api}/api/v1/schools/${schoolId}/students`, {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/students`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           email,
@@ -85,27 +89,42 @@ export default function AdmitStudentPage() {
     padding: 20,
   } as const;
 
+  const frame = {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: 28,
+    fontFamily: "Inter, system-ui, sans-serif",
+    background: "#F8FAFC",
+    minHeight: "100vh",
+  } as const;
+
+  if (!ready) {
+    return (
+      <main style={frame}>
+        <h1 style={{ color: "#0F172A" }}>Admit Student</h1>
+        <SkeletonBlocks rows={4} />
+      </main>
+    );
+  }
+
+  if (!token || !schoolId) {
+    return (
+      <main style={frame}>
+        <h1 style={{ color: "#0F172A" }}>Admit Student</h1>
+        <div style={{ ...card, maxWidth: 640 }}>
+          <p style={{ color: "#334155" }}>Please sign in to admit a student.</p>
+          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+            Go to login
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main
-      style={{
-        maxWidth: 1120,
-        margin: "0 auto",
-        padding: 28,
-        fontFamily: "Inter, system-ui, sans-serif",
-        background: "#F8FAFC",
-        minHeight: "100vh",
-      }}
-    >
+    <main style={frame}>
       <h1 style={{ color: "#0F172A" }}>Admit Student</h1>
       <form onSubmit={onSubmit} style={{ ...card, maxWidth: 640 }}>
-        <label>
-          School ID
-          <input style={input} value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required />
-        </label>
-        <label>
-          Admin bearer token (dev only — login screen replaces this)
-          <input style={input} value={token} onChange={(e) => setToken(e.target.value)} required />
-        </label>
         <label>
           Full name
           <input style={input} value={name} onChange={(e) => setName(e.target.value)} required />

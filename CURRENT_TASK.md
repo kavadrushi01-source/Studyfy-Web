@@ -9,12 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE
-**Phase / Module:** —
+**Status:** IN PROGRESS
+**Phase / Module:** Web sessions + profiles + logout (founder testing friction)
 **Last updated:** 2026-09-24
 
 ## What's done in this task so far
-- (UI/UX remediation pass complete — full history in git log + STATUS.md)
+- Sessions (2026-09-24): POST /auth/logout (revokes chain, clears cookie, never 401s) + auth-logout.test.ts; AuthProvider (login/logout/silent+proactive refresh/persist) in root layout; all 6 dashboards + 14 module pages off paste-boxes onto useAuth/apiFetch (timetable staff-ID kept — readBoard requires teacherId); sidebar logout; /profile page + Profile nav live (Teacher/Student/Parent); login via context (token box dropped). Verified: 167/167 (49 files), root lint 0, typecheck 0, web build (/profile prerendered); live cookie chain proven (login→refresh rotates→board→logout→refresh 401).
 
 ## What's left in this task
 - (none — Chunk 5 next, see Exact next action)

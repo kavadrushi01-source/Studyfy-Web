@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 interface SectionRow {
   id: string;
@@ -16,18 +18,15 @@ interface ApiError {
   error: { code: string; message: string };
 }
 
-// Pre-dashboard sections screen (Phase 1 Chunk 1). Lists every section with
-// its current class teacher; an admin assigns by teacher email (or clears).
+// Sections screen (Phase 1 Chunk 1). Lists every section with its current
+// class teacher; an admin assigns by teacher email (or clears).
 // The teacher must belong to this school — anything else is a 404 from the
-// API, surfaced as-is. Same token-paste dev workflow as the other screens
-// until the login screen lands.
+// API, surfaced as-is. Identity comes from the shared session (useAuth).
 // Role-agnostic staff page: NOT wrapped in Shell (Shell requires a role
 // prop — forcing one would badge the wrong role), so this page carries the
 // light-canvas background, Inter font, and 1120/padding-28 rhythm directly.
 export default function SectionsPage() {
-  const [schoolId, setSchoolId] = useState("");
-  const [token, setToken] = useState("");
-  const [connected, setConnected] = useState(false);
+  const { token, schoolId, ready, apiFetch } = useAuth();
   const [rows, setRows] = useState<SectionRow[]>([]);
   const [emails, setEmails] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -35,40 +34,44 @@ export default function SectionsPage() {
   const [notice, setNotice] = useState("");
 
   const load = useCallback(async () => {
+    if (!schoolId) {
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-      const response = await fetch(`${api}/api/v1/schools/${schoolId}/sections`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/sections`);
       const body = (await response.json()) as { data: { sections: SectionRow[] } } | ApiError;
       if (isFailure(response, body)) {
         setError(body.error?.message ?? `Request failed (${response.status}).`);
         return;
       }
       setRows(body.data.sections);
-      setConnected(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
       setLoading(false);
     }
-  }, [schoolId, token]);
+  }, [schoolId, apiFetch]);
 
-  function connect(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
+  useEffect(() => {
+    if (!ready || !token || !schoolId) {
+      return;
+    }
     void load();
-  }
+  }, [ready, token, schoolId, apiFetch, load]);
 
   async function assign(sectionId: string, teacherEmail: string | null): Promise<void> {
+    if (!schoolId) {
+      setError("Please sign in to assign a teacher.");
+      return;
+    }
     setError("");
     setNotice("");
     try {
-      const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-      const response = await fetch(`${api}/api/v1/schools/${schoolId}/sections/${sectionId}`, {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/sections/${sectionId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ teacherEmail }),
       });
       const body = (await response.json()) as { data: { section: unknown } } | ApiError;
@@ -83,7 +86,6 @@ export default function SectionsPage() {
     }
   }
 
-  const input = { display: "block", width: "100%", margin: "4px 0 12px", padding: 8 } as const;
   const primaryBtn = {
     background: "#2563EB",
     color: "#fff",
@@ -107,35 +109,44 @@ export default function SectionsPage() {
     padding: 20,
   } as const;
 
-  const empty = connected && !loading && rows.length === 0;
+  const frame = {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: 28,
+    fontFamily: "Inter, system-ui, sans-serif",
+    background: "#F8FAFC",
+    minHeight: "100vh",
+  } as const;
+
+  if (!ready) {
+    return (
+      <main style={frame}>
+        <h1 style={{ color: "#0F172A" }}>Classes &amp; Sections</h1>
+        <SkeletonBlocks rows={4} />
+      </main>
+    );
+  }
+
+  if (!token || !schoolId) {
+    return (
+      <main style={frame}>
+        <h1 style={{ color: "#0F172A" }}>Classes &amp; Sections</h1>
+        <div style={{ ...card, maxWidth: 640 }}>
+          <p style={{ color: "#334155" }}>Please sign in to view sections.</p>
+          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+            Go to login
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  const empty = !loading && rows.length === 0;
 
   return (
-    <main
-      style={{
-        maxWidth: 1120,
-        margin: "0 auto",
-        padding: 28,
-        fontFamily: "Inter, system-ui, sans-serif",
-        background: "#F8FAFC",
-        minHeight: "100vh",
-      }}
-    >
+    <main style={frame}>
       <h1 style={{ color: "#0F172A" }}>Classes &amp; Sections</h1>
-      {!connected ? (
-        <form onSubmit={connect} style={{ ...card, maxWidth: 640 }}>
-          <label>
-            School ID
-            <input style={input} value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required />
-          </label>
-          <label>
-            Admin bearer token (dev only — login screen replaces this)
-            <input style={input} value={token} onChange={(e) => setToken(e.target.value)} required />
-          </label>
-          <button type="submit" style={primaryBtn}>
-            Connect
-          </button>
-        </form>
-      ) : loading ? (
+      {loading ? (
         <SkeletonBlocks rows={4} />
       ) : empty ? (
         <EmptyState

@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useAuth } from "@/lib/auth-context";
 import { ROLE_BOARDS } from "./role-boards";
 
 // Shared dashboard shell (§8.2 + §8.4): navy sidebar with logo, role badge,
@@ -17,6 +20,12 @@ export function Shell({
   const board = ROLE_BOARDS[role];
   if (!board) {
     throw new Error(`Unknown role board: ${role}`);
+  }
+  const { logout } = useAuth();
+
+  async function handleLogout(): Promise<void> {
+    await logout();
+    window.location.href = "/login";
   }
   return (
     <div className="sf-shell" style={{ fontFamily: "Inter, system-ui, sans-serif", background: "#F8FAFC" }}>
@@ -93,6 +102,24 @@ export function Shell({
             );
           })}
         </nav>
+        <button
+          type="button"
+          onClick={handleLogout}
+          style={{
+            marginTop: 16,
+            width: "100%",
+            padding: "9px 12px",
+            borderRadius: 10,
+            border: "1px solid #334155",
+            background: "transparent",
+            color: "#CBD5E1",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Log out
+        </button>
       </aside>
       <main className="sf-main" style={{ maxWidth: 1120 }}>
         {children}

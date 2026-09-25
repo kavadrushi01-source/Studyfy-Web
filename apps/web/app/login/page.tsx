@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useAuth } from "@/lib/auth-context";
 import { isFailure } from "../../lib/api";
 
 interface Me {
@@ -30,9 +31,10 @@ const DASHBOARD_BY_ROLE: Record<string, string> = {
 // Google" (OAuth isn't wired — a dead button would lie), no "Forgot
 // password?" (no reset flow exists yet). Remember-me is functional: it
 // remembers the email in this browser only. After signing in, the page
-// hands over the access token for the dashboard boards plus a direct link
-// to the signer's own board.
+// shows the signer's name plus a direct link to their own board; the
+// session itself lives in the shared AuthProvider (no token paste).
 export default function LoginPage() {
+  const { login, apiFetch } = useAuth();
   const [schoolSlug, setSchoolSlug] = useState("");
   const [email, setEmail] = useState(() =>
     typeof window === "undefined" ? "" : (window.localStorage.getItem("studyfy-login-email") ?? ""),
@@ -40,61 +42,60 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
-  const [token, setToken] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [pendingProfile, setPendingProfile] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  // The shared session only becomes visible to apiFetch on the next render
+  // after login(), so the profile fetch runs here with a fresh closure
+  // instead of the stale one captured by submit().
+  useEffect(() => {
+    if (!pendingProfile) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const meRes = await apiFetch("/api/v1/auth/me");
+        const meBody = (await meRes.json()) as { data: { user: Me } } | { error: { message: string } };
+        if (isFailure(meRes, meBody)) {
+          throw new Error("Signed in, but could not load your profile.");
+        }
+        if (!cancelled) {
+          setMe(meBody.data.user);
+          setPendingProfile(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Network error.");
+          setPendingProfile(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingProfile, apiFetch]);
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setLoading(true);
     setError("");
-    setCopied(false);
     try {
-      const loginRes = await fetch(`${api}/api/v1/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          password,
-          ...(schoolSlug.trim().length > 0 ? { schoolSlug: schoolSlug.trim() } : {}),
-        }),
-      });
-      const loginBody = (await loginRes.json()) as
-        | { data: { accessToken: string } }
-        | { error: { code: string; message: string } };
-      if (isFailure(loginRes, loginBody)) {
-        throw new Error(loginBody.error?.message ?? "Sign-in failed.");
-      }
-      const accessToken = loginBody.data.accessToken;
-      const meRes = await fetch(`${api}/api/v1/auth/me`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const meBody = (await meRes.json()) as { data: { user: Me } } | { error: { message: string } };
-      if (isFailure(meRes, meBody)) {
-        throw new Error("Signed in, but could not load your profile.");
-      }
+      const slug = schoolSlug.trim();
+      await login({ email, password, ...(slug.length > 0 ? { schoolSlug: slug } : {}) });
       if (remember && typeof window !== "undefined") {
         window.localStorage.setItem("studyfy-login-email", email);
       }
-      setToken(accessToken);
-      setMe(meBody.data.user);
       setPassword("");
+      setPendingProfile(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
-    } finally {
       setLoading(false);
-    }
-  }
-
-  async function copyToken(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(token);
-      setCopied(true);
-    } catch {
-      setError("Copy failed — select the token text manually.");
     }
   }
 
@@ -143,10 +144,6 @@ export default function LoginPage() {
               <p style={{ margin: 0, fontSize: 15 }}>
                 Signed in as <strong>{me.name}</strong> ({me.role.toLowerCase().replace(/_/g, " ")})
               </p>
-              <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
-                Your access token — paste it into any board
-                <textarea readOnly value={token} rows={4} style={{ ...input, fontFamily: "monospace", fontSize: 12 }} />
-              </label>
               {me.schoolId ? (
                 <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>
                   School ID for the board pages: <strong style={{ fontFamily: "monospace" }}>{me.schoolId}</strong>{" "}
@@ -154,9 +151,6 @@ export default function LoginPage() {
                 </p>
               ) : null}
               <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" onClick={copyToken} style={{ flex: 1, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1", background: "#fff", fontWeight: 600, cursor: "pointer" }}>
-                  {copied ? "Copied!" : "Copy token"}
-                </button>
                 {DASHBOARD_BY_ROLE[me.role] ? (
                   <Link href={DASHBOARD_BY_ROLE[me.role] as string} style={{ flex: 1, textAlign: "center", padding: 10, borderRadius: 10, background: PRIMARY, color: "#fff", fontWeight: 600, textDecoration: "none" }}>
                     Open my board

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { SkeletonBlocks } from "../../../components/ui/shell";
 import { isFailure } from "../../../lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 interface Guardian {
   relationship: string;
@@ -24,33 +26,32 @@ interface ApiError {
   error: { code: string; message: string };
 }
 
-// Pre-dashboard profile screen (Phase 1 Chunk 1). What you see is decided
-// server-side by self-scope: a student gets their own record, a parent
-// their linked children, staff any in-school record — anything else is a
-// 403 from the API, and this screen surfaces that message as-is.
-// Auth UI doesn't exist yet, so a bearer token is pasted (dev workflow
-// only — the login screen replaces this in the dashboard chunk).
+// Profile screen (Phase 1 Chunk 1). What you see is decided server-side by
+// self-scope: a student gets their own record, a parent their linked
+// children, staff any in-school record — anything else is a 403 from the
+// API, and this screen surfaces that message as-is. Identity comes from
+// the shared session (useAuth) — apiFetch attaches the bearer token.
 // Role-agnostic page: NOT wrapped in Shell (Shell requires a role prop —
 // forcing one would badge the wrong role), so this page carries the
 // light-canvas background, Inter font, and 1120/padding-28 rhythm directly.
 export default function StudentProfilePage() {
-  const [schoolId, setSchoolId] = useState("");
+  const { token, schoolId, ready, apiFetch } = useAuth();
   const [studentId, setStudentId] = useState("");
-  const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [error, setError] = useState("");
 
   async function onLoad(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (!schoolId) {
+      setError("Please sign in to load a profile.");
+      return;
+    }
     setLoading(true);
     setProfile(null);
     setError("");
     try {
-      const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-      const response = await fetch(`${api}/api/v1/schools/${schoolId}/students/${studentId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/students/${studentId}`);
       const body = (await response.json()) as { data: { student: StudentProfile } } | ApiError;
       if (isFailure(response, body)) {
         setError((body as ApiError).error?.message ?? `Request failed (${response.status}).`);
@@ -80,30 +81,45 @@ export default function StudentProfilePage() {
     padding: 20,
   } as const;
 
+  const frame = {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: 28,
+    fontFamily: "Inter, system-ui, sans-serif",
+    background: "#F8FAFC",
+    minHeight: "100vh",
+  } as const;
+
+  if (!ready) {
+    return (
+      <main style={frame}>
+        <h1 style={{ color: "#0F172A" }}>Student Profile</h1>
+        <SkeletonBlocks rows={4} />
+      </main>
+    );
+  }
+
+  if (!token || !schoolId) {
+    return (
+      <main style={frame}>
+        <h1 style={{ color: "#0F172A" }}>Student Profile</h1>
+        <div style={{ ...card, maxWidth: 640 }}>
+          <p style={{ color: "#334155" }}>Please sign in to view a profile.</p>
+          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+            Go to login
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main
-      style={{
-        maxWidth: 1120,
-        margin: "0 auto",
-        padding: 28,
-        fontFamily: "Inter, system-ui, sans-serif",
-        background: "#F8FAFC",
-        minHeight: "100vh",
-      }}
-    >
+    <main style={frame}>
       <h1 style={{ color: "#0F172A" }}>Student Profile</h1>
       <form onSubmit={onLoad} style={{ ...card, maxWidth: 640 }}>
         <label>
-          School ID
-          <input style={input} value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required />
-        </label>
-        <label>
           Student ID
           <input style={input} value={studentId} onChange={(e) => setStudentId(e.target.value)} required />
-        </label>
-        <label>
-          Bearer token (dev only — login screen replaces this)
-          <input style={input} value={token} onChange={(e) => setToken(e.target.value)} required />
         </label>
         <button type="submit" disabled={loading} style={primaryBtn}>
           Load profile

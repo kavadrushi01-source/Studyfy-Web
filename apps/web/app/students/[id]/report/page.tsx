@@ -1,34 +1,35 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { SkeletonBlocks } from "../../../../components/ui/shell";
+import { useAuth } from "@/lib/auth-context";
 
 // Report card viewer (§7 Phase 1 #4, print per §8.5). Fetches the PDF with
-// the pasted token and opens it in a new tab — the browser's print dialog
+// the shared session and opens it in a new tab — the browser's print dialog
 // inside the PDF viewer is the print path by design (report cards print
 // from the PDF, pixel-faithful), so this page carries no print CSS.
 // Self-scope applies: students/parents can only open their own rows.
-// Same token-paste dev workflow as the other pre-dashboard screens.
 // Role-agnostic page: NOT wrapped in Shell (Shell requires a role prop —
 // forcing one would badge the wrong role), so this page carries the
 // light-canvas background, Inter font, and 1120/padding-28 rhythm directly.
 export default function ReportCardPage() {
-  const [schoolId, setSchoolId] = useState("");
+  const { token, schoolId, ready, apiFetch } = useAuth();
   const [examId, setExamId] = useState("");
   const [studentId, setStudentId] = useState("");
-  const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function open(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (!schoolId) {
+      setError("Please sign in to open a report card.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-      const response = await fetch(`${api}/api/v1/schools/${schoolId}/exams/${examId}/report-cards/${studentId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/exams/${examId}/report-cards/${studentId}`);
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
         setError(body?.error?.message ?? `Request failed (${response.status}).`);
@@ -63,23 +64,42 @@ export default function ReportCardPage() {
     padding: 20,
   } as const;
 
+  const frame = {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: 28,
+    fontFamily: "Inter, system-ui, sans-serif",
+    background: "#F8FAFC",
+    minHeight: "100vh",
+  } as const;
+
+  if (!ready) {
+    return (
+      <main style={frame}>
+        <h1 style={{ color: "#0F172A" }}>Report Card</h1>
+        <SkeletonBlocks rows={2} />
+      </main>
+    );
+  }
+
+  if (!token || !schoolId) {
+    return (
+      <main style={frame}>
+        <h1 style={{ color: "#0F172A" }}>Report Card</h1>
+        <div style={{ ...card, maxWidth: 640 }}>
+          <p style={{ color: "#334155" }}>Please sign in to open a report card.</p>
+          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+            Go to login
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main
-      style={{
-        maxWidth: 1120,
-        margin: "0 auto",
-        padding: 28,
-        fontFamily: "Inter, system-ui, sans-serif",
-        background: "#F8FAFC",
-        minHeight: "100vh",
-      }}
-    >
+    <main style={frame}>
       <h1 style={{ color: "#0F172A" }}>Report Card</h1>
       <form onSubmit={open} style={{ ...card, maxWidth: 640 }}>
-        <label>
-          School ID
-          <input style={input} value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required />
-        </label>
         <label>
           Exam ID
           <input style={input} value={examId} onChange={(e) => setExamId(e.target.value)} required />
@@ -87,10 +107,6 @@ export default function ReportCardPage() {
         <label>
           Student ID
           <input style={input} value={studentId} onChange={(e) => setStudentId(e.target.value)} required />
-        </label>
-        <label>
-          Bearer token (dev only — login screen replaces this)
-          <input style={input} value={token} onChange={(e) => setToken(e.target.value)} required />
         </label>
         <button type="submit" disabled={loading} style={primaryBtn}>
           Open report card PDF

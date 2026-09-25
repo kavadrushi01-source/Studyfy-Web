@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { BookOpen, CheckCircle2, Plus, RefreshCw, Send } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 interface BoardItem {
   id: string;
@@ -26,11 +28,10 @@ interface ApiError {
 // with needs-grading counts, admins everything. Posting, submitting (text
 // + file), and grading all hit the real endpoints below — the board list
 // keeps its status pills. Empty states are real cards per §8.5 — never a
-// blank page, never a spinner.
+// blank page, never a spinner. Identity comes from the shared session
+// (useAuth).
 export default function HomeworkPage() {
-  const [schoolId, setSchoolId] = useState("");
-  const [token, setToken] = useState("");
-  const [connected, setConnected] = useState(false);
+  const { token, schoolId, ready, apiFetch } = useAuth();
   const [items, setItems] = useState<BoardItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -53,42 +54,47 @@ export default function HomeworkPage() {
   const [gradeId, setGradeId] = useState("");
   const [grading, setGrading] = useState(false);
 
-  const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-  const auth = { Authorization: `Bearer ${token}` };
-
   const load = useCallback(async () => {
+    if (!schoolId) {
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`${api}/api/v1/schools/${schoolId}/homework`, { headers: auth });
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/homework`);
       const body = (await response.json()) as { data: { homework: BoardItem[] } } | ApiError;
       if (isFailure(response, body)) {
         setError(body.error?.message ?? `Request failed (${response.status}).`);
         return;
       }
       setItems(body.data.homework);
-      setConnected(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
       setLoading(false);
     }
-  }, [api, schoolId, token]);
+  }, [schoolId, apiFetch]);
 
-  function connect(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
+  useEffect(() => {
+    if (!ready || !token || !schoolId) {
+      return;
+    }
     void load();
-  }
+  }, [ready, token, schoolId, apiFetch, load]);
 
   async function postHomework(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (!schoolId) {
+      setError("Please sign in to post homework.");
+      return;
+    }
     setPosting(true);
     setError("");
     setNotice("");
     try {
-      const response = await fetch(`${api}/api/v1/schools/${schoolId}/homework`, {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/homework`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...auth },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sectionId: phSection.trim(),
           subjectId: phSubject.trim(),
@@ -116,6 +122,10 @@ export default function HomeworkPage() {
   }
 
   async function submitItem(id: string): Promise<void> {
+    if (!schoolId) {
+      setError("Please sign in to submit homework.");
+      return;
+    }
     const content = (contents[id] ?? "").trim();
     const file = files[id] ?? null;
     if (!content && !file) {
@@ -133,9 +143,9 @@ export default function HomeworkPage() {
       if (file) {
         form.append("file", file);
       }
-      const response = await fetch(`${api}/api/v1/schools/${schoolId}/homework/${id}/submissions`, {
+      // No Content-Type header: the browser sets the multipart boundary.
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/homework/${id}/submissions`, {
         method: "POST",
-        headers: { ...auth },
         body: form,
       });
       const body = (await response.json()) as { data: { submission: { id: string } } } | ApiError;
@@ -159,13 +169,16 @@ export default function HomeworkPage() {
 
   async function gradeSubmission(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (!schoolId) {
+      setError("Please sign in to grade a submission.");
+      return;
+    }
     setGrading(true);
     setError("");
     setNotice("");
     try {
-      const response = await fetch(`${api}/api/v1/schools/${schoolId}/submissions/${gradeId.trim()}/grade`, {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/submissions/${gradeId.trim()}/grade`, {
         method: "POST",
-        headers: { ...auth },
       });
       const body = (await response.json()) as { data: { submission: { id: string } } } | ApiError;
       if (isFailure(response, body)) {
@@ -259,7 +272,34 @@ export default function HomeworkPage() {
   };
 
   const sectionOptions = [...new Map(items.map((i) => [i.section.id, i.section])).values()];
-  const empty = !loading && connected && items.length === 0;
+  const empty = !loading && items.length === 0;
+
+  if (!ready) {
+    return (
+      <main style={page}>
+        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
+          <BookOpen size={22} aria-hidden="true" color="#2563EB" /> Homework
+        </h1>
+        <SkeletonBlocks rows={3} height={96} />
+      </main>
+    );
+  }
+
+  if (!token || !schoolId) {
+    return (
+      <main style={page}>
+        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
+          <BookOpen size={22} aria-hidden="true" color="#2563EB" /> Homework
+        </h1>
+        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}>
+          <p style={{ color: "#334155" }}>Please sign in to view homework.</p>
+          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+            Go to login
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main style={page}>
@@ -269,180 +309,159 @@ export default function HomeworkPage() {
       <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
         One board per role — post it, submit it, grade it.
       </p>
-      {!connected ? (
-        <form
-          onSubmit={connect}
-          style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}
-        >
-          <label>
-            School ID
-            <input style={input} value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required />
-          </label>
-          <label>
-            Bearer token (dev only — login screen replaces this)
-            <input style={input} value={token} onChange={(e) => setToken(e.target.value)} required />
-          </label>
-          <button type="submit" style={primaryBtn}>
-            Connect
-          </button>
-        </form>
-      ) : (
-        <>
-          <div className="sf-row-wrap" style={{ marginBottom: 12 }}>
-            <button type="button" onClick={() => void load()} disabled={loading} style={{ ...quietBtn, opacity: loading ? 0.6 : 1 }}>
-              <RefreshCw size={14} aria-hidden="true" /> Reload
-            </button>
-          </div>
-          <section style={card}>
-            <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A", display: "flex", alignItems: "center", gap: 6 }}>
-              <Plus size={16} aria-hidden="true" /> Post homework (teacher)
-            </h2>
-            <form onSubmit={postHomework}>
-              <div className="sf-row-wrap">
-                <label style={{ flex: 1, minWidth: 200 }}>
-                  Section
-                  {sectionOptions.length > 0 ? (
-                    <select
-                      style={input}
-                      value={phSection}
-                      onChange={(e) => setPhSection(e.target.value)}
-                      aria-label="Section ID"
-                    >
-                      <option value="">— pick a section —</option>
-                      {sectionOptions.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.className} {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      style={input}
-                      value={phSection}
-                      onChange={(e) => setPhSection(e.target.value)}
-                      placeholder="Section ID"
-                      required
-                      aria-label="Section ID"
-                    />
-                  )}
-                </label>
-                <label style={{ flex: 1, minWidth: 200 }}>
-                  Subject ID
-                  <input
-                    style={input}
-                    value={phSubject}
-                    onChange={(e) => setPhSubject(e.target.value)}
-                    placeholder="Subject ID you teach"
-                    required
-                  />
-                </label>
-                <label style={{ flex: 1, minWidth: 200 }}>
-                  Due date
-                  <input style={input} type="date" value={phDue} onChange={(e) => setPhDue(e.target.value)} required />
-                </label>
-              </div>
-              <label>
-                Title
+      <div className="sf-row-wrap" style={{ marginBottom: 12 }}>
+        <button type="button" onClick={() => void load()} disabled={loading} style={{ ...quietBtn, opacity: loading ? 0.6 : 1 }}>
+          <RefreshCw size={14} aria-hidden="true" /> Reload
+        </button>
+      </div>
+      <section style={card}>
+        <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A", display: "flex", alignItems: "center", gap: 6 }}>
+          <Plus size={16} aria-hidden="true" /> Post homework (teacher)
+        </h2>
+        <form onSubmit={postHomework}>
+          <div className="sf-row-wrap">
+            <label style={{ flex: 1, minWidth: 200 }}>
+              Section
+              {sectionOptions.length > 0 ? (
+                <select
+                  style={input}
+                  value={phSection}
+                  onChange={(e) => setPhSection(e.target.value)}
+                  aria-label="Section ID"
+                >
+                  <option value="">— pick a section —</option>
+                  {sectionOptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.className} {s.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
                 <input
                   style={input}
-                  value={phTitle}
-                  onChange={(e) => setPhTitle(e.target.value)}
-                  placeholder="Algebra Worksheet 2"
+                  value={phSection}
+                  onChange={(e) => setPhSection(e.target.value)}
+                  placeholder="Section ID"
                   required
+                  aria-label="Section ID"
                 />
-              </label>
-              <label>
-                Description
-                <textarea
-                  style={{ ...input, minHeight: 72 }}
-                  value={phDesc}
-                  onChange={(e) => setPhDesc(e.target.value)}
-                  placeholder="Solve problems 21 through 40 from chapter 3 before Friday."
-                  required
-                />
-              </label>
-              <button type="submit" disabled={posting} style={{ ...primaryBtn, opacity: posting ? 0.6 : 1 }}>
-                <Plus size={14} aria-hidden="true" /> {posting ? "Posting…" : "Post homework"}
-              </button>
-            </form>
-          </section>
-          <section style={card}>
-            <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A", display: "flex", alignItems: "center", gap: 6 }}>
-              <CheckCircle2 size={16} aria-hidden="true" /> Grade a submission (teacher)
-            </h2>
-            <form onSubmit={gradeSubmission} className="sf-row-wrap">
+              )}
+            </label>
+            <label style={{ flex: 1, minWidth: 200 }}>
+              Subject ID
               <input
-                style={{ flex: 1, minWidth: 220, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }}
-                value={gradeId}
-                onChange={(e) => setGradeId(e.target.value)}
-                placeholder="Submission ID from a student's submit"
+                style={input}
+                value={phSubject}
+                onChange={(e) => setPhSubject(e.target.value)}
+                placeholder="Subject ID you teach"
                 required
-                aria-label="Submission ID"
               />
-              <button type="submit" disabled={grading} style={{ ...quietBtn, opacity: grading ? 0.6 : 1 }}>
-                <CheckCircle2 size={14} aria-hidden="true" /> {grading ? "Grading…" : "Mark graded"}
-              </button>
-            </form>
-          </section>
-          {loading ? (
-            <SkeletonBlocks rows={3} height={96} />
-          ) : empty ? (
-            <EmptyState
-              icon={<BookOpen size={22} aria-hidden="true" />}
-              title="Nothing pending"
-              detail="No homework assigned here yet — you are all caught up."
+            </label>
+            <label style={{ flex: 1, minWidth: 200 }}>
+              Due date
+              <input style={input} type="date" value={phDue} onChange={(e) => setPhDue(e.target.value)} required />
+            </label>
+          </div>
+          <label>
+            Title
+            <input
+              style={input}
+              value={phTitle}
+              onChange={(e) => setPhTitle(e.target.value)}
+              placeholder="Algebra Worksheet 2"
+              required
             />
-          ) : (
-            items.map((item) => {
-              const status = statusOf(item);
-              const busy = submittingId === item.id;
-              return (
-                <article key={item.id} style={card}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <h3 style={{ margin: 0, flex: 1 }}>{item.title}</h3>
-                    <span style={pill(status.color)}>{status.label}</span>
-                  </div>
-                  <p style={{ color: "#334155" }}>{item.description}</p>
-                  <small style={{ color: "#64748B" }}>
-                    {item.subject.name} · {item.section.className} {item.section.name} · {item.teacher.name} · due{" "}
-                    {fmtDue(item.dueDate)}
-                  </small>
-                  <div style={{ marginTop: 12, borderTop: "1px solid #F1F5F9", paddingTop: 12 }}>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 4 }}>
-                      Your answer (student)
-                    </label>
-                    <textarea
-                      style={{ ...input, minHeight: 64 }}
-                      value={contents[item.id] ?? ""}
-                      onChange={(e) => setContents((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                      placeholder="Type your answers here…"
-                      aria-label={`Answer for ${item.title}`}
-                    />
-                    <div className="sf-row-wrap">
-                      <input
-                        ref={(el) => {
-                          fileRefs.current[item.id] = el;
-                        }}
-                        type="file"
-                        accept=".jpg,.jpeg,.png,.webp,.pdf"
-                        onChange={(e) => setFiles((prev) => ({ ...prev, [item.id]: e.target.files?.[0] ?? null }))}
-                        aria-label={`File for ${item.title}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void submitItem(item.id)}
-                        disabled={busy}
-                        style={{ ...quietBtn, opacity: busy ? 0.6 : 1 }}
-                      >
-                        <Send size={14} aria-hidden="true" /> {busy ? "Submitting…" : "Submit"}
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })
-          )}
-        </>
+          </label>
+          <label>
+            Description
+            <textarea
+              style={{ ...input, minHeight: 72 }}
+              value={phDesc}
+              onChange={(e) => setPhDesc(e.target.value)}
+              placeholder="Solve problems 21 through 40 from chapter 3 before Friday."
+              required
+            />
+          </label>
+          <button type="submit" disabled={posting} style={{ ...primaryBtn, opacity: posting ? 0.6 : 1 }}>
+            <Plus size={14} aria-hidden="true" /> {posting ? "Posting…" : "Post homework"}
+          </button>
+        </form>
+      </section>
+      <section style={card}>
+        <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A", display: "flex", alignItems: "center", gap: 6 }}>
+          <CheckCircle2 size={16} aria-hidden="true" /> Grade a submission (teacher)
+        </h2>
+        <form onSubmit={gradeSubmission} className="sf-row-wrap">
+          <input
+            style={{ flex: 1, minWidth: 220, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }}
+            value={gradeId}
+            onChange={(e) => setGradeId(e.target.value)}
+            placeholder="Submission ID from a student's submit"
+            required
+            aria-label="Submission ID"
+          />
+          <button type="submit" disabled={grading} style={{ ...quietBtn, opacity: grading ? 0.6 : 1 }}>
+            <CheckCircle2 size={14} aria-hidden="true" /> {grading ? "Grading…" : "Mark graded"}
+          </button>
+        </form>
+      </section>
+      {loading ? (
+        <SkeletonBlocks rows={3} height={96} />
+      ) : empty ? (
+        <EmptyState
+          icon={<BookOpen size={22} aria-hidden="true" />}
+          title="Nothing pending"
+          detail="No homework assigned here yet — you are all caught up."
+        />
+      ) : (
+        items.map((item) => {
+          const status = statusOf(item);
+          const busy = submittingId === item.id;
+          return (
+            <article key={item.id} style={card}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <h3 style={{ margin: 0, flex: 1 }}>{item.title}</h3>
+                <span style={pill(status.color)}>{status.label}</span>
+              </div>
+              <p style={{ color: "#334155" }}>{item.description}</p>
+              <small style={{ color: "#64748B" }}>
+                {item.subject.name} · {item.section.className} {item.section.name} · {item.teacher.name} · due{" "}
+                {fmtDue(item.dueDate)}
+              </small>
+              <div style={{ marginTop: 12, borderTop: "1px solid #F1F5F9", paddingTop: 12 }}>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 4 }}>
+                  Your answer (student)
+                </label>
+                <textarea
+                  style={{ ...input, minHeight: 64 }}
+                  value={contents[item.id] ?? ""}
+                  onChange={(e) => setContents((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                  placeholder="Type your answers here…"
+                  aria-label={`Answer for ${item.title}`}
+                />
+                <div className="sf-row-wrap">
+                  <input
+                    ref={(el) => {
+                      fileRefs.current[item.id] = el;
+                    }}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf"
+                    onChange={(e) => setFiles((prev) => ({ ...prev, [item.id]: e.target.files?.[0] ?? null }))}
+                    aria-label={`File for ${item.title}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void submitItem(item.id)}
+                    disabled={busy}
+                    style={{ ...quietBtn, opacity: busy ? 0.6 : 1 }}
+                  >
+                    <Send size={14} aria-hidden="true" /> {busy ? "Submitting…" : "Submit"}
+                  </button>
+                </div>
+              </div>
+            </article>
+          );
+        })
       )}
       {notice ? <p style={{ color: "#059669" }}>{notice}</p> : null}
       {error ? (

@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { SkeletonBlocks } from "../../../../components/ui/shell";
 import { isFailure } from "../../../../lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 interface Profile {
   user: { name: string; email: string };
@@ -13,28 +16,30 @@ interface Profile {
 // Printable ID card (spec §8.5: print stylesheets for ID cards). The PDF
 // endpoint is the downloadable artifact; this page is the print path —
 // same data, CR80-sized card, app chrome hidden in print.
+// Identity comes from the shared session (useAuth) — apiFetch attaches the
+// bearer token.
 // Role-agnostic page: NOT wrapped in Shell (Shell requires a role prop —
 // forcing one would badge the wrong role), so this page carries the
 // light-canvas background, Inter font, and 1120/padding-28 rhythm directly.
 // The school name input starts empty and is required: a placeholder name
 // must never be printed on a real card.
 export default function IdCardPrintPage() {
-  const [schoolId, setSchoolId] = useState("");
+  const { token, schoolId, ready, apiFetch } = useAuth();
   const [studentId, setStudentId] = useState("");
-  const [token, setToken] = useState("");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [schoolName, setSchoolName] = useState("");
   const [error, setError] = useState("");
 
   async function onLoad(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (!schoolId) {
+      setError("Please sign in to load a card.");
+      return;
+    }
     setError("");
     setProfile(null);
     try {
-      const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-      const response = await fetch(`${api}/api/v1/schools/${schoolId}/students/${studentId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/students/${studentId}`);
       const body = (await response.json()) as
         | { data: { student: Profile & { section: { class: { name: string } } } } }
         | { error: { message: string } };
@@ -71,17 +76,40 @@ export default function IdCardPrintPage() {
     padding: 20,
   } as const;
 
+  const frame = {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: 28,
+    fontFamily: "Inter, system-ui, sans-serif",
+    background: "#F8FAFC",
+    minHeight: "100vh",
+  } as const;
+
+  if (!ready) {
+    return (
+      <main style={frame}>
+        <h1 style={{ color: "#0F172A" }}>ID Card — Print</h1>
+        <SkeletonBlocks rows={4} />
+      </main>
+    );
+  }
+
+  if (!token || !schoolId) {
+    return (
+      <main style={frame}>
+        <h1 style={{ color: "#0F172A" }}>ID Card — Print</h1>
+        <div className="no-print" style={{ ...card, maxWidth: 640 }}>
+          <p style={{ color: "#334155" }}>Please sign in to print an ID card.</p>
+          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+            Go to login
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main
-      style={{
-        maxWidth: 1120,
-        margin: "0 auto",
-        padding: 28,
-        fontFamily: "Inter, system-ui, sans-serif",
-        background: "#F8FAFC",
-        minHeight: "100vh",
-      }}
-    >
+    <main style={frame}>
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -107,29 +135,11 @@ export default function IdCardPrintPage() {
             />
           </label>
           <label>
-            School ID
-            <input
-              style={{ display: "block", width: "100%", margin: "4px 0 12px", padding: 8 }}
-              value={schoolId}
-              onChange={(e) => setSchoolId(e.target.value)}
-              required
-            />
-          </label>
-          <label>
             Student ID
             <input
               style={{ display: "block", width: "100%", margin: "4px 0 12px", padding: 8 }}
               value={studentId}
               onChange={(e) => setStudentId(e.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Bearer token (dev only)
-            <input
-              style={{ display: "block", width: "100%", margin: "4px 0 12px", padding: 8 }}
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
               required
             />
           </label>

@@ -4,7 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { registerLimiter } from "../../middleware/security.js";
 import { loginSchema, registerSchema } from "./auth.schemas.js";
-import { AuthError, login, register, rotateRefreshToken } from "./auth.service.js";
+import { AuthError, login, logout, register, rotateRefreshToken } from "./auth.service.js";
 
 export const REFRESH_COOKIE = "studyfy_refresh";
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -153,5 +153,18 @@ authRouter.post(
       }
       sendAuthError(res, err);
     }
+  }),
+);
+
+// POST /auth/logout — no auth middleware (the cookie IS the credential,
+// and its absence must still succeed). Always clears the cookie.
+authRouter.post(
+  "/logout",
+  catchAsync(async (req: Request, res: Response) => {
+    const raw = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+    await logout(raw);
+    res
+      .clearCookie(REFRESH_COOKIE, { path: "/api/v1/auth" })
+      .json({ success: true, data: { loggedOut: true }, error: null, meta: null });
   }),
 );

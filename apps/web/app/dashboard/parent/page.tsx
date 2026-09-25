@@ -1,17 +1,11 @@
 "use client";
 
-import { useCallback, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { Bell, FileText, GraduationCap, TrendingUp, UserCheck, Wallet } from "lucide-react";
 import { Card, EmptyState, SectionTitle, Shell, SkeletonBlocks } from "../../../components/ui/shell";
+import { useAuth } from "@/lib/auth-context";
 import { isFailure } from "../../../lib/api";
-
-interface Me {
-  id: string;
-  name: string;
-  email: string;
-  schoolId: string | null;
-  role: string;
-}
 
 interface SubjectProgress {
   subjectName: string;
@@ -78,60 +72,55 @@ function inr(amount: string): string {
 }
 
 export default function ParentDashboardPage() {
-  const [schoolId, setSchoolId] = useState("");
-  const [token, setToken] = useState("");
-  const [connected, setConnected] = useState(false);
-  const [me, setMe] = useState<Me | null>(null);
+  const { token, schoolId, user, ready, apiFetch } = useAuth();
   const [bundle, setBundle] = useState<ParentBundle | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState("");
 
-  const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
   const load = useCallback(
     async (childId: string | null) => {
-      const auth = { Authorization: `Bearer ${token}` };
-      const url =
+      if (!schoolId) {
+        throw new Error("No school on this account");
+      }
+      const path =
         childId === null
-          ? `${api}/api/v1/schools/${schoolId}/dashboard/parent`
-          : `${api}/api/v1/schools/${schoolId}/dashboard/parent?with=${childId}`;
-      const dashRes = await fetch(url, { headers: auth });
+          ? `/api/v1/schools/${schoolId}/dashboard/parent`
+          : `/api/v1/schools/${schoolId}/dashboard/parent?with=${childId}`;
+      const dashRes = await apiFetch(path);
       const dashBody = (await dashRes.json()) as { data: { dashboard: ParentBundle } } | ApiError;
       if (isFailure(dashRes, dashBody)) {
         throw new Error(dashBody.error?.message ?? "Dashboard unavailable.");
       }
       setBundle(dashBody.data.dashboard);
     },
-    [api, schoolId, token],
+    [schoolId, apiFetch],
   );
 
-  const connect = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
+  useEffect(() => {
+    if (!ready || !token || !schoolId) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
       setLoading(true);
       setError("");
       try {
-        const auth = { Authorization: `Bearer ${token}` };
-        const meRes = await fetch(`${api}/api/v1/auth/me`, { headers: auth });
-        const meBody = (await meRes.json()) as { data: { user: Me } } | ApiError;
-        if (isFailure(meRes, meBody)) {
-          throw new Error(meBody.error?.message ?? "Sign-in failed.");
-        }
-        if (meBody.data.user.role !== "PARENT") {
-          throw new Error("This board is for parents — your account holds a different role.");
-        }
-        setMe(meBody.data.user);
         await load(null);
-        setConnected(true);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Network error.");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Network error.");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    },
-    [api, token, load],
-  );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, token, schoolId, load]);
 
   const switchChild = useCallback(
     async (childId: string) => {
@@ -148,31 +137,53 @@ export default function ParentDashboardPage() {
     [load],
   );
 
-  if (!connected || !me || !bundle) {
+  if (!ready) {
     return (
       <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif" }}>
-        <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Parent Dashboard</h1>
-        <p style={{ color: "#64748B", margin: "0 0 20px" }}>Paste a school-id + parent token to load your children&apos;s board.</p>
-        <form onSubmit={connect} style={{ display: "grid", gap: 12 }}>
-          <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
-            School ID
-            <input value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required style={{ padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }} />
-          </label>
-          <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
-            Parent token
-            <input value={token} onChange={(e) => setToken(e.target.value)} required style={{ padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }} />
-          </label>
-          <button type="submit" disabled={loading} style={{ padding: 12, borderRadius: 10, border: 0, background: PARENT_PINK, color: "#fff", fontWeight: 600, cursor: "pointer" }}>
-            {loading ? "Loading…" : "Load dashboard"}
-          </button>
-          {error ? <p style={{ color: DANGER, fontSize: 14 }}>{error}</p> : null}
-        </form>
-        {loading ? (
-          <div style={{ marginTop: 20 }}>
-            <SkeletonBlocks rows={3} />
-          </div>
-        ) : null}
+        <SkeletonBlocks rows={3} />
       </main>
+    );
+  }
+
+  if (!token) {
+    return (
+      <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
+        <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Please sign in</h1>
+        <p style={{ color: "#64748B", margin: "0 0 20px" }}>Sign in to view your children&apos;s board.</p>
+        <Link
+          href="/login"
+          style={{ display: "inline-block", padding: "12px 24px", borderRadius: 10, background: PARENT_PINK, color: "#fff", fontWeight: 600, textDecoration: "none" }}
+        >
+          Go to sign in
+        </Link>
+      </main>
+    );
+  }
+
+  if (!schoolId) {
+    return (
+      <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
+        <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Parent Dashboard</h1>
+        <p style={{ color: DANGER, fontSize: 14 }}>No school on this account</p>
+      </main>
+    );
+  }
+
+  if (user && user.role !== "PARENT") {
+    return (
+      <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
+        <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Parent Dashboard</h1>
+        <p style={{ color: DANGER, fontSize: 14 }}>This board is for parents — your account holds a different role.</p>
+      </main>
+    );
+  }
+
+  if (loading || !bundle) {
+    return (
+      <Shell role="PARENT" activeHref="/dashboard/parent">
+        {error ? <p style={{ color: DANGER, fontSize: 14 }}>{error}</p> : null}
+        <SkeletonBlocks rows={3} />
+      </Shell>
     );
   }
 
@@ -195,7 +206,7 @@ export default function ParentDashboardPage() {
       <header style={{ marginBottom: 24, display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 240 }}>
           <h1 style={{ fontSize: 26, margin: 0, color: NAVY }}>
-            {greeting(new Date())}, {me.name}
+            {greeting(new Date())}, {user?.name ?? ""}
           </h1>
           <p style={{ color: "#64748B", margin: "4px 0 0", fontSize: 14 }}>
             Your child&apos;s progress · {board.asOf.day}

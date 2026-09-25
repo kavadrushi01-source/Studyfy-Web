@@ -239,3 +239,19 @@ export async function rotateRefreshToken(rawToken: string): Promise<AuthResult> 
 
   return buildAuthResult(row.user, replacement);
 }
+
+// POST /auth/logout — revoke every live refresh token for the cookie's
+// owner ("log out everywhere") and let the route clear the cookie.
+// Idempotent by design: no cookie, unknown cookie, or already-revoked
+// chain all succeed — logout must never 401. Note the honest limit:
+// stateless access JWTs stay valid until their 15-minute expiry; logout
+// kills renewal, not already-issued access tokens.
+export async function logout(rawToken: string | undefined): Promise<{ loggedOut: boolean }> {
+  if (rawToken) {
+    const row = await prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(rawToken) } });
+    if (row) {
+      await prisma.refreshToken.deleteMany({ where: { userId: row.userId, revokedAt: null } });
+    }
+  }
+  return { loggedOut: true };
+}
