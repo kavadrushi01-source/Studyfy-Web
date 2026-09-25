@@ -530,6 +530,14 @@ export function invalidateTeacherBoards(schoolId: string): void {
   kpis.deletePrefix(`kpi:tboard:${schoolId}:`);
 }
 
+// Staff rows created outside the seed (invites) shift the roster counts.
+// Teacher/class counts have no other API write path, so this one call
+// covers the only producer.
+export function invalidateStaffCounts(schoolId: string): void {
+  kpis.deletePrefix(`kpi:teachers:${schoolId}`);
+  kpis.deletePrefix(`kpi:classes:${schoolId}`);
+}
+
 // ---------------------------------------------------------------------------
 // Accountant board (§7 Phase 1 #9, §8.3)
 // ---------------------------------------------------------------------------

@@ -27,7 +27,7 @@ export default function SignupPage() {
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
-  const [result, setResult] = useState<{ slug: string } | null>(null);
+  const [result, setResult] = useState<{ id: string; slug: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -67,11 +67,11 @@ export default function SignupPage() {
           adminPassword,
         }),
       });
-      const body = (await res.json()) as { data: { school: { slug: string } } } | { error: { message: string } };
+      const body = (await res.json()) as { data: { school: { id: string; slug: string } } } | { error: { message: string } };
       if (isFailure(res, body)) {
         throw new Error(body.error?.message ?? "Registration failed.");
       }
-      setResult({ slug: body.data.school.slug });
+      setResult({ id: body.data.school.id, slug: body.data.school.slug });
       setStep(3);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
@@ -177,6 +177,10 @@ export default function SignupPage() {
               <p style={{ color: SUCCESS, fontWeight: 700, margin: 0 }}>Your school is ready!</p>
               <p style={{ fontSize: 14, color: "#475569", margin: 0 }}>
                 Sign in with your admin email and the login slug <strong>{result.slug}</strong> — your 14-day free trial has started.
+              </p>
+              <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>
+                School ID for the board pages: <strong style={{ fontFamily: "monospace" }}>{result.id}</strong>{" "}
+                (save this — boards ask for the ID, not the slug)
               </p>
               <Link href="/login" style={{ textAlign: "center", padding: 12, borderRadius: 10, background: PRIMARY, color: "#fff", fontWeight: 600, textDecoration: "none" }}>
                 Go to Login

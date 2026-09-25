@@ -152,4 +152,73 @@ describe("teacher qualification assignment (§9.1 teacher_subjects)", () => {
       .send({ subjectId: subjectA })
       .expect(401);
   });
+
+  it("invites teachers/accountants with one-time passwords; rejects dupes, wrong roles, bad roles", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+
+    const invited = await request(app)
+      .post(`/api/v1/schools/${schoolId}/staff`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ name: "Invited Teacher", email: `invited-${uid()}@example.com`, role: "TEACHER" })
+      .expect(201);
+    expect(invited.body.data.staff.user.email).toContain("invited-");
+    expect(typeof invited.body.data.tempPassword).toBe("string");
+    expect(invited.body.data.tempPassword.length).toBeGreaterThanOrEqual(8);
+
+    // The temp password actually logs in.
+    const teacherLogin = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: invited.body.data.staff.user.email as string, password: invited.body.data.tempPassword as string, schoolSlug: slug })
+      .expect(200);
+    expect(teacherLogin.body.data.user.role).toBe("TEACHER");
+
+    // Duplicate email in this school is 409.
+    const dupe = await request(app)
+      .post(`/api/v1/schools/${schoolId}/staff`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ name: "Copycat", email: invited.body.data.staff.user.email as string, role: "TEACHER" })
+      .expect(409);
+    expect(dupe.body.error.code).toBe("EMAIL_TAKEN");
+
+    // Non-staff roles are refused at the schema gate.
+    const badRole = await request(app)
+      .post(`/api/v1/schools/${schoolId}/staff`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ name: "Sneaky Student", email: `sneaky-${uid()}@example.com`, role: "STUDENT" })
+      .expect(400);
+    expect(badRole.body.error.code).toBe("VALIDATION_ERROR");
+
+    // Teachers cannot invite (admin-only).
+    const existing = await makeTeacher(schoolId, slug);
+    const denied = await request(app)
+      .post(`/api/v1/schools/${schoolId}/staff`)
+      .set("Authorization", `Bearer ${existing.token}`)
+      .send({ name: "Rogue Hire", email: `rogue-${uid()}@example.com`, role: "TEACHER" })
+      .expect(403);
+    expect(denied.body.error.code).toBe("PERMISSION_DENIED");
+
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/staff`)
+      .send({ name: "Ghost", email: `ghost-${uid()}@example.com`, role: "TEACHER" })
+      .expect(401);
+  }, 30000);
+
+  it("lists the staff roster for admins, denies teachers", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const teacher = await makeTeacher(schoolId, slug);
+    const list = await request(app)
+      .get(`/api/v1/schools/${schoolId}/staff`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    const rows = list.body.data.staff as { user: { email: string } }[];
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    expect(rows[0]).toHaveProperty("designation");
+    expect(rows.some((r) => r.user.email === teacher.email)).toBe(true);
+
+    const denied = await request(app)
+      .get(`/api/v1/schools/${schoolId}/staff`)
+      .set("Authorization", `Bearer ${teacher.token}`)
+      .expect(403);
+    expect(denied.body.error.code).toBe("PERMISSION_DENIED");
+  }, 30000);
 });

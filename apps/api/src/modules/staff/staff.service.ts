@@ -1,5 +1,57 @@
+import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { AuthError } from "../auth/auth.service.js";
+import { invalidateStaffCounts, invalidateTeacherBoards } from "../metrics/metrics.service.js";
+import type { InviteStaffInput } from "./staff.schemas.js";
+
+const BCRYPT_COST = 12;
+
+function tempPassword(): string {
+  return randomBytes(9).toString("base64url");
+}
+
+export interface InvitedStaff {
+  staff: { id: string; designation: string; user: { id: string; email: string; name: string } };
+  tempPassword: string;
+}
+
+// Staff invite: creates the login user (STAFF-role only) + staff row in
+// one action. Runs on the tenant-SCOPED client. Duplicate email in this
+// school is 409, mirroring admission. The temp password is returned once,
+// like admission (§13.3 — per-account random, never shared).
+export async function inviteStaffMember(db: PrismaClient, schoolId: string, input: InviteStaffInput): Promise<InvitedStaff> {
+  const role = await db.role.findUnique({ where: { name: input.role } });
+  if (!role) {
+    throw new AuthError(500, "ROLES_NOT_SEEDED", "Roles are not seeded.");
+  }
+  const existing = await db.user.findFirst({ where: { email: input.email } });
+  if (existing) {
+    throw new AuthError(409, "EMAIL_TAKEN", "An account with this email already exists in this school.");
+  }
+  const password = tempPassword();
+  const user = await db.user.create({
+    data: {
+      schoolId,
+      email: input.email,
+      passwordHash: await bcrypt.hash(password, BCRYPT_COST),
+      name: input.name,
+      roleId: role.id,
+    },
+  });
+  const staff = await db.staff.create({
+    data: {
+      schoolId,
+      userId: user.id,
+      designation: input.designation ?? (input.role === "TEACHER" ? "Teacher" : "Accountant"),
+    },
+    include: { user: { select: { id: true, email: true, name: true } } },
+  });
+  // A new teacher shifts counts and class lists (§12.3).
+  invalidateTeacherBoards(schoolId);
+  invalidateStaffCounts(schoolId);
+  return { staff: { id: staff.id, designation: staff.designation, user: staff.user }, tempPassword: password };
+}
 
 // Teacher qualification assignment (§9.1 teacher_subjects): which subjects
 // a teacher may be scheduled to teach. Only TEACHER-role staff qualify —

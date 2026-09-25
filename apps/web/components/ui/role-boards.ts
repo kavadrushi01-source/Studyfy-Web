@@ -22,7 +22,7 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
     nav: [
       { label: "Dashboard", href: "/dashboard" },
       { label: "Students", href: "/students" },
-      { label: "Teachers", href: null },
+      { label: "Teachers", href: "/teachers" },
       { label: "Classes & Sections", href: "/sections" },
       { label: "Attendance", href: "/attendance/mark" },
       { label: "Fees & Payments", href: "/fees" },

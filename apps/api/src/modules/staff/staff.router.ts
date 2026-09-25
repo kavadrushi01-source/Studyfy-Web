@@ -4,8 +4,8 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { assignSubjectSchema } from "./staff.schemas.js";
-import { assignSubject, unassignSubject } from "./staff.service.js";
+import { assignSubjectSchema, inviteStaffSchema } from "./staff.schemas.js";
+import { assignSubject, inviteStaffMember, unassignSubject } from "./staff.service.js";
 
 export const staffRouter = Router();
 
@@ -16,6 +16,72 @@ function sendStaffError(res: Response, err: unknown): void {
   }
   throw err;
 }
+
+// School Admin only (staff.manage): staff roster with login identity.
+// Backs the Teachers directory page.
+staffRouter.get(
+  "/schools/:schoolId/staff",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("staff.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const rows = await req.prisma.staff.findMany({
+      select: {
+        id: true,
+        designation: true,
+        user: { select: { id: true, name: true, email: true, role: { select: { name: true } } } },
+      },
+      orderBy: { user: { name: "asc" } },
+      take: 200,
+    });
+    res.json({ success: true, data: { staff: rows }, error: null, meta: null });
+  }),
+);
+
+// School Admin only (staff.manage): invite a teacher/accountant. Creates
+// the login user (temp password returned once) + staff row together.
+staffRouter.post(
+  "/schools/:schoolId/staff",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("staff.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = inviteStaffSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await inviteStaffMember(req.prisma, req.schoolId ?? "", parsed.data);
+      res.status(201).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendStaffError(res, err);
+    }
+  }),
+);
 
 // School Admin only (staff.manage): staff setup incl. qualifications.
 // Teacher timetabling + messaging scope read these rows; they never write.
