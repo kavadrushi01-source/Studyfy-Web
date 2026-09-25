@@ -9,6 +9,33 @@ import { invalidateTeacherBoards } from "../metrics/metrics.service.js";
 
 export const sectionsRouter = Router();
 
+// School subject list (dropdowns that must show names, not IDs — the
+// homework post form sent typed names as IDs and 404'd). Same read key as
+// sections: reference data, not a privileged write.
+sectionsRouter.get(
+  "/schools/:schoolId/subjects",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("sections.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const subjects = await req.prisma.subject.findMany({
+      select: { id: true, name: true, group: true },
+      orderBy: { name: "asc" },
+      take: 200,
+    });
+    res.json({ success: true, data: { subjects }, error: null, meta: null });
+  }),
+);
+
 const assignSchema = z.object({
   // Teacher identified by school email (no ID hunting in the UI).
   // null clears the assignment.

@@ -133,6 +133,11 @@ npm audit --audit-level=high
     offers. Widened to `fees.read` + ownership pin check (same shape as
     the ledger), proven live (own 200 PDF, stranger 403, cross-tenant
     404) + regression test. Teachers still 403 (hold neither key).
+20b. **Forms asking humans for database IDs (2026-09-24).** Homework post
+    took raw text as `subjectId`, so typed names 404'd — same trap class
+    as slug-vs-ID. Rule: every ID field gets a name dropdown backed by a
+    tenant-scoped list endpoint (added `GET /subjects` here); raw-ID text
+    inputs are a bug, not simplicity.
 20. **Full suite flakes when dev servers run alongside it (2026-09-24).**
     A 3-file failure run went fully green on immediate re-run — the only
     difference was the API + web dev servers competing for CPU/MySQL.

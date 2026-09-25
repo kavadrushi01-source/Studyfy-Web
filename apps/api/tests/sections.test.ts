@@ -143,4 +143,26 @@ describe("sections class-teacher assignment (§9.1)", () => {
 
     await request(app).get(`/api/v1/schools/${schoolId}/sections`).expect(401);
   });
+
+  it("lists the school's subjects (dropdown data, tenant-scoped)", async () => {
+    const schoolA = await registerSchool();
+    const schoolB = await registerSchool();
+    const subject = await prisma.subject.create({ data: { schoolId: schoolA.schoolId, name: `Subject ${uid()}`, group: "Core" } });
+
+    const list = await request(app)
+      .get(`/api/v1/schools/${schoolA.schoolId}/subjects`)
+      .set("Authorization", `Bearer ${schoolA.adminToken}`)
+      .expect(200);
+    const names = (list.body.data.subjects as { id: string; name: string }[]).map((s) => s.name);
+    expect(names).toContain(subject.name);
+
+    // Other school's list carries none of these rows.
+    const foreign = await request(app)
+      .get(`/api/v1/schools/${schoolB.schoolId}/subjects`)
+      .set("Authorization", `Bearer ${schoolB.adminToken}`)
+      .expect(200);
+    expect((foreign.body.data.subjects as { name: string }[]).map((s) => s.name)).not.toContain(subject.name);
+
+    await request(app).get(`/api/v1/schools/${schoolA.schoolId}/subjects`).expect(401);
+  }, 30000);
 });

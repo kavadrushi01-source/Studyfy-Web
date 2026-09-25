@@ -49,6 +49,7 @@ export default function HomeworkPage() {
   const [contents, setContents] = useState<Record<string, string>>({});
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [submittingId, setSubmittingId] = useState("");
+  const [subjectOptions, setSubjectOptions] = useState<{ id: string; name: string }[]>([]);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   // Grade action (teacher): POST /schools/:schoolId/submissions/:id/grade.
   const [gradeId, setGradeId] = useState("");
@@ -68,6 +69,15 @@ export default function HomeworkPage() {
         return;
       }
       setItems(body.data.homework);
+      // Subject dropdown for the post form (names, not IDs — typing a name
+      // as an ID 404'd with "Subject not found in this school").
+      const subjectsRes = await apiFetch(`/api/v1/schools/${schoolId}/subjects`);
+      const subjectsBody = (await subjectsRes.json()) as {
+        data: { subjects: { id: string; name: string }[] };
+      } | ApiError;
+      if (!isFailure(subjectsRes, subjectsBody)) {
+        setSubjectOptions(subjectsBody.data.subjects);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
@@ -348,14 +358,30 @@ export default function HomeworkPage() {
               )}
             </label>
             <label style={{ flex: 1, minWidth: 200 }}>
-              Subject ID
-              <input
-                style={input}
-                value={phSubject}
-                onChange={(e) => setPhSubject(e.target.value)}
-                placeholder="Subject ID you teach"
-                required
-              />
+              Subject
+              {subjectOptions.length > 0 ? (
+                <select
+                  style={input}
+                  value={phSubject}
+                  onChange={(e) => setPhSubject(e.target.value)}
+                  aria-label="Subject"
+                >
+                  <option value="">— pick a subject —</option>
+                  {subjectOptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  style={input}
+                  value={phSubject}
+                  onChange={(e) => setPhSubject(e.target.value)}
+                  placeholder="Subject ID you teach"
+                  required
+                />
+              )}
             </label>
             <label style={{ flex: 1, minWidth: 200 }}>
               Due date
