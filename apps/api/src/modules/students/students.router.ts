@@ -176,6 +176,10 @@ studentsRouter.get(
         dob: true,
         gender: true,
         user: { select: { name: true, email: true } },
+        // The print page (and its ID-card card) render class + section from
+        // the detail payload — omitting `section` crashed the page at
+        // profile.section.class (found by the human-check e2e).
+        section: { select: { id: true, name: true, class: { select: { name: true } } } },
         guardianLinks: {
           select: { relationship: true, parent: { select: { name: true, email: true } } },
         },

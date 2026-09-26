@@ -37,8 +37,13 @@ export default function ReportCardPage() {
       }
       const blob = await response.blob();
       const url = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
-      const win = window.open(url, "_blank", "noopener");
-      if (!win) {
+      // NOTE: "noopener" in the features string makes Chrome return null
+      // even when the tab DID open, which turned every success into a false
+      // "blocked" error. Open normally, then sever the opener ourselves.
+      const win = window.open(url, "_blank");
+      if (win) {
+        win.opener = null;
+      } else {
         setError("PDF is ready, but the browser blocked the new tab — allow pop-ups for this site and try again.");
       }
     } catch (err) {

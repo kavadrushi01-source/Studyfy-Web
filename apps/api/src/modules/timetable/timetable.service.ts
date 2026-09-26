@@ -166,6 +166,60 @@ export async function deleteSlot(db: PrismaClient, slotId: string): Promise<void
   invalidateTeacherBoards(slot.schoolId);
 }
 
+export interface BoardSectionOption {
+  id: string;
+  name: string;
+  class: { name: string };
+}
+
+// Sections the caller may open a board for (§7 Phase 1 #5): pupils and
+// parents hold timetable.read but NOT sections.read, so the full sections
+// list is 403 for them and a picker fed only by /sections stays permanently
+// empty (found by the human-check e2e — pupils could never see their own
+// week). This returns exactly their pinned scope in the /sections shape:
+// STUDENT → own section, PARENT → linked children's sections, TEACHER →
+// own sections, ADMIN/ACCOUNTANT → every section in the school.
+export async function boardSections(
+  db: PrismaClient,
+  viewer: { userId: string; role: string },
+): Promise<{ sections: BoardSectionOption[] }> {
+  const byId = (ids: string[]) =>
+    db.section.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true, class: { select: { name: true } } },
+      orderBy: [{ class: { name: "asc" } }, { name: "asc" }],
+    });
+  if (viewer.role === "STUDENT") {
+    const profile = await db.student.findFirst({ where: { userId: viewer.userId }, select: { sectionId: true } });
+    return { sections: profile ? await byId([profile.sectionId]) : [] };
+  }
+  if (viewer.role === "PARENT") {
+    const links = await db.studentGuardian.findMany({
+      where: { parentId: viewer.userId },
+      select: { student: { select: { sectionId: true } } },
+    });
+    return { sections: await byId([...new Set(links.map((l) => l.student.sectionId))]) };
+  }
+  if (viewer.role === "TEACHER") {
+    const staff = await db.staff.findFirst({ where: { userId: viewer.userId }, select: { id: true } });
+    if (!staff) {
+      return { sections: [] };
+    }
+    const [owned, scheduled] = await Promise.all([
+      db.section.findMany({ where: { classTeacherId: staff.id }, select: { id: true } }),
+      db.timetableSlot.findMany({ where: { teacherId: staff.id }, select: { sectionId: true } }),
+    ]);
+    return {
+      sections: await byId([...new Set([...owned.map((s) => s.id), ...scheduled.map((s) => s.sectionId)])]),
+    };
+  }
+  const all = await db.section.findMany({
+    select: { id: true, name: true, class: { select: { name: true } } },
+    orderBy: [{ class: { name: "asc" } }, { name: "asc" }],
+  });
+  return { sections: all };
+}
+
 interface BoardCaller {
   userId: string;
   role: string;

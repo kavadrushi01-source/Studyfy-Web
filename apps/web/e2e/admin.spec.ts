@@ -25,7 +25,14 @@ test.describe("SOS admin full circuit", () => {
     await page.getByRole("button", { name: /search/i }).click();
     await expect(page.getByText("Priya Patel")).toBeVisible({ timeout: 20000 });
     await page.getByLabel(/search/i).fill("");
-    await page.getByRole("button", { name: /search/i }).click();
+    // Wait for the UNFILTERED list response before reading the total —
+    // clicking Search while empty used to race the refetch and capture the
+    // stale "· 1 total" from the filtered search above.
+    const [listResp] = await Promise.all([
+      page.waitForResponse((r) => /\/students(\?|$)/.test(r.url()) && r.request().method() === "GET"),
+      page.getByRole("button", { name: /search/i }).click(),
+    ]);
+    expect(listResp.ok()).toBeTruthy();
     const before = await page.getByText(/· (\d+) total/).textContent();
     const stamp = Date.now().toString(36);
     await page.goto("/students/new");
@@ -39,7 +46,8 @@ test.describe("SOS admin full circuit", () => {
     await expect(page.getByRole("heading", { name: /admitted/i })).toBeVisible({ timeout: 20000 });
     const beforeCount = Number(before?.match(/(\d+) total/)?.[1] ?? "0");
     await page.goto("/students");
-    await expect(page.getByText(new RegExp(`${beforeCount + 1} total`))).toBeVisible({ timeout: 20000 });
+    // Lookbehind keeps "2 total" from matching inside "12 total".
+    await expect(page.getByText(new RegExp(`(?<!\\d)${beforeCount + 1} total`))).toBeVisible({ timeout: 20000 });
     await page.getByLabel(/search/i).fill(`E2E Pupil ${stamp}`);
     await page.getByRole("button", { name: /search/i }).click();
     await expect(page.getByText(`E2E Pupil ${stamp}`)).toBeVisible({ timeout: 20000 });

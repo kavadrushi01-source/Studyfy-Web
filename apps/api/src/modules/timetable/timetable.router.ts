@@ -6,7 +6,7 @@ import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { addSlotSchema, boardQuerySchema, generateTimetableSchema } from "./timetable.schemas.js";
-import { addSlot, deleteSlot, generateSectionTimetables, readBoard } from "./timetable.service.js";
+import { addSlot, boardSections, deleteSlot, generateSectionTimetables, readBoard } from "./timetable.service.js";
 
 export const timetableRouter = Router();
 
@@ -111,6 +111,30 @@ timetableRouter.delete(
     } catch (err) {
       sendTimetableError(res, err);
     }
+  }),
+);
+
+// Board-scope sections (timetable.read for every school role): exactly the
+// sections THIS caller may open a board for, in the /sections shape so the
+// UI picker can use it directly. Pupils/parents can't read /sections at all
+// (no sections.read), so without this their board picker stays empty.
+timetableRouter.get(
+  "/schools/:schoolId/timetable/sections",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("timetable.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const result = await boardSections(req.prisma, { userId: req.user.userId, role: req.user.role });
+    res.json({ success: true, data: result, error: null, meta: null });
   }),
 );
 

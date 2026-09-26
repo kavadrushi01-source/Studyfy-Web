@@ -48,12 +48,20 @@ export default function TimetablePage() {
     if (!schoolId) {
       throw new Error("Please sign in to view the timetable.");
     }
+    // Pupils/parents hold timetable.read but NOT sections.read, so the full
+    // list is 403 for them — fall back to the board-scope endpoint, which
+    // returns exactly their pinned sections in the same shape.
     const response = await apiFetch(`/api/v1/schools/${schoolId}/sections`);
     const body = (await response.json()) as { data: { sections: SectionOption[] } } | ApiError;
-    if (isFailure(response, body)) {
-      throw new Error(body.error?.message ?? "Failed to load sections.");
+    if (!isFailure(response, body)) {
+      return body.data.sections;
     }
-    return body.data.sections;
+    const scoped = await apiFetch(`/api/v1/schools/${schoolId}/timetable/sections`);
+    const scopedBody = (await scoped.json()) as { data: { sections: SectionOption[] } } | ApiError;
+    if (isFailure(scoped, scopedBody)) {
+      throw new Error(scopedBody.error?.message ?? "Failed to load sections.");
+    }
+    return scopedBody.data.sections;
   }, [schoolId, apiFetch]);
 
   const loadBoard = useCallback(
