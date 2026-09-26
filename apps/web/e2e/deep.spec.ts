@@ -141,8 +141,11 @@ test.describe("records + money scoping", () => {
     await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
     await page.goto(`/students/${pupilId}/report`);
     await expect(page.getByRole("heading", { name: /report card/i })).toBeVisible({ timeout: 20000 });
-    await page.getByLabel(/exam id/i).fill(examId ?? "");
-    await page.getByLabel(/student id/i).fill(pupilId ?? "");
+    // Student comes from the route now; only the exam is picked from the
+    // loaded dropdown (options arrive async with the exams list).
+    const examSelect = page.getByRole("combobox", { name: "Exam" });
+    await expect(examSelect.locator("option").nth(1)).toBeAttached({ timeout: 20000 });
+    await examSelect.selectOption(examId ?? "");
     const [popup] = await Promise.all([
       page.waitForEvent("popup", { timeout: 20000 }),
       page.getByRole("button", { name: /open report card pdf/i }).click(),
@@ -164,7 +167,6 @@ test.describe("records + money scoping", () => {
     await page.goto(`/students/${pupilId}/id-card`);
     await expect(page.getByRole("heading", { name: /id card/i })).toBeVisible({ timeout: 20000 });
     await page.getByLabel(/school name/i).fill("School of Science");
-    await page.getByLabel(/student id/i).fill(pupilId ?? "");
     await page.getByRole("button", { name: /load card/i }).click();
     await expect(page.getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByText(/ADM-/).first()).toBeVisible();

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { SkeletonBlocks } from "../../../components/ui/shell";
 import { isFailure } from "../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -11,7 +12,6 @@ import {
   gradients,
   h1Style,
   h2Style,
-  labelStyle,
   mutedStyle,
   pageFrame,
   pill,
@@ -37,44 +37,56 @@ interface ApiError {
   error: { code: string; message: string };
 }
 
-// Profile screen (Phase 1 Chunk 1). What you see is decided server-side by
-// self-scope: a student gets their own record, a parent their linked
-// children, staff any in-school record — anything else is a 403 from the
+// Profile screen (Phase 1 Chunk 1). The student comes straight from the
+// route (/students/:id) - no paste box. What you see is decided server-side
+// by self-scope: a student gets their own record, a parent their linked
+// children, staff any in-school record - anything else is a 403 from the
 // API, and this screen surfaces that message as-is. Identity comes from
-// the shared session (useAuth) — apiFetch attaches the bearer token.
-// Role-agnostic page: NOT wrapped in Shell (Shell requires a role prop —
+// the shared session (useAuth) - apiFetch attaches the bearer token.
+// Role-agnostic page: NOT wrapped in Shell (Shell requires a role prop -
 // forcing one would badge the wrong role), so this page carries the
 // light-canvas background, Inter font, and 1120/padding-28 rhythm directly.
 export default function StudentProfilePage() {
   const { token, schoolId, ready, apiFetch } = useAuth();
-  const [studentId, setStudentId] = useState("");
+  const params = useParams<{ id: string }>();
+  const studentId = typeof params.id === "string" ? params.id : "";
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [error, setError] = useState("");
 
-  async function onLoad(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (!schoolId) {
-      setError("Please sign in to load a profile.");
+  useEffect(() => {
+    if (!ready || !token || !schoolId || !studentId) {
       return;
     }
-    setLoading(true);
-    setProfile(null);
-    setError("");
-    try {
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/students/${studentId}`);
-      const body = (await response.json()) as { data: { student: StudentProfile } } | ApiError;
-      if (isFailure(response, body)) {
-        setError((body as ApiError).error?.message ?? `Request failed (${response.status}).`);
-        return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      setProfile(null);
+      try {
+        const response = await apiFetch(`/api/v1/schools/${schoolId}/students/${studentId}`);
+        const body = (await response.json()) as { data: { student: StudentProfile } } | ApiError;
+        if (isFailure(response, body)) {
+          if (!cancelled) {
+            setError((body as ApiError).error?.message ?? `Request failed (${response.status}).`);
+          }
+        } else if (!cancelled) {
+          setProfile((body as { data: { student: StudentProfile } }).data.student);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Network error.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-      setProfile((body as { data: { student: StudentProfile } }).data.student);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error.");
-    } finally {
-      setLoading(false);
-    }
-  }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, token, schoolId, studentId, apiFetch]);
 
   const pageH1 = { ...h1Style, marginBottom: 14 };
   const alertStyle = {
@@ -161,32 +173,36 @@ export default function StudentProfilePage() {
 
   return (
     <main style={pageFrame}>
-      <h1 style={pageH1}>Student Profile</h1>
-      <form
-        onSubmit={onLoad}
-        className="sf-card"
-        style={{ maxWidth: 640, padding: 20, display: "grid", gap: 14 }}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 14,
+          flexWrap: "wrap",
+        }}
       >
-        <label style={labelStyle}>
-          Student ID
-          <input
-            className="sf-input"
-            value={studentId}
-            onChange={(e) => setStudentId(e.target.value)}
-            required
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={loading}
-          className="sf-btn sf-btn-primary"
-          style={{ justifySelf: "start" }}
-        >
-          Load profile
-        </button>
-      </form>
+        <div>
+          <h1 style={{ ...h1Style, marginBottom: 4 }}>Student Profile</h1>
+          <Link
+            href="/students"
+            style={{ ...mutedStyle, margin: 0, fontSize: 13, textDecoration: "none" }}
+          >
+            ← All students
+          </Link>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link href={`/students/${studentId}/report`} className="sf-btn sf-btn-secondary">
+            Report card
+          </Link>
+          <Link href={`/students/${studentId}/id-card`} className="sf-btn sf-btn-secondary">
+            Print ID card
+          </Link>
+        </div>
+      </div>
       {loading ? (
-        <div style={{ marginTop: 16, maxWidth: 640 }}>
+        <div style={{ maxWidth: 640 }}>
           <SkeletonBlocks rows={4} />
         </div>
       ) : null}

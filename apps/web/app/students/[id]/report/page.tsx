@@ -1,25 +1,58 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { SkeletonBlocks } from "../../../../components/ui/shell";
 import { useAuth } from "@/lib/auth-context";
 import { cardStyle, colors, h1Style, labelStyle, mutedStyle, pageFrame } from "@/lib/theme";
 
-// Report card viewer (§7 Phase 1 #4, print per §8.5). Fetches the PDF with
-// the shared session and opens it in a new tab — the browser's print dialog
-// inside the PDF viewer is the print path by design (report cards print
-// from the PDF, pixel-faithful), so this page carries no print CSS.
+interface ExamOption {
+  id: string;
+  name: string;
+}
+
+// Report card viewer (7 Phase 1 #4, print per 8.5). The student comes from
+// the route (/students/:id/report) - no paste box - and the exam is picked
+// from the school's exam list. Fetches the PDF with the shared session and
+// opens it in a new tab - the browser's print dialog inside the PDF viewer
+// is the print path by design (report cards print from the PDF,
+// pixel-faithful), so this page carries no print CSS.
 // Self-scope applies: students/parents can only open their own rows.
-// Role-agnostic page: NOT wrapped in Shell (Shell requires a role prop —
+// Role-agnostic page: NOT wrapped in Shell (Shell requires a role prop -
 // forcing one would badge the wrong role), so this page carries the
 // light-canvas background, Inter font, and 1120/padding-28 rhythm directly.
 export default function ReportCardPage() {
   const { token, schoolId, ready, apiFetch } = useAuth();
+  const params = useParams<{ id: string }>();
+  const studentId = typeof params.id === "string" ? params.id : "";
   const [examId, setExamId] = useState("");
-  const [studentId, setStudentId] = useState("");
+  const [exams, setExams] = useState<ExamOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!ready || !token || !schoolId) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await apiFetch(`/api/v1/schools/${schoolId}/exams`);
+        const body = (await response.json()) as
+          | { data: { exams: ExamOption[] } }
+          | { error?: { message?: string } };
+        if (!cancelled && "data" in body && Array.isArray(body.data.exams)) {
+          setExams(body.data.exams);
+        }
+      } catch {
+        // The form stays usable: the select simply shows no exams.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, token, schoolId, apiFetch]);
 
   async function open(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -95,26 +128,25 @@ export default function ReportCardPage() {
     <main style={pageFrame}>
       <h1 style={pageH1}>Report Card</h1>
       <form onSubmit={open} className="sf-card" style={{ maxWidth: 640, padding: 20 }}>
-        <div className="sf-form-2col">
-          <label style={labelStyle}>
-            Exam ID
-            <input
-              className="sf-input"
-              value={examId}
-              onChange={(e) => setExamId(e.target.value)}
-              required
-            />
-          </label>
-          <label style={labelStyle}>
-            Student ID
-            <input
-              className="sf-input"
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-              required
-            />
-          </label>
-        </div>
+        <label style={labelStyle}>
+          Exam
+          <select
+            className="sf-input"
+            value={examId}
+            onChange={(e) => setExamId(e.target.value)}
+            required
+          >
+            <option value="">- pick an exam -</option>
+            {exams.map((exam) => (
+              <option key={exam.id} value={exam.id}>
+                {exam.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p style={{ ...mutedStyle, margin: "12px 0 0", fontSize: 13 }}>
+          Opens the PDF for the student in the page address — self-scope still applies.
+        </p>
         <div style={{ marginTop: 16 }}>
           <button type="submit" disabled={loading} className="sf-btn sf-btn-primary">
             Open report card PDF

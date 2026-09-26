@@ -30,7 +30,11 @@ type Target = "SCHOOL" | "CLASS" | "SECTION";
 // affected parents/staff and reports the count back. Identity comes from
 // the shared session (useAuth).
 export default function NoticesPage() {
-  const { token, schoolId, ready, apiFetch } = useAuth();
+  const { token, schoolId, ready, apiFetch, user } = useAuth();
+  // Publish is ADMIN/TEACHER API-side; pupils/parents only read the board
+  // (and lack sections.read), so the form and its sections fetch stay
+  // staff-only.
+  const canPublish = user?.role === "TEACHER" || user?.role === "SCHOOL_ADMIN";
   const [notices, setNotices] = useState<Notice[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -57,22 +61,25 @@ export default function NoticesPage() {
         return;
       }
       setNotices(data.data.notices);
-      // Class/section dropdowns for targeting (names, not IDs).
-      const sectionsRes = await apiFetch(`/api/v1/schools/${schoolId}/sections`);
-      const sectionsBody = (await sectionsRes.json()) as {
-        data: { sections: { id: string; name: string; class: { id: string; name: string } }[] };
-      } | ApiError;
-      if (!isFailure(sectionsRes, sectionsBody)) {
-        setSectionOptions(
-          sectionsBody.data.sections.map((s) => ({ id: s.id, name: s.name, classId: s.class.id, className: s.class.name })),
-        );
+      // Class/section dropdowns for targeting (names, not IDs). Staff-only:
+      // pupils/parents get 403 from /sections, so never ask.
+      if (canPublish) {
+        const sectionsRes = await apiFetch(`/api/v1/schools/${schoolId}/sections`);
+        const sectionsBody = (await sectionsRes.json()) as {
+          data: { sections: { id: string; name: string; class: { id: string; name: string } }[] };
+        } | ApiError;
+        if (!isFailure(sectionsRes, sectionsBody)) {
+          setSectionOptions(
+            sectionsBody.data.sections.map((s) => ({ id: s.id, name: s.name, classId: s.class.id, className: s.class.name })),
+          );
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
       setLoading(false);
     }
-  }, [schoolId, apiFetch]);
+  }, [schoolId, apiFetch, canPublish]);
 
   useEffect(() => {
     if (!ready || !token || !schoolId) {
@@ -165,6 +172,7 @@ export default function NoticesPage() {
       <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
         School-wide by default — narrow to a class or section when it matters.
       </p>
+      {canPublish ? (
       <section style={{ ...cardStyle, marginBottom: 16 }}>
         <h2 style={h2Style}>Publish notice (staff)</h2>
         <form onSubmit={publish} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -252,6 +260,7 @@ export default function NoticesPage() {
           </button>
         </form>
       </section>
+      ) : null}
       {loading ? (
         <SkeletonBlocks rows={3} height={64} />
       ) : notices.length === 0 ? (

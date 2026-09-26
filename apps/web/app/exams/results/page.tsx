@@ -100,7 +100,10 @@ export default function ExamResultsPage() {
   );
 
   const loadEntrySections = useCallback(async (): Promise<void> => {
-    if (!schoolId) {
+    // Staff-only dropdown: pupils/parents lack sections.read (403), so the
+    // entry section list is only fetched for the roles that render the
+    // entry form.
+    if (!schoolId || !canEnter) {
       return;
     }
     try {
@@ -112,9 +115,9 @@ export default function ExamResultsPage() {
         setSections(body.data.sections.map((s) => ({ id: s.id, name: s.name, className: s.class.name })));
       }
     } catch {
-      // Sections dropdown stays empty — entry still validates server-side.
+      // Sections dropdown stays empty - entry still validates server-side.
     }
-  }, [schoolId, apiFetch]);
+  }, [schoolId, apiFetch, canEnter]);
 
   useEffect(() => {
     if (!ready || !token || !schoolId) {

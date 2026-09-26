@@ -36,7 +36,7 @@ const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 // generation simply has no cell (never a crash).
 // Identity comes from the shared session (useAuth).
 export default function TimetablePage() {
-  const { token, schoolId, ready, apiFetch } = useAuth();
+  const { token, schoolId, ready, apiFetch, user } = useAuth();
   const [mode, setMode] = useState<"section" | "teacher">("section");
   const [sections, setSections] = useState<SectionOption[]>([]);
   const [sectionId, setSectionId] = useState("");
@@ -49,13 +49,15 @@ export default function TimetablePage() {
     if (!schoolId) {
       throw new Error("Please sign in to view the timetable.");
     }
-    // Pupils/parents hold timetable.read but NOT sections.read, so the full
-    // list is 403 for them — fall back to the board-scope endpoint, which
-    // returns exactly their pinned sections in the same shape.
-    const response = await apiFetch(`/api/v1/schools/${schoolId}/sections`);
-    const body = (await response.json()) as { data: { sections: SectionOption[] } } | ApiError;
-    if (!isFailure(response, body)) {
-      return body.data.sections;
+    // Staff hold sections.read and get the full list; pupils/parents don't,
+    // so they go straight to the board-scope endpoint (their pinned
+    // sections, same shape) instead of burning a 403 probe every visit.
+    if (user?.role === "SCHOOL_ADMIN" || user?.role === "TEACHER") {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/sections`);
+      const body = (await response.json()) as { data: { sections: SectionOption[] } } | ApiError;
+      if (!isFailure(response, body)) {
+        return body.data.sections;
+      }
     }
     const scoped = await apiFetch(`/api/v1/schools/${schoolId}/timetable/sections`);
     const scopedBody = (await scoped.json()) as { data: { sections: SectionOption[] } } | ApiError;
@@ -63,7 +65,7 @@ export default function TimetablePage() {
       throw new Error(scopedBody.error?.message ?? "Failed to load sections.");
     }
     return scopedBody.data.sections;
-  }, [schoolId, apiFetch]);
+  }, [schoolId, apiFetch, user?.role]);
 
   const loadBoard = useCallback(
     async (params: URLSearchParams) => {

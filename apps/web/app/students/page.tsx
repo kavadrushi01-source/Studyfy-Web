@@ -140,7 +140,21 @@ export default function StudentsPage() {
 
   return (
     <main style={pageFrame}>
-      <h1 style={pageH1}>Students</h1>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 14,
+          flexWrap: "wrap",
+        }}
+      >
+        <h1 style={{ ...pageH1, marginBottom: 0 }}>Students</h1>
+        <Link href="/students/new" className="sf-btn sf-btn-primary">
+          Admit student
+        </Link>
+      </div>
       <form onSubmit={applySearch} className="sf-row-wrap" style={{ marginBottom: 16 }}>
         <input
           className="sf-input"
@@ -156,7 +170,19 @@ export default function StudentsPage() {
       </form>
       <DataTable<StudentRow>
         columns={[
-          { key: "name", label: "Name", sortable: true, render: (r) => r.user.name },
+          {
+            key: "name",
+            label: "Name",
+            sortable: true,
+            render: (r) => (
+              <Link
+                href={`/students/${r.id}`}
+                style={{ color: colors.primary, fontWeight: 600, textDecoration: "none" }}
+              >
+                {r.user.name}
+              </Link>
+            ),
+          },
           { key: "email", label: "Email", sortable: true, render: (r) => r.user.email },
           {
             key: "section",

@@ -33,7 +33,11 @@ interface ApiError {
 // blank page, never a spinner. Identity comes from the shared session
 // (useAuth).
 export default function HomeworkPage() {
-  const { token, schoolId, ready, apiFetch } = useAuth();
+  const { token, schoolId, ready, apiFetch, user } = useAuth();
+  // Staff-only surfaces: posting/grading are admin+teacher API-side, and
+  // pupils/parents lack subjects.read (403) - so the post form and its
+  // subjects fetch only exist for the roles that can actually use them.
+  const canManage = user?.role === "TEACHER" || user?.role === "SCHOOL_ADMIN";
   const [items, setItems] = useState<BoardItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -72,21 +76,24 @@ export default function HomeworkPage() {
         return;
       }
       setItems(body.data.homework);
-      // Subject dropdown for the post form (names, not IDs — typing a name
-      // as an ID 404'd with "Subject not found in this school").
-      const subjectsRes = await apiFetch(`/api/v1/schools/${schoolId}/subjects`);
-      const subjectsBody = (await subjectsRes.json()) as {
-        data: { subjects: { id: string; name: string }[] };
-      } | ApiError;
-      if (!isFailure(subjectsRes, subjectsBody)) {
-        setSubjectOptions(subjectsBody.data.subjects);
+      // Subject dropdown for the post form (names, not IDs - typing a name
+      // as an ID 404'd with "Subject not found in this school"). Staff-only:
+      // pupils/parents get 403 from /subjects, so never ask.
+      if (canManage) {
+        const subjectsRes = await apiFetch(`/api/v1/schools/${schoolId}/subjects`);
+        const subjectsBody = (await subjectsRes.json()) as {
+          data: { subjects: { id: string; name: string }[] };
+        } | ApiError;
+        if (!isFailure(subjectsRes, subjectsBody)) {
+          setSubjectOptions(subjectsBody.data.subjects);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
       setLoading(false);
     }
-  }, [schoolId, apiFetch]);
+  }, [schoolId, apiFetch, canManage]);
 
   useEffect(() => {
     if (!ready || !token || !schoolId) {
@@ -289,6 +296,8 @@ export default function HomeworkPage() {
           <RefreshCw size={14} aria-hidden="true" /> Reload
         </button>
       </div>
+      {canManage ? (
+      <>
       <section style={card}>
         <h2 style={{ ...h2Style, display: "flex", alignItems: "center", gap: 6 }}>
           <Plus size={16} aria-hidden="true" color={colors.primary} /> Post homework (teacher)
@@ -423,6 +432,8 @@ export default function HomeworkPage() {
           </ul>
         )}
       </section>
+      </>
+      ) : null}
       {loading ? (
         <SkeletonBlocks rows={3} height={96} />
       ) : empty ? (

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { SkeletonBlocks } from "../../../../components/ui/shell";
 import { isFailure } from "../../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -35,7 +36,9 @@ interface Profile {
 // must never be printed on a real card.
 export default function IdCardPrintPage() {
   const { token, schoolId, ready, apiFetch } = useAuth();
-  const [studentId, setStudentId] = useState("");
+  // Student comes from the route (/students/:id/id-card) - no paste box.
+  const params = useParams<{ id: string }>();
+  const studentId = typeof params.id === "string" ? params.id : "";
   const [profile, setProfile] = useState<Profile | null>(null);
   const [schoolName, setSchoolName] = useState("");
   const [error, setError] = useState("");
@@ -127,15 +130,6 @@ export default function IdCardPrintPage() {
               className="sf-input"
               value={schoolName}
               onChange={(e) => setSchoolName(e.target.value)}
-              required
-            />
-          </label>
-          <label style={labelStyle}>
-            Student ID
-            <input
-              className="sf-input"
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
               required
             />
           </label>

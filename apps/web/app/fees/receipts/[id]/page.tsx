@@ -2,16 +2,19 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { SkeletonBlocks } from "../../../../components/ui/shell";
 import { useAuth } from "@/lib/auth-context";
-import { colors, h1Style, labelStyle, mutedStyle, primaryBtn } from "@/lib/theme";
+import { colors, h1Style, mutedStyle, primaryBtn } from "@/lib/theme";
 
-// Fee receipt viewer (§7 Phase 1 #3, print per §8.5). Fetches the PDF with
-// the shared session, opens it in a new tab — the browser's own print
-// dialog is the print path (receipts print from the PDF, pixel-faithful).
+// Fee receipt viewer (7 Phase 1 #3, print per 8.5). The payment comes from
+// the route (/fees/receipts/:id) - no paste box. Fetches the PDF with the
+// shared session, opens it in a new tab - the browser's own print dialog
+// is the print path (receipts print from the PDF, pixel-faithful).
 export default function ReceiptPage() {
   const { token, schoolId, ready, apiFetch } = useAuth();
-  const [paymentId, setPaymentId] = useState("");
+  const params = useParams<{ id: string }>();
+  const paymentId = typeof params.id === "string" ? params.id : "";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -32,7 +35,15 @@ export default function ReceiptPage() {
       }
       const blob = await response.blob();
       const url = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
-      window.open(url, "_blank", "noopener");
+      // "noopener" in the features string makes Chrome return null even when
+      // the tab DID open (same trap the report-card page already hit): open
+      // normally, then sever the opener ourselves.
+      const win = window.open(url, "_blank");
+      if (win) {
+        win.opener = null;
+      } else {
+        setError("PDF is ready, but the browser blocked the new tab - allow pop-ups for this site and try again.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
@@ -72,22 +83,16 @@ export default function ReceiptPage() {
     <main style={frame}>
       <h1 style={{ ...h1Style, margin: "0 0 4px" }}>Fee Receipt</h1>
       <div className="sf-card" style={{ padding: 20, marginTop: 16 }}>
-        <form onSubmit={open} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <label style={labelStyle}>
-            Payment ID
-            <input
-              className="sf-input"
-              value={paymentId}
-              onChange={(e) => setPaymentId(e.target.value)}
-              required
-            />
-          </label>
+        <form onSubmit={open} style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "flex-start" }}>
+          <p style={{ ...mutedStyle, margin: 0, fontSize: 13 }}>
+            Opens the PDF for this payment in a new tab — self-scope still applies.
+          </p>
           <button
             type="submit"
             disabled={loading}
             style={{ ...primaryBtn, alignSelf: "flex-start", opacity: loading ? 0.6 : 1 }}
           >
-            {loading ? "Loading…" : "Open receipt PDF"}
+            {loading ? "Loading." : "Open receipt PDF"}
           </button>
         </form>
         {error ? (
