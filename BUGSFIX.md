@@ -148,6 +148,39 @@ npm audit --audit-level=high
     was effectively impossible. Teacher board rows now carry pending
     submission ids + names (students get null — no leak), and the box is
     per-submission Grade buttons. Regression test asserts both sides.
+22. **Favicon and robots.txt 404'd (2026-09-26).** The web app had no
+    `public/` directory at all — `/favicon.ico` and `/robots.txt` were
+    dead (found by the every-route HTTP sweep). Added `app/icon.svg`,
+    a generated `public/favicon.ico`, and `public/robots.txt`;
+    the sweep now asserts 200 for all three plus every app route.
+23. **Detail routes ignored their own URL param (2026-09-26).**
+    `/students/[id]`, `/students/[id]/report`, `/students/[id]/id-card`
+    and `/fees/receipts/[id]` rendered paste-an-ID forms — the path was
+    decorative, so every deep link landed on a manual lookup dead end.
+    All four now load their record from the route (report added an async
+    exam dropdown; id-card keeps the school-name input because nothing
+    placeholder-printable exists for it). Rule: a `[param]` in the path
+    must drive the data load, or the route shouldn't exist.
+24. **Receipt "popup blocked" false error (2026-09-26).** The receipt
+    viewer opened the PDF with `window.open(url, "_blank", "noopener")`,
+    which Chrome guarantees returns `null` — so a successful open
+    reported "blocked by your browser". Same bug the report-card page
+    already had fixed; adopted that fix (open normally, then sever
+    `opener`) with a real blocked fallback message.
+25. **Student roster was a dead end (2026-09-26).** Rows didn't link to
+    the student profile, the profile had no path to report card / ID
+    card, and "Admit student" lived only on the dashboard. Name cells now
+    link to `/students/[id]`, the profile carries Report card / Print ID
+    card actions, and the roster header has a "+ Admit student" CTA.
+26. **Staff-only fetches and forms ran for every role (2026-09-26).**
+    Route×role sweep: pupils/parents produced 403 console noise from
+    `/sections` (exams results, timetable, notices) and `/subjects`
+    (homework), and saw staff-only forms (post homework, grade, publish
+    notice). Fetches are role-gated (`canEnter`/`canManage`/
+    `canPublish`/board role), staff forms hide for non-staff, and the
+    timetable only probes the full section list as admin/teacher —
+    pupils go straight to their scoped endpoint. Sweep re-run after the
+    fixes: 0 findings, 0 console errors across 26 routes × 6 roles.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.
