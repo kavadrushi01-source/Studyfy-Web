@@ -45,6 +45,10 @@ export default function MessagesPage() {
   const { token, schoolId, ready, apiFetch } = useAuth();
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [activeUserId, setActiveUserId] = useState("");
+  const [contacts, setContacts] = useState<{ userId: string; name: string; role: string; context: string }[]>([]);
+  const [newRecipient, setNewRecipient] = useState("");
+  const [newBody, setNewBody] = useState("");
+  const [starting, setStarting] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [conn, setConn] = useState<ConnState>("offline");
@@ -97,7 +101,7 @@ export default function MessagesPage() {
     [schoolId, apiFetch],
   );
 
-  // Initial threads load once the session is ready.
+  // Initial threads + startable contacts load once the session is ready.
   useEffect(() => {
     if (!ready || !token || !schoolId) {
       return;
@@ -105,7 +109,20 @@ export default function MessagesPage() {
     void loadThreads().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : "Network error.");
     });
-  }, [ready, token, schoolId, loadThreads]);
+    void (async () => {
+      try {
+        const response = await apiFetch(`/api/v1/schools/${schoolId}/messages/contacts`);
+        const body = (await response.json()) as {
+          data: { contacts: { userId: string; name: string; role: string; context: string }[] };
+        } | ApiError;
+        if (!isFailure(response, body)) {
+          setContacts(body.data.contacts);
+        }
+      } catch {
+        // Picker stays empty — existing threads still work.
+      }
+    })();
+  }, [ready, token, schoolId, loadThreads, apiFetch]);
 
   // Socket lifecycle: namespace derived from the school, token in handshake
   // auth (mirrors the server's §12.5 contract — never a client room name).
@@ -186,8 +203,36 @@ export default function MessagesPage() {
     })();
   }
 
-  async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
+  // Start a first-contact thread from the picker (every listed recipient
+  // is pre-cleared by the §13.7 matrix server-side).
+  async function startThread(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (!newRecipient || !newBody.trim() || !schoolId) {
+      return;
+    }
+    setStarting(true);
+    setError("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiverId: newRecipient, body: newBody.trim() }),
+      });
+      const body = (await response.json()) as { data: { message: unknown } } | ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Send failed.");
+      }
+      setNewRecipient("");
+      setNewBody("");
+      await loadThreads();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  async function send(event: FormEvent<HTMLFormElement>): Promise<void> {    event.preventDefault();
     if (!draft.trim() || !activeUserId) {
       return;
     }
@@ -325,6 +370,36 @@ export default function MessagesPage() {
       <div className="sf-split">
         <section style={threadsCard}>
           <h3 style={{ marginTop: 0 }}>Threads</h3>
+          {contacts.length > 0 ? (
+            <form onSubmit={startThread} style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+              <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+                New message
+                <select
+                  style={{ padding: 8, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  value={newRecipient}
+                  onChange={(e) => setNewRecipient(e.target.value)}
+                  aria-label="Recipient"
+                >
+                  <option value="">— pick someone —</option>
+                  {contacts.map((c) => (
+                    <option key={c.userId} value={c.userId}>
+                      {c.name} ({c.context})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <input
+                style={{ padding: 8, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                value={newBody}
+                onChange={(e) => setNewBody(e.target.value)}
+                placeholder="First message…"
+                aria-label="First message"
+              />
+              <button type="submit" disabled={starting || !newRecipient || !newBody.trim()} style={{ ...primaryBtn, opacity: starting ? 0.6 : 1, justifyContent: "center" }}>
+                {starting ? "Starting…" : "Start conversation"}
+              </button>
+            </form>
+          ) : null}
           {threads.length === 0 ? (
             <EmptyState
               icon={<MessageCircle size={22} aria-hidden="true" />}

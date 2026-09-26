@@ -8,7 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "echo \"web: no unit tests yet\" && exit 0",
-    "test:e2e": "echo \"web: no e2e yet\" && exit 0",
+    "test:e2e": "playwright test",
     "lint": "eslint . --max-warnings=0"
   },
   "dependencies": {
@@ -19,6 +19,7 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^20.16.10",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

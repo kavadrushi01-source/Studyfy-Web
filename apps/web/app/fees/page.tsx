@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Clock, ReceiptText, Wallet } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
 import { SkeletonBlocks } from "../../components/ui/shell";
+import { isFailure } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 interface InvoiceRow {
@@ -34,7 +35,8 @@ interface LedgerResponse {
 // Partial blue, Refunded gray). Identity comes from the shared session
 // (useAuth).
 export default function FeesPage() {
-  const { token, schoolId, ready, apiFetch } = useAuth();
+  const { token, schoolId, ready, apiFetch, user } = useAuth();
+  const canCollect = user?.role === "SCHOOL_ADMIN" || user?.role === "ACCOUNTANT";
   const [status, setStatus] = useState("");
   const [appliedStatus, setAppliedStatus] = useState("");
   const [page, setPage] = useState(1);
@@ -43,6 +45,11 @@ export default function FeesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [payInvoiceId, setPayInvoiceId] = useState("");
+  const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState("CASH");
+  const [paying, setPaying] = useState(false);
+  const [payNotice, setPayNotice] = useState("");
 
   const load = useCallback(
     async (next: { status: string; page: number }) => {
@@ -91,6 +98,38 @@ export default function FeesPage() {
   function changePage(next: number): void {
     setPage(next);
     void load({ status: appliedStatus, page: next });
+  }
+
+  // Counter collection (staff): records a manual CASH/UPI/CARD/BANK_TRANSFER
+  // payment against an unpaid invoice. Amounts stay strings end to end
+  // (§13.6) — the outstanding hint below is computed in paise integers.
+  async function recordPayment(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!schoolId || !payInvoiceId) {
+      return;
+    }
+    setPaying(true);
+    setError("");
+    setPayNotice("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/fees/invoices/${payInvoiceId}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: payAmount.trim(), method: payMethod }),
+      });
+      const body = (await response.json()) as { data: { invoice: { status: string } } } | { error: { message: string } };
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Payment failed.");
+      }
+      setPayNotice(`Recorded — invoice is now ${body.data.invoice.status}.`);
+      setPayInvoiceId("");
+      setPayAmount("");
+      await load({ status: appliedStatus, page });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setPaying(false);
+    }
   }
 
   function fmtDue(iso: string): string {
@@ -210,6 +249,66 @@ export default function FeesPage() {
           Filter
         </button>
       </form>
+      <section style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20, marginBottom: 16 }}>
+        <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A" }}>Record a payment (counter)</h2>
+        {!canCollect ? (
+          <p style={{ color: "#64748B", fontSize: 14, margin: 0 }}>Only admins and accountants can record payments.</p>
+        ) : (
+          <>
+        <form onSubmit={recordPayment} className="sf-row-wrap">
+          <label style={{ flex: 2, minWidth: 220 }}>
+            <span style={{ fontSize: 13, color: "#64748B" }}>Unpaid invoice</span>
+            <select
+              style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #CBD5E1", marginTop: 4 }}
+              value={payInvoiceId}
+              onChange={(e) => setPayInvoiceId(e.target.value)}
+              required
+              aria-label="Unpaid invoice"
+            >
+              <option value="">— pick an invoice —</option>
+              {rows
+                .filter((r) => r.status !== "PAID" && r.status !== "REFUNDED")
+                .map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.student.name} · {r.structure?.name ?? "Fee"} · ₹{r.amount} (paid ₹{r.amountPaid})
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label style={{ flex: 1, minWidth: 140 }}>
+            <span style={{ fontSize: 13, color: "#64748B" }}>Amount</span>
+            <input
+              style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #CBD5E1", marginTop: 4 }}
+              value={payAmount}
+              onChange={(e) => setPayAmount(e.target.value)}
+              placeholder="2500.00"
+              required
+              inputMode="decimal"
+              aria-label="Payment amount"
+            />
+          </label>
+          <label style={{ flex: 1, minWidth: 140 }}>
+            <span style={{ fontSize: 13, color: "#64748B" }}>Method</span>
+            <select
+              style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #CBD5E1", marginTop: 4 }}
+              value={payMethod}
+              onChange={(e) => setPayMethod(e.target.value)}
+              aria-label="Payment method"
+            >
+              <option value="CASH">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="CARD">Card</option>
+              <option value="BANK_TRANSFER">Bank transfer</option>
+            </select>
+          </label>
+          <button type="submit" disabled={paying} style={{ ...primaryBtn, opacity: paying ? 0.6 : 1, alignSelf: "flex-end" }}>
+            {paying ? "Recording…" : "Record payment"}
+          </button>
+        </form>
+        {payNotice ? <p style={{ color: "#059669", fontSize: 14, margin: "12px 0 0" }}>{payNotice}</p> : null}
+          </>
+        )}
+      </section>
       <DataTable<InvoiceRow>
         columns={[
           { key: "student", label: "Student", render: (r) => r.student.name },

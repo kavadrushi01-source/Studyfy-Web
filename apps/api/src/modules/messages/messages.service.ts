@@ -151,6 +151,112 @@ export async function sendMessage(
   return message;
 }
 
+export interface MessageContact {
+  userId: string;
+  name: string;
+  role: string;
+  context: string;
+}
+
+// Startable conversations for the "New message" picker: everyone THIS
+// caller may open a thread with under the §13.7 matrix. Same relationship
+// definitions as mayMessage — one shared meaning of "linked", so the
+// picker can never offer a recipient the send path would reject.
+export async function messageableContacts(
+  db: PrismaClient,
+  viewer: { userId: string; role: string },
+): Promise<{ contacts: MessageContact[] }> {
+  if (viewer.role === "TEACHER") {
+    const sections = await sectionsOfTeacher(db, viewer.userId);
+    if (sections.length === 0) {
+      return { contacts: [] };
+    }
+    const [pupils, guardians] = await Promise.all([
+      db.student.findMany({
+        where: { sectionId: { in: sections } },
+        select: {
+          userId: true,
+          user: { select: { name: true } },
+          section: { select: { name: true, class: { select: { name: true } } } },
+        },
+        orderBy: { user: { name: "asc" } },
+      }),
+      db.studentGuardian.findMany({
+        where: { student: { sectionId: { in: sections } } },
+        select: {
+          parent: { select: { id: true, name: true } },
+          student: { select: { user: { select: { name: true } } } },
+        },
+      }),
+    ]);
+    const seen = new Set<string>();
+    const contacts: MessageContact[] = [];
+    for (const pupil of pupils) {
+      if (pupil.userId !== viewer.userId && !seen.has(pupil.userId)) {
+        seen.add(pupil.userId);
+        contacts.push({
+          userId: pupil.userId,
+          name: pupil.user.name,
+          role: "STUDENT",
+          context: `${pupil.section.class.name} ${pupil.section.name}`,
+        });
+      }
+    }
+    for (const link of guardians) {
+      if (link.parent.id !== viewer.userId && !seen.has(link.parent.id)) {
+        seen.add(link.parent.id);
+        contacts.push({
+          userId: link.parent.id,
+          name: link.parent.name,
+          role: "PARENT",
+          context: `Parent of ${link.student.user.name}`,
+        });
+      }
+    }
+    contacts.sort((a, b) => a.name.localeCompare(b.name));
+    return { contacts };
+  }
+  if (viewer.role === "STUDENT" || viewer.role === "PARENT") {
+    const sections = viewer.role === "STUDENT"
+      ? await sectionsOfStudent(db, viewer.userId)
+      : await sectionsOfParent(db, viewer.userId);
+    if (sections.length === 0) {
+      return { contacts: [] };
+    }
+    const staff = await db.staff.findMany({
+      select: {
+        userId: true,
+        user: { select: { name: true } },
+        teacherSubjects: { select: { subject: { select: { name: true } } } },
+      },
+    });
+    const contacts: MessageContact[] = [];
+    for (const member of staff) {
+      if (member.userId === viewer.userId || member.teacherSubjects.length === 0) {
+        continue;
+      }
+      let linked = false;
+      for (const sectionId of sections) {
+        if (await teacherLinkedToSection(db, member.userId, sectionId)) {
+          linked = true;
+          break;
+        }
+      }
+      if (linked) {
+        contacts.push({
+          userId: member.userId,
+          name: member.user.name,
+          role: "TEACHER",
+          context: member.teacherSubjects.map((t) => t.subject.name).join(", "),
+        });
+      }
+    }
+    contacts.sort((a, b) => a.name.localeCompare(b.name));
+    return { contacts };
+  }
+  return { contacts: [] };
+}
+
 export interface ThreadViewer {
   userId: string;
   role: string;

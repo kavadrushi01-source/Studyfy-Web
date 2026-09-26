@@ -84,12 +84,12 @@ export default function AdmitStudentPage() {
               : undefined,
         }),
       });
-      const body = (await response.json()) as AdmitSuccess | ApiError;
+      const body = (await response.json()) as { data: AdmitSuccess } | ApiError;
       if (isFailure(response, body)) {
         setError((body as ApiError).error?.message ?? `Request failed (${response.status}).`);
         return;
       }
-      setResult(body as AdmitSuccess);
+      setResult(body.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {

@@ -224,3 +224,53 @@ describe("1:1 academic messaging (§13.7)", () => {
     expect(cross.body.error.code).toBe("TENANT_MISMATCH");
   });
 });
+
+describe("GET /api/v1/schools/:schoolId/messages/contacts (new-message picker)", () => {
+  it("offers teachers only linked pupils+parents, pupils only linked teachers", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    void adminToken;
+    const sectionId = await makeSection(schoolId, "A");
+    const math = await makeSubject(schoolId);
+    const teacher = await makeTeacher(schoolId, slug, [math], sectionId);
+    const stranger = await makeTeacher(schoolId, slug, [math], null);
+    const pupil = await makeStudent(schoolId, slug, sectionId);
+    const parent = await makeParent(schoolId, slug, pupil.studentId);
+
+    const teacherContacts = await request(app)
+      .get(`/api/v1/schools/${schoolId}/messages/contacts`)
+      .set("Authorization", `Bearer ${teacher.token}`)
+      .expect(200);
+    const teacherIds = (teacherContacts.body.data.contacts as { userId: string }[]).map((c) => c.userId);
+    expect(teacherIds).toContain(pupil.userId);
+    expect(teacherIds).toContain(parent.userId);
+    expect(teacherIds).not.toContain(stranger.userId);
+    expect(teacherIds).not.toContain(teacher.userId);
+
+    const pupilContacts = await request(app)
+      .get(`/api/v1/schools/${schoolId}/messages/contacts`)
+      .set("Authorization", `Bearer ${pupil.token}`)
+      .expect(200);
+    const pupilIds = (pupilContacts.body.data.contacts as { userId: string }[]).map((c) => c.userId);
+    expect(pupilIds).toEqual([teacher.userId]);
+
+    // Every offered recipient must actually accept a send (§13.7 parity —
+    // the picker can never offer someone the send path would reject).
+    for (const id of teacherIds) {
+      await request(app)
+        .post(`/api/v1/schools/${schoolId}/messages`)
+        .set("Authorization", `Bearer ${teacher.token}`)
+        .send({ receiverId: id, body: "Parity check." })
+        .expect(201);
+    }
+
+    // Admins send nothing: empty picker, not an error.
+    const school = await registerSchool();
+    const adminContacts = await request(app)
+      .get(`/api/v1/schools/${school.schoolId}/messages/contacts`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .expect(200);
+    expect(adminContacts.body.data.contacts).toEqual([]);
+
+    await request(app).get(`/api/v1/schools/${schoolId}/messages/contacts`).expect(401);
+  }, 30000);
+});

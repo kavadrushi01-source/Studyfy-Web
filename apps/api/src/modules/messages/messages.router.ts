@@ -5,7 +5,7 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { sendMessageSchema, threadQuerySchema } from "./messages.schemas.js";
-import { listThreads, readThread, sendMessage } from "./messages.service.js";
+import { listThreads, messageableContacts, readThread, sendMessage } from "./messages.service.js";
 import { emitToSchool } from "../../realtime/server.js";
 
 export const messagesRouter = Router();
@@ -88,6 +88,28 @@ messagesRouter.get(
     // but threads are keyed by USER ids — the service scopes by the
     // caller's own participation instead (same fail-closed shape).
     const result = await listThreads(req.prisma, { userId: req.user.userId, role: req.user.role });
+    res.json({ success: true, data: result, error: null, meta: null });
+  }),
+);
+
+// Startable contacts for the "New message" picker: everyone THIS caller
+// may open a thread with under §13.7. Same route guards as threads.
+messagesRouter.get(
+  "/schools/:schoolId/messages/contacts",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("messages.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const result = await messageableContacts(req.prisma, { userId: req.user.userId, role: req.user.role });
     res.json({ success: true, data: result, error: null, meta: null });
   }),
 );

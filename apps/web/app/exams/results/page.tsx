@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth-context";
 interface ExamOption {
   id: string;
   name: string;
+  examSubjects: { id: string; maxMarks: number | string; subject: { name: string } }[];
 }
 
 interface ResultRow {
@@ -34,7 +35,7 @@ interface ApiError {
 // always reflect the whole class. Grade pills follow §8.2. Identity comes
 // from the shared session (useAuth).
 export default function ExamResultsPage() {
-  const { token, schoolId, ready, apiFetch } = useAuth();
+  const { token, schoolId, ready, apiFetch, user } = useAuth();
   const [exams, setExams] = useState<ExamOption[]>([]);
   const [examId, setExamId] = useState("");
   const [top, setTop] = useState("");
@@ -42,6 +43,15 @@ export default function ExamResultsPage() {
   const [examName, setExamName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const canEnter = user?.role === "SCHOOL_ADMIN" || user?.role === "TEACHER";
+  const [sections, setSections] = useState<{ id: string; name: string; className: string }[]>([]);
+  const [entryExamId, setEntryExamId] = useState("");
+  const [entrySubjectId, setEntrySubjectId] = useState("");
+  const [entrySectionId, setEntrySectionId] = useState("");
+  const [roster, setRoster] = useState<{ id: string; name: string }[]>([]);
+  const [marks, setMarks] = useState<Record<string, string>>({});
+  const [entering, setEntering] = useState(false);
+  const [entryNotice, setEntryNotice] = useState("");
 
   const loadExams = useCallback(async () => {
     if (!schoolId) {
@@ -88,6 +98,23 @@ export default function ExamResultsPage() {
     [schoolId, apiFetch],
   );
 
+  const loadEntrySections = useCallback(async (): Promise<void> => {
+    if (!schoolId) {
+      return;
+    }
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/sections`);
+      const body = (await response.json()) as {
+        data: { sections: { id: string; name: string; class: { name: string } }[] };
+      } | ApiError;
+      if (!isFailure(response, body)) {
+        setSections(body.data.sections.map((s) => ({ id: s.id, name: s.name, className: s.class.name })));
+      }
+    } catch {
+      // Sections dropdown stays empty — entry still validates server-side.
+    }
+  }, [schoolId, apiFetch]);
+
   useEffect(() => {
     if (!ready || !token || !schoolId) {
       return;
@@ -96,17 +123,73 @@ export default function ExamResultsPage() {
       setError("");
       try {
         setExams(await loadExams());
+        await loadEntrySections();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Network error.");
       }
     })();
-  }, [ready, token, schoolId, loadExams]);
+  }, [ready, token, schoolId, loadExams, loadEntrySections]);
 
   function pickExam(event: React.ChangeEvent<HTMLSelectElement>): void {
     const next = event.target.value;
     setExamId(next);
     if (next) {
       void loadResults(next, top);
+    }
+  }
+
+  // Marks entry (class teacher or admin — the API enforces the gate; the
+  // form only renders for staff roles so pupils never see a dead form).
+  const entryExam = exams.find((e) => e.id === entryExamId);
+  const entrySubjects = entryExam?.examSubjects ?? [];
+
+  async function loadEntryRoster(sectionId: string): Promise<void> {
+    if (!schoolId) {
+      return;
+    }
+    setError("");
+    try {
+      const params = new URLSearchParams({ sectionId, pageSize: "100", sort: "name", order: "asc" });
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/students?${params}`);
+      const body = (await response.json()) as { data: { students: { id: string; name: string }[] } } | ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Failed to load roster.");
+      }
+      setRoster(body.data.students);
+      setMarks({});
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    }
+  }
+
+  async function saveMarks(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!schoolId || !entryExamId || !entrySubjectId || !entrySectionId) {
+      return;
+    }
+    setEntering(true);
+    setError("");
+    setEntryNotice("");
+    try {
+      const records = roster
+        .map((s) => ({ studentId: s.id, marksObtained: Number(marks[s.id] ?? "") }))
+        .filter((r) => Number.isFinite(r.marksObtained));
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/exams/${entryExamId}/marks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ examSubjectId: entrySubjectId, sectionId: entrySectionId, records }),
+      });
+      const body = (await response.json()) as { data: { entered: number } } | ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Save failed.");
+      }
+      setEntryNotice(`Saved ${body.data.entered} mark(s) — ranks recalculated below.`);
+      setExamId(entryExamId);
+      await loadResults(entryExamId, top);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setEntering(false);
     }
   }
 
@@ -213,6 +296,97 @@ export default function ExamResultsPage() {
           </button>
         </form>
       </div>
+      {canEnter ? (
+        <section style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20, marginBottom: 16 }}>
+          <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A" }}>Enter marks (class teacher)</h2>
+          <form onSubmit={saveMarks}>
+            <div className="sf-row-wrap">
+              <label style={{ flex: 1, minWidth: 200 }}>
+                Exam
+                <select
+                  style={input}
+                  value={entryExamId}
+                  onChange={(e) => {
+                    setEntryExamId(e.target.value);
+                    setEntrySubjectId("");
+                  }}
+                  required
+                  aria-label="Entry exam"
+                >
+                  <option value="">— pick an exam —</option>
+                  {exams.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ flex: 1, minWidth: 200 }}>
+                Subject
+                <select
+                  style={input}
+                  value={entrySubjectId}
+                  onChange={(e) => setEntrySubjectId(e.target.value)}
+                  required
+                  aria-label="Entry subject"
+                >
+                  <option value="">— pick a subject —</option>
+                  {entrySubjects.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.subject.name} (max {s.maxMarks})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ flex: 1, minWidth: 200 }}>
+                Section
+                <select
+                  style={input}
+                  value={entrySectionId}
+                  onChange={(e) => {
+                    setEntrySectionId(e.target.value);
+                    if (e.target.value) {
+                      void loadEntryRoster(e.target.value);
+                    } else {
+                      setRoster([]);
+                    }
+                  }}
+                  required
+                  aria-label="Entry section"
+                >
+                  <option value="">— pick a section —</option>
+                  {sections.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.className} {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {roster.length > 0 ? (
+              <ul style={{ listStyle: "none", margin: "12px 0", padding: 0, display: "grid", gap: 8 }}>
+                {roster.map((s) => (
+                  <li key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14 }}>
+                    <span style={{ flex: 1, color: "#0F172A" }}>{s.name}</span>
+                    <input
+                      style={{ width: 110, padding: 8, borderRadius: 8, border: "1px solid #CBD5E1" }}
+                      value={marks[s.id] ?? ""}
+                      onChange={(e) => setMarks((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                      placeholder="Marks"
+                      inputMode="decimal"
+                      aria-label={`Marks for ${s.name}`}
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <button type="submit" disabled={entering} style={{ ...primaryBtn, opacity: entering ? 0.6 : 1 }}>
+              {entering ? "Saving…" : "Save marks"}
+            </button>
+          </form>
+          {entryNotice ? <p style={{ color: "#059669", fontSize: 14, margin: "12px 0 0" }}>{entryNotice}</p> : null}
+        </section>
+      ) : null}
       <DataTable<ResultRow>
         columns={[
           { key: "rank", label: "Rank", render: (r) => `#${r.rank}` },

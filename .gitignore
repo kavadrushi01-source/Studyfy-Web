@@ -9,3 +9,7 @@ apps/api/.env
 apps/web/.env.local
 *.tsbuildinfo
 .DS_Store
+apps/web/test-results/
+apps/web/blob-report/
+apps/web/playwright-report/
+apps/web/e2e/shots/
