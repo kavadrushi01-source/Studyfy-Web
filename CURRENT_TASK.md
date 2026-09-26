@@ -10,10 +10,11 @@
 > scratch.
 
 **Status:** IN PROGRESS
-**Phase / Module:** Cross-tenant audit pass (founder-directed)
-**Last updated:** 2026-09-24
+**Phase / Module:** Cross-tenant audit pass (founder-directed) + human-check e2e
+**Last updated:** 2026-09-26
 
 ## What's done in this task so far
+- Human-check e2e (2026-09-26, founder "test everything like a human"): 21 Playwright flows in apps/web/e2e (public/admin/teacher/accountant/boards/messages) mirror the 40-step checklist against isolated studyfy_e2e (API 4001 + web 3001) — ALL GREEN. Findings fixed: admit envelope crash (body vs body.data), GET /subjects + homework dropdowns, GET /messages/contacts + new-message picker, fee record-payment UI, exam marks-entry UI, plus spec-hardening (delta-tolerant counts, unique stamped titles, small payment amounts, label-scoped logout). Verified same day: API 179/179 (50 files), root lint 0, web typecheck/lint 0, audit-high 0, commit eaef4ac pushed.
 - Cross-tenant audit: TENANT_MODELS complete vs schema (all 24 tenant models pinned, 6 globals correctly excluded); zero raw-prisma bypasses outside auth/register/public-by-design; findUnique+injected-schoolId empirically safe on Prisma 6.12 (same-tenant resolves, cross-tenant null — corrected the stale code comment claiming it throws); live 33-check matrix ALL GREEN (every route family both directions, self-scope defaults, auth slug rules, platform gates); honeypot live (fake 201, no id); new pages render 200.
 - Verified: 178/178 (50 files), root lint clean, audit 0, web build clean. No product changes except the comment fix.
 - Sessions (2026-09-24): POST /auth/logout (revokes chain, clears cookie, never 401s) + auth-logout.test.ts; AuthProvider (login/logout/silent+proactive refresh/persist) in root layout; all 6 dashboards + 14 module pages off paste-boxes onto useAuth/apiFetch (timetable staff-ID kept — readBoard requires teacherId); sidebar logout; /profile page + Profile nav live (Teacher/Student/Parent); login via context (token box dropped). Verified: 167/167 (49 files), root lint 0, typecheck 0, web build (/profile prerendered); live cookie chain proven (login→refresh rotates→board→logout→refresh 401).
