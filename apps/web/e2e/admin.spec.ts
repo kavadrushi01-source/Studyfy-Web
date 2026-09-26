@@ -73,13 +73,21 @@ test.describe("SOS admin full circuit", () => {
   });
 
   test("marks entry, homework post, notice publish, message send", async ({ page }) => {
+    // Three roles, two logouts, six boards: the longest flow in the suite.
+    // Its own per-step asserts carry the real budgets; the total cap just
+    // needs headroom for a loaded machine.
+    test.setTimeout(60000);
     await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
     await page.goto("/exams/results");
     await page.getByLabel(/^exam$/i).selectOption({ index: 1 });
     await expect(page.getByText(/rank/i).first()).toBeVisible({ timeout: 20000 });
 
     await page.goto("/homework");
+    // Sections/subjects load async; the form falls back to raw-ID inputs
+    // until they arrive, so wait for the real dropdowns before choosing.
+    await expect(page.locator('select[aria-label="Section ID"]')).toBeAttached({ timeout: 20000 });
     await page.getByLabel(/section/i).selectOption({ index: 1 });
+    await expect(page.locator('select[aria-label="Subject"]')).toBeAttached({ timeout: 20000 });
     await page.getByLabel(/subject/i).selectOption({ index: 1 });
     const hwStamp = Date.now().toString(36);
     await page.getByLabel(/title/i).fill(`E2E Worksheet ${hwStamp}`);
@@ -101,7 +109,21 @@ test.describe("SOS admin full circuit", () => {
     await logout(page);
     await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
     await page.goto("/messages");
-    await page.getByLabel(/recipient/i).selectOption({ index: 1 });
+    // The Arjun-Aditya thread is shared with parallel suites (teacher.spec
+    // and messages.spec also post there), and whichever message lands last
+    // owns the thread preview the admin asserts on below. Park the oversight
+    // probe on Ishita's own thread - only this test ever writes to it.
+    // Contacts load async; wait for her option before snapshotting.
+    await expect(
+      page.getByLabel(/recipient/i).locator("option", { hasText: /^Ishita Choudhary/ }),
+    ).toBeAttached({ timeout: 20000 });
+    const recipients = await page
+      .getByLabel(/recipient/i)
+      .locator("option")
+      .evaluateAll((opts) => opts.map((o) => ({ value: (o as HTMLOptionElement).value, text: o.textContent ?? "" })));
+    const ishita = recipients.find((c) => c.text.startsWith("Ishita Choudhary"));
+    expect(ishita?.value).toBeTruthy();
+    await page.getByLabel(/recipient/i).selectOption(ishita?.value ?? "");
     await page.getByLabel(/first message/i).fill(oversightBody);
     await page.getByRole("button", { name: /start conversation/i }).click();
     await expect(page.getByText(oversightBody).first()).toBeVisible({ timeout: 20000 });

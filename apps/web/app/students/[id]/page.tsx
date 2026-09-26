@@ -5,6 +5,17 @@ import Link from "next/link";
 import { SkeletonBlocks } from "../../../components/ui/shell";
 import { isFailure } from "../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
+import {
+  cardStyle,
+  colors,
+  gradients,
+  h1Style,
+  h2Style,
+  labelStyle,
+  mutedStyle,
+  pageFrame,
+  pill,
+} from "@/lib/theme";
 
 interface Guardian {
   relationship: string;
@@ -65,35 +76,67 @@ export default function StudentProfilePage() {
     }
   }
 
-  const input = { display: "block", width: "100%", margin: "4px 0 12px", padding: 8 } as const;
-  const primaryBtn = {
-    background: "#2563EB",
+  const pageH1 = { ...h1Style, marginBottom: 14 };
+  const alertStyle = {
+    margin: "14px 0 0",
+    padding: "10px 14px",
+    borderRadius: 12,
+    background: colors.dangerTint,
+    border: "1px solid rgba(220,38,38,.28)",
+    color: colors.danger,
+    fontSize: 14,
+  };
+  const avatarTile: React.CSSProperties = {
+    width: 52,
+    height: 52,
+    flexShrink: 0,
+    borderRadius: 15,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: gradients.accent,
     color: "#fff",
-    border: "1px solid #2563EB",
-    borderRadius: 8,
-    padding: "8px 16px",
-    cursor: "pointer",
-  } as const;
-  const card = {
-    background: "#fff",
-    borderRadius: 16,
-    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-    padding: 20,
-  } as const;
-
-  const frame = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
-  } as const;
+    fontWeight: 800,
+    fontSize: 18,
+    letterSpacing: "-0.02em",
+    boxShadow: "0 10px 22px -10px rgba(37,99,235,.6), inset 0 1px 0 rgba(255,255,255,.25)",
+  };
+  const dtStyle: React.CSSProperties = {
+    margin: 0,
+    padding: "10px 0",
+    borderBottom: `1px solid ${colors.lineSoft}`,
+    fontSize: 13,
+    fontWeight: 600,
+    color: colors.muted,
+  };
+  const ddStyle: React.CSSProperties = {
+    margin: 0,
+    padding: "10px 0",
+    borderBottom: `1px solid ${colors.lineSoft}`,
+    fontSize: 14,
+    fontWeight: 600,
+    color: colors.ink,
+    textAlign: "right",
+    overflowWrap: "anywhere",
+  };
+  const guardianHeading: React.CSSProperties = {
+    fontSize: 15,
+    fontWeight: 700,
+    letterSpacing: "-0.015em",
+    margin: "20px 0 4px",
+    color: colors.ink,
+  };
+  const guardianRow: React.CSSProperties = {
+    padding: "10px 0",
+    borderTop: `1px solid ${colors.lineSoft}`,
+    fontSize: 14,
+    color: colors.inkSoft,
+  };
 
   if (!ready) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>Student Profile</h1>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>Student Profile</h1>
         <SkeletonBlocks rows={4} />
       </main>
     );
@@ -101,11 +144,14 @@ export default function StudentProfilePage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>Student Profile</h1>
-        <div style={{ ...card, maxWidth: 640 }}>
-          <p style={{ color: "#334155" }}>Please sign in to view a profile.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>Student Profile</h1>
+        <div style={{ ...cardStyle, maxWidth: 640 }}>
+          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to view a profile.</p>
+          <Link
+            href="/login"
+            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+          >
             Go to login
           </Link>
         </div>
@@ -114,14 +160,28 @@ export default function StudentProfilePage() {
   }
 
   return (
-    <main style={frame}>
-      <h1 style={{ color: "#0F172A" }}>Student Profile</h1>
-      <form onSubmit={onLoad} style={{ ...card, maxWidth: 640 }}>
-        <label>
+    <main style={pageFrame}>
+      <h1 style={pageH1}>Student Profile</h1>
+      <form
+        onSubmit={onLoad}
+        className="sf-card"
+        style={{ maxWidth: 640, padding: 20, display: "grid", gap: 14 }}
+      >
+        <label style={labelStyle}>
           Student ID
-          <input style={input} value={studentId} onChange={(e) => setStudentId(e.target.value)} required />
+          <input
+            className="sf-input"
+            value={studentId}
+            onChange={(e) => setStudentId(e.target.value)}
+            required
+          />
         </label>
-        <button type="submit" disabled={loading} style={primaryBtn}>
+        <button
+          type="submit"
+          disabled={loading}
+          className="sf-btn sf-btn-primary"
+          style={{ justifySelf: "start" }}
+        >
           Load profile
         </button>
       </form>
@@ -131,32 +191,59 @@ export default function StudentProfilePage() {
         </div>
       ) : null}
       {error ? (
-        <p role="alert" style={{ color: "#DC2626" }}>
+        <p role="alert" style={alertStyle}>
           {error}
         </p>
       ) : null}
       {profile ? (
-        <section style={{ ...card, marginTop: 16, maxWidth: 640 }}>
-          <h2 style={{ color: "#0F172A", marginTop: 0 }}>{profile.user.name}</h2>
-          <p>{profile.user.email}</p>
-          <dl>
-            <dt>Admission no.</dt>
-            <dd>{profile.admissionNo ?? "—"}</dd>
-            <dt>Roll no.</dt>
-            <dd>{profile.rollNumber ?? "—"}</dd>
-            <dt>Date of birth</dt>
-            <dd>{profile.dob ? new Date(profile.dob).toLocaleDateString("en-GB") : "—"}</dd>
-            <dt>Gender</dt>
-            <dd>{profile.gender ?? "—"}</dd>
+        <section style={{ ...cardStyle, marginTop: 16, maxWidth: 640 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <span style={avatarTile}>
+              {profile.user.name
+                .split(" ")
+                .map((p) => p[0] ?? "")
+                .join("")
+                .slice(0, 2)
+                .toUpperCase()}
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <h2 style={{ ...h2Style, fontSize: 20, margin: 0 }}>{profile.user.name}</h2>
+              <p style={{ ...mutedStyle, margin: "2px 0 0" }}>{profile.user.email}</p>
+            </div>
+          </div>
+          <dl
+            style={{
+              margin: "14px 0 0",
+              display: "grid",
+              gridTemplateColumns: "auto minmax(0, 1fr)",
+              columnGap: 16,
+            }}
+          >
+            <dt style={dtStyle}>Admission no.</dt>
+            <dd style={ddStyle}>{profile.admissionNo ?? "—"}</dd>
+            <dt style={dtStyle}>Roll no.</dt>
+            <dd style={ddStyle}>{profile.rollNumber ?? "—"}</dd>
+            <dt style={dtStyle}>Date of birth</dt>
+            <dd style={ddStyle}>
+              {profile.dob ? new Date(profile.dob).toLocaleDateString("en-GB") : "—"}
+            </dd>
+            <dt style={dtStyle}>Gender</dt>
+            <dd style={ddStyle}>
+              {profile.gender ? (
+                <span style={pill(colors.primary, colors.primaryGhost)}>{profile.gender}</span>
+              ) : (
+                "—"
+              )}
+            </dd>
           </dl>
-          <h3 style={{ color: "#0F172A" }}>Guardians</h3>
+          <h3 style={guardianHeading}>Guardians</h3>
           {profile.guardianLinks.length === 0 ? (
-            <p style={{ color: "#64748B" }}>None linked.</p>
+            <p style={{ ...mutedStyle, margin: 0 }}>None linked.</p>
           ) : (
-            <ul>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
               {profile.guardianLinks.map((g) => (
-                <li key={g.parent.email}>
-                  {g.parent.name} ({g.relationship}) — {g.parent.email}
+                <li key={g.parent.email} style={guardianRow}>
+                  {g.parent.name} <span style={pill(colors.accent, colors.accentTint)}>({g.relationship})</span> — {g.parent.email}
                 </li>
               ))}
             </ul>

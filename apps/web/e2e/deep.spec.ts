@@ -36,9 +36,14 @@ test.describe("homework lifecycle", () => {
     await page.goto("/homework");
     const gradeBtns = page.getByRole("button", { name: /mark graded/i });
     await expect(page.getByText(/grade submissions/i)).toBeVisible({ timeout: 20000 });
+    // The grade-section heading renders before the board list resolves, so
+    // counting buttons straight away can read 0 mid-load and then wait for
+    // an empty-state that never comes. Settle on either terminal state.
+    const nothing = page.getByText("Nothing waiting for a grade right now.");
+    await expect(nothing.or(gradeBtns.first())).toBeVisible({ timeout: 20000 });
     const before = await gradeBtns.count();
     if (before === 0) {
-      await expect(page.getByText("Nothing waiting for a grade right now.")).toBeVisible();
+      await expect(nothing).toBeVisible();
     } else {
       await gradeBtns.first().click();
       await expect

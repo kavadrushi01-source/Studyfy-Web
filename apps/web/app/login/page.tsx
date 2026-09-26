@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { colors, gradients, h1Style, labelStyle, mutedStyle, primaryBtn } from "@/lib/theme";
 import { isFailure } from "../../lib/api";
 
 interface Me {
@@ -12,10 +13,6 @@ interface Me {
   schoolId: string | null;
   role: string;
 }
-
-const PRIMARY = "#2563EB";
-const NAVY = "#0F172A";
-const DANGER = "#DC2626";
 
 const DASHBOARD_BY_ROLE: Record<string, string> = {
   SCHOOL_ADMIN: "/dashboard",
@@ -99,47 +96,60 @@ export default function LoginPage() {
     }
   }
 
-  const input: React.CSSProperties = { padding: 10, borderRadius: 10, border: "1px solid #CBD5E1", fontSize: 14 };
+  const logoTile: React.CSSProperties = {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    background: gradients.accent,
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 800,
+    fontSize: 18,
+    letterSpacing: "-0.02em",
+    boxShadow: "0 6px 18px -6px rgba(37,99,235,.7), inset 0 1px 0 rgba(255,255,255,.25)",
+  };
 
   return (
-    <div style={{ fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh", background: "#F8FAFC", display: "flex", flexDirection: "column" }}>
+    <div style={{ fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh", background: "transparent", display: "flex", flexDirection: "column" }}>
       <header style={{ padding: "16px 32px", maxWidth: 1120, margin: "0 auto", width: "100%" }}>
-        <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-          <span style={{ width: 32, height: 32, borderRadius: 9, background: PRIMARY, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18 }}>S</span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: NAVY }}>Studyfy</span>
+        <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 9, textDecoration: "none" }}>
+          <span style={logoTile}>S</span>
+          <span style={{ fontWeight: 700, fontSize: 18, color: colors.ink, letterSpacing: "-0.02em" }}>Studyfy</span>
         </Link>
       </header>
-      <main style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24 }}>
-        <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 32, width: 420, maxWidth: "100%" }}>
-          <h1 style={{ fontSize: 24, margin: "0 0 4px", color: NAVY }}>Welcome Back!</h1>
-          <p style={{ fontSize: 14, color: "#64748B", margin: "0 0 20px" }}>Sign in to your school account</p>
+      <main style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 24px 64px" }}>
+        <div className="sf-card" style={{ padding: 32, width: 420, maxWidth: "100%" }}>
+          <h1 style={{ ...h1Style, margin: "0 0 4px" }}>Welcome Back!</h1>
+          <p style={{ ...mutedStyle, margin: "0 0 20px" }}>Sign in to your school account</p>
           {!me ? (
-            <form onSubmit={submit} style={{ display: "grid", gap: 12 }}>
-              <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
-                School slug <span style={{ color: "#64748B", fontSize: 12 }}>(leave empty only for the platform owner)</span>
-                <input value={schoolSlug} onChange={(e) => setSchoolSlug(e.target.value)} placeholder="e.g. school-of-science" style={input} />
+            <form onSubmit={submit} style={{ display: "grid", gap: 14 }}>
+              <label style={labelStyle}>
+                School slug <span style={{ color: colors.muted, fontSize: 12 }}>(leave empty only for the platform owner)</span>
+                <input className="sf-input" value={schoolSlug} onChange={(e) => setSchoolSlug(e.target.value)} placeholder="e.g. school-of-science" />
               </label>
-              <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
+              <label style={labelStyle}>
                 Email
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={input} />
+                <input className="sf-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </label>
-              <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
+              <label style={labelStyle}>
                 Password
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={input} />
+                <input className="sf-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </label>
-              <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
+              <label style={{ ...labelStyle, display: "flex", gap: 8, alignItems: "center" }}>
                 <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
                 Remember me on this browser
               </label>
-              <button type="submit" disabled={loading} style={{ padding: 12, borderRadius: 10, border: 0, background: PRIMARY, color: "#fff", fontWeight: 600, cursor: "pointer" }}>
+              <button type="submit" disabled={loading} className="sf-btn sf-btn-primary">
                 {loading ? "Signing in…" : "Login"}
               </button>
               <p style={{ fontSize: 13, margin: 0 }}>
-                <Link href="/forgot-password" style={{ color: PRIMARY, fontWeight: 600 }}>Forgot password?</Link>
+                <Link href="/forgot-password" style={{ color: colors.primary, fontWeight: 600 }}>Forgot password?</Link>
               </p>
-              {error ? <p style={{ color: DANGER, fontSize: 14, margin: 0 }}>{error}</p> : null}
-              <p style={{ fontSize: 14, color: "#64748B", margin: 0 }}>
-                Don&apos;t have an account? <Link href="/signup" style={{ color: PRIMARY, fontWeight: 600 }}>Sign up</Link>
+              {error ? <p style={{ color: colors.danger, fontSize: 14, margin: 0 }}>{error}</p> : null}
+              <p style={{ fontSize: 14, color: colors.muted, margin: 0 }}>
+                Don&apos;t have an account? <Link href="/signup" style={{ color: colors.primary, fontWeight: 600 }}>Sign up</Link>
               </p>
             </form>
           ) : (
@@ -148,19 +158,19 @@ export default function LoginPage() {
                 Signed in as <strong>{me.name}</strong> ({me.role.toLowerCase().replace(/_/g, " ")})
               </p>
               {me.schoolId ? (
-                <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>
+                <p style={{ fontSize: 13, color: colors.muted, margin: 0 }}>
                   School ID for the board pages: <strong style={{ fontFamily: "monospace" }}>{me.schoolId}</strong>{" "}
                   (this ID — not the school slug)
                 </p>
               ) : null}
               <div style={{ display: "flex", gap: 8 }}>
                 {DASHBOARD_BY_ROLE[me.role] ? (
-                  <Link href={DASHBOARD_BY_ROLE[me.role] as string} style={{ flex: 1, textAlign: "center", padding: 10, borderRadius: 10, background: PRIMARY, color: "#fff", fontWeight: 600, textDecoration: "none" }}>
+                  <Link href={DASHBOARD_BY_ROLE[me.role] as string} style={{ ...primaryBtn, flex: 1, textAlign: "center", textDecoration: "none" }}>
                     Open my board
                   </Link>
                 ) : null}
               </div>
-              {error ? <p style={{ color: DANGER, fontSize: 14, margin: 0 }}>{error}</p> : null}
+              {error ? <p style={{ color: colors.danger, fontSize: 14, margin: 0 }}>{error}</p> : null}
             </div>
           )}
         </div>

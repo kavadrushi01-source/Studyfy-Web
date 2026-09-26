@@ -6,6 +6,7 @@ import { ReceiptText } from "lucide-react";
 import { DataTable } from "../../../components/ui/data-table";
 import { EmptyState } from "../../../components/ui/shell";
 import { useAuth } from "@/lib/auth-context";
+import { colors, h1Style, mutedStyle, pageFrame, pill } from "@/lib/theme";
 
 interface PaymentRow {
   id: string;
@@ -28,6 +29,22 @@ function inr(amount: string): string {
     return `₹${amount}`;
   }
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function invoicePill(value: string): React.CSSProperties {
+  if (value === "PAID") {
+    return pill(colors.success, colors.successTint, "#B7E4D0");
+  }
+  if (value === "PENDING") {
+    return pill(colors.warning, colors.warningTint, "#F5E0B5");
+  }
+  if (value === "OVERDUE") {
+    return pill(colors.danger, colors.dangerTint, "#F6CBCB");
+  }
+  if (value === "PARTIAL") {
+    return pill(colors.primary, colors.primaryGhost, "#C7DDFB");
+  }
+  return pill(colors.muted, "#F1F5F9", colors.line);
 }
 
 // Payments & Receipts (§8.4 accountant nav): every payment in scope,
@@ -80,26 +97,34 @@ export default function PaymentsPage() {
   }
   if (!token || !schoolId) {
     return (
-      <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif" }}>
-        <h1 style={{ fontSize: 22 }}>Payments &amp; Receipts</h1>
-        <p style={{ color: "#64748B" }}>Please sign in to view payments.</p>
-        <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>Go to Login</Link>
+      <main style={{ maxWidth: 480, margin: "0 auto", padding: "48px 24px", fontFamily: "Inter, system-ui, sans-serif" }}>
+        <h1 style={{ ...h1Style, margin: "0 0 8px" }}>Payments &amp; Receipts</h1>
+        <p style={{ ...mutedStyle, margin: "0 0 12px" }}>Please sign in to view payments.</p>
+        <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>Go to Login</Link>
       </main>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1120, margin: "0 auto", padding: 28, fontFamily: "Inter, system-ui, sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
-      <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A" }}>Payments &amp; Receipts</h1>
-      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>Newest first — open any row&apos;s receipt.</p>
-      {error ? <p style={{ color: "#DC2626", fontSize: 14 }}>{error}</p> : null}
+    <main style={pageFrame}>
+      <h1 style={h1Style}>Payments &amp; Receipts</h1>
+      <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>Newest first — open any row&apos;s receipt.</p>
+      {error ? <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "0 0 12px" }}>{error}</p> : null}
       {rows.length === 0 && !loading ? (
         <EmptyState icon={<ReceiptText size={22} aria-hidden="true" />} title="No payments yet" detail="Collections will appear here." />
       ) : (
         <DataTable
           columns={[
             { key: "student", label: "Student", render: (row: PaymentRow) => row.student.name },
-            { key: "amount", label: "Amount", render: (row: PaymentRow) => inr(row.amount) },
+            {
+              key: "amount",
+              label: "Amount",
+              render: (row: PaymentRow) => (
+                <span style={{ fontWeight: 800, letterSpacing: "-0.02em", color: colors.ink, fontVariantNumeric: "tabular-nums" }}>
+                  {inr(row.amount)}
+                </span>
+              ),
+            },
             { key: "method", label: "Method", render: (row: PaymentRow) => row.method },
             {
               key: "paidAt",
@@ -109,12 +134,19 @@ export default function PaymentsPage() {
                 return Number.isNaN(parsed.getTime()) ? row.paidAt : parsed.toLocaleDateString("en-GB");
               },
             },
-            { key: "status", label: "Invoice", render: (row: PaymentRow) => row.invoiceStatus },
+            {
+              key: "status",
+              label: "Invoice",
+              render: (row: PaymentRow) => <span style={invoicePill(row.invoiceStatus)}>{row.invoiceStatus}</span>,
+            },
             {
               key: "receipt",
               label: "Receipt",
               render: (row: PaymentRow) => (
-                <Link href={`/fees/receipts/${row.id}`} style={{ color: "#2563EB", fontWeight: 600 }}>
+                <Link
+                  href={`/fees/receipts/${row.id}`}
+                  style={{ color: colors.primary, fontWeight: 600, textDecoration: "none" }}
+                >
                   Open
                 </Link>
               ),

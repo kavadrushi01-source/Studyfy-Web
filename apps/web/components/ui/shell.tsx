@@ -1,13 +1,16 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { LogOut } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { gradients, shadows } from "@/lib/theme";
 import { ROLE_BOARDS } from "./role-boards";
 
 // Shared dashboard shell (§8.2 + §8.4): navy sidebar with logo, role badge,
 // canonical nav, and light-canvas content area. Unbuilt destinations render
 // as dimmed text with a "Soon" pill — never dead links. Collapses to a top
-// strip on narrow screens via .sf-shell (§8.5).
+// strip on narrow screens via .sf-shell (§8.5). Premium pass: layered
+// gradient sidebar, glass active states with accent rail, micro-motion.
 export function Shell({
   role,
   activeHref,
@@ -27,76 +30,146 @@ export function Shell({
     await logout();
     window.location.href = "/login";
   }
+  const transition = "180ms cubic-bezier(.22,1,.36,1)";
   return (
-    <div className="sf-shell" style={{ fontFamily: "Inter, system-ui, sans-serif", background: "#F8FAFC" }}>
-      <aside className="sf-sidebar" style={{ background: "#0F172A", color: "#E2E8F0", padding: "20px 14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 8px 16px" }}>
+    <div className="sf-shell" style={{ fontFamily: "Inter, system-ui, sans-serif" }}>
+      <aside
+        className="sf-sidebar"
+        style={{
+          background: gradients.sidebar,
+          color: "#E2E8F0",
+          padding: "20px 14px",
+          borderRight: "1px solid rgba(148,163,184,.12)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "0 8px 18px" }}>
           <span
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              background: "#2563EB",
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              background: gradients.accent,
               color: "#fff",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontWeight: 800,
               fontSize: 20,
+              letterSpacing: "-0.02em",
+              boxShadow: "0 6px 18px -6px rgba(37,99,235,.7), inset 0 1px 0 rgba(255,255,255,.25)",
             }}
           >
             S
           </span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: "#fff" }}>Studyfy</span>
+          <span style={{ fontWeight: 700, fontSize: 18, color: "#fff", letterSpacing: "-0.02em" }}>
+            Studyfy
+          </span>
         </div>
         <div
           style={{
-            margin: "0 8px 16px",
+            margin: "0 8px 18px",
             display: "inline-block",
-            fontSize: 12,
-            fontWeight: 600,
-            background: board.badgeBg,
-            border: board.badgeAccent ? `1px solid ${board.badgeAccent}` : undefined,
-            color: board.badgeAccent ?? "#fff",
+            fontSize: 11,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.07em",
+            background: board.badgeAccent
+              ? `linear-gradient(180deg, ${board.badgeBg}33 0%, ${board.badgeBg}1f 100%)`
+              : "rgba(255,255,255,.08)",
+            border: board.badgeAccent
+              ? `1px solid ${board.badgeAccent}55`
+              : "1px solid rgba(255,255,255,.14)",
+            color: board.badgeAccent ?? "#E2E8F0",
             borderRadius: 999,
-            padding: "4px 12px",
+            padding: "5px 12px",
+            width: "fit-content",
           }}
         >
           {board.badge}
         </div>
-        <nav style={{ display: "grid", gap: 2 }}>
+        <nav style={{ display: "grid", gap: 3, flex: 1 }}>
           {board.nav.map((item) => {
             const active = item.href === activeHref;
             if (!item.href) {
               return (
                 <span
                   key={item.label}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", fontSize: 14, color: "#475569" }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "9px 12px",
+                    fontSize: 14,
+                    color: "#3E4C63",
+                  }}
                 >
                   <span style={{ flex: 1 }}>{item.label}</span>
-                  <span style={{ fontSize: 11, border: "1px solid #334155", borderRadius: 999, padding: "1px 8px", color: "#94A3B8" }}>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      border: "1px solid rgba(148,163,184,.25)",
+                      borderRadius: 999,
+                      padding: "1px 8px",
+                      color: "#5B6B85",
+                    }}
+                  >
                     Soon
                   </span>
                 </span>
               );
             }
             const isOwner = role === "PLATFORM_OWNER";
+            const accent = isOwner ? "#F59E0B" : (board.badgeAccent ?? "#60A5FA");
             return (
               <a
                 key={item.label}
                 href={item.href}
                 style={{
                   display: "block",
-                  padding: "9px 12px",
+                  position: "relative",
+                  padding: "9px 12px 9px 14px",
                   borderRadius: 10,
                   fontSize: 14,
                   textDecoration: "none",
-                  background: active ? (isOwner ? "#1E293B" : board.badgeBg) : "transparent",
-                  borderLeft: active && isOwner ? "3px solid #F59E0B" : "3px solid transparent",
-                  color: active ? "#fff" : "#CBD5E1",
-                  fontWeight: active ? 600 : 400,
+                  background: active ? "rgba(255,255,255,.09)" : "transparent",
+                  border: active ? "1px solid rgba(255,255,255,.1)" : "1px solid transparent",
+                  color: active ? "#fff" : "#B6C2D6",
+                  fontWeight: active ? 600 : 500,
+                  transition: `background ${transition}, color ${transition}, border-color ${transition}`,
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.background = "rgba(255,255,255,.05)";
+                    e.currentTarget.style.color = "#E8EEF9";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = "#B6C2D6";
+                  }
                 }}
               >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    left: -14,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 3,
+                    height: active ? 18 : 0,
+                    borderRadius: 999,
+                    background: accent,
+                    boxShadow: active ? `0 0 10px ${accent}` : "none",
+                    transition: `height ${transition}`,
+                  }}
+                />
                 {item.label}
               </a>
             );
@@ -108,20 +181,37 @@ export function Shell({
           style={{
             marginTop: 16,
             width: "100%",
-            padding: "9px 12px",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            padding: "10px 12px",
             borderRadius: 10,
-            border: "1px solid #334155",
-            background: "transparent",
-            color: "#CBD5E1",
-            fontSize: 14,
+            border: "1px solid rgba(148,163,184,.22)",
+            background: "rgba(255,255,255,.03)",
+            color: "#B6C2D6",
+            fontFamily: "inherit",
+            fontSize: 13,
             fontWeight: 600,
             cursor: "pointer",
+            transition: `background 180ms cubic-bezier(.22,1,.36,1), color 180ms cubic-bezier(.22,1,.36,1), border-color 180ms cubic-bezier(.22,1,.36,1)`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(239,68,68,.14)";
+            e.currentTarget.style.color = "#FECACA";
+            e.currentTarget.style.borderColor = "rgba(239,68,68,.35)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "rgba(255,255,255,.03)";
+            e.currentTarget.style.color = "#B6C2D6";
+            e.currentTarget.style.borderColor = "rgba(148,163,184,.22)";
           }}
         >
+          <LogOut size={15} aria-hidden="true" />
           Log out
         </button>
       </aside>
-      <main className="sf-main" style={{ maxWidth: 1120 }}>
+      <main className="sf-main" style={{ maxWidth: 1140 }}>
         {children}
       </main>
     </div>
@@ -135,19 +225,34 @@ export function EmptyState({ icon, title, detail }: { icon: ReactNode; title: st
     <div
       style={{
         border: "1px dashed #CBD5E1",
-        borderRadius: 12,
-        padding: 24,
+        borderRadius: 14,
+        padding: "28px 24px",
         textAlign: "center",
         color: "#64748B",
         fontSize: 14,
         display: "grid",
         gap: 8,
         justifyItems: "center",
+        background:
+          "radial-gradient(400px 120px at 50% 0%, rgba(37,99,235,.05), transparent 70%)",
       }}
     >
-      <span style={{ color: "#94A3B8" }}>{icon}</span>
-      <span style={{ fontWeight: 600, color: "#475569" }}>{title}</span>
-      {detail ? <span>{detail}</span> : null}
+      <span
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 14,
+          background: "#EFF6FF",
+          color: "#2563EB",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {icon}
+      </span>
+      <span style={{ fontWeight: 600, color: "#1E293B" }}>{title}</span>
+      {detail ? <span style={{ maxWidth: 420 }}>{detail}</span> : null}
     </div>
   );
 }
@@ -157,21 +262,59 @@ export function SkeletonBlocks({ rows = 3, height = 64 }: { rows?: number; heigh
   return (
     <div>
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="sf-skeleton" style={{ height, borderRadius: 14, background: "#F1F5F9", marginBottom: 12 }} />
+        <div
+          key={i}
+          className="sf-skeleton"
+          style={{
+            height,
+            borderRadius: 14,
+            background: "linear-gradient(180deg, #F1F5F9 0%, #E9EFF7 100%)",
+            marginBottom: 12,
+            border: "1px solid #E6EBF4",
+          }}
+        />
       ))}
     </div>
   );
 }
 
 // Section card + heading shared rhythm (radius 16, padding 20).
+// Deliberately NO hover-lift here: Card wraps forms/tables that tests and
+// users click through constantly — a transform on hover makes every click
+// wait for the element to settle. Lift is opt-in per surface via the
+// .sf-card-hover class where nothing interactive is being targeted.
 export function Card({ children }: { children: ReactNode }): ReactNode {
   return (
-    <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}>
+    <div className="sf-card" style={{ padding: 20, boxShadow: shadows.card }}>
       {children}
     </div>
   );
 }
 
 export function SectionTitle({ children }: { children: ReactNode }): ReactNode {
-  return <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A" }}>{children}</h2>;
+  return (
+    <h2
+      style={{
+        fontSize: 16,
+        fontWeight: 700,
+        letterSpacing: "-0.015em",
+        margin: "0 0 12px",
+        color: "#0B1220",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          width: 4,
+          height: 16,
+          borderRadius: 999,
+          background: gradients.accent,
+        }}
+      />
+      {children}
+    </h2>
+  );
 }

@@ -1,7 +1,5 @@
 import Link from "next/link";
-
-const PRIMARY = "#2563EB";
-const NAVY = "#0F172A";
+import { colors, gradients, h1Style, mutedStyle } from "@/lib/theme";
 
 const SCREENS: { href: string; title: string; detail: string }[] = [
   { href: "/students", title: "Students", detail: "Teacher-scoped sortable roster with search and pages." },
@@ -31,32 +29,44 @@ const SCREENS: { href: string; title: string; detail: string }[] = [
 // Not linked from anywhere public; local development convenience only.
 export default function DevIndex() {
   return (
-    <div style={{ fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh", background: "#F8FAFC", display: "flex", flexDirection: "column" }}>
+    <div style={{ fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh", background: "transparent", display: "flex", flexDirection: "column" }}>
       <header style={{ padding: "16px 32px", maxWidth: 1120, margin: "0 auto", width: "100%" }}>
-        <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-          <span style={{ width: 32, height: 32, borderRadius: 9, background: PRIMARY, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18 }}>S</span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: NAVY }}>Studyfy</span>
+        <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 9, textDecoration: "none" }}>
+          <span
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              background: gradients.accent,
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 800,
+              fontSize: 18,
+              letterSpacing: "-0.02em",
+              boxShadow: "0 6px 18px -6px rgba(37,99,235,.7), inset 0 1px 0 rgba(255,255,255,.25)",
+            }}
+          >
+            S
+          </span>
+          <span style={{ fontWeight: 700, fontSize: 18, color: colors.ink, letterSpacing: "-0.02em" }}>Studyfy</span>
         </Link>
       </header>
       <main style={{ maxWidth: 900, margin: "0 auto", padding: 16, width: "100%" }}>
-      <h1 style={{ color: NAVY }}>Studyfy — dev index</h1>
-      <p style={{ color: "#64748B" }}>Development index - every screen below takes a pasted bearer token until login lands.</p>
-      <ul style={{ listStyle: "none", padding: 0 }}>
+      <h1 style={{ ...h1Style, margin: "0 0 8px" }}>Studyfy — dev index</h1>
+      <p style={{ ...mutedStyle, margin: "0 0 16px" }}>Development index - every screen below takes a pasted bearer token until login lands.</p>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {SCREENS.map((screen) => (
           <li
             key={screen.href}
-            style={{
-              background: "#fff",
-              borderRadius: 14,
-              boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-              padding: 16,
-              marginBottom: 12,
-            }}
+            className="sf-card sf-card-hover"
+            style={{ padding: 16, marginBottom: 12 }}
           >
-            <Link href={screen.href} style={{ color: "#2563EB", fontWeight: 700, fontSize: 16 }}>
+            <Link href={screen.href} style={{ color: colors.primary, fontWeight: 700, fontSize: 16 }}>
               {screen.title}
             </Link>
-            <p style={{ margin: "4px 0 0", color: "#64748B", fontSize: 14 }}>{screen.detail}</p>
+            <p style={{ margin: "4px 0 0", color: colors.muted, fontSize: 14 }}>{screen.detail}</p>
           </li>
         ))}
       </ul>

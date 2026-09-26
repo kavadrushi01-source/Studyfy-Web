@@ -2,11 +2,21 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Users } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
-import { EmptyState } from "../../components/ui/shell";
+import { Card, EmptyState } from "../../components/ui/shell";
 import { isFailure } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import {
+  colors,
+  h1Style,
+  h2Style,
+  iconTile,
+  labelStyle,
+  mutedStyle,
+  pageFrame,
+  pill,
+} from "@/lib/theme";
 
 interface StaffRow {
   id: string;
@@ -93,57 +103,112 @@ export default function TeachersPage() {
     }
   }
 
+  const errorAlert = {
+    margin: "0 0 16px",
+    padding: "10px 14px",
+    borderRadius: 12,
+    background: colors.dangerTint,
+    border: "1px solid rgba(220,38,38,.28)",
+    color: colors.danger,
+    fontSize: 14,
+  };
+  const successNotice = {
+    margin: "12px 0 0",
+    padding: "10px 14px",
+    borderRadius: 12,
+    background: colors.successTint,
+    border: "1px solid rgba(5,150,105,.28)",
+    color: colors.success,
+    fontSize: 14,
+    fontWeight: 600,
+  };
+
   if (!ready) {
     return null;
   }
   if (!token || !schoolId) {
     return (
-      <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif" }}>
-        <h1 style={{ fontSize: 22 }}>Teachers</h1>
-        <p style={{ color: "#64748B" }}>Please sign in to manage staff.</p>
-        <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>Go to Login</Link>
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, marginBottom: 8 }}>Teachers</h1>
+        <p style={{ ...mutedStyle, margin: "0 0 12px" }}>Please sign in to manage staff.</p>
+        <Link
+          href="/login"
+          style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+        >
+          Go to Login
+        </Link>
       </main>
     );
   }
 
-  const input: React.CSSProperties = { padding: 10, borderRadius: 10, border: "1px solid #CBD5E1", fontSize: 14 };
-
   return (
-    <main style={{ maxWidth: 1120, margin: "0 auto", padding: 28, fontFamily: "Inter, system-ui, sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
-      <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A" }}>Teachers</h1>
-      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>Staff roster — invite teachers and accountants.</p>
-      {error ? <p style={{ color: "#DC2626", fontSize: 14 }}>{error}</p> : null}
-      <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20, marginBottom: 16 }}>
-        <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A" }}>Invite staff</h2>
-        <form onSubmit={invite} style={{ display: "grid", gap: 12 }}>
-          <div className="sf-form-2col">
-            <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
-              Full name
-              <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} style={input} />
-            </label>
-            <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
-              Email
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={input} />
-            </label>
+    <main style={pageFrame}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+        <span style={iconTile(colors.primary, colors.primaryGhost, 40)}>
+          <Users size={20} aria-hidden="true" />
+        </span>
+        <h1 style={{ ...h1Style, marginBottom: 0 }}>Teachers</h1>
+      </div>
+      <p style={{ ...mutedStyle, margin: "0 0 20px" }}>
+        Staff roster — invite teachers and accountants.
+      </p>
+      {error ? <p role="alert" style={errorAlert}>{error}</p> : null}
+      <div style={{ marginBottom: 16 }}>
+        <Card>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <span style={iconTile(colors.primary, colors.primaryGhost, 36)}>
+              <UserPlus size={17} aria-hidden="true" />
+            </span>
+            <h2 style={{ ...h2Style, margin: 0 }}>Invite staff</h2>
           </div>
-          <label style={{ display: "grid", gap: 4, fontSize: 14, maxWidth: 280 }}>
-            Role
-            <select value={role} onChange={(e) => setRole(e.target.value)} style={input}>
-              <option value="TEACHER">Teacher</option>
-              <option value="ACCOUNTANT">Accountant</option>
-            </select>
-          </label>
-          <div>
-            <button type="submit" disabled={inviting} style={{ padding: "11px 22px", borderRadius: 10, border: 0, background: "#2563EB", color: "#fff", fontWeight: 600, cursor: "pointer" }}>
-              {inviting ? "Inviting…" : "Invite staff"}
-            </button>
-          </div>
-        </form>
-        {inviteResult ? (
-          <p style={{ fontSize: 14, color: "#059669", fontWeight: 600, margin: "12px 0 0" }}>
-            Invited {inviteResult.email} — one-time password: <strong style={{ fontFamily: "monospace" }}>{inviteResult.tempPassword}</strong> (hand it over; it never shows again)
-          </p>
-        ) : null}
+          <form onSubmit={invite} style={{ display: "grid", gap: 12 }}>
+            <div className="sf-form-2col">
+              <label style={labelStyle}>
+                Full name
+                <input
+                  className="sf-input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  minLength={2}
+                />
+              </label>
+              <label style={labelStyle}>
+                Email
+                <input
+                  className="sf-input"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </label>
+            </div>
+            <label style={{ ...labelStyle, maxWidth: 280 }}>
+              Role
+              <select
+                className="sf-select"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+              >
+                <option value="TEACHER">Teacher</option>
+                <option value="ACCOUNTANT">Accountant</option>
+              </select>
+            </label>
+            <div>
+              <button type="submit" disabled={inviting} className="sf-btn sf-btn-primary">
+                {inviting ? "Inviting…" : "Invite staff"}
+              </button>
+            </div>
+          </form>
+          {inviteResult ? (
+            <p style={successNotice}>
+              Invited {inviteResult.email} — one-time password:{" "}
+              <strong style={{ fontFamily: "monospace" }}>{inviteResult.tempPassword}</strong>{" "}
+              (hand it over; it never shows again)
+            </p>
+          ) : null}
+        </Card>
       </div>
       {rows.length === 0 && !loading ? (
         <EmptyState icon={<UserPlus size={22} aria-hidden="true" />} title="No staff yet" detail="Invite your first teacher above." />
@@ -152,7 +217,13 @@ export default function TeachersPage() {
           columns={[
             { key: "name", label: "Name", render: (row: StaffRow) => row.user.name },
             { key: "email", label: "Email", render: (row: StaffRow) => row.user.email },
-            { key: "role", label: "Role", render: (row: StaffRow) => row.user.role.name },
+            {
+              key: "role",
+              label: "Role",
+              render: (row: StaffRow) => (
+                <span style={pill(colors.accent, colors.accentTint)}>{row.user.role.name}</span>
+              ),
+            },
             { key: "designation", label: "Designation", render: (row: StaffRow) => row.designation },
           ]}
           rows={rows}

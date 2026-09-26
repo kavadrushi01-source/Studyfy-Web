@@ -7,6 +7,7 @@ import { MessageCircle, RefreshCw, Send } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { colors, gradients, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, shadows } from "@/lib/theme";
 
 interface ThreadRow {
   user: { id: string; name: string };
@@ -28,6 +29,10 @@ interface ApiError {
 
 type ConnState = "offline" | "connecting" | "live" | "reconnecting";
 
+// Compact controls for the 280px thread rail.
+const sidebarLabel: React.CSSProperties = { ...labelStyle };
+const sidebarControl: React.CSSProperties = { fontSize: 13, padding: "8px 10px" };
+
 // 1:1 academic chat (§7 Phase 1 #8). Thread list + message view in board
 // styling; WHO may talk to WHOM is enforced API-side (§13.7) and surfaced
 // as-is. The socket is live updates only — send/read always go through
@@ -42,7 +47,7 @@ type ConnState = "offline" | "connecting" | "live" | "reconnecting";
 // offline (red, with a real retry button that reconnects the same socket).
 // Never a silently dead chat.
 export default function MessagesPage() {
-  const { token, schoolId, ready, apiFetch } = useAuth();
+  const { token, schoolId, ready, apiFetch, user } = useAuth();
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [activeUserId, setActiveUserId] = useState("");
   const [contacts, setContacts] = useState<{ userId: string; name: string; role: string; context: string }[]>([]);
@@ -259,63 +264,34 @@ export default function MessagesPage() {
     }
   }
 
-  const page: React.CSSProperties = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
-  };
-  const primaryBtn: React.CSSProperties = {
-    background: "#2563EB",
-    color: "#fff",
-    border: 0,
-    borderRadius: 10,
-    padding: "10px 16px",
-    fontWeight: 600,
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-  };
   const threadsCard: React.CSSProperties = {
     width: 280,
     flexShrink: 0,
-    background: "#fff",
-    borderRadius: 14,
-    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-    padding: 12,
+    padding: 16,
   };
   const chatCard: React.CSSProperties = {
     flex: 1,
     minWidth: 0,
-    background: "#fff",
-    borderRadius: 14,
-    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-    padding: 12,
+    padding: 16,
     display: "flex",
     flexDirection: "column",
-    minHeight: 400,
+    minHeight: 440,
   };
-  const connColor = conn === "live" ? "#059669" : conn === "offline" ? "#DC2626" : "#D97706";
+  const connColor = conn === "live" ? colors.success : conn === "offline" ? colors.danger : colors.warning;
+  const connTint = conn === "live" ? colors.successTint : conn === "offline" ? colors.dangerTint : colors.warningTint;
   const connPill: React.CSSProperties = {
-    fontSize: 13,
-    padding: "4px 12px",
-    borderRadius: 999,
-    border: `1px solid ${connColor}`,
-    color: connColor,
-    background: "#fff",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
+    ...pill(connColor, connTint),
+    fontFamily: "inherit",
+    fontSize: 12,
+    padding: "4px 10px",
   };
+  const titleStyle: React.CSSProperties = { ...h1Style, flex: 1, display: "flex", alignItems: "center", gap: 8 };
 
   if (!ready) {
     return (
-      <main style={page}>
-        <h1 style={{ fontSize: 26, margin: 0, color: "#0F172A", flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
-          <MessageCircle size={22} aria-hidden="true" color="#2563EB" /> Messages
+      <main style={pageFrame}>
+        <h1 style={titleStyle}>
+          <MessageCircle size={22} aria-hidden="true" color={colors.primary} /> Messages
         </h1>
         <div style={{ marginTop: 20 }}>
           <SkeletonBlocks rows={3} height={64} />
@@ -326,21 +302,13 @@ export default function MessagesPage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={page}>
-        <h1 style={{ fontSize: 26, margin: 0, color: "#0F172A", flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
-          <MessageCircle size={22} aria-hidden="true" color="#2563EB" /> Messages
+      <main style={pageFrame}>
+        <h1 style={titleStyle}>
+          <MessageCircle size={22} aria-hidden="true" color={colors.primary} /> Messages
         </h1>
-        <div
-          style={{
-            background: "#fff",
-            borderRadius: 14,
-            boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-            padding: 20,
-            marginTop: 20,
-          }}
-        >
-          <p style={{ color: "#334155" }}>Please sign in to view messages.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+        <div className="sf-card" style={{ padding: 20, marginTop: 20 }}>
+          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view messages.</p>
+          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
             Go to login
           </Link>
         </div>
@@ -349,13 +317,18 @@ export default function MessagesPage() {
   }
 
   return (
-    <main style={page}>
+    <main style={pageFrame}>
       <div className="sf-row-wrap" style={{ justifyContent: "space-between", marginBottom: 4 }}>
-        <h1 style={{ fontSize: 26, margin: 0, color: "#0F172A", flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
-          <MessageCircle size={22} aria-hidden="true" color="#2563EB" /> Messages
+        <h1 style={titleStyle}>
+          <MessageCircle size={22} aria-hidden="true" color={colors.primary} /> Messages
         </h1>
         {conn === "offline" ? (
-          <button type="button" onClick={retrySocket} style={{ ...connPill, cursor: "pointer", fontWeight: 600 }} title="Reconnect the live socket">
+          <button
+            type="button"
+            onClick={retrySocket}
+            style={{ ...connPill, cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}
+            title="Reconnect the live socket"
+          >
             <RefreshCw size={13} aria-hidden="true" /> Offline — Retry
           </button>
         ) : (
@@ -364,18 +337,19 @@ export default function MessagesPage() {
           </span>
         )}
       </div>
-      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
+      <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
         1:1 academic chat — the socket is live updates only; sending always works over HTTP.
       </p>
       <div className="sf-split">
-        <section style={threadsCard}>
-          <h3 style={{ marginTop: 0 }}>Threads</h3>
+        <section className="sf-card" style={threadsCard}>
+          <h3 style={h2Style}>Threads</h3>
           {contacts.length > 0 ? (
             <form onSubmit={startThread} style={{ display: "grid", gap: 8, marginBottom: 12 }}>
-              <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+              <label style={sidebarLabel}>
                 New message
                 <select
-                  style={{ padding: 8, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  className="sf-select"
+                  style={sidebarControl}
                   value={newRecipient}
                   onChange={(e) => setNewRecipient(e.target.value)}
                   aria-label="Recipient"
@@ -389,13 +363,18 @@ export default function MessagesPage() {
                 </select>
               </label>
               <input
-                style={{ padding: 8, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                className="sf-input"
+                style={sidebarControl}
                 value={newBody}
                 onChange={(e) => setNewBody(e.target.value)}
                 placeholder="First message…"
                 aria-label="First message"
               />
-              <button type="submit" disabled={starting || !newRecipient || !newBody.trim()} style={{ ...primaryBtn, opacity: starting ? 0.6 : 1, justifyContent: "center" }}>
+              <button
+                type="submit"
+                disabled={starting || !newRecipient || !newBody.trim()}
+                style={{ ...primaryBtn, opacity: starting ? 0.6 : 1, justifyContent: "center" }}
+              >
                 {starting ? "Starting…" : "Start conversation"}
               </button>
             </form>
@@ -407,41 +386,79 @@ export default function MessagesPage() {
               detail="Threads appear here once someone writes to you."
             />
           ) : (
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {threads.map((t) => (
-                <li key={t.user.id} style={{ marginBottom: 4 }}>
-                  <button
-                    type="button"
-                    onClick={() => void loadThread(t.user.id)}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      padding: 8,
-                      borderRadius: 12,
-                      border: t.user.id === activeUserId ? "1px solid #2563EB" : "1px solid #E2E8F0",
-                      background: t.user.id === activeUserId ? "#EFF6FF" : "#fff",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>
-                      {t.user.name}
-                      {t.unread > 0 ? (
-                        <span style={{ marginLeft: 8, fontSize: 12, background: "#2563EB", color: "#fff", borderRadius: 999, padding: "0 8px" }}>
-                          {t.unread}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#64748B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {t.lastMessage.fromMe ? "You: " : ""}
-                      {t.lastMessage.body}
-                    </div>
-                  </button>
-                </li>
-              ))}
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+              {threads.map((t) => {
+                const active = t.user.id === activeUserId;
+                return (
+                  <li key={t.user.id}>
+                    <button
+                      type="button"
+                      onClick={() => void loadThread(t.user.id)}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "10px 12px",
+                        borderRadius: 12,
+                        border: `1px solid ${active ? colors.primary : colors.line}`,
+                        background: active ? colors.primaryGhost : "#fff",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        boxShadow: active ? "0 6px 14px -10px rgba(37,99,235,.9)" : "none",
+                        transition:
+                          "background 160ms cubic-bezier(.22,1,.36,1), border-color 160ms cubic-bezier(.22,1,.36,1), box-shadow 160ms cubic-bezier(.22,1,.36,1)",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!active) {
+                          e.currentTarget.style.background = "#F8FAFF";
+                          e.currentTarget.style.borderColor = "#CBD5E1";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!active) {
+                          e.currentTarget.style.background = "#fff";
+                          e.currentTarget.style.borderColor = colors.line;
+                        }
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, fontSize: 14, color: colors.ink }}>
+                        {t.user.name}
+                        {t.unread > 0 ? (
+                          <span
+                            style={{
+                              marginLeft: 8,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: gradients.primary,
+                              color: "#fff",
+                              borderRadius: 999,
+                              padding: "1px 8px",
+                            }}
+                          >
+                            {t.unread}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: colors.muted,
+                          marginTop: 2,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {t.lastMessage.fromMe ? "You: " : ""}
+                        {t.lastMessage.body}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
-        <section style={chatCard}>
+        <section className="sf-card" style={chatCard}>
           {!activeUserId ? (
             <EmptyState
               icon={<MessageCircle size={22} aria-hidden="true" />}
@@ -450,7 +467,17 @@ export default function MessagesPage() {
             />
           ) : (
             <>
-              <div style={{ flex: 1, overflowY: "auto", marginBottom: 12 }}>
+              <div
+                style={{
+                  flex: 1,
+                  overflowY: "auto",
+                  marginBottom: 12,
+                  padding: 12,
+                  borderRadius: 12,
+                  background: "#F8FAFD",
+                  border: `1px solid ${colors.lineSoft}`,
+                }}
+              >
                 {loading ? (
                   <SkeletonBlocks rows={3} height={40} />
                 ) : messages.length === 0 ? (
@@ -460,19 +487,58 @@ export default function MessagesPage() {
                     detail="Say hello — it lands instantly over HTTP."
                   />
                 ) : (
-                  messages.map((m) => (
-                    <div key={m.id} style={{ marginBottom: 8 }}>
-                      <div style={{ fontSize: 12, color: "#64748B" }}>
-                        {m.sender.name} · {new Date(m.createdAt).toLocaleString("en-GB")}
+                  messages.map((m) => {
+                    const mine = user != null && m.senderId === user.id;
+                    const bubble: React.CSSProperties = mine
+                      ? {
+                          background: gradients.primary,
+                          color: "#fff",
+                          boxShadow: shadows.primary,
+                          borderBottomRightRadius: 4,
+                        }
+                      : {
+                          background: "#fff",
+                          color: colors.inkSoft,
+                          border: `1px solid ${colors.line}`,
+                          boxShadow: shadows.card,
+                          borderBottomLeftRadius: 4,
+                        };
+                    return (
+                      <div
+                        key={m.id}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: mine ? "flex-end" : "flex-start",
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div style={{ fontSize: 11, color: colors.faint, margin: "0 4px 4px" }}>
+                          {m.sender.name} · {new Date(m.createdAt).toLocaleString("en-GB")}
+                        </div>
+                        <div
+                          style={{
+                            ...bubble,
+                            maxWidth: "78%",
+                            padding: "10px 14px",
+                            borderRadius: 14,
+                            fontSize: 14,
+                            lineHeight: 1.5,
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {m.body}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 14 }}>{m.body}</div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
               <form onSubmit={send} className="sf-row-wrap">
                 <input
-                  style={{ flex: 1, minWidth: 180, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }}
+                  className="sf-input"
+                  style={{ flex: 1, minWidth: 180 }}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder="Write a message…"
@@ -487,7 +553,7 @@ export default function MessagesPage() {
         </section>
       </div>
       {error ? (
-        <p role="alert" style={{ color: "#DC2626" }}>
+        <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "12px 0 0" }}>
           {error}
         </p>
       ) : null}

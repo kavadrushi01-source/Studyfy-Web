@@ -5,6 +5,16 @@ import Link from "next/link";
 import { SkeletonBlocks } from "../../../../components/ui/shell";
 import { isFailure } from "../../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
+import {
+  cardStyle,
+  colors,
+  gradients,
+  h1Style,
+  labelStyle,
+  mutedStyle,
+  pageFrame,
+  shadows,
+} from "@/lib/theme";
 
 interface Profile {
   user: { name: string; email: string };
@@ -53,42 +63,21 @@ export default function IdCardPrintPage() {
     }
   }
 
-  const primaryBtn = {
-    background: "#2563EB",
-    color: "#fff",
-    border: "1px solid #2563EB",
-    borderRadius: 8,
-    padding: "8px 16px",
-    cursor: "pointer",
-  } as const;
-  const secondaryBtn = {
-    background: "#fff",
-    color: "#0F172A",
-    border: "1px solid #CBD5E1",
-    borderRadius: 8,
-    padding: "8px 16px",
-    cursor: "pointer",
-  } as const;
-  const card = {
-    background: "#fff",
-    borderRadius: 16,
-    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-    padding: 20,
-  } as const;
-
-  const frame = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
-  } as const;
+  const pageH1 = { ...h1Style, marginBottom: 14 };
+  const alertStyle = {
+    margin: "14px 0 0",
+    padding: "10px 14px",
+    borderRadius: 12,
+    background: colors.dangerTint,
+    border: "1px solid rgba(220,38,38,.28)",
+    color: colors.danger,
+    fontSize: 14,
+  };
 
   if (!ready) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>ID Card — Print</h1>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>ID Card — Print</h1>
         <SkeletonBlocks rows={4} />
       </main>
     );
@@ -96,11 +85,14 @@ export default function IdCardPrintPage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>ID Card — Print</h1>
-        <div className="no-print" style={{ ...card, maxWidth: 640 }}>
-          <p style={{ color: "#334155" }}>Please sign in to print an ID card.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>ID Card — Print</h1>
+        <div className="no-print" style={{ ...cardStyle, maxWidth: 640 }}>
+          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to print an ID card.</p>
+          <Link
+            href="/login"
+            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+          >
             Go to login
           </Link>
         </div>
@@ -109,7 +101,7 @@ export default function IdCardPrintPage() {
   }
 
   return (
-    <main style={frame}>
+    <main style={pageFrame}>
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -123,32 +115,38 @@ export default function IdCardPrintPage() {
         }
       `}</style>
       <div className="no-print" style={{ maxWidth: 640 }}>
-        <h1 style={{ color: "#0F172A" }}>ID Card — Print</h1>
-        <form onSubmit={onLoad} style={card}>
-          <label>
+        <h1 style={pageH1}>ID Card — Print</h1>
+        <form
+          onSubmit={onLoad}
+          className="sf-card"
+          style={{ padding: 20, display: "grid", gap: 14 }}
+        >
+          <label style={labelStyle}>
             School name (as printed)
             <input
-              style={{ display: "block", width: "100%", margin: "4px 0 12px", padding: 8 }}
+              className="sf-input"
               value={schoolName}
               onChange={(e) => setSchoolName(e.target.value)}
               required
             />
           </label>
-          <label>
+          <label style={labelStyle}>
             Student ID
             <input
-              style={{ display: "block", width: "100%", margin: "4px 0 12px", padding: 8 }}
+              className="sf-input"
               value={studentId}
               onChange={(e) => setStudentId(e.target.value)}
               required
             />
           </label>
-          <button type="submit" style={secondaryBtn}>
-            Load card
-          </button>
+          <div>
+            <button type="submit" className="sf-btn sf-btn-secondary">
+              Load card
+            </button>
+          </div>
         </form>
         {error ? (
-          <p role="alert" style={{ color: "#DC2626" }}>
+          <p role="alert" style={alertStyle}>
             {error}
           </p>
         ) : null}
@@ -160,30 +158,38 @@ export default function IdCardPrintPage() {
             style={{
               width: "3.375in",
               height: "2.125in",
-              borderRadius: 12,
+              borderRadius: 13,
               overflow: "hidden",
-              boxShadow: "0 1px 3px rgba(15,23,42,.12)",
-              border: "1px solid #E2E8F0",
+              boxShadow: shadows.card,
+              border: `1px solid ${colors.line}`,
               marginTop: 16,
             }}
           >
-            <div style={{ background: "#0F172A", color: "#fff", padding: "6px 10px" }}>
-              <div style={{ fontWeight: 700, fontSize: 13 }}>{schoolName}</div>
-              <div style={{ fontSize: 9, letterSpacing: 1 }}>STUDENT IDENTITY CARD</div>
+            <div style={{ background: "#0F172A", color: "#fff", padding: "7px 11px" }}>
+              <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: "-0.01em" }}>
+                {schoolName}
+              </div>
+              <div style={{ fontSize: 9, letterSpacing: 1, opacity: 0.85 }}>
+                STUDENT IDENTITY CARD
+              </div>
             </div>
+            <div style={{ height: 3, background: gradients.accent }} />
             <div style={{ display: "flex", gap: 10, padding: 10 }}>
               <div
                 style={{
                   width: 56,
                   height: 66,
-                  background: "#F1F5F9",
-                  border: "1px solid #CBD5E1",
+                  borderRadius: 10,
+                  background: colors.primaryGhost,
+                  border: "1px solid #D7E4FB",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontWeight: 700,
-                  color: "#0F172A",
+                  fontWeight: 800,
+                  color: colors.primary,
                   fontSize: 20,
+                  letterSpacing: "-0.02em",
+                  flexShrink: 0,
                 }}
               >
                 {profile.user.name
@@ -194,7 +200,9 @@ export default function IdCardPrintPage() {
                   .toUpperCase()}
               </div>
               <div style={{ fontSize: 11 }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>{profile.user.name}</div>
+                <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: "-0.01em" }}>
+                  {profile.user.name}
+                </div>
                 <div>Adm. no: {profile.admissionNo ?? "—"}</div>
                 <div>
                   Class: {profile.section.class.name} · {profile.section.name}
@@ -203,7 +211,12 @@ export default function IdCardPrintPage() {
               </div>
             </div>
           </div>
-          <button type="button" className="no-print" style={{ ...primaryBtn, marginTop: 12 }} onClick={() => window.print()}>
+          <button
+            type="button"
+            className="no-print sf-btn sf-btn-primary"
+            style={{ marginTop: 12 }}
+            onClick={() => window.print()}
+          >
             Print card
           </button>
         </>

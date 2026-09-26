@@ -5,6 +5,15 @@ import Link from "next/link";
 import { SkeletonBlocks } from "../../../components/ui/shell";
 import { isFailure } from "../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
+import {
+  cardStyle,
+  colors,
+  h1Style,
+  h2Style,
+  labelStyle,
+  mutedStyle,
+  pageFrame,
+} from "@/lib/theme";
 
 interface AdmitSuccess {
   student: { id: string; user: { email: string; name: string } };
@@ -97,35 +106,30 @@ export default function AdmitStudentPage() {
     }
   }
 
-  const input = { display: "block", width: "100%", margin: "4px 0 12px", padding: 8 } as const;
-  const primaryBtn = {
-    background: "#2563EB",
-    color: "#fff",
-    border: "1px solid #2563EB",
-    borderRadius: 8,
-    padding: "8px 16px",
-    cursor: "pointer",
-  } as const;
-  const card = {
-    background: "#fff",
-    borderRadius: 16,
-    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-    padding: 20,
-  } as const;
-
-  const frame = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
-  } as const;
+  const pageH1 = { ...h1Style, marginBottom: 14 };
+  const alertStyle = {
+    margin: "14px 0 0",
+    padding: "10px 14px",
+    borderRadius: 12,
+    background: colors.dangerTint,
+    border: "1px solid rgba(220,38,38,.28)",
+    color: colors.danger,
+    fontSize: 14,
+  };
+  const codeStyle = {
+    background: "#EFF3F9",
+    color: colors.ink,
+    padding: "2px 7px",
+    borderRadius: 7,
+    fontSize: 13,
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+  };
+  const bodyText = { margin: "0 0 8px", fontSize: 14, color: colors.inkSoft };
 
   if (!ready) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>Admit Student</h1>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>Admit Student</h1>
         <SkeletonBlocks rows={4} />
       </main>
     );
@@ -133,11 +137,14 @@ export default function AdmitStudentPage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>Admit Student</h1>
-        <div style={{ ...card, maxWidth: 640 }}>
-          <p style={{ color: "#334155" }}>Please sign in to admit a student.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>Admit Student</h1>
+        <div style={{ ...cardStyle, maxWidth: 640 }}>
+          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to admit a student.</p>
+          <Link
+            href="/login"
+            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+          >
             Go to login
           </Link>
         </div>
@@ -146,70 +153,119 @@ export default function AdmitStudentPage() {
   }
 
   return (
-    <main style={frame}>
-      <h1 style={{ color: "#0F172A" }}>Admit Student</h1>
-      <form onSubmit={onSubmit} style={{ ...card, maxWidth: 640 }}>
-        <label>
-          Full name
-          <input style={input} value={name} onChange={(e) => setName(e.target.value)} required />
-        </label>
-        <label>
-          Email (student login)
-          <input style={input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          Section
-          {sectionOptions.length > 0 ? (
-            <select style={input} value={sectionId} onChange={(e) => setSectionId(e.target.value)} required aria-label="Section">
-              <option value="">— pick a section —</option>
-              {sectionOptions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.className} {s.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input style={input} value={sectionId} onChange={(e) => setSectionId(e.target.value)} required placeholder="Section ID" aria-label="Section ID" />
-          )}
-        </label>
-        <label>
-          Admission no. (optional)
-          <input style={input} value={admissionNo} onChange={(e) => setAdmissionNo(e.target.value)} />
-        </label>
-        <label>
-          Guardian name (optional)
-          <input style={input} value={guardianName} onChange={(e) => setGuardianName(e.target.value)} />
-        </label>
-        <label>
-          Guardian email (optional)
-          <input
-            style={input}
-            type="email"
-            value={guardianEmail}
-            onChange={(e) => setGuardianEmail(e.target.value)}
-          />
-        </label>
-        <button type="submit" disabled={submitting} style={primaryBtn}>
+    <main style={pageFrame}>
+      <h1 style={pageH1}>Admit Student</h1>
+      <form
+        onSubmit={onSubmit}
+        className="sf-card"
+        style={{ maxWidth: 640, padding: 20, display: "grid", gap: 14 }}
+      >
+        <div className="sf-form-2col">
+          <label style={labelStyle}>
+            Full name
+            <input
+              className="sf-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </label>
+          <label style={labelStyle}>
+            Email (student login)
+            <input
+              className="sf-input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </label>
+        </div>
+        <div className="sf-form-2col">
+          <label style={labelStyle}>
+            Section
+            {sectionOptions.length > 0 ? (
+              <select
+                className="sf-select"
+                value={sectionId}
+                onChange={(e) => setSectionId(e.target.value)}
+                required
+                aria-label="Section"
+              >
+                <option value="">— pick a section —</option>
+                {sectionOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.className} {s.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className="sf-input"
+                value={sectionId}
+                onChange={(e) => setSectionId(e.target.value)}
+                required
+                placeholder="Section ID"
+                aria-label="Section ID"
+              />
+            )}
+          </label>
+          <label style={labelStyle}>
+            Admission no. (optional)
+            <input
+              className="sf-input"
+              value={admissionNo}
+              onChange={(e) => setAdmissionNo(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="sf-form-2col">
+          <label style={labelStyle}>
+            Guardian name (optional)
+            <input
+              className="sf-input"
+              value={guardianName}
+              onChange={(e) => setGuardianName(e.target.value)}
+            />
+          </label>
+          <label style={labelStyle}>
+            Guardian email (optional)
+            <input
+              className="sf-input"
+              type="email"
+              value={guardianEmail}
+              onChange={(e) => setGuardianEmail(e.target.value)}
+            />
+          </label>
+        </div>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="sf-btn sf-btn-primary"
+          style={{ justifySelf: "start", marginTop: 2 }}
+        >
           {submitting ? "Admitting…" : "Admit student"}
         </button>
       </form>
       {error ? (
-        <p role="alert" style={{ color: "#DC2626" }}>
+        <p role="alert" style={alertStyle}>
           {error}
         </p>
       ) : null}
       {result ? (
-        <section style={{ ...card, marginTop: 16, maxWidth: 640, border: "1px solid #059669" }}>
-          <h2 style={{ color: "#0F172A", marginTop: 0 }}>Admitted — share once, then forget</h2>
-          <p>
+        <section
+          style={{ ...cardStyle, marginTop: 16, maxWidth: 640, borderColor: colors.success }}
+        >
+          <h2 style={{ ...h2Style, marginTop: 0 }}>Admitted — share once, then forget</h2>
+          <p style={bodyText}>
             {result.student.user.name} ({result.student.user.email})
           </p>
-          <p>
-            Student temp password: <code>{result.studentTempPassword}</code>
+          <p style={bodyText}>
+            Student temp password: <code style={codeStyle}>{result.studentTempPassword}</code>
           </p>
           {result.guardians.map((g) => (
-            <p key={g.user.email}>
-              {g.user.email}: <code>{g.tempPassword ?? "(existing account — unchanged)"}</code>
+            <p key={g.user.email} style={bodyText}>
+              {g.user.email}: <code style={codeStyle}>{g.tempPassword ?? "(existing account — unchanged)"}</code>
             </p>
           ))}
         </section>

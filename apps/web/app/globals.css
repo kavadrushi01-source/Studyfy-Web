@@ -1,9 +1,15 @@
 :root {
-  --color-sidebar-bg: #0f172a;
-  --color-sidebar-bg-2: #111827;
+  /* ── Premium palette ───────────────────────────────────────────────
+     Slate neutrals + one confident blue. Navy sidebar kept (§8.4),
+     light canvas kept (§8.2); richness comes from layered elevation,
+     soft tints, and micro-motion rather than new hues. */
+  --color-sidebar-bg: #0b1220;
+  --color-sidebar-bg-2: #101a2e;
   --color-primary: #2563eb;
-  --color-canvas: #f8fafc;
-  --color-canvas-2: #f1f5f9;
+  --color-primary-strong: #1d4ed8;
+  --color-primary-ghost: #eff6ff;
+  --color-canvas: #f5f7fb;
+  --color-canvas-2: #eef2f9;
   --color-card-bg: #ffffff;
   --color-success: #059669;
   --color-success-bright: #10b981;
@@ -11,11 +17,23 @@
   --color-warning-deep: #d97706;
   --color-danger: #dc2626;
   --color-danger-bright: #ef4444;
-  --color-ink: #0f172a;
+  --color-ink: #0b1220;
+  --color-ink-soft: #1e293b;
   --color-muted: #64748b;
-  --color-line: #e2e8f0;
+  --color-line: #e6ebf4;
+  --color-line-soft: #eff3f9;
+  --color-accent: #7c3aed;
   --radius-card: 16px;
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08);
+  --radius-control: 12px;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -16px rgba(15, 23, 42, 0.18);
+  --shadow-card-hover: 0 2px 4px rgba(15, 23, 42, 0.05), 0 16px 40px -20px rgba(15, 23, 42, 0.28);
+  --shadow-pop: 0 4px 10px rgba(15, 23, 42, 0.06), 0 24px 60px -24px rgba(15, 23, 42, 0.35);
+  --shadow-primary: 0 6px 16px -6px rgba(37, 99, 235, 0.55);
+  --gradient-primary: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  --gradient-sidebar: linear-gradient(180deg, #0f172a 0%, #0b1220 100%);
+  --gradient-accent: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --transition: 180ms var(--ease-out);
 }
 
 html,
@@ -32,12 +50,177 @@ body {
 
 body {
   font-family: "Inter", system-ui, sans-serif;
-  background: var(--color-canvas);
+  background:
+    radial-gradient(1100px 500px at 100% -10%, rgba(37, 99, 235, 0.06), transparent 60%),
+    radial-gradient(900px 420px at -10% 110%, rgba(124, 58, 237, 0.05), transparent 55%),
+    var(--color-canvas);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+/* Slim, calm scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: content-box;
+}
+
+/* Keyboard-visible focus ring everywhere (premium a11y). */
+:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.65);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.022em;
   color: var(--color-ink);
 }
 
-/* Responsive grids — inline styles cannot do breakpoints, so layout
-   responsiveness lives here (§8.5 mobile-first for Student/Parent). */
+/* ── Controls ───────────────────────────────────────────────────── */
+.sf-input,
+.sf-select,
+.sf-textarea {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-ink);
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: var(--radius-control);
+  transition: border-color var(--transition), box-shadow var(--transition),
+    background var(--transition);
+}
+.sf-input::placeholder,
+.sf-textarea::placeholder {
+  color: #9aa8bd;
+}
+.sf-input:hover,
+.sf-select:hover,
+.sf-textarea:hover {
+  border-color: #bfcbe0;
+}
+.sf-input:focus,
+.sf-select:focus,
+.sf-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+}
+
+.sf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform var(--transition), box-shadow var(--transition),
+    background var(--transition), border-color var(--transition), color var(--transition);
+}
+.sf-btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+.sf-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+.sf-btn-primary {
+  background: var(--gradient-primary);
+  color: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, var(--shadow-primary);
+}
+.sf-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #4f8cf7 0%, #1d4ed8 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 10px 22px -8px rgba(37, 99, 235, 0.65);
+}
+.sf-btn-secondary {
+  background: #fff;
+  color: var(--color-ink-soft);
+  border-color: #dbe3ef;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+.sf-btn-secondary:hover:not(:disabled) {
+  border-color: #b9c6dd;
+  background: #f8fafd;
+}
+.sf-btn-ghost {
+  background: transparent;
+  color: var(--color-muted);
+}
+.sf-btn-ghost:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--color-ink-soft);
+}
+.sf-btn-danger {
+  background: #fff;
+  color: var(--color-danger);
+  border-color: #fbcfcd;
+}
+.sf-btn-danger:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+/* ── Surfaces ───────────────────────────────────────────────────── */
+.sf-card {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+.sf-card-hover {
+  transition: transform var(--transition), box-shadow var(--transition),
+    border-color var(--transition);
+}
+.sf-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+  border-color: #d5deee;
+}
+
+/* Soft tinted pill (status/kind). Tone via inline color vars. */
+.sf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+
+/* ── Responsive grids — inline styles cannot do breakpoints, so layout
+   responsiveness lives here (§8.5 mobile-first for Student/Parent). ── */
 .sf-grid-kpi {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -93,19 +276,19 @@ body {
   }
 }
 
-/* App shell: sidebar + content; collapses to a top strip on narrow screens. */
+/* ── App shell: sidebar + content; collapses to a top strip on narrow. ── */
 .sf-shell {
   display: flex;
   min-height: 100vh;
 }
 .sf-sidebar {
-  width: 248px;
+  width: 256px;
   flex-shrink: 0;
 }
 .sf-main {
   flex: 1;
   min-width: 0;
-  padding: 28px;
+  padding: 30px 32px 48px;
 }
 @media (max-width: 900px) {
   .sf-shell {
@@ -127,17 +310,32 @@ body {
 /* Skeleton shimmer (§8.5 — skeletons, never spinners). */
 @keyframes sf-shimmer {
   0% {
-    opacity: 0.55;
+    opacity: 0.5;
   }
   50% {
     opacity: 1;
   }
   100% {
-    opacity: 0.55;
+    opacity: 0.5;
   }
 }
 .sf-skeleton {
   animation: sf-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Gentle entrance for page content. */
+@keyframes sf-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.sf-rise {
+  animation: sf-rise 0.4s var(--ease-out) both;
 }
 
 /* Two-column form rows that stack on phones. */
@@ -168,5 +366,14 @@ body {
 @media (max-width: 900px) {
   .sf-split {
     flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

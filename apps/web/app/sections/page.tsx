@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Inbox } from "lucide-react";
+import { Inbox, School } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { cardStyle, colors, h1Style, iconTile, mutedStyle, pageFrame, pill } from "@/lib/theme";
 
 interface SectionRow {
   id: string;
@@ -86,42 +87,48 @@ export default function SectionsPage() {
     }
   }
 
-  const primaryBtn = {
-    background: "#2563EB",
-    color: "#fff",
-    border: "1px solid #2563EB",
-    borderRadius: 8,
-    padding: "8px 16px",
-    cursor: "pointer",
-  } as const;
-  const secondaryBtn = {
-    background: "#fff",
-    color: "#0F172A",
-    border: "1px solid #CBD5E1",
-    borderRadius: 8,
-    padding: "8px 16px",
-    cursor: "pointer",
-  } as const;
-  const card = {
-    background: "#fff",
-    borderRadius: 16,
-    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-    padding: 20,
-  } as const;
-
-  const frame = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
-  } as const;
+  const pageH1 = { ...h1Style, marginBottom: 14 };
+  const errorAlert = {
+    margin: "14px 0 0",
+    padding: "10px 14px",
+    borderRadius: 12,
+    background: colors.dangerTint,
+    border: "1px solid rgba(220,38,38,.28)",
+    color: colors.danger,
+    fontSize: 14,
+  };
+  const successAlert = {
+    margin: "14px 0 0",
+    padding: "10px 14px",
+    borderRadius: 12,
+    background: colors.successTint,
+    border: "1px solid rgba(5,150,105,.28)",
+    color: colors.success,
+    fontSize: 14,
+  };
+  const th: React.CSSProperties = {
+    textAlign: "left",
+    padding: "12px 14px",
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.07em",
+    borderBottom: `1px solid ${colors.line}`,
+    background: "linear-gradient(180deg, #FAFCFF 0%, #F5F8FD 100%)",
+    whiteSpace: "nowrap",
+  };
+  const td: React.CSSProperties = {
+    padding: "12px 14px",
+    fontSize: 14,
+    color: colors.inkSoft,
+    borderBottom: `1px solid ${colors.lineSoft}`,
+  };
 
   if (!ready) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>Classes &amp; Sections</h1>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>Classes &amp; Sections</h1>
         <SkeletonBlocks rows={4} />
       </main>
     );
@@ -129,11 +136,14 @@ export default function SectionsPage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>Classes &amp; Sections</h1>
-        <div style={{ ...card, maxWidth: 640 }}>
-          <p style={{ color: "#334155" }}>Please sign in to view sections.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>Classes &amp; Sections</h1>
+        <div style={{ ...cardStyle, maxWidth: 640 }}>
+          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to view sections.</p>
+          <Link
+            href="/login"
+            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+          >
             Go to login
           </Link>
         </div>
@@ -144,8 +154,13 @@ export default function SectionsPage() {
   const empty = !loading && rows.length === 0;
 
   return (
-    <main style={frame}>
-      <h1 style={{ color: "#0F172A" }}>Classes &amp; Sections</h1>
+    <main style={pageFrame}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <span style={iconTile(colors.primary, colors.primaryGhost, 40)}>
+          <School size={20} aria-hidden="true" />
+        </span>
+        <h1 style={h1Style}>Classes &amp; Sections</h1>
+      </div>
       {loading ? (
         <SkeletonBlocks rows={4} />
       ) : empty ? (
@@ -155,68 +170,51 @@ export default function SectionsPage() {
           detail="No sections found for this school."
         />
       ) : (
-        <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+        <div className="sf-card" style={{ padding: 0, overflow: "hidden" }}>
           <div className="sf-table-scroll">
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "10px 12px",
-                      color: "#2563EB",
-                      fontSize: 13,
-                      borderBottom: "1px solid #E2E8F0",
-                    }}
-                  >
-                    Class · Sec
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "10px 12px",
-                      color: "#2563EB",
-                      fontSize: 13,
-                      borderBottom: "1px solid #E2E8F0",
-                    }}
-                  >
-                    Class teacher
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "10px 12px",
-                      color: "#2563EB",
-                      fontSize: 13,
-                      borderBottom: "1px solid #E2E8F0",
-                    }}
-                  >
-                    Assign by email
-                  </th>
+                  <th style={th}>Class · Sec</th>
+                  <th style={th}>Class teacher</th>
+                  <th style={th}>Assign by email</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id}>
-                    <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9" }}>
-                      {row.class.name} · {row.name}
+                    <td style={td}>
+                      <span style={pill(colors.primary, colors.primaryGhost)}>
+                        {row.class.name} · {row.name}
+                      </span>
                     </td>
-                    <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9" }}>
-                      {row.classTeacher ? `${row.classTeacher.user.name} (${row.classTeacher.user.email})` : "—"}
+                    <td style={td}>
+                      {row.classTeacher
+                        ? `${row.classTeacher.user.name} (${row.classTeacher.user.email})`
+                        : "—"}
                     </td>
-                    <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9" }}>
+                    <td style={td}>
                       <div className="sf-row-wrap">
                         <input
-                          style={{ flex: 1, minWidth: 160, padding: 6 }}
+                          className="sf-input"
+                          style={{ flex: 1, minWidth: 160 }}
                           placeholder="teacher@school…"
                           value={emails[row.id] ?? ""}
                           onChange={(e) => setEmails((prev) => ({ ...prev, [row.id]: e.target.value }))}
                           aria-label={`Teacher email for ${row.class.name} ${row.name}`}
                         />
-                        <button type="button" style={primaryBtn} onClick={() => void assign(row.id, emails[row.id] ?? null)}>
+                        <button
+                          type="button"
+                          className="sf-btn sf-btn-primary"
+                          onClick={() => void assign(row.id, emails[row.id] ?? null)}
+                        >
                           Assign
                         </button>
-                        <button type="button" style={secondaryBtn} onClick={() => void assign(row.id, null)}>
+                        <button
+                          type="button"
+                          className="sf-btn sf-btn-secondary"
+                          onClick={() => void assign(row.id, null)}
+                        >
                           Clear
                         </button>
                       </div>
@@ -228,9 +226,9 @@ export default function SectionsPage() {
           </div>
         </div>
       )}
-      {notice ? <p style={{ color: "#059669" }}>{notice}</p> : null}
+      {notice ? <p style={successAlert}>{notice}</p> : null}
       {error ? (
-        <p role="alert" style={{ color: "#DC2626" }}>
+        <p role="alert" style={errorAlert}>
           {error}
         </p>
       ) : null}

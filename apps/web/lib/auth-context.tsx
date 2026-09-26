@@ -62,25 +62,28 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   const [ready, setReady] = useState(false);
   const refreshing = useRef<Promise<string> | null>(null);
 
-  // Restore persisted session on mount; drop it if the refresh chain is
-  // already dead (thief/revoked/expired) instead of showing stale identity.
-  useEffect(() => {
-    const saved = loadPersisted();
-    if (!saved) {
-      setReady(true);
-      return;
-    }
-    fetch(`${apiBase()}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${saved.token}` } })
-      .then((res) => {
-        if (res.ok) {
-          setSession(saved);
-        } else {
-          window.localStorage.removeItem(STORAGE_KEY);
-        }
-      })
-      .catch(() => window.localStorage.removeItem(STORAGE_KEY))
-      .finally(() => setReady(true));
-  }, []);
+    // Restore persisted session on mount; drop it only when the server
+    // definitively rejects the identity (401/403). Transient failures -
+    // network blips, 5xx, and aborts when the page navigates away while
+    // this probe is still in flight - must NOT destroy a valid session;
+    // apiFetch validates lazily and refreshes on the first real 401.
+    useEffect(() => {
+      const saved = loadPersisted();
+      if (!saved) {
+        setReady(true);
+        return;
+      }
+      fetch(`${apiBase()}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${saved.token}` } })
+        .then((res) => {
+          if (res.ok || (res.status !== 401 && res.status !== 403)) {
+            setSession(saved);
+          } else {
+            window.localStorage.removeItem(STORAGE_KEY);
+          }
+        })
+        .catch(() => setSession(saved))
+        .finally(() => setReady(true));
+    }, []);
 
   const persist = useCallback((next: PersistedSession | null) => {
     setSession(next);

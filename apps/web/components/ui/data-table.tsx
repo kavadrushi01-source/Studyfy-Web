@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Inbox } from "lucide-react";
+import { shadows } from "@/lib/theme";
 
 export interface DataTableColumn<T> {
   key: string;
@@ -29,7 +30,7 @@ interface DataTableProps<T> {
 }
 
 // Shared table language from the design boards (§8.2): white card,
-// 12–16px radius, soft shadow, blue sortable headers, quiet pager.
+// soft elevation, tinted uppercase headers, hover rows, quiet pager.
 // Every control here drives a server-side query — nothing is faked
 // client-side over a full dump (RULES.md §4/§13.6).
 export function DataTable<T>({
@@ -49,32 +50,54 @@ export function DataTable<T>({
 }: DataTableProps<T>): ReactNode {
   const card: React.CSSProperties = {
     background: "#fff",
-    borderRadius: 14,
-    boxShadow: "0 1px 3px rgba(15, 23, 42, 0.08)",
+    border: "1px solid #E6EBF4",
+    borderRadius: 16,
+    boxShadow: shadows.card,
     overflow: "hidden",
   };
   const th: React.CSSProperties = {
     textAlign: "left",
-    padding: "10px 12px",
-    color: "#2563EB",
-    fontSize: 13,
-    borderBottom: "1px solid #E2E8F0",
+    padding: "12px 14px",
+    color: "#64748B",
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.07em",
+    borderBottom: "1px solid #E6EBF4",
+    background: "linear-gradient(180deg, #FAFCFF 0%, #F5F8FD 100%)",
     whiteSpace: "nowrap",
   };
-  const td: React.CSSProperties = { padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9" };
+  const td: React.CSSProperties = {
+    padding: "12px 14px",
+    fontSize: 14,
+    color: "#1E293B",
+    borderBottom: "1px solid #EFF3F9",
+  };
 
   const body = loading
     ? Array.from({ length: 5 }, (_, i) => (
         <tr key={`skeleton-${i}`}>
           {columns.map((c) => (
             <td key={c.key} style={td}>
-              <div className="sf-skeleton" style={{ height: 14, borderRadius: 6, background: "#F1F5F9" }} />
+              <div
+                className="sf-skeleton"
+                style={{ height: 14, borderRadius: 6, background: "#EFF3F9" }}
+              />
             </td>
           ))}
         </tr>
       ))
     : rows.map((row) => (
-        <tr key={rowKey(row)}>
+        <tr
+          key={rowKey(row)}
+          style={{ transition: "background 140ms cubic-bezier(.22,1,.36,1)" }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#F8FAFD";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+          }}
+        >
           {columns.map((c) => (
             <td key={c.key} style={td}>
               {c.render(row)}
@@ -96,7 +119,19 @@ export function DataTable<T>({
                     <button
                       type="button"
                       onClick={() => onSort(c.key)}
-                      style={{ all: "unset", cursor: "pointer", color: "#2563EB", fontWeight: sort === c.key ? 700 : 400, display: "inline-flex", alignItems: "center", gap: 4 }}
+                      style={{
+                        all: "unset",
+                        cursor: "pointer",
+                        color: sort === c.key ? "#2563EB" : "#64748B",
+                        fontWeight: 700,
+                        fontSize: 11,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.07em",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        transition: "color 140ms cubic-bezier(.22,1,.36,1)",
+                      }}
                       aria-sort={sort === c.key ? (order === "asc" ? "ascending" : "descending") : "none"}
                     >
                       {c.label}{" "}
@@ -121,39 +156,63 @@ export function DataTable<T>({
         {!loading && rows.length === 0 ? (
           <div
             style={{
-              borderTop: "1px solid #F1F5F9",
-              padding: 24,
+              borderTop: "1px solid #EFF3F9",
+              padding: 28,
               textAlign: "center",
               color: "#64748B",
               fontSize: 14,
               display: "grid",
-              gap: 8,
+              gap: 10,
               justifyItems: "center",
             }}
           >
-            <Inbox size={22} color="#94A3B8" aria-hidden="true" />
+            <span
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                background: "#EFF6FF",
+                color: "#2563EB",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Inbox size={22} aria-hidden="true" />
+            </span>
             <span>{emptyMessage}</span>
           </div>
         ) : null}
       </div>
       {showPager ? (
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, fontSize: 14 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          marginTop: 14,
+          fontSize: 13,
+          color: "#64748B",
+        }}
+      >
         <button
           type="button"
           disabled={page <= 1 || loading}
           onClick={() => onPage(page - 1)}
-          style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+          className="sf-btn sf-btn-secondary"
+          style={{ padding: "7px 12px", fontSize: 13 }}
         >
           <ChevronLeft size={14} aria-hidden="true" /> Prev
         </button>
-        <span>
+        <span style={{ fontWeight: 600, color: "#1E293B" }}>
           Page {page} of {totalPages} · {total} total
         </span>
         <button
           type="button"
           disabled={page >= totalPages || loading}
           onClick={() => onPage(page + 1)}
-          style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+          className="sf-btn sf-btn-secondary"
+          style={{ padding: "7px 12px", fontSize: 13 }}
         >
           Next <ChevronRight size={14} aria-hidden="true" />
         </button>

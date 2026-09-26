@@ -6,6 +6,7 @@ import { BookOpen, CheckCircle2, Plus, RefreshCw, Send } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { cardStyle, colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 
 interface BoardItem {
   id: string;
@@ -209,86 +210,45 @@ export default function HomeworkPage() {
     return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleDateString("en-GB");
   }
 
-  const page: React.CSSProperties = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
-  };
-  const input: React.CSSProperties = {
-    display: "block",
-    width: "100%",
-    margin: "4px 0 12px",
-    padding: 10,
-    borderRadius: 10,
-    border: "1px solid #CBD5E1",
-  };
-  const primaryBtn: React.CSSProperties = {
-    background: "#2563EB",
-    color: "#fff",
-    border: 0,
-    borderRadius: 10,
-    padding: "10px 16px",
-    fontWeight: 600,
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-  };
-  const quietBtn: React.CSSProperties = {
-    background: "#fff",
-    color: "#334155",
-    border: "1px solid #E2E8F0",
-    borderRadius: 10,
-    padding: "10px 16px",
-    fontWeight: 500,
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-  };
-  const card: React.CSSProperties = {
-    background: "#fff",
-    borderRadius: 14,
-    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-    padding: 16,
-    marginBottom: 12,
-  };
-  const pill = (color: string): React.CSSProperties => ({
-    fontSize: 12,
-    padding: "2px 10px",
-    borderRadius: 999,
-    border: `1px solid ${color}`,
-    color,
-  });
+  const card: React.CSSProperties = { ...cardStyle, marginBottom: 12 };
+  const tintOf = (color: string): string =>
+    color === colors.success
+      ? colors.successTint
+      : color === colors.warning
+        ? colors.warningTint
+        : color === colors.danger
+          ? colors.dangerTint
+          : colors.primaryGhost;
+  const statusPill = (status: { label: string; color: string }): React.CSSProperties =>
+    pill(status.color, tintOf(status.color));
 
   const statusOf = (item: BoardItem): { label: string; color: string } => {
     if (item.counts) {
       const pending = item.counts.submitted - item.counts.graded;
       if (pending > 0) {
-        return { label: `${pending} to grade`, color: "#D97706" };
+        return { label: `${pending} to grade`, color: colors.warning };
       }
-      return { label: item.counts.total === 0 ? "No submissions" : "All graded", color: "#059669" };
+      return { label: item.counts.total === 0 ? "No submissions" : "All graded", color: colors.success };
     }
     const mine = item.mySubmissions[0];
     if (!mine) {
-      return { label: "Pending", color: "#D97706" };
+      return { label: "Pending", color: colors.warning };
     }
     return mine.status === "GRADED"
-      ? { label: "Graded", color: "#059669" }
-      : { label: "Submitted", color: "#2563EB" };
+      ? { label: "Graded", color: colors.success }
+      : { label: "Submitted", color: colors.primary };
   };
 
   const sectionOptions = [...new Map(items.map((i) => [i.section.id, i.section])).values()];
   const empty = !loading && items.length === 0;
 
+  const titleStyle: React.CSSProperties = { ...h1Style, display: "flex", alignItems: "center", gap: 8 };
+
   if (!ready) {
     return (
-      <main style={page}>
-        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-          <BookOpen size={22} aria-hidden="true" color="#2563EB" /> Homework
+      <main style={pageFrame}>
+        <h1 style={{ ...titleStyle, margin: "0 0 12px" }}>
+          <BookOpen size={22} aria-hidden="true" color={colors.primary} /> Homework
         </h1>
         <SkeletonBlocks rows={3} height={96} />
       </main>
@@ -297,13 +257,13 @@ export default function HomeworkPage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={page}>
-        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-          <BookOpen size={22} aria-hidden="true" color="#2563EB" /> Homework
+      <main style={pageFrame}>
+        <h1 style={{ ...titleStyle, margin: "0 0 12px" }}>
+          <BookOpen size={22} aria-hidden="true" color={colors.primary} /> Homework
         </h1>
-        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}>
-          <p style={{ color: "#334155" }}>Please sign in to view homework.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+        <div className="sf-card" style={{ padding: 20 }}>
+          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view homework.</p>
+          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
             Go to login
           </Link>
         </div>
@@ -312,29 +272,34 @@ export default function HomeworkPage() {
   }
 
   return (
-    <main style={page}>
-      <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-        <BookOpen size={22} aria-hidden="true" color="#2563EB" /> Homework
+    <main style={pageFrame}>
+      <h1 style={titleStyle}>
+        <BookOpen size={22} aria-hidden="true" color={colors.primary} /> Homework
       </h1>
-      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
+      <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
         One board per role — post it, submit it, grade it.
       </p>
       <div className="sf-row-wrap" style={{ marginBottom: 12 }}>
-        <button type="button" onClick={() => void load()} disabled={loading} style={{ ...quietBtn, opacity: loading ? 0.6 : 1 }}>
+        <button
+          type="button"
+          onClick={() => void load()}
+          disabled={loading}
+          style={{ ...secondaryBtn, opacity: loading ? 0.6 : 1 }}
+        >
           <RefreshCw size={14} aria-hidden="true" /> Reload
         </button>
       </div>
       <section style={card}>
-        <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A", display: "flex", alignItems: "center", gap: 6 }}>
-          <Plus size={16} aria-hidden="true" /> Post homework (teacher)
+        <h2 style={{ ...h2Style, display: "flex", alignItems: "center", gap: 6 }}>
+          <Plus size={16} aria-hidden="true" color={colors.primary} /> Post homework (teacher)
         </h2>
-        <form onSubmit={postHomework}>
+        <form onSubmit={postHomework} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="sf-row-wrap">
-            <label style={{ flex: 1, minWidth: 200 }}>
+            <label style={{ ...labelStyle, flex: 1, minWidth: 200 }}>
               Section
               {sectionOptions.length > 0 ? (
                 <select
-                  style={input}
+                  className="sf-select"
                   value={phSection}
                   onChange={(e) => setPhSection(e.target.value)}
                   aria-label="Section ID"
@@ -348,7 +313,7 @@ export default function HomeworkPage() {
                 </select>
               ) : (
                 <input
-                  style={input}
+                  className="sf-input"
                   value={phSection}
                   onChange={(e) => setPhSection(e.target.value)}
                   placeholder="Section ID"
@@ -357,11 +322,11 @@ export default function HomeworkPage() {
                 />
               )}
             </label>
-            <label style={{ flex: 1, minWidth: 200 }}>
+            <label style={{ ...labelStyle, flex: 1, minWidth: 200 }}>
               Subject
               {subjectOptions.length > 0 ? (
                 <select
-                  style={input}
+                  className="sf-select"
                   value={phSubject}
                   onChange={(e) => setPhSubject(e.target.value)}
                   aria-label="Subject"
@@ -375,7 +340,7 @@ export default function HomeworkPage() {
                 </select>
               ) : (
                 <input
-                  style={input}
+                  className="sf-input"
                   value={phSubject}
                   onChange={(e) => setPhSubject(e.target.value)}
                   placeholder="Subject ID you teach"
@@ -383,58 +348,72 @@ export default function HomeworkPage() {
                 />
               )}
             </label>
-            <label style={{ flex: 1, minWidth: 200 }}>
+            <label style={{ ...labelStyle, flex: 1, minWidth: 200 }}>
               Due date
-              <input style={input} type="date" value={phDue} onChange={(e) => setPhDue(e.target.value)} required />
+              <input className="sf-input" type="date" value={phDue} onChange={(e) => setPhDue(e.target.value)} required />
             </label>
           </div>
-          <label>
+          <label style={labelStyle}>
             Title
             <input
-              style={input}
+              className="sf-input"
               value={phTitle}
               onChange={(e) => setPhTitle(e.target.value)}
               placeholder="Algebra Worksheet 2"
               required
             />
           </label>
-          <label>
+          <label style={labelStyle}>
             Description
             <textarea
-              style={{ ...input, minHeight: 72 }}
+              className="sf-textarea"
+              style={{ minHeight: 72, resize: "vertical" }}
               value={phDesc}
               onChange={(e) => setPhDesc(e.target.value)}
               placeholder="Solve problems 21 through 40 from chapter 3 before Friday."
               required
             />
           </label>
-          <button type="submit" disabled={posting} style={{ ...primaryBtn, opacity: posting ? 0.6 : 1 }}>
+          <button
+            type="submit"
+            disabled={posting}
+            style={{ ...primaryBtn, alignSelf: "flex-start", opacity: posting ? 0.6 : 1 }}
+          >
             <Plus size={14} aria-hidden="true" /> {posting ? "Posting…" : "Post homework"}
           </button>
         </form>
       </section>
       <section style={card}>
-        <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A", display: "flex", alignItems: "center", gap: 6 }}>
-          <CheckCircle2 size={16} aria-hidden="true" /> Grade submissions (teacher)
+        <h2 style={{ ...h2Style, display: "flex", alignItems: "center", gap: 6 }}>
+          <CheckCircle2 size={16} aria-hidden="true" color={colors.success} /> Grade submissions (teacher)
         </h2>
-        {items.every((item) => (item.pending ?? []).length === 0) ? (
-          <p style={{ color: "#64748B", fontSize: 14, margin: 0 }}>Nothing waiting for a grade right now.</p>
+        {loading ? (
+          <SkeletonBlocks rows={1} height={52} />
+        ) : items.every((item) => (item.pending ?? []).length === 0) ? (
+          <p style={{ ...mutedStyle, margin: 0 }}>Nothing waiting for a grade right now.</p>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
             {items.flatMap((item) =>
               (item.pending ?? []).map((sub) => (
                 <li
                   key={sub.id}
-                  style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid #F1F5F9", fontSize: 14 }}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "center",
+                    padding: "10px 0",
+                    borderTop: `1px solid ${colors.lineSoft}`,
+                    fontSize: 14,
+                  }}
                 >
-                  <span style={{ flex: 1, color: "#0F172A" }}>
-                    {sub.studentName} <span style={{ color: "#64748B" }}>· {item.title}</span>
+                  <span style={{ flex: 1, color: colors.ink, fontWeight: 500 }}>
+                    {sub.studentName} <span style={{ color: colors.muted, fontWeight: 400 }}>· {item.title}</span>
                   </span>
                   <button
                     type="button"
                     onClick={() => void gradeOne(sub.id)}
                     disabled={gradingId === sub.id}
-                    style={{ ...quietBtn, opacity: gradingId === sub.id ? 0.6 : 1 }}
+                    style={{ ...secondaryBtn, opacity: gradingId === sub.id ? 0.6 : 1 }}
                   >
                     <CheckCircle2 size={14} aria-hidden="true" /> {gradingId === sub.id ? "Grading…" : "Mark graded"}
                   </button>
@@ -459,26 +438,42 @@ export default function HomeworkPage() {
           return (
             <article key={item.id} style={card}>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <h3 style={{ margin: 0, flex: 1 }}>{item.title}</h3>
-                <span style={pill(status.color)}>{status.label}</span>
+                <h3
+                  style={{
+                    margin: 0,
+                    flex: 1,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    letterSpacing: "-0.015em",
+                    color: colors.ink,
+                  }}
+                >
+                  {item.title}
+                </h3>
+                <span style={statusPill(status)}>{status.label}</span>
               </div>
-              <p style={{ color: "#334155" }}>{item.description}</p>
-              <small style={{ color: "#64748B" }}>
+              <p style={{ color: colors.inkSoft, fontSize: 14, lineHeight: 1.55, margin: "10px 0 6px" }}>
+                {item.description}
+              </p>
+              <small style={{ color: colors.muted, fontSize: 12 }}>
                 {item.subject.name} · {item.section.className} {item.section.name} · {item.teacher.name} · due{" "}
                 {fmtDue(item.dueDate)}
               </small>
-              <div style={{ marginTop: 12, borderTop: "1px solid #F1F5F9", paddingTop: 12 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 4 }}>
+              <div style={{ marginTop: 12, borderTop: `1px solid ${colors.lineSoft}`, paddingTop: 12 }}>
+                <label
+                  style={{ display: "block", fontSize: 13, fontWeight: 600, color: colors.inkSoft, marginBottom: 6 }}
+                >
                   Your answer (student)
                 </label>
                 <textarea
-                  style={{ ...input, minHeight: 64 }}
+                  className="sf-textarea"
+                  style={{ minHeight: 64, resize: "vertical" }}
                   value={contents[item.id] ?? ""}
                   onChange={(e) => setContents((prev) => ({ ...prev, [item.id]: e.target.value }))}
                   placeholder="Type your answers here…"
                   aria-label={`Answer for ${item.title}`}
                 />
-                <div className="sf-row-wrap">
+                <div className="sf-row-wrap" style={{ marginTop: 8 }}>
                   <input
                     ref={(el) => {
                       fileRefs.current[item.id] = el;
@@ -487,12 +482,13 @@ export default function HomeworkPage() {
                     accept=".jpg,.jpeg,.png,.webp,.pdf"
                     onChange={(e) => setFiles((prev) => ({ ...prev, [item.id]: e.target.files?.[0] ?? null }))}
                     aria-label={`File for ${item.title}`}
+                    style={{ fontSize: 13, color: colors.muted, padding: "6px 0" }}
                   />
                   <button
                     type="button"
                     onClick={() => void submitItem(item.id)}
                     disabled={busy}
-                    style={{ ...quietBtn, opacity: busy ? 0.6 : 1 }}
+                    style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}
                   >
                     <Send size={14} aria-hidden="true" /> {busy ? "Submitting…" : "Submit"}
                   </button>
@@ -502,9 +498,9 @@ export default function HomeworkPage() {
           );
         })
       )}
-      {notice ? <p style={{ color: "#059669" }}>{notice}</p> : null}
+      {notice ? <p style={{ color: colors.success, fontSize: 14, margin: "12px 0 0" }}>{notice}</p> : null}
       {error ? (
-        <p role="alert" style={{ color: "#DC2626" }}>
+        <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "12px 0 0" }}>
           {error}
         </p>
       ) : null}

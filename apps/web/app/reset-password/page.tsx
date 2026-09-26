@@ -2,12 +2,8 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { colors, gradients, h1Style, labelStyle, mutedStyle, primaryBtn } from "@/lib/theme";
 import { isFailure } from "../../lib/api";
-
-const PRIMARY = "#2563EB";
-const NAVY = "#0F172A";
-const DANGER = "#DC2626";
-const SUCCESS = "#059669";
 
 // Password reset (§13.3): token arrives by email as ?token=. Single-use,
 // 1-hour links — used, expired, and garbage tokens all fail identically.
@@ -47,43 +43,56 @@ export default function ResetPasswordPage() {
     }
   }
 
-  const input: React.CSSProperties = { padding: 10, borderRadius: 10, border: "1px solid #CBD5E1", fontSize: 14 };
+  const logoTile: React.CSSProperties = {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    background: gradients.accent,
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 800,
+    fontSize: 18,
+    letterSpacing: "-0.02em",
+    boxShadow: "0 6px 18px -6px rgba(37,99,235,.7), inset 0 1px 0 rgba(255,255,255,.25)",
+  };
 
   return (
-    <div style={{ fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh", background: "#F8FAFC", display: "flex", flexDirection: "column" }}>
+    <div style={{ fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh", background: "transparent", display: "flex", flexDirection: "column" }}>
       <header style={{ padding: "16px 32px", maxWidth: 1120, margin: "0 auto", width: "100%" }}>
-        <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-          <span style={{ width: 32, height: 32, borderRadius: 9, background: PRIMARY, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18 }}>S</span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: NAVY }}>Studyfy</span>
+        <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 9, textDecoration: "none" }}>
+          <span style={logoTile}>S</span>
+          <span style={{ fontWeight: 700, fontSize: 18, color: colors.ink, letterSpacing: "-0.02em" }}>Studyfy</span>
         </Link>
       </header>
-      <main style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24 }}>
-        <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 32, width: 440, maxWidth: "100%" }}>
-          <h1 style={{ fontSize: 24, margin: "0 0 4px", color: NAVY }}>Set a new password</h1>
-          <p style={{ fontSize: 14, color: "#64748B", margin: "0 0 20px" }}>Paste the token from your reset email.</p>
+      <main style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 24px 64px" }}>
+        <div className="sf-card" style={{ padding: 32, width: 440, maxWidth: "100%" }}>
+          <h1 style={{ ...h1Style, margin: "0 0 4px" }}>Set a new password</h1>
+          <p style={{ ...mutedStyle, margin: "0 0 20px" }}>Paste the token from your reset email.</p>
           {done ? (
             <div style={{ display: "grid", gap: 12 }}>
-              <p style={{ color: SUCCESS, fontWeight: 600, margin: 0 }}>Password updated — all other sessions were signed out.</p>
-              <Link href="/login" style={{ textAlign: "center", padding: 12, borderRadius: 10, background: PRIMARY, color: "#fff", fontWeight: 600, textDecoration: "none" }}>
+              <p style={{ color: colors.success, fontWeight: 600, margin: 0 }}>Password updated — all other sessions were signed out.</p>
+              <Link href="/login" style={{ ...primaryBtn, textAlign: "center", textDecoration: "none" }}>
                 Back to Login
               </Link>
             </div>
           ) : (
-            <form onSubmit={submit} style={{ display: "grid", gap: 12 }}>
-              <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
+            <form onSubmit={submit} style={{ display: "grid", gap: 14 }}>
+              <label style={labelStyle}>
                 Reset token
-                <input value={token} onChange={(e) => setToken(e.target.value)} required minLength={16} style={{ ...input, fontFamily: "monospace", fontSize: 12 }} />
+                <input className="sf-input" value={token} onChange={(e) => setToken(e.target.value)} required minLength={16} style={{ fontFamily: "monospace", fontSize: 12 }} />
               </label>
-              <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
-                New password <span style={{ color: "#64748B", fontSize: 12 }}>(min 8 characters)</span>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} style={input} />
+              <label style={labelStyle}>
+                New password <span style={{ color: colors.muted, fontSize: 12 }}>(min 8 characters)</span>
+                <input className="sf-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
               </label>
-              <label style={{ display: "grid", gap: 4, fontSize: 14 }}>
+              <label style={labelStyle}>
                 Confirm new password
-                <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} style={input} />
+                <input className="sf-input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} />
               </label>
-              {error ? <p style={{ color: DANGER, fontSize: 14, margin: 0 }}>{error}</p> : null}
-              <button type="submit" disabled={loading} style={{ padding: 12, borderRadius: 10, border: 0, background: PRIMARY, color: "#fff", fontWeight: 600, cursor: "pointer" }}>
+              {error ? <p style={{ color: colors.danger, fontSize: 14, margin: 0 }}>{error}</p> : null}
+              <button type="submit" disabled={loading} className="sf-btn sf-btn-primary">
                 {loading ? "Updating…" : "Update password"}
               </button>
             </form>

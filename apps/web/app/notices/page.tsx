@@ -6,6 +6,7 @@ import { Megaphone, Send } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { cardStyle, colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
 
 interface Notice {
   id: string;
@@ -119,49 +120,21 @@ export default function NoticesPage() {
     }
   }
 
-  const page: React.CSSProperties = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
-  };
-  const input: React.CSSProperties = {
-    display: "block",
-    width: "100%",
-    margin: "4px 0 12px",
-    padding: 10,
-    borderRadius: 10,
-    border: "1px solid #CBD5E1",
-  };
-  const primaryBtn: React.CSSProperties = {
-    background: "#2563EB",
-    color: "#fff",
-    border: 0,
-    borderRadius: 10,
-    padding: "10px 16px",
-    fontWeight: 600,
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-  };
-  const card: React.CSSProperties = {
-    background: "#fff",
-    borderRadius: 14,
-    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-    padding: 16,
-    marginBottom: 12,
-  };
-  const targetColor = (value: string): string =>
-    value === "SCHOOL" ? "#2563EB" : value === "CLASS" ? "#7C3AED" : "#0D9488";
+  const targetTint = (value: string): React.CSSProperties =>
+    value === "SCHOOL"
+      ? pill(colors.primary, colors.primaryGhost, "#C7DDFB")
+      : value === "CLASS"
+        ? pill(colors.accent, colors.accentTint, "#DDD3FB")
+        : pill("#0D9488", "#EDFBF7", "#C3ECE4");
+
+  const card: React.CSSProperties = { ...cardStyle, marginBottom: 12 };
+  const titleStyle: React.CSSProperties = { ...h1Style, display: "flex", alignItems: "center", gap: 8 };
 
   if (!ready) {
     return (
-      <main style={page}>
-        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-          <Megaphone size={22} aria-hidden="true" color="#2563EB" /> Notice Board
+      <main style={pageFrame}>
+        <h1 style={{ ...titleStyle, margin: "0 0 12px" }}>
+          <Megaphone size={22} aria-hidden="true" color={colors.primary} /> Notice Board
         </h1>
         <SkeletonBlocks rows={3} height={64} />
       </main>
@@ -170,13 +143,13 @@ export default function NoticesPage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={page}>
-        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-          <Megaphone size={22} aria-hidden="true" color="#2563EB" /> Notice Board
+      <main style={pageFrame}>
+        <h1 style={{ ...titleStyle, margin: "0 0 12px" }}>
+          <Megaphone size={22} aria-hidden="true" color={colors.primary} /> Notice Board
         </h1>
-        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}>
-          <p style={{ color: "#334155" }}>Please sign in to view notices.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+        <div className="sf-card" style={{ padding: 20 }}>
+          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view notices.</p>
+          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
             Go to login
           </Link>
         </div>
@@ -185,29 +158,35 @@ export default function NoticesPage() {
   }
 
   return (
-    <main style={page}>
-      <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-        <Megaphone size={22} aria-hidden="true" color="#2563EB" /> Notice Board
+    <main style={pageFrame}>
+      <h1 style={titleStyle}>
+        <Megaphone size={22} aria-hidden="true" color={colors.primary} /> Notice Board
       </h1>
-      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
+      <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
         School-wide by default — narrow to a class or section when it matters.
       </p>
-      <section style={{ ...card, padding: 20, marginBottom: 16 }}>
-        <h2 style={{ marginTop: 0, fontSize: 16, color: "#0F172A" }}>Publish notice (staff)</h2>
-        <form onSubmit={publish}>
-          <label>
+      <section style={{ ...cardStyle, marginBottom: 16 }}>
+        <h2 style={h2Style}>Publish notice (staff)</h2>
+        <form onSubmit={publish} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <label style={labelStyle}>
             Title
-            <input style={input} value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <input className="sf-input" value={title} onChange={(e) => setTitle(e.target.value)} required />
           </label>
-          <label>
+          <label style={labelStyle}>
             Message
-            <textarea style={{ ...input, minHeight: 80 }} value={body} onChange={(e) => setBody(e.target.value)} required />
+            <textarea
+              className="sf-textarea"
+              style={{ minHeight: 80, resize: "vertical" }}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              required
+            />
           </label>
           <div className="sf-row-wrap">
-            <label style={{ flex: 1, minWidth: 180 }}>
+            <label style={{ ...labelStyle, flex: 1, minWidth: 180 }}>
               Audience
               <select
-                style={input}
+                className="sf-select"
                 value={target}
                 onChange={(e) => setTarget(e.target.value as Target)}
                 aria-label="Notice audience"
@@ -218,10 +197,10 @@ export default function NoticesPage() {
               </select>
             </label>
             {target === "CLASS" ? (
-              <label style={{ flex: 1, minWidth: 180 }}>
+              <label style={{ ...labelStyle, flex: 1, minWidth: 180 }}>
                 Class
                 {sectionOptions.length > 0 ? (
-                  <select style={input} value={classId} onChange={(e) => setClassId(e.target.value)} required aria-label="Class">
+                  <select className="sf-select" value={classId} onChange={(e) => setClassId(e.target.value)} required aria-label="Class">
                     <option value="">— pick a class —</option>
                     {[...new Map(sectionOptions.map((s) => [s.classId, s.className])).entries()].map(([id, name]) => (
                       <option key={id} value={id}>
@@ -231,7 +210,7 @@ export default function NoticesPage() {
                   </select>
                 ) : (
                   <input
-                    style={input}
+                    className="sf-input"
                     value={classId}
                     onChange={(e) => setClassId(e.target.value)}
                     placeholder="Class ID for class-wide notice"
@@ -241,10 +220,10 @@ export default function NoticesPage() {
               </label>
             ) : null}
             {target === "SECTION" ? (
-              <label style={{ flex: 1, minWidth: 180 }}>
+              <label style={{ ...labelStyle, flex: 1, minWidth: 180 }}>
                 Section
                 {sectionOptions.length > 0 ? (
-                  <select style={input} value={sectionId} onChange={(e) => setSectionId(e.target.value)} required aria-label="Section">
+                  <select className="sf-select" value={sectionId} onChange={(e) => setSectionId(e.target.value)} required aria-label="Section">
                     <option value="">— pick a section —</option>
                     {sectionOptions.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -254,7 +233,7 @@ export default function NoticesPage() {
                   </select>
                 ) : (
                   <input
-                    style={input}
+                    className="sf-input"
                     value={sectionId}
                     onChange={(e) => setSectionId(e.target.value)}
                     placeholder="Section ID for section notice"
@@ -264,7 +243,11 @@ export default function NoticesPage() {
               </label>
             ) : null}
           </div>
-          <button type="submit" disabled={publishing} style={{ ...primaryBtn, opacity: publishing ? 0.6 : 1 }}>
+          <button
+            type="submit"
+            disabled={publishing}
+            style={{ ...primaryBtn, alignSelf: "flex-start", opacity: publishing ? 0.6 : 1 }}
+          >
             <Send size={14} aria-hidden="true" /> {publishing ? "Publishing…" : "Publish notice"}
           </button>
         </form>
@@ -281,29 +264,32 @@ export default function NoticesPage() {
         notices.map((n) => (
           <article key={n.id} style={card}>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <h3 style={{ margin: 0, flex: 1 }}>{n.title}</h3>
-              <span
+              <h3
                 style={{
-                  fontSize: 12,
-                  padding: "2px 10px",
-                  borderRadius: 999,
-                  border: `1px solid ${targetColor(n.target)}`,
-                  color: targetColor(n.target),
+                  margin: 0,
+                  flex: 1,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  letterSpacing: "-0.015em",
+                  color: colors.ink,
                 }}
               >
-                {n.target}
-              </span>
+                {n.title}
+              </h3>
+              <span style={targetTint(n.target)}>{n.target}</span>
             </div>
-            <p style={{ whiteSpace: "pre-wrap" }}>{n.body}</p>
-            <small style={{ color: "#64748B" }}>
+            <p style={{ whiteSpace: "pre-wrap", color: colors.inkSoft, fontSize: 14, lineHeight: 1.6, margin: "10px 0 8px" }}>
+              {n.body}
+            </p>
+            <small style={{ color: colors.muted, fontSize: 12 }}>
               {n.createdBy.name} · {new Date(n.createdAt).toLocaleDateString("en-GB")}
             </small>
           </article>
         ))
       )}
-      {notice ? <p style={{ color: "#059669" }}>{notice}</p> : null}
+      {notice ? <p style={{ color: colors.success, fontSize: 14, margin: "12px 0 0" }}>{notice}</p> : null}
       {error ? (
-        <p role="alert" style={{ color: "#DC2626" }}>
+        <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "12px 0 0" }}>
           {error}
         </p>
       ) : null}

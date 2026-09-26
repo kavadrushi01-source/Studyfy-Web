@@ -7,6 +7,7 @@ import { DataTable } from "../../../components/ui/data-table";
 import { SkeletonBlocks } from "../../../components/ui/shell";
 import { isFailure } from "../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
 
 interface ExamOption {
   id: string;
@@ -200,43 +201,19 @@ export default function ExamResultsPage() {
     }
   }
 
-  const gradeColor = (grade: string): string =>
-    grade.startsWith("A") ? "#059669" : grade.startsWith("B") ? "#2563EB" : grade.startsWith("C") ? "#D97706" : grade === "D" ? "#D97706" : "#DC2626";
+  const gradeTone = (grade: string): string =>
+    grade.startsWith("A") ? colors.success : grade.startsWith("B") ? colors.primary : grade.startsWith("C") || grade === "D" ? colors.warning : colors.danger;
 
-  const page: React.CSSProperties = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
-  };
-  const input: React.CSSProperties = {
-    display: "block",
-    width: "100%",
-    margin: "4px 0 12px",
-    padding: 10,
-    borderRadius: 10,
-    border: "1px solid #CBD5E1",
-  };
-  const primaryBtn: React.CSSProperties = {
-    background: "#2563EB",
-    color: "#fff",
-    border: 0,
-    borderRadius: 10,
-    padding: "10px 16px",
-    fontWeight: 600,
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-  };
+  const gradeTint = (grade: string): string =>
+    grade.startsWith("A") ? colors.successTint : grade.startsWith("B") ? colors.primaryGhost : grade.startsWith("C") || grade === "D" ? colors.warningTint : colors.dangerTint;
+
+  const titleStyle: React.CSSProperties = { ...h1Style, display: "flex", alignItems: "center", gap: 8 };
 
   if (!ready) {
     return (
-      <main style={page}>
-        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-          <Award size={22} aria-hidden="true" color="#2563EB" /> Exam Results
+      <main style={pageFrame}>
+        <h1 style={{ ...titleStyle, margin: "0 0 12px" }}>
+          <Award size={22} aria-hidden="true" color={colors.primary} /> Exam Results
         </h1>
         <SkeletonBlocks rows={4} />
       </main>
@@ -245,13 +222,13 @@ export default function ExamResultsPage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={page}>
-        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-          <Award size={22} aria-hidden="true" color="#2563EB" /> Exam Results
+      <main style={pageFrame}>
+        <h1 style={{ ...titleStyle, margin: "0 0 12px" }}>
+          <Award size={22} aria-hidden="true" color={colors.primary} /> Exam Results
         </h1>
-        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}>
-          <p style={{ color: "#334155" }}>Please sign in to view results.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+        <div className="sf-card" style={{ padding: 20 }}>
+          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view results.</p>
+          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
             Go to login
           </Link>
         </div>
@@ -260,17 +237,17 @@ export default function ExamResultsPage() {
   }
 
   return (
-    <main style={page}>
-      <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-        <Award size={22} aria-hidden="true" color="#2563EB" /> Exam Results{examName ? ` — ${examName}` : ""}
+    <main style={pageFrame}>
+      <h1 style={titleStyle}>
+        <Award size={22} aria-hidden="true" color={colors.primary} /> Exam Results{examName ? ` — ${examName}` : ""}
       </h1>
-      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
+      <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
         Ranked class board — ranks always reflect the whole class.
       </p>
       <div className="sf-row-wrap" style={{ marginBottom: 12 }}>
-        <label style={{ flex: 1, minWidth: 220 }}>
+        <label style={{ ...labelStyle, flex: 1, minWidth: 220 }}>
           Exam
-          <select style={input} value={examId} onChange={pickExam} aria-label="Exam">
+          <select className="sf-select" value={examId} onChange={pickExam} aria-label="Exam">
             <option value="">— pick an exam —</option>
             {exams.map((e) => (
               <option key={e.id} value={e.id}>
@@ -280,10 +257,11 @@ export default function ExamResultsPage() {
           </select>
         </label>
         <form onSubmit={applyTop} className="sf-row-wrap" style={{ alignItems: "flex-end" }}>
-          <label>
+          <label style={labelStyle}>
             Top K
             <input
-              style={{ ...input, marginBottom: 12 }}
+              className="sf-input"
+              style={{ width: 120 }}
               value={top}
               onChange={(e) => setTop(e.target.value)}
               placeholder="all"
@@ -291,20 +269,20 @@ export default function ExamResultsPage() {
               aria-label="Top K"
             />
           </label>
-          <button type="submit" style={{ ...primaryBtn, marginBottom: 12 }}>
+          <button type="submit" style={primaryBtn}>
             Apply
           </button>
         </form>
       </div>
       {canEnter ? (
-        <section style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20, marginBottom: 16 }}>
-          <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A" }}>Enter marks (class teacher)</h2>
-          <form onSubmit={saveMarks}>
+        <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
+          <h2 style={h2Style}>Enter marks (class teacher)</h2>
+          <form onSubmit={saveMarks} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div className="sf-row-wrap">
-              <label style={{ flex: 1, minWidth: 200 }}>
+              <label style={{ ...labelStyle, flex: 1, minWidth: 200 }}>
                 Exam
                 <select
-                  style={input}
+                  className="sf-select"
                   value={entryExamId}
                   onChange={(e) => {
                     setEntryExamId(e.target.value);
@@ -321,10 +299,10 @@ export default function ExamResultsPage() {
                   ))}
                 </select>
               </label>
-              <label style={{ flex: 1, minWidth: 200 }}>
+              <label style={{ ...labelStyle, flex: 1, minWidth: 200 }}>
                 Subject
                 <select
-                  style={input}
+                  className="sf-select"
                   value={entrySubjectId}
                   onChange={(e) => setEntrySubjectId(e.target.value)}
                   required
@@ -338,10 +316,10 @@ export default function ExamResultsPage() {
                   ))}
                 </select>
               </label>
-              <label style={{ flex: 1, minWidth: 200 }}>
+              <label style={{ ...labelStyle, flex: 1, minWidth: 200 }}>
                 Section
                 <select
-                  style={input}
+                  className="sf-select"
                   value={entrySectionId}
                   onChange={(e) => {
                     setEntrySectionId(e.target.value);
@@ -364,12 +342,13 @@ export default function ExamResultsPage() {
               </label>
             </div>
             {roster.length > 0 ? (
-              <ul style={{ listStyle: "none", margin: "12px 0", padding: 0, display: "grid", gap: 8 }}>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
                 {roster.map((s) => (
                   <li key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14 }}>
-                    <span style={{ flex: 1, color: "#0F172A" }}>{s.name}</span>
+                    <span style={{ flex: 1, color: colors.ink, fontWeight: 500 }}>{s.name}</span>
                     <input
-                      style={{ width: 110, padding: 8, borderRadius: 8, border: "1px solid #CBD5E1" }}
+                      className="sf-input"
+                      style={{ width: 110, padding: "8px 10px" }}
                       value={marks[s.id] ?? ""}
                       onChange={(e) => setMarks((prev) => ({ ...prev, [s.id]: e.target.value }))}
                       placeholder="Marks"
@@ -380,36 +359,58 @@ export default function ExamResultsPage() {
                 ))}
               </ul>
             ) : null}
-            <button type="submit" disabled={entering} style={{ ...primaryBtn, opacity: entering ? 0.6 : 1 }}>
+            <button
+              type="submit"
+              disabled={entering}
+              style={{ ...primaryBtn, alignSelf: "flex-start", opacity: entering ? 0.6 : 1 }}
+            >
               {entering ? "Saving…" : "Save marks"}
             </button>
           </form>
-          {entryNotice ? <p style={{ color: "#059669", fontSize: 14, margin: "12px 0 0" }}>{entryNotice}</p> : null}
+          {entryNotice ? <p style={{ color: colors.success, fontSize: 14, margin: "12px 0 0" }}>{entryNotice}</p> : null}
         </section>
       ) : null}
       <DataTable<ResultRow>
         columns={[
-          { key: "rank", label: "Rank", render: (r) => `#${r.rank}` },
-          { key: "name", label: "Student", render: (r) => r.name },
-          { key: "total", label: "Total", render: (r) => `${r.total} / ${r.max}` },
-          { key: "percent", label: "%", render: (r) => `${r.percent}%` },
           {
-            key: "grade",
-            label: "Grade",
+            key: "rank",
+            label: "Rank",
             render: (r) => (
               <span
                 style={{
-                  fontSize: 12,
-                  padding: "2px 10px",
-                  borderRadius: 999,
-                  border: `1px solid ${gradeColor(r.grade)}`,
-                  color: gradeColor(r.grade),
-                  fontWeight: 700,
+                  fontWeight: 800,
+                  letterSpacing: "-0.02em",
+                  color: colors.primary,
+                  fontVariantNumeric: "tabular-nums",
                 }}
               >
-                {r.grade}
+                {`#${r.rank}`}
               </span>
             ),
+          },
+          { key: "name", label: "Student", render: (r) => r.name },
+          {
+            key: "total",
+            label: "Total",
+            render: (r) => (
+              <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums", color: colors.ink }}>
+                {`${r.total} / ${r.max}`}
+              </span>
+            ),
+          },
+          {
+            key: "percent",
+            label: "%",
+            render: (r) => (
+              <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums", color: colors.inkSoft }}>
+                {`${r.percent}%`}
+              </span>
+            ),
+          },
+          {
+            key: "grade",
+            label: "Grade",
+            render: (r) => <span style={pill(gradeTone(r.grade), gradeTint(r.grade))}>{r.grade}</span>,
           },
         ]}
         rows={rows}
@@ -426,7 +427,7 @@ export default function ExamResultsPage() {
         emptyMessage="No results for this exam yet."
       />
       {error ? (
-        <p role="alert" style={{ color: "#DC2626" }}>
+        <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "12px 0 0" }}>
           {error}
         </p>
       ) : null}

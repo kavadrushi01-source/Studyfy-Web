@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DataTable } from "../../components/ui/data-table";
 import { SkeletonBlocks } from "../../components/ui/shell";
 import { useAuth } from "@/lib/auth-context";
+import { cardStyle, colors, h1Style, mutedStyle, pageFrame } from "@/lib/theme";
 
 interface StudentRow {
   id: string;
@@ -100,34 +101,21 @@ export default function StudentsPage() {
     void load({ search, sort, order, page: next });
   }
 
-  const primaryBtn = {
-    background: "#2563EB",
-    color: "#fff",
-    border: "1px solid #2563EB",
-    borderRadius: 8,
-    padding: "8px 16px",
-    cursor: "pointer",
-  } as const;
-  const card = {
-    background: "#fff",
-    borderRadius: 16,
-    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-    padding: 20,
-  } as const;
-
-  const frame = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
-  } as const;
+  const pageH1 = { ...h1Style, marginBottom: 14 };
+  const alertStyle = {
+    margin: "14px 0 0",
+    padding: "10px 14px",
+    borderRadius: 12,
+    background: colors.dangerTint,
+    border: "1px solid rgba(220,38,38,.28)",
+    color: colors.danger,
+    fontSize: 14,
+  };
 
   if (!ready) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>Students</h1>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>Students</h1>
         <SkeletonBlocks rows={4} />
       </main>
     );
@@ -135,11 +123,14 @@ export default function StudentsPage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>Students</h1>
-        <div style={{ ...card, maxWidth: 640 }}>
-          <p style={{ color: "#334155" }}>Please sign in to view students.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>Students</h1>
+        <div style={{ ...cardStyle, maxWidth: 640 }}>
+          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to view students.</p>
+          <Link
+            href="/login"
+            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+          >
             Go to login
           </Link>
         </div>
@@ -148,17 +139,18 @@ export default function StudentsPage() {
   }
 
   return (
-    <main style={frame}>
-      <h1 style={{ color: "#0F172A" }}>Students</h1>
-      <form onSubmit={applySearch} className="sf-row-wrap" style={{ marginBottom: 12 }}>
+    <main style={pageFrame}>
+      <h1 style={pageH1}>Students</h1>
+      <form onSubmit={applySearch} className="sf-row-wrap" style={{ marginBottom: 16 }}>
         <input
-          style={{ flex: 1, minWidth: 200, padding: 8 }}
+          className="sf-input"
+          style={{ flex: 1, minWidth: 200 }}
           placeholder="Search name or email…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search students"
         />
-        <button type="submit" style={primaryBtn}>
+        <button type="submit" className="sf-btn sf-btn-primary">
           Search
         </button>
       </form>
@@ -186,7 +178,7 @@ export default function StudentsPage() {
         emptyMessage="No students found — try a different search."
       />
       {error ? (
-        <p role="alert" style={{ color: "#DC2626" }}>
+        <p role="alert" style={alertStyle}>
           {error}
         </p>
       ) : null}

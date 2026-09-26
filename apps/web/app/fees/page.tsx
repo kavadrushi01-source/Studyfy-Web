@@ -7,6 +7,7 @@ import { DataTable } from "../../components/ui/data-table";
 import { SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
 
 interface InvoiceRow {
   id: string;
@@ -137,50 +138,32 @@ export default function FeesPage() {
     return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleDateString("en-GB");
   }
 
-  const pill = (value: string): React.CSSProperties => {
-    const color =
-      value === "PAID" ? "#059669" : value === "PENDING" ? "#D97706" : value === "OVERDUE" ? "#DC2626" : value === "PARTIAL" ? "#2563EB" : "#64748B";
-    return {
-      fontSize: 12,
-      padding: "2px 10px",
-      borderRadius: 999,
-      border: `1px solid ${color}`,
-      color,
-      whiteSpace: "nowrap",
-    };
-  };
-
-  const pageStyle: React.CSSProperties = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
-  };
-  const primaryBtn: React.CSSProperties = {
-    background: "#2563EB",
-    color: "#fff",
-    border: 0,
-    borderRadius: 10,
-    padding: "10px 16px",
-    fontWeight: 600,
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
+  const statusPill = (value: string): React.CSSProperties => {
+    if (value === "PAID") {
+      return pill(colors.success, colors.successTint, "#B7E4D0");
+    }
+    if (value === "PENDING") {
+      return pill(colors.warning, colors.warningTint, "#F5E0B5");
+    }
+    if (value === "OVERDUE") {
+      return pill(colors.danger, colors.dangerTint, "#F6CBCB");
+    }
+    if (value === "PARTIAL") {
+      return pill(colors.primary, colors.primaryGhost, "#C7DDFB");
+    }
+    return pill(colors.muted, "#F1F5F9", colors.line);
   };
 
   const headerStats = [
-    { label: "Outstanding", value: `₹${totals.outstanding}`, color: "#0F172A", icon: <Wallet size={16} aria-hidden="true" /> },
-    { label: "Overdue", value: `₹${totals.overdue}`, color: "#DC2626", icon: <Clock size={16} aria-hidden="true" /> },
-    { label: "Invoices", value: String(totals.count), color: "#0F172A", icon: <ReceiptText size={16} aria-hidden="true" /> },
+    { label: "Outstanding", value: `₹${totals.outstanding}`, color: colors.ink, icon: <Wallet size={16} aria-hidden="true" /> },
+    { label: "Overdue", value: `₹${totals.overdue}`, color: colors.danger, icon: <Clock size={16} aria-hidden="true" /> },
+    { label: "Invoices", value: String(totals.count), color: colors.ink, icon: <ReceiptText size={16} aria-hidden="true" /> },
   ];
 
   if (!ready) {
     return (
-      <main style={pageStyle}>
-        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A" }}>Fees &amp; Payments</h1>
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Fees &amp; Payments</h1>
         <SkeletonBlocks rows={4} />
       </main>
     );
@@ -188,11 +171,11 @@ export default function FeesPage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={pageStyle}>
-        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A" }}>Fees &amp; Payments</h1>
-        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}>
-          <p style={{ color: "#334155" }}>Please sign in to view fees.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Fees &amp; Payments</h1>
+        <div className="sf-card" style={{ padding: 20 }}>
+          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view fees.</p>
+          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
             Go to login
           </Link>
         </div>
@@ -201,39 +184,59 @@ export default function FeesPage() {
   }
 
   return (
-    <main style={pageStyle}>
-      <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A" }}>Fees &amp; Payments</h1>
-      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
+    <main style={pageFrame}>
+      <h1 style={h1Style}>Fees &amp; Payments</h1>
+      <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
         Live ledger — header totals plus the invoice table.
       </p>
       <div
+        className="sf-card"
         style={{
           display: "flex",
           gap: 24,
           flexWrap: "wrap",
           marginBottom: 12,
-          background: "#fff",
-          borderRadius: 14,
-          boxShadow: "0 1px 3px rgba(15,23,42,.08)",
           padding: 16,
         }}
       >
         {headerStats.map((stat) => (
-          <div key={stat.label}>
-            <small style={{ color: "#64748B", display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <span style={{ color: "#94A3B8", display: "inline-flex" }}>{stat.icon}</span> {stat.label}
+          <div key={stat.label} style={{ minWidth: 140 }}>
+            <small
+              style={{
+                color: colors.muted,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: "0.01em",
+              }}
+            >
+              <span style={{ color: colors.faint, display: "inline-flex" }}>{stat.icon}</span> {stat.label}
             </small>
             {loading ? (
-              <div className="sf-skeleton" style={{ height: 26, width: 110, borderRadius: 6, background: "#F1F5F9", marginTop: 4 }} />
+              <div className="sf-skeleton" style={{ height: 30, width: 130, borderRadius: 8, background: "#F1F5F9", marginTop: 6 }} />
             ) : (
-              <div style={{ fontWeight: 700, fontSize: 18, color: stat.color }}>{stat.value}</div>
+              <div
+                style={{
+                  fontWeight: 800,
+                  fontSize: 24,
+                  letterSpacing: "-0.02em",
+                  color: stat.color,
+                  marginTop: 4,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {stat.value}
+              </div>
             )}
           </div>
         ))}
       </div>
       <form onSubmit={applyFilter} className="sf-row-wrap" style={{ marginBottom: 12 }}>
         <select
-          style={{ flex: 1, minWidth: 200, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }}
+          className="sf-select"
+          style={{ flex: 1, minWidth: 200 }}
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           aria-label="Filter by status"
@@ -249,17 +252,17 @@ export default function FeesPage() {
           Filter
         </button>
       </form>
-      <section style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20, marginBottom: 16 }}>
-        <h2 style={{ fontSize: 16, margin: "0 0 12px", color: "#0F172A" }}>Record a payment (counter)</h2>
+      <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
+        <h2 style={h2Style}>Record a payment (counter)</h2>
         {!canCollect ? (
-          <p style={{ color: "#64748B", fontSize: 14, margin: 0 }}>Only admins and accountants can record payments.</p>
+          <p style={{ ...mutedStyle, margin: 0 }}>Only admins and accountants can record payments.</p>
         ) : (
           <>
         <form onSubmit={recordPayment} className="sf-row-wrap">
-          <label style={{ flex: 2, minWidth: 220 }}>
-            <span style={{ fontSize: 13, color: "#64748B" }}>Unpaid invoice</span>
+          <label style={{ ...labelStyle, flex: 2, minWidth: 220 }}>
+            <span style={{ color: colors.muted }}>Unpaid invoice</span>
             <select
-              style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #CBD5E1", marginTop: 4 }}
+              className="sf-select"
               value={payInvoiceId}
               onChange={(e) => setPayInvoiceId(e.target.value)}
               required
@@ -275,10 +278,10 @@ export default function FeesPage() {
                 ))}
             </select>
           </label>
-          <label style={{ flex: 1, minWidth: 140 }}>
-            <span style={{ fontSize: 13, color: "#64748B" }}>Amount</span>
+          <label style={{ ...labelStyle, flex: 1, minWidth: 140 }}>
+            <span style={{ color: colors.muted }}>Amount</span>
             <input
-              style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #CBD5E1", marginTop: 4 }}
+              className="sf-input"
               value={payAmount}
               onChange={(e) => setPayAmount(e.target.value)}
               placeholder="2500.00"
@@ -287,10 +290,10 @@ export default function FeesPage() {
               aria-label="Payment amount"
             />
           </label>
-          <label style={{ flex: 1, minWidth: 140 }}>
-            <span style={{ fontSize: 13, color: "#64748B" }}>Method</span>
+          <label style={{ ...labelStyle, flex: 1, minWidth: 140 }}>
+            <span style={{ color: colors.muted }}>Method</span>
             <select
-              style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #CBD5E1", marginTop: 4 }}
+              className="sf-select"
               value={payMethod}
               onChange={(e) => setPayMethod(e.target.value)}
               aria-label="Payment method"
@@ -301,11 +304,15 @@ export default function FeesPage() {
               <option value="BANK_TRANSFER">Bank transfer</option>
             </select>
           </label>
-          <button type="submit" disabled={paying} style={{ ...primaryBtn, opacity: paying ? 0.6 : 1, alignSelf: "flex-end" }}>
+          <button
+            type="submit"
+            disabled={paying}
+            style={{ ...primaryBtn, opacity: paying ? 0.6 : 1, alignSelf: "flex-end" }}
+          >
             {paying ? "Recording…" : "Record payment"}
           </button>
         </form>
-        {payNotice ? <p style={{ color: "#059669", fontSize: 14, margin: "12px 0 0" }}>{payNotice}</p> : null}
+        {payNotice ? <p style={{ color: colors.success, fontSize: 14, margin: "12px 0 0" }}>{payNotice}</p> : null}
           </>
         )}
       </section>
@@ -313,10 +320,26 @@ export default function FeesPage() {
         columns={[
           { key: "student", label: "Student", render: (r) => r.student.name },
           { key: "head", label: "Fee head", render: (r) => r.structure?.name ?? "—" },
-          { key: "amount", label: "Amount", render: (r) => `₹${r.amount}` },
-          { key: "paid", label: "Paid", render: (r) => `₹${r.amountPaid}` },
+          {
+            key: "amount",
+            label: "Amount",
+            render: (r) => (
+              <span style={{ fontWeight: 700, letterSpacing: "-0.02em", color: colors.ink, fontVariantNumeric: "tabular-nums" }}>
+                ₹{r.amount}
+              </span>
+            ),
+          },
+          {
+            key: "paid",
+            label: "Paid",
+            render: (r) => (
+              <span style={{ fontWeight: 600, color: colors.inkSoft, fontVariantNumeric: "tabular-nums" }}>
+                ₹{r.amountPaid}
+              </span>
+            ),
+          },
           { key: "due", label: "Due date", render: (r) => fmtDue(r.dueDate) },
-          { key: "status", label: "Status", render: (r) => <span style={pill(r.status)}>{r.status}</span> },
+          { key: "status", label: "Status", render: (r) => <span style={statusPill(r.status)}>{r.status}</span> },
         ]}
         rows={rows}
         rowKey={(r) => r.id}
@@ -330,7 +353,7 @@ export default function FeesPage() {
         loading={loading}
       />
       {error ? (
-        <p role="alert" style={{ color: "#DC2626" }}>
+        <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "12px 0 0" }}>
           {error}
         </p>
       ) : null}

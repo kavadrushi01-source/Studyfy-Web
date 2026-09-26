@@ -80,11 +80,24 @@ export const loginLimiter = () =>
     },
   });
 
+// Register/forgot/reset share this bucket: 10/hour/IP per spec. Like
+// LOGIN_RATE_LIMIT_MAX, REGISTER_RATE_LIMIT_MAX is a LOCAL-ONLY override -
+// the e2e suite legitimately consumes 3 slots per run (2 garbage-token
+// probes + 1 forgot-password), so back-to-back runs need headroom.
+// CI/production must leave it unset so the default of 10 applies.
+function registerLimit(): number {
+  const raw = Number(process.env.REGISTER_RATE_LIMIT_MAX);
+  if (Number.isInteger(raw) && raw > 0) {
+    return raw;
+  }
+  return 10;
+}
+
 // 10 schools / hour / IP: registrations are rare and human.
 export const registerLimiter = () =>
   maybeLimit({
     windowMs: 60 * 60 * 1000,
-    limit: 10,
+    limit: registerLimit(),
     standardHeaders: true,
     legacyHeaders: false,
     handler: (_req, res) => {
@@ -94,11 +107,21 @@ export const registerLimiter = () =>
   });
 
 // 5 enquiries / 15 min / IP: the one unauthenticated form is the spam
-// target (§13.5) — limiter PLUS the honeypot field in the route.
+// target (§13.5) — limiter PLUS the honeypot field in the route. Like the
+// knobs above, ENQUIRY_RATE_LIMIT_MAX is a LOCAL-ONLY override - the e2e
+// suite posts one enquiry per run, so back-to-back runs exhaust the fixed
+// 5/15min budget. CI/production must leave it unset so 5 applies.
+function enquiryLimit(): number {
+  const raw = Number(process.env.ENQUIRY_RATE_LIMIT_MAX);
+  if (Number.isInteger(raw) && raw > 0) {
+    return raw;
+  }
+  return 5;
+}
 export const enquiryLimiter = () =>
   maybeLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 5,
+    limit: enquiryLimit(),
     standardHeaders: true,
     legacyHeaders: false,
     handler: (_req, res) => {

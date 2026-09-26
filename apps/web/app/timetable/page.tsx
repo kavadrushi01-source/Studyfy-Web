@@ -6,6 +6,7 @@ import { CalendarDays } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { colors, h1Style, labelStyle, mutedStyle, pageFrame, primaryBtn, secondaryBtn } from "@/lib/theme";
 
 interface BoardSlot {
   dayOfWeek: number;
@@ -120,66 +121,59 @@ export default function TimetablePage() {
   const cell = (day: number, period: number): BoardSlot | undefined =>
     slots.find((s) => s.dayOfWeek === day && s.period === period);
 
-  const page: React.CSSProperties = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
+  // Deterministic soft tint per subject so the week reads at a glance.
+  const subjectTint = (name: string): { bg: string; hover: string } => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i += 1) {
+      hash = (hash * 31 + name.charCodeAt(i)) % 100000;
+    }
+    switch (hash % 4) {
+      case 0:
+        return { bg: colors.primaryGhost, hover: "#E0ECFF" };
+      case 1:
+        return { bg: colors.accentTint, hover: "#EDE8FE" };
+      case 2:
+        return { bg: colors.successTint, hover: "#DCF7EB" };
+      default:
+        return { bg: colors.warningTint, hover: "#FDF3D9" };
+    }
   };
-  const input: React.CSSProperties = {
-    display: "block",
-    width: "100%",
-    margin: "4px 0 12px",
-    padding: 10,
-    borderRadius: 10,
-    border: "1px solid #CBD5E1",
-  };
-  const primaryBtn: React.CSSProperties = {
-    background: "#2563EB",
-    color: "#fff",
-    border: 0,
-    borderRadius: 10,
-    padding: "10px 16px",
-    fontWeight: 600,
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-  };
-  const quietBtn: React.CSSProperties = {
-    background: "#fff",
-    color: "#334155",
-    border: "1px solid #E2E8F0",
-    borderRadius: 10,
-    padding: "10px 16px",
-    fontWeight: 500,
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-  };
+
   const lensBtn = (active: boolean): React.CSSProperties => ({
-    ...quietBtn,
-    borderColor: active ? "#2563EB" : "#E2E8F0",
-    color: active ? "#2563EB" : "#334155",
-    background: active ? "#EFF6FF" : "#fff",
+    ...secondaryBtn,
+    borderColor: active ? colors.primary : "#DBE3EF",
+    color: active ? colors.primary : colors.inkSoft,
+    background: active ? colors.primaryGhost : "#fff",
     fontWeight: active ? 600 : 500,
+    boxShadow: active ? "0 2px 10px -8px rgba(37,99,235,.9)" : "0 1px 2px rgba(15,23,42,.05)",
   });
   const th: React.CSSProperties = {
-    padding: "10px 12px",
-    color: "#2563EB",
-    fontSize: 13,
-    borderBottom: "1px solid #E2E8F0",
+    padding: "11px 14px",
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.07em",
+    textAlign: "left",
+    borderBottom: `1px solid ${colors.line}`,
+    background: "linear-gradient(180deg, #FAFCFF 0%, #F5F8FD 100%)",
+    whiteSpace: "nowrap",
   };
-  const td: React.CSSProperties = { padding: "10px 12px", fontSize: 13, border: "1px solid #F1F5F9", minWidth: 120 };
+  const td: React.CSSProperties = {
+    padding: "10px 12px",
+    fontSize: 13,
+    border: `1px solid ${colors.lineSoft}`,
+    minWidth: 120,
+    verticalAlign: "top",
+    transition: "background 160ms cubic-bezier(.22,1,.36,1)",
+  };
+  const titleStyle: React.CSSProperties = { ...h1Style, display: "flex", alignItems: "center", gap: 8 };
 
   if (!ready) {
     return (
-      <main style={page}>
-        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-          <CalendarDays size={22} aria-hidden="true" color="#2563EB" /> Timetable
+      <main style={pageFrame}>
+        <h1 style={{ ...titleStyle, margin: "0 0 12px" }}>
+          <CalendarDays size={22} aria-hidden="true" color={colors.primary} /> Timetable
         </h1>
         <SkeletonBlocks rows={3} height={48} />
       </main>
@@ -188,13 +182,13 @@ export default function TimetablePage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={page}>
-        <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-          <CalendarDays size={22} aria-hidden="true" color="#2563EB" /> Timetable
+      <main style={pageFrame}>
+        <h1 style={{ ...titleStyle, margin: "0 0 12px" }}>
+          <CalendarDays size={22} aria-hidden="true" color={colors.primary} /> Timetable
         </h1>
-        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)", padding: 20 }}>
-          <p style={{ color: "#334155" }}>Please sign in to view the timetable.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+        <div className="sf-card" style={{ padding: 20 }}>
+          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view the timetable.</p>
+          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
             Go to login
           </Link>
         </div>
@@ -203,11 +197,11 @@ export default function TimetablePage() {
   }
 
   return (
-    <main style={page}>
-      <h1 style={{ fontSize: 26, margin: "0 0 4px", color: "#0F172A", display: "flex", alignItems: "center", gap: 8 }}>
-        <CalendarDays size={22} aria-hidden="true" color="#2563EB" /> Timetable
+    <main style={pageFrame}>
+      <h1 style={titleStyle}>
+        <CalendarDays size={22} aria-hidden="true" color={colors.primary} /> Timetable
       </h1>
-      <p style={{ color: "#64748B", margin: "0 0 20px", fontSize: 14 }}>
+      <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
         Section board first — flip the lens for your own teaching week.
       </p>
       <div className="sf-row-wrap" style={{ marginBottom: 12 }} role="group" aria-label="Board lens">
@@ -221,7 +215,8 @@ export default function TimetablePage() {
       {mode === "section" ? (
         <form onSubmit={showSection} className="sf-row-wrap" style={{ marginBottom: 12 }}>
           <select
-            style={{ flex: 1, minWidth: 220, padding: 10, borderRadius: 10, border: "1px solid #CBD5E1" }}
+            className="sf-select"
+            style={{ flex: 1, minWidth: 220 }}
             value={sectionId}
             onChange={(e) => setSectionId(e.target.value)}
             aria-label="Section"
@@ -240,21 +235,21 @@ export default function TimetablePage() {
       ) : (
         <form onSubmit={showMine} style={{ marginBottom: 12 }}>
           <div className="sf-row-wrap">
-            <label style={{ flex: 1, minWidth: 220 }}>
+            <label style={{ ...labelStyle, flex: 1, minWidth: 220 }}>
               My staff ID (dev-only)
               <input
-                style={{ ...input, marginBottom: 4 }}
+                className="sf-input"
                 placeholder="Paste staff ID for now"
                 value={teacherId}
                 onChange={(e) => setTeacherId(e.target.value)}
                 aria-label="My staff ID"
               />
             </label>
-            <button type="submit" style={{ ...quietBtn, alignSelf: "flex-end", marginBottom: 4 }}>
+            <button type="submit" style={{ ...secondaryBtn, alignSelf: "flex-end" }}>
               Show mine
             </button>
           </div>
-          <small style={{ color: "#64748B" }}>
+          <small style={{ color: colors.muted, fontSize: 12, display: "block", marginTop: 8 }}>
             Login will resolve your identity automatically later — pasting an ID is a dev stopgap only.
           </small>
         </form>
@@ -262,46 +257,69 @@ export default function TimetablePage() {
       {loading ? (
         <SkeletonBlocks rows={3} height={48} />
       ) : slots.length > 0 ? (
-        <div
-          className="sf-table-scroll"
-          style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,.08)" }}
-        >
-          <table style={{ borderCollapse: "collapse", minWidth: "100%" }}>
-            <thead>
-              <tr>
-                <th style={th}>Period</th>
-                {days.map((d) => (
-                  <th key={d} style={th}>
-                    {DAY_NAMES[d - 1] ?? `Day ${d}`}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {periods.map((p) => (
-                <tr key={p}>
-                  <td style={{ ...td, fontWeight: 700, color: "#2563EB" }}>{p}</td>
-                  {days.map((d) => {
-                    const slot = cell(d, p);
-                    return (
-                      <td key={d} style={td}>
-                        {slot ? (
-                          <>
-                            <div style={{ fontWeight: 600 }}>{slot.subject.name}</div>
-                            <div style={{ color: "#64748B", fontSize: 12 }}>
-                              {slot.teacher.name} · {slot.section.className} {slot.section.name}
-                            </div>
-                          </>
-                        ) : (
-                          <span style={{ color: "#CBD5E1" }}>—</span>
-                        )}
-                      </td>
-                    );
-                  })}
+        <div className="sf-card" style={{ overflow: "hidden" }}>
+          <div className="sf-table-scroll">
+            <table style={{ borderCollapse: "collapse", minWidth: "100%" }}>
+              <thead>
+                <tr>
+                  <th style={th}>Period</th>
+                  {days.map((d) => (
+                    <th key={d} style={th}>
+                      {DAY_NAMES[d - 1] ?? `Day ${d}`}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {periods.map((p) => (
+                  <tr key={p}>
+                    <td
+                      style={{
+                        ...td,
+                        fontWeight: 700,
+                        color: colors.primary,
+                        background: colors.primaryGhost,
+                        textAlign: "center",
+                        minWidth: 56,
+                        fontSize: 14,
+                      }}
+                    >
+                      {p}
+                    </td>
+                    {days.map((d) => {
+                      const slot = cell(d, p);
+                      const tint = slot ? subjectTint(slot.subject.name) : null;
+                      return (
+                        <td
+                          key={d}
+                          style={{ ...td, background: tint ? tint.bg : "transparent" }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = tint ? tint.hover : "#F8FAFD";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = tint ? tint.bg : "transparent";
+                          }}
+                        >
+                          {slot ? (
+                            <>
+                              <div style={{ fontWeight: 600, color: colors.ink, letterSpacing: "-0.01em" }}>
+                                {slot.subject.name}
+                              </div>
+                              <div style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+                                {slot.teacher.name} · {slot.section.className} {slot.section.name}
+                              </div>
+                            </>
+                          ) : (
+                            <span style={{ color: "#CBD5E1" }}>—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <EmptyState
@@ -311,7 +329,7 @@ export default function TimetablePage() {
         />
       )}
       {error ? (
-        <p role="alert" style={{ color: "#DC2626" }}>
+        <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "12px 0 0" }}>
           {error}
         </p>
       ) : null}

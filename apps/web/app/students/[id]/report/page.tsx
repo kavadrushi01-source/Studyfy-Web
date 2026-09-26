@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { SkeletonBlocks } from "../../../../components/ui/shell";
 import { useAuth } from "@/lib/auth-context";
+import { cardStyle, colors, h1Style, labelStyle, mutedStyle, pageFrame } from "@/lib/theme";
 
 // Report card viewer (§7 Phase 1 #4, print per §8.5). Fetches the PDF with
 // the shared session and opens it in a new tab — the browser's print dialog
@@ -53,35 +54,21 @@ export default function ReportCardPage() {
     }
   }
 
-  const input = { display: "block", width: "100%", margin: "4px 0 12px", padding: 8 } as const;
-  const primaryBtn = {
-    background: "#2563EB",
-    color: "#fff",
-    border: "1px solid #2563EB",
-    borderRadius: 8,
-    padding: "8px 16px",
-    cursor: "pointer",
-  } as const;
-  const card = {
-    background: "#fff",
-    borderRadius: 16,
-    boxShadow: "0 1px 3px rgba(15,23,42,.08)",
-    padding: 20,
-  } as const;
-
-  const frame = {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 28,
-    fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
-    minHeight: "100vh",
-  } as const;
+  const pageH1 = { ...h1Style, marginBottom: 14 };
+  const alertStyle = {
+    margin: "14px 0 0",
+    padding: "10px 14px",
+    borderRadius: 12,
+    background: colors.dangerTint,
+    border: "1px solid rgba(220,38,38,.28)",
+    color: colors.danger,
+    fontSize: 14,
+  };
 
   if (!ready) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>Report Card</h1>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>Report Card</h1>
         <SkeletonBlocks rows={2} />
       </main>
     );
@@ -89,11 +76,14 @@ export default function ReportCardPage() {
 
   if (!token || !schoolId) {
     return (
-      <main style={frame}>
-        <h1 style={{ color: "#0F172A" }}>Report Card</h1>
-        <div style={{ ...card, maxWidth: 640 }}>
-          <p style={{ color: "#334155" }}>Please sign in to open a report card.</p>
-          <Link href="/login" style={{ color: "#2563EB", fontWeight: 600 }}>
+      <main style={pageFrame}>
+        <h1 style={pageH1}>Report Card</h1>
+        <div style={{ ...cardStyle, maxWidth: 640 }}>
+          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to open a report card.</p>
+          <Link
+            href="/login"
+            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+          >
             Go to login
           </Link>
         </div>
@@ -102,20 +92,34 @@ export default function ReportCardPage() {
   }
 
   return (
-    <main style={frame}>
-      <h1 style={{ color: "#0F172A" }}>Report Card</h1>
-      <form onSubmit={open} style={{ ...card, maxWidth: 640 }}>
-        <label>
-          Exam ID
-          <input style={input} value={examId} onChange={(e) => setExamId(e.target.value)} required />
-        </label>
-        <label>
-          Student ID
-          <input style={input} value={studentId} onChange={(e) => setStudentId(e.target.value)} required />
-        </label>
-        <button type="submit" disabled={loading} style={primaryBtn}>
-          Open report card PDF
-        </button>
+    <main style={pageFrame}>
+      <h1 style={pageH1}>Report Card</h1>
+      <form onSubmit={open} className="sf-card" style={{ maxWidth: 640, padding: 20 }}>
+        <div className="sf-form-2col">
+          <label style={labelStyle}>
+            Exam ID
+            <input
+              className="sf-input"
+              value={examId}
+              onChange={(e) => setExamId(e.target.value)}
+              required
+            />
+          </label>
+          <label style={labelStyle}>
+            Student ID
+            <input
+              className="sf-input"
+              value={studentId}
+              onChange={(e) => setStudentId(e.target.value)}
+              required
+            />
+          </label>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <button type="submit" disabled={loading} className="sf-btn sf-btn-primary">
+            Open report card PDF
+          </button>
+        </div>
       </form>
       {loading ? (
         <div style={{ marginTop: 16, maxWidth: 640 }}>
@@ -123,7 +127,7 @@ export default function ReportCardPage() {
         </div>
       ) : null}
       {error ? (
-        <p role="alert" style={{ color: "#DC2626" }}>
+        <p role="alert" style={alertStyle}>
           {error}
         </p>
       ) : null}

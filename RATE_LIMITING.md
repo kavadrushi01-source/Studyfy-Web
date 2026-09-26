@@ -29,6 +29,12 @@ answers `429 RATE_LIMITED` ("Too many login attempts").
 
 ## What stays guarded meanwhile
 
-Register (10/hour/IP) and public enquiries (5/15min/IP) still have their
-limiters — those endpoints are rarely hit in testing, so they were left
-alone.
+Register/forgot/reset (10/hour/IP shared) and public enquiries (5/15min/IP)
+still have their limiters. The e2e suite consumes 3 register-bucket slots and
+1 enquiry slot per run, so local back-to-back runs would exhaust 10/hour by
+the 4th run and 5/15min by the 6th — the local API start command therefore
+sets `REGISTER_RATE_LIMIT_MAX` and `ENQUIRY_RATE_LIMIT_MAX` (same local-only
+pattern as `LOGIN_RATE_LIMIT_MAX`; never set them in CI/production). Once a
+bucket is spent the API answers `429 RATE_LIMITED` ("Too many registrations"
+/ "Too many enquiries") — restart the API or wait out the window if you run
+without the overrides.

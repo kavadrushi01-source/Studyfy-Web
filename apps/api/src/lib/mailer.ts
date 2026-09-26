@@ -50,6 +50,14 @@ class SmtpMailer implements Mailer {
     port: Number(process.env.SMTP_PORT ?? 587),
     secure: false,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    // Best-effort must also be BOUNDED: with no explicit timeouts a dead or
+    // hanging relay (blocked port, DNS blackhole) holds the awaiting HTTP
+    // response - notice publish, attendance save, fee reminders - hostage
+    // for the socket's full patience. Fail fast instead; callers log and
+    // the publish still succeeds without the email.
+    connectionTimeout: 3000,
+    greetingTimeout: 3000,
+    socketTimeout: 5000,
   });
 
   private from(): string {

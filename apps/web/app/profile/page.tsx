@@ -2,11 +2,8 @@
 
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
+import { colors, dangerBtn, gradients, h1Style, mutedStyle, primaryBtn } from "@/lib/theme";
 import { Card, SkeletonBlocks } from "@/components/ui/shell";
-
-const NAVY = "#0F172A";
-const TEAL = "#0D9488";
-const DANGER = "#DC2626";
 
 const BOARD_BY_ROLE: Record<string, string> = {
   SCHOOL_ADMIN: "/dashboard",
@@ -25,13 +22,13 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
         alignItems: "baseline",
         justifyContent: "space-between",
         gap: 16,
-        padding: "10px 0",
-        borderTop: "1px solid #F1F5F9",
+        padding: "12px 0",
+        borderTop: `1px solid ${colors.lineSoft}`,
         fontSize: 14,
       }}
     >
-      <span style={{ color: "#64748B", flexShrink: 0 }}>{label}</span>
-      <span style={{ color: NAVY, fontWeight: 600, textAlign: "right", overflowWrap: "anywhere", fontFamily: mono ? "monospace" : undefined }}>
+      <span style={{ color: colors.muted, flexShrink: 0 }}>{label}</span>
+      <span style={{ color: colors.ink, fontWeight: 600, textAlign: "right", overflowWrap: "anywhere", fontFamily: mono ? "monospace" : undefined }}>
         {value}
       </span>
     </div>
@@ -40,7 +37,7 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 
 // Profile (§8.3): signed-in identity from the shared session. Gated on
 // useAuth — skeleton while restoring, sign-in gate when signed out — then a
-// neutral teal/grey card with the account rows, board link, and logout.
+// neutral card with the account rows, board link, and logout.
 export default function ProfilePage(): React.ReactNode {
   const { ready, token, user, logout } = useAuth();
 
@@ -51,9 +48,9 @@ export default function ProfilePage(): React.ReactNode {
 
   const shell: React.CSSProperties = {
     fontFamily: "Inter, system-ui, sans-serif",
-    background: "#F8FAFC",
+    background: "transparent",
     minHeight: "100vh",
-    padding: 24,
+    padding: "48px 24px 64px",
   };
   const inner: React.CSSProperties = { maxWidth: 640, margin: "0 auto" };
 
@@ -61,7 +58,7 @@ export default function ProfilePage(): React.ReactNode {
     return (
       <main style={shell}>
         <div style={inner}>
-          <h1 style={{ fontSize: 24, margin: "0 0 16px", color: NAVY }}>Profile</h1>
+          <h1 style={{ ...h1Style, margin: "0 0 16px" }}>Profile</h1>
           <SkeletonBlocks rows={3} />
         </div>
       </main>
@@ -72,23 +69,10 @@ export default function ProfilePage(): React.ReactNode {
     return (
       <main style={shell}>
         <div style={inner}>
-          <h1 style={{ fontSize: 24, margin: "0 0 16px", color: NAVY }}>Profile</h1>
+          <h1 style={{ ...h1Style, margin: "0 0 16px" }}>Profile</h1>
           <Card>
-            <p style={{ margin: "0 0 12px", fontSize: 14, color: "#475569" }}>You&apos;re signed out.</p>
-            <Link
-              href="/login"
-              style={{
-                display: "block",
-                textAlign: "center",
-                padding: 12,
-                borderRadius: 10,
-                background: TEAL,
-                color: "#fff",
-                fontWeight: 600,
-                fontSize: 14,
-                textDecoration: "none",
-              }}
-            >
+            <p style={{ margin: "0 0 12px", fontSize: 14, color: colors.muted }}>You&apos;re signed out.</p>
+            <Link href="/login" style={{ ...primaryBtn, display: "block", textAlign: "center", textDecoration: "none" }}>
               Sign in
             </Link>
           </Card>
@@ -102,9 +86,29 @@ export default function ProfilePage(): React.ReactNode {
   return (
     <main style={shell}>
       <div style={inner}>
-        <h1 style={{ fontSize: 24, margin: "0 0 4px", color: NAVY }}>Profile</h1>
-        <p style={{ fontSize: 14, color: "#64748B", margin: "0 0 16px" }}>Your signed-in school account</p>
+        <h1 style={{ ...h1Style, margin: "0 0 4px" }}>Profile</h1>
+        <p style={{ ...mutedStyle, margin: "0 0 20px" }}>Your signed-in school account</p>
         <Card>
+          <div
+            aria-hidden="true"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              background: gradients.accent,
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 800,
+              fontSize: 18,
+              letterSpacing: "-0.02em",
+              margin: "0 0 16px",
+              boxShadow: "0 6px 18px -6px rgba(37,99,235,.55), inset 0 1px 0 rgba(255,255,255,.25)",
+            }}
+          >
+            {user.name.trim().charAt(0).toUpperCase()}
+          </div>
           <div style={{ display: "grid" }}>
             <Row label="Name" value={user.name} />
             <Row label="Email" value={user.email} />
@@ -113,38 +117,11 @@ export default function ProfilePage(): React.ReactNode {
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             {boardHref ? (
-              <Link
-                href={boardHref}
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  padding: 10,
-                  borderRadius: 10,
-                  background: TEAL,
-                  color: "#fff",
-                  fontWeight: 600,
-                  fontSize: 14,
-                  textDecoration: "none",
-                }}
-              >
+              <Link href={boardHref} style={{ ...primaryBtn, flex: 1, textAlign: "center", textDecoration: "none" }}>
                 Open my board
               </Link>
             ) : null}
-            <button
-              type="button"
-              onClick={handleLogout}
-              style={{
-                flex: 1,
-                padding: 10,
-                borderRadius: 10,
-                border: "1px solid #CBD5E1",
-                background: "#fff",
-                color: DANGER,
-                fontWeight: 600,
-                fontSize: 14,
-                cursor: "pointer",
-              }}
-            >
+            <button type="button" onClick={handleLogout} style={{ ...dangerBtn, flex: 1 }}>
               Log out
             </button>
           </div>

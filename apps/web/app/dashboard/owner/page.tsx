@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { Building2, ChartNoAxesColumn, CheckCircle2, Hourglass, IndianRupee, PieChart, School } from "lucide-react";
 import { Card, EmptyState, SectionTitle, Shell, SkeletonBlocks } from "../../../components/ui/shell";
 import { useAuth } from "@/lib/auth-context";
+import { colors, h1Style, h2Style, iconTile, mutedStyle, pill } from "@/lib/theme";
 import { isFailure } from "../../../lib/api";
 
 interface OwnerSchoolRow {
@@ -49,20 +50,26 @@ interface ApiError {
 // one 100-row response), not a paged server query pretending at Google
 // scale.
 
-const NAVY = "#0F172A";
-const OWNER_AMBER = "#F59E0B";
-const PRIMARY = "#2563EB";
-const SUCCESS = "#059669";
-const WARNING = "#D97706";
-const DANGER = "#DC2626";
+const PLAN_COLORS = [colors.primary, colors.success, colors.warning, colors.accent, colors.danger, colors.muted];
 
-const STATUS_COLORS: Record<string, string> = {
-  ACTIVE: SUCCESS,
-  TRIAL: WARNING,
-  SUSPENDED: DANGER,
-};
+function subscriptionPillStyle(status: string): CSSProperties {
+  if (status === "ACTIVE") {
+    return pill(colors.success, colors.successTint);
+  }
+  if (status === "SUSPENDED") {
+    return pill(colors.danger, colors.dangerTint);
+  }
+  return pill(colors.warning, colors.warningTint);
+}
 
-const PLAN_COLORS = ["#2563EB", "#059669", "#F59E0B", "#7C3AED", "#DB2777", "#0D9488"];
+// Table rows lift softly on hover (same motion language as DataTable rows).
+function rowHoverIn(e: React.MouseEvent<HTMLElement>): void {
+  e.currentTarget.style.background = colors.canvas;
+}
+
+function rowHoverOut(e: React.MouseEvent<HTMLElement>): void {
+  e.currentTarget.style.background = "transparent";
+}
 
 function greeting(now: Date): string {
   const hour = now.getHours();
@@ -105,8 +112,8 @@ function AnalyticsChart({ analytics }: { analytics: AnalyticsPoint[] }): ReactNo
         const y = padTop + (height - padTop - padBottom) * (1 - t / max);
         return (
           <g key={t}>
-            <line x1={padLeft} y1={y} x2={width - 8} y2={y} stroke="#E2E8F0" strokeWidth="1" />
-            <text x={padLeft - 6} y={y + 4} textAnchor="end" fontSize="11" fill="#64748B">
+            <line x1={padLeft} y1={y} x2={width - 8} y2={y} stroke={colors.lineSoft} strokeWidth="1" />
+            <text x={padLeft - 6} y={y + 4} textAnchor="end" fontSize="11" fill={colors.muted}>
               {t}
             </text>
           </g>
@@ -118,11 +125,11 @@ function AnalyticsChart({ analytics }: { analytics: AnalyticsPoint[] }): ReactNo
         const y = height - padBottom - barH;
         return (
           <g key={p.month}>
-            <rect x={x} y={y} width={barW} height={Math.max(barH, 2)} rx="4" fill={OWNER_AMBER} />
-            <text x={padLeft + i * stepX} y={y - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill={NAVY}>
+            <rect x={x} y={y} width={barW} height={Math.max(barH, 2)} rx="6" fill={colors.warning} />
+            <text x={padLeft + i * stepX} y={y - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill={colors.ink}>
               {p.schools}
             </text>
-            <text x={padLeft + i * stepX} y={height - 8} textAnchor="middle" fontSize="11" fill="#64748B">
+            <text x={padLeft + i * stepX} y={height - 8} textAnchor="middle" fontSize="11" fill={colors.muted}>
               {monthLabel(p.month)}
             </text>
           </g>
@@ -158,7 +165,7 @@ function PlansDonut({ plans }: { plans: { plan: string; schools: number }[] }): 
   let offset = 0;
   const segments = plans.map((slice, index) => {
     const fraction = slice.schools / total;
-    const color = PLAN_COLORS[index % PLAN_COLORS.length] ?? "#64748B";
+    const color = PLAN_COLORS[index % PLAN_COLORS.length] ?? colors.muted;
     const segment = { ...slice, color, dash: fraction * circumference, offset };
     offset += fraction * circumference;
     return segment;
@@ -166,7 +173,7 @@ function PlansDonut({ plans }: { plans: { plan: string; schools: number }[] }): 
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Schools by subscription plan">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#F1F5F9" strokeWidth="24" />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={colors.lineSoft} strokeWidth="24" />
         {segments.map((segment) =>
           segment.dash > 0 ? (
             <circle
@@ -188,7 +195,7 @@ function PlansDonut({ plans }: { plans: { plan: string; schools: number }[] }): 
         {segments.map((segment) => (
           <li key={segment.plan} style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <span style={{ width: 10, height: 10, borderRadius: 999, background: segment.color, flexShrink: 0 }} />
-            <span style={{ color: NAVY, textTransform: "capitalize" }}>
+            <span style={{ color: colors.ink, textTransform: "capitalize" }}>
               {segment.plan.toLowerCase()} · {segment.schools}
             </span>
           </li>
@@ -249,10 +256,11 @@ export default function OwnerDashboardPage() {
     return (
       <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
         <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Please sign in</h1>
-        <p style={{ color: "#64748B", margin: "0 0 20px" }}>Sign in to view the platform dashboard.</p>
+        <p style={{ color: colors.muted, margin: "0 0 20px" }}>Sign in to view the platform dashboard.</p>
         <Link
           href="/login"
-          style={{ display: "inline-block", padding: "12px 24px", borderRadius: 10, background: NAVY, color: "#fff", fontWeight: 600, textDecoration: "none" }}
+          className="sf-btn sf-btn-primary"
+          style={{ display: "inline-flex", textDecoration: "none" }}
         >
           Go to sign in
         </Link>
@@ -264,7 +272,7 @@ export default function OwnerDashboardPage() {
     return (
       <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
         <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Platform Dashboard</h1>
-        <p style={{ color: DANGER, fontSize: 14 }}>This board is for the platform owner — your account holds a different role.</p>
+        <p style={{ color: colors.danger, fontSize: 14 }}>This board is for the platform owner — your account holds a different role.</p>
       </main>
     );
   }
@@ -272,7 +280,7 @@ export default function OwnerDashboardPage() {
   if (loading || !bundle) {
     return (
       <Shell role="PLATFORM_OWNER" activeHref="/dashboard/owner">
-        {error ? <p style={{ color: DANGER, fontSize: 14 }}>{error}</p> : null}
+        {error ? <p style={{ color: colors.danger, fontSize: 14 }}>{error}</p> : null}
         <SkeletonBlocks rows={3} />
       </Shell>
     );
@@ -286,15 +294,16 @@ export default function OwnerDashboardPage() {
           (school) => school.name.toLowerCase().includes(query) || school.slug.toLowerCase().includes(query),
         );
 
-  const kpis: { label: string; value: string; sub?: string; color: string; icon: ReactNode }[] = [
-    { label: "Total Schools", value: String(bundle.totalSchools), color: PRIMARY, icon: <School size={22} /> },
-    { label: "Active Schools", value: String(bundle.activeSchools), color: SUCCESS, icon: <CheckCircle2 size={22} /> },
-    { label: "Trial / Pending", value: String(bundle.trialPending), color: WARNING, icon: <Hourglass size={22} /> },
+  const kpis: { label: string; value: string; sub?: string; color: string; tint: string; icon: ReactNode }[] = [
+    { label: "Total Schools", value: String(bundle.totalSchools), color: colors.primary, tint: colors.primaryGhost, icon: <School size={22} /> },
+    { label: "Active Schools", value: String(bundle.activeSchools), color: colors.success, tint: colors.successTint, icon: <CheckCircle2 size={22} /> },
+    { label: "Trial / Pending", value: String(bundle.trialPending), color: colors.warning, tint: colors.warningTint, icon: <Hourglass size={22} /> },
     {
       label: "Total Revenue",
       value: inr(bundle.totalRevenue),
       ...(bundle.totalRevenue === "0.00" ? { sub: "Billing lands in Phase 4" } : {}),
-      color: "#64748B",
+      color: colors.muted,
+      tint: colors.lineSoft,
       icon: <IndianRupee size={22} />,
     },
   ];
@@ -304,10 +313,10 @@ export default function OwnerDashboardPage() {
   return (
     <Shell role="PLATFORM_OWNER" activeHref="/dashboard/owner">
       <header style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 26, margin: 0, color: NAVY }}>
+        <h1 style={h1Style}>
           {greeting(new Date())}, {user?.name ?? ""}
         </h1>
-        <p style={{ color: "#64748B", margin: "4px 0 0", fontSize: 14 }}>
+        <p style={{ ...mutedStyle, margin: "4px 0 0" }}>
           The whole platform at a glance · {bundle.asOf.month}
         </p>
       </header>
@@ -315,25 +324,26 @@ export default function OwnerDashboardPage() {
       <section className="sf-grid-kpi" style={{ marginBottom: 20 }}>
         {kpis.map((kpi) => (
           <Card key={kpi.label}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <span style={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>{kpi.label}</span>
-              <span style={{ color: kpi.color }}>{kpi.icon}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: colors.muted }}>{kpi.label}</span>
+              <span style={iconTile(kpi.color, kpi.tint)}>{kpi.icon}</span>
             </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: NAVY }}>{kpi.value}</div>
-            {"sub" in kpi && kpi.sub ? <div style={{ fontSize: 12, color: "#64748B", marginTop: 4 }}>{kpi.sub}</div> : null}
+            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", color: colors.ink }}>{kpi.value}</div>
+            {"sub" in kpi && kpi.sub ? <div style={{ fontSize: 12, color: colors.muted, marginTop: 8 }}>{kpi.sub}</div> : null}
           </Card>
         ))}
       </section>
 
       <Card>
         <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
-          <h2 style={{ fontSize: 16, margin: 0, color: NAVY, flex: 1 }}>Schools</h2>
+          <h2 style={{ ...h2Style, margin: 0, flex: 1 }}>Schools</h2>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name or slug…"
             aria-label="Search schools"
-            style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid #CBD5E1", fontSize: 14, minWidth: 220 }}
+            className="sf-input"
+            style={{ width: "auto", minWidth: 220 }}
           />
         </div>
         {schools.length === 0 ? (
@@ -344,7 +354,21 @@ export default function OwnerDashboardPage() {
               <thead>
                 <tr>
                   {["School", "Slug", "Status", "Users", "Students", "Joined"].map((header) => (
-                    <th key={header} style={{ textAlign: "left", padding: "10px 12px", color: PRIMARY, fontSize: 13, borderBottom: "1px solid #E2E8F0", whiteSpace: "nowrap" }}>
+                    <th
+                      key={header}
+                      style={{
+                        textAlign: "left",
+                        padding: "12px 14px",
+                        color: colors.muted,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.07em",
+                        borderBottom: `1px solid ${colors.line}`,
+                        background: "linear-gradient(180deg, #FAFCFF 0%, #F5F8FD 100%)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {header}
                     </th>
                   ))}
@@ -352,26 +376,22 @@ export default function OwnerDashboardPage() {
               </thead>
               <tbody>
                 {schools.map((school) => (
-                  <tr key={school.id}>
-                    <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9", color: NAVY, fontWeight: 600 }}>{school.name}</td>
-                    <td style={{ padding: "10px 12px", fontSize: 13, borderBottom: "1px solid #F1F5F9", color: "#64748B" }}>{school.slug}</td>
-                    <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9" }}>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 600,
-                          borderRadius: 999,
-                          padding: "3px 10px",
-                          background: school.subscriptionStatus === "ACTIVE" ? "#D1FAE5" : school.subscriptionStatus === "SUSPENDED" ? "#FEE2E2" : "#FEF3C7",
-                          color: STATUS_COLORS[school.subscriptionStatus] ?? "#64748B",
-                        }}
-                      >
+                  <tr
+                    key={school.id}
+                    style={{ transition: "background 140ms cubic-bezier(.22,1,.36,1)" }}
+                    onMouseEnter={rowHoverIn}
+                    onMouseLeave={rowHoverOut}
+                  >
+                    <td style={{ padding: "12px 14px", fontSize: 14, borderBottom: `1px solid ${colors.lineSoft}`, color: colors.ink, fontWeight: 600 }}>{school.name}</td>
+                    <td style={{ padding: "12px 14px", fontSize: 13, borderBottom: `1px solid ${colors.lineSoft}`, color: colors.muted }}>{school.slug}</td>
+                    <td style={{ padding: "12px 14px", fontSize: 14, borderBottom: `1px solid ${colors.lineSoft}` }}>
+                      <span style={subscriptionPillStyle(school.subscriptionStatus)}>
                         {school.subscriptionStatus}
                       </span>
                     </td>
-                    <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9" }}>{school.users}</td>
-                    <td style={{ padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #F1F5F9" }}>{school.students}</td>
-                    <td style={{ padding: "10px 12px", fontSize: 13, borderBottom: "1px solid #F1F5F9", color: "#64748B" }}>
+                    <td style={{ padding: "12px 14px", fontSize: 14, borderBottom: `1px solid ${colors.lineSoft}` }}>{school.users}</td>
+                    <td style={{ padding: "12px 14px", fontSize: 14, borderBottom: `1px solid ${colors.lineSoft}` }}>{school.students}</td>
+                    <td style={{ padding: "12px 14px", fontSize: 13, borderBottom: `1px solid ${colors.lineSoft}`, color: colors.muted }}>
                       {new Date(school.createdAt).toLocaleDateString()}
                     </td>
                   </tr>
@@ -385,7 +405,7 @@ export default function OwnerDashboardPage() {
       <section className="sf-grid-2-1" style={{ marginTop: 20 }}>
         <Card>
           <SectionTitle>Platform Analytics</SectionTitle>
-          <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 12px" }}>New schools per month, last 6 months</p>
+          <p style={{ fontSize: 13, color: colors.muted, margin: "0 0 12px" }}>New schools per month, last 6 months</p>
           {analyticsEmpty ? (
             <EmptyState icon={<ChartNoAxesColumn size={22} />} title="No analytics yet" detail="New schools per month will appear here once schools join." />
           ) : (

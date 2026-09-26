@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bell, CalendarDays, FileText, GraduationCap, UserCheck, Wallet } from "lucide-react";
 import { Card, EmptyState, SectionTitle, Shell, SkeletonBlocks } from "../../../components/ui/shell";
 import { useAuth } from "@/lib/auth-context";
+import { colors, h1Style, iconTile, mutedStyle, pill } from "@/lib/theme";
 import { isFailure } from "../../../lib/api";
 
 interface TimetableSlot {
@@ -53,11 +54,14 @@ interface ApiError {
 // .../dashboard/student; nulls render as "no data yet", never as invented
 // numbers (§8.1); token-paste until login; skeleton loading (§8.5).
 
-const NAVY = "#0F172A";
-const STUDENT_TEAL = "#0D9488";
-const PRIMARY = "#2563EB";
-const WARNING = "#D97706";
-const DANGER = "#DC2626";
+// Feed rows lift softly on hover (same motion language as DataTable rows).
+function rowHoverIn(e: React.MouseEvent<HTMLElement>): void {
+  e.currentTarget.style.background = colors.canvas;
+}
+
+function rowHoverOut(e: React.MouseEvent<HTMLElement>): void {
+  e.currentTarget.style.background = "transparent";
+}
 
 function greeting(now: Date): string {
   const hour = now.getHours();
@@ -128,10 +132,11 @@ export default function StudentDashboardPage() {
     return (
       <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
         <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Please sign in</h1>
-        <p style={{ color: "#64748B", margin: "0 0 20px" }}>Sign in to view your student board.</p>
+        <p style={{ color: colors.muted, margin: "0 0 20px" }}>Sign in to view your student board.</p>
         <Link
           href="/login"
-          style={{ display: "inline-block", padding: "12px 24px", borderRadius: 10, background: STUDENT_TEAL, color: "#fff", fontWeight: 600, textDecoration: "none" }}
+          className="sf-btn sf-btn-primary"
+          style={{ display: "inline-flex", textDecoration: "none" }}
         >
           Go to sign in
         </Link>
@@ -143,7 +148,7 @@ export default function StudentDashboardPage() {
     return (
       <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
         <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Student Dashboard</h1>
-        <p style={{ color: DANGER, fontSize: 14 }}>No school on this account</p>
+        <p style={{ color: colors.danger, fontSize: 14 }}>No school on this account</p>
       </main>
     );
   }
@@ -152,7 +157,7 @@ export default function StudentDashboardPage() {
     return (
       <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
         <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Student Dashboard</h1>
-        <p style={{ color: DANGER, fontSize: 14 }}>This board is for students — your account holds a different role.</p>
+        <p style={{ color: colors.danger, fontSize: 14 }}>This board is for students — your account holds a different role.</p>
       </main>
     );
   }
@@ -160,26 +165,26 @@ export default function StudentDashboardPage() {
   if (loading || !bundle) {
     return (
       <Shell role="STUDENT" activeHref="/dashboard/student">
-        {error ? <p style={{ color: DANGER, fontSize: 14 }}>{error}</p> : null}
+        {error ? <p style={{ color: colors.danger, fontSize: 14 }}>{error}</p> : null}
         <SkeletonBlocks rows={3} />
       </Shell>
     );
   }
 
-  const kpis: { label: string; value: string; sub?: string | null; color: string; icon: ReactNode }[] = [
-    { label: "Attendance", value: bundle.attendancePercent === null ? "No data yet" : `${bundle.attendancePercent}%`, color: STUDENT_TEAL, icon: <UserCheck size={22} /> },
-    { label: "Overall Marks", value: bundle.overallMarks === null ? "No data yet" : `${bundle.overallMarks}%`, color: PRIMARY, icon: <GraduationCap size={22} /> },
-    { label: "Fees Due", value: inr(bundle.feesDue), color: Number(bundle.feesDue) > 0 ? WARNING : STUDENT_TEAL, icon: <Wallet size={22} /> },
-    { label: "Next Exam", value: bundle.nextExam ? bundle.nextExam.title : "None scheduled", sub: bundle.nextExam?.date ?? null, color: "#7C3AED", icon: <FileText size={22} /> },
+  const kpis: { label: string; value: string; sub?: string | null; color: string; tint: string; icon: ReactNode }[] = [
+    { label: "Attendance", value: bundle.attendancePercent === null ? "No data yet" : `${bundle.attendancePercent}%`, color: colors.success, tint: colors.successTint, icon: <UserCheck size={22} /> },
+    { label: "Overall Marks", value: bundle.overallMarks === null ? "No data yet" : `${bundle.overallMarks}%`, color: colors.primary, tint: colors.primaryGhost, icon: <GraduationCap size={22} /> },
+    { label: "Fees Due", value: inr(bundle.feesDue), color: Number(bundle.feesDue) > 0 ? colors.warning : colors.success, tint: Number(bundle.feesDue) > 0 ? colors.warningTint : colors.successTint, icon: <Wallet size={22} /> },
+    { label: "Next Exam", value: bundle.nextExam ? bundle.nextExam.title : "None scheduled", sub: bundle.nextExam?.date ?? null, color: colors.accent, tint: colors.accentTint, icon: <FileText size={22} /> },
   ];
 
   return (
     <Shell role="STUDENT" activeHref="/dashboard/student">
       <header style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 26, margin: 0, color: NAVY }}>
+        <h1 style={h1Style}>
           {greeting(new Date())}, {user?.name ?? ""}
         </h1>
-        <p style={{ color: "#64748B", margin: "4px 0 0", fontSize: 14 }}>
+        <p style={{ ...mutedStyle, margin: "4px 0 0" }}>
           Your school day at a glance · {bundle.asOf.day}
         </p>
       </header>
@@ -187,12 +192,12 @@ export default function StudentDashboardPage() {
       <section className="sf-grid-kpi" style={{ marginBottom: 20 }}>
         {kpis.map((kpi) => (
           <Card key={kpi.label}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <span style={{ fontSize: 13, color: "#64748B", fontWeight: 500 }}>{kpi.label}</span>
-              <span style={{ color: kpi.color }}>{kpi.icon}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: colors.muted }}>{kpi.label}</span>
+              <span style={iconTile(kpi.color, kpi.tint)}>{kpi.icon}</span>
             </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: NAVY }}>{kpi.value}</div>
-            {"sub" in kpi && kpi.sub ? <div style={{ fontSize: 12, color: "#64748B", marginTop: 4 }}>{kpi.sub}</div> : null}
+            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", color: colors.ink }}>{kpi.value}</div>
+            {"sub" in kpi && kpi.sub ? <div style={{ fontSize: 12, color: colors.muted, marginTop: 8 }}>{kpi.sub}</div> : null}
           </Card>
         ))}
       </section>
@@ -205,11 +210,25 @@ export default function StudentDashboardPage() {
           ) : (
             <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {bundle.todayTimetable.map((slot, index) => (
-                <li key={`${slot.period}-${index}`} style={{ display: "flex", gap: 12, alignItems: "center", padding: "10px 0", borderTop: index === 0 ? 0 : "1px solid #F1F5F9" }}>
-                  <span style={{ minWidth: 72, fontSize: 13, fontWeight: 700, color: STUDENT_TEAL }}>Period {slot.period}</span>
+                <li
+                  key={`${slot.period}-${index}`}
+                  onMouseEnter={rowHoverIn}
+                  onMouseLeave={rowHoverOut}
+                  style={{
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "center",
+                    padding: "12px 8px",
+                    margin: "0 -8px",
+                    borderRadius: 10,
+                    transition: "background 140ms cubic-bezier(.22,1,.36,1)",
+                    borderTop: index === 0 ? 0 : `1px solid ${colors.lineSoft}`,
+                  }}
+                >
+                  <span style={{ minWidth: 72, fontSize: 13, fontWeight: 700, color: colors.success }}>Period {slot.period}</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, color: NAVY, fontWeight: 600 }}>{slot.subjectName}</div>
-                    <div style={{ fontSize: 12, color: "#64748B" }}>
+                    <div style={{ fontSize: 14, color: colors.ink, fontWeight: 600 }}>{slot.subjectName}</div>
+                    <div style={{ fontSize: 12, color: colors.muted }}>
                       {slot.startTime ? `${slot.startTime}` : ""}
                       {slot.endTime ? ` – ${slot.endTime}` : ""}
                     </div>
@@ -221,17 +240,18 @@ export default function StudentDashboardPage() {
         </Card>
         <Card>
           <SectionTitle>Quick Links</SectionTitle>
-          <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gap: 12 }}>
             {[
               { label: "My Homework", href: "/homework" },
               { label: "My Timetable", href: "/timetable" },
               { label: "Pay Fees", href: "/fees" },
               { label: "Messages", href: "/messages" },
-            ].map((action) => (
+            ].map((action, index) => (
               <a
                 key={action.label}
                 href={action.href}
-                style={{ display: "block", textAlign: "center", padding: "11px 0", borderRadius: 10, background: STUDENT_TEAL, color: "#fff", fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+                className={index === 0 ? "sf-btn sf-btn-primary" : "sf-btn sf-btn-secondary"}
+                style={{ width: "100%", textDecoration: "none" }}
               >
                 {action.label}
               </a>
@@ -248,12 +268,27 @@ export default function StudentDashboardPage() {
           ) : (
             <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {bundle.recentMarks.map((mark) => (
-                <li key={mark.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid #F1F5F9", fontSize: 14 }}>
+                <li
+                  key={mark.id}
+                  onMouseEnter={rowHoverIn}
+                  onMouseLeave={rowHoverOut}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "center",
+                    padding: "8px 8px",
+                    margin: "0 -8px",
+                    borderRadius: 10,
+                    transition: "background 140ms cubic-bezier(.22,1,.36,1)",
+                    borderTop: `1px solid ${colors.lineSoft}`,
+                    fontSize: 14,
+                  }}
+                >
                   <div style={{ flex: 1 }}>
-                    <div style={{ color: NAVY, fontWeight: 600 }}>{mark.subjectName}</div>
-                    <div style={{ fontSize: 12, color: "#64748B" }}>{mark.examName}</div>
+                    <div style={{ color: colors.ink, fontWeight: 600 }}>{mark.subjectName}</div>
+                    <div style={{ fontSize: 12, color: colors.muted }}>{mark.examName}</div>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: mark.percent === null ? "#64748B" : mark.percent >= 40 ? STUDENT_TEAL : DANGER }}>
+                  <span style={mark.percent === null ? pill(colors.muted, colors.lineSoft) : mark.percent >= 40 ? pill(colors.success, colors.successTint) : pill(colors.danger, colors.dangerTint)}>
                     {mark.percent === null ? "Awaited" : `${mark.obtained}/${mark.max}`}
                   </span>
                 </li>
@@ -268,11 +303,39 @@ export default function StudentDashboardPage() {
           ) : (
             <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {bundle.recentNotices.map((notice) => (
-                <li key={notice.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: "1px solid #F1F5F9", fontSize: 14 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 999, background: PRIMARY, marginTop: 5, flexShrink: 0 }} />
+                <li
+                  key={notice.id}
+                  onMouseEnter={rowHoverIn}
+                  onMouseLeave={rowHoverOut}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    padding: "8px 8px",
+                    margin: "0 -8px",
+                    borderRadius: 10,
+                    transition: "background 140ms cubic-bezier(.22,1,.36,1)",
+                    borderTop: `1px solid ${colors.lineSoft}`,
+                    fontSize: 14,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 999,
+                      background: colors.primaryGhost,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginTop: 3,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: 999, background: colors.primary }} />
+                  </span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ color: NAVY }}>{notice.title}</div>
-                    <div style={{ fontSize: 12, color: "#64748B" }}>{new Date(notice.at).toLocaleDateString()}</div>
+                    <div style={{ color: colors.ink, fontWeight: 600 }}>{notice.title}</div>
+                    <div style={{ fontSize: 12, color: colors.muted }}>{new Date(notice.at).toLocaleDateString()}</div>
                   </div>
                 </li>
               ))}
