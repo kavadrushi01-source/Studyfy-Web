@@ -240,7 +240,10 @@ export default function MarkAttendancePage() {
     <main style={pageFrame}>
       <h1 style={h1Style}>Mark Attendance</h1>
       <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
-        White-card roster — green Present, red Absent, one Save.
+        White-card roster — green Present, red Absent, one Save.{" "}
+        <Link href="/attendance/reports" style={{ color: colors.primary, fontWeight: 600 }}>
+          Monthly &amp; term reports →
+        </Link>
       </p>
       <div className="sf-row-wrap" style={{ marginBottom: 12 }}>
         <label style={{ ...labelStyle, flex: 1, minWidth: 220 }}>

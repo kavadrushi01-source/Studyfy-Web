@@ -294,3 +294,37 @@ test.describe("session, gates and edges", () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe("attendance reports", () => {
+  test("admin reads the month, filters a section, an empty month, a custom range", async ({ page }) => {
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/attendance/reports");
+    await expect(page.getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/Showing \d{4}/).first()).toBeVisible();
+
+    await expect(page.locator('select[aria-label="Section"]')).toBeAttached({ timeout: 20000 });
+    await page.getByLabel(/section/i).selectOption({ label: "Grade 10 · A" });
+    await expect(page.getByText("Priya Patel").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("Aditya Sharma")).toHaveCount(0);
+
+    await page.getByLabel(/section/i).selectOption({ index: 0 });
+    await page.getByLabel(/month/i).fill("2020-01");
+    await page.getByRole("button", { name: /^show$/i }).click();
+    await expect(page.getByText(/No attendance in this range/i)).toBeVisible({ timeout: 20000 });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const start = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    await page.getByLabel(/^from$/i).fill(start);
+    await page.getByLabel(/^to$/i).fill(today);
+    await page.getByRole("button", { name: /^show$/i }).click();
+    await expect(page.getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
+  });
+
+  test("pupil sees only their own row, no staff filter", async ({ page }) => {
+    await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
+    await page.goto("/attendance/reports");
+    await expect(page.getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("Priya Patel")).toHaveCount(0);
+    await expect(page.getByLabel(/section/i)).toHaveCount(0);
+  });
+});
