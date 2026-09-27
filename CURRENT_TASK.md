@@ -9,8 +9,8 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE (Chunk 5 verification complete — marketing + enquiry needed no code changes, pushed with this handoff)
-**Phase / Module:** —
+**Status:** IN PROGRESS (live-site debugging — 2 root causes proven: Vercel bundle lacks NEXT_PUBLIC_API_URL (falls back to localhost), Render sends no ACAO for the Vercel origin; both fixes issued, waiting founder)
+**Phase / Module:** Deploy — Aiven ✅ → Cloudinary ✅ → Brevo ✅ → Render ✅ (API live) → Vercel ✅ (site serves) → FIX: Vercel env + redeploy (no cache) + Render FRONTEND_ORIGIN → re-run live gate
 **Last updated:** 2026-09-27
 
 ## What's done in this task so far
