@@ -9,8 +9,8 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS (live-site debugging — 2 root causes proven: Vercel bundle lacks NEXT_PUBLIC_API_URL (falls back to localhost), Render sends no ACAO for the Vercel origin; both fixes issued, waiting founder)
-**Phase / Module:** Deploy — Aiven ✅ → Cloudinary ✅ → Brevo ✅ → Render ✅ (API live) → Vercel ✅ (site serves) → FIX: Vercel env + redeploy (no cache) + Render FRONTEND_ORIGIN → re-run live gate
+**Status:** IDLE (DEPLOYED + live-gated 2026-09-27 — pushed with this handoff)
+**Phase / Module:** —
 **Last updated:** 2026-09-27
 
 ## What's done in this task so far
@@ -18,14 +18,15 @@
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
   - `3f624d9` + `aadbe6c` — route×role sweep round: 11 bugs fixed (BUGSFIX 22–26).
   - `bf50a1b` + `34da56d` — deep human pass: 9 journey/edge tests (`human.spec.ts`), BUGSFIX 27–28, API 183/183, e2e 38/38.
-  - This handoff — **Chunk 5 verification**: landing + enquiry re-checked line-by-line vs §8.3 (all copy exact, all §8.1 exclusions honored, login spec-clean with deliberate no-Google/no-tabs); public.spec 5/5, enquiries API 4/4, full e2e 38/38, both prod builds green, CI already covers gates. No code changes required. Deploy readiness confirmed — actual deploy needs founder accounts (below).
+  - `f2150c3` + `9e6f38c` — Chunk 5 verification (marketing+enquiry vs §8.3, zero code changes).
+  - This handoff — **LIVE DEPLOY + GATE**: Aiven MySQL (migrated + seeded with both demo schools), Render API https://studyfy-api.onrender.com, Vercel web https://studyfy-web.vercel.app. Fixed 2 live blockers (Vercel bundle missing NEXT_PUBLIC_API_URL — Secret-type + truncated key + cached rebuild traps; Render FRONTEND_ORIGIN exact-match). 6-test live gate green (3rd-school register, isolation both ways, 11 boards, attendance+payment, report PDF, message+notice, nav walk zero errors) + live enquiry form test. Login limiter RESTORED pre-pilot (RATE_LIMITING.md updated, API 183/183 green after).
 
 ## What's left in this task
-- Deploy (FOUNDER ACTION — agent cannot do this): Aiven MySQL account + `DATABASE_URL`, Render account (API), Vercel account (web), Brevo SMTP creds, Cloudinary creds; then spec §1.1 steps 1–9 (`migrate deploy` → Render → Vercel → `FRONTEND_ORIGIN` → live smoke test).
-- Scope decision for founder: attendance monthly/term reports UI is the one non-DONE Phase 1 item (`STATUS.md` — API endpoint exists + tested, UI missing). Small build; say the word and it's the next task.
+- Founder decisions only: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) attendance monthly/term reports UI — the one non-DONE Phase 1 item (API exists + tested); (3) pilot with a real school.
+- Watch items: Aiven free sleeps when idle (power on from console if DB errors); Render free cold-starts ~50s; Brevo freemail sender may land in spam (custom domain + DKIM later).
 
 ## Exact next action
-- None for the agent — founder deploys per spec §1.1, or approves the attendance-reports UI build. Start from `AGENT_START_HERE.md`.
+- None for the agent — pilot or approve the attendance-reports UI. Start from `AGENT_START_HERE.md`.
 
 ## Notes / decisions made mid-task (carry-over operational knowledge — keep)
 - Local API start command (3 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_RATE_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.

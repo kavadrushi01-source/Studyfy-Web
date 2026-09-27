@@ -1,7 +1,8 @@
-# Login Rate Limiting — OFF for now, restore before real business use
+# Login Rate Limiting — RESTORED 2026-09-27 (before production pilot)
 
-**Current state (dev/testing):** `POST /api/v1/auth/login` has NO rate
-limiter. Log in as many times as you like — all demo roles back to back.
+**Current state (production):** `POST /api/v1/auth/login` is guarded —
+**5 attempts / 15 min / IP**, then `429 RATE_LIMITED`. Restored during the
+live deploy gate; verified live (5×401 → 429, good login still 200).
 
 **Why it exists (spec §11 sliding window):** without a guard, anyone can
 hammer the login endpoint with password lists (credential stuffing). The
