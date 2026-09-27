@@ -175,8 +175,14 @@ export default function ExamResultsPage() {
     setError("");
     setEntryNotice("");
     try {
+      // Only rows the teacher actually typed into are sent. Blank inputs
+      // must stay blank - Number("") is 0, and sending zeros for every
+      // untouched student would silently wipe their real marks (re-entry
+      // overwrites server-side).
       const records = roster
-        .map((s) => ({ studentId: s.id, marksObtained: Number(marks[s.id] ?? "") }))
+        .map((s) => ({ studentId: s.id, raw: marks[s.id] }))
+        .filter((r) => r.raw !== undefined && r.raw !== "")
+        .map((r) => ({ studentId: r.studentId, marksObtained: Number(r.raw) }))
         .filter((r) => Number.isFinite(r.marksObtained));
       const response = await apiFetch(`/api/v1/schools/${schoolId}/exams/${entryExamId}/marks`, {
         method: "POST",

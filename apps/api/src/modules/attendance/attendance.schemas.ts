@@ -27,6 +27,22 @@ export const markAttendanceSchema = z.object({
 
 export type MarkAttendanceInput = z.infer<typeof markAttendanceSchema>;
 
+// Daily roster hydration (marking screen reopen): saved statuses for a
+// section+day, so reloading a marked day shows what was actually saved
+// instead of silent all-PRESENT defaults.
+export const rosterSchema = z.object({
+  date: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD.")
+    .refine((s) => !Number.isNaN(new Date(`${s}T00:00:00Z`).getTime()), {
+      message: "Date is not a real calendar date.",
+    }),
+  sectionId: z.string().trim().min(1).max(40),
+});
+
+export type RosterInput = z.infer<typeof rosterSchema>;
+
 // Monthly/term summary (§10). month defaults to the current UTC month;
 // from/to override it for custom ranges (term reports).
 export const summarySchema = z.object({

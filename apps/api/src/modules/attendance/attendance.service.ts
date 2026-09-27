@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateAttendanceKpis, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
-import type { MarkAttendanceInput, SummaryInput } from "./attendance.schemas.js";
+import type { MarkAttendanceInput, RosterInput, SummaryInput } from "./attendance.schemas.js";
 
 interface Caller {
   userId: string;
@@ -238,4 +238,36 @@ export async function attendanceSummary(
     range: { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) },
     summary,
   };
+}
+
+// Daily roster hydration (marking-screen reopen): the saved statuses for
+// one section+day. Same authorization as marking - a School Admin, or the
+// section's assigned class teacher. This is the read side of the same
+// daily workflow; without it a reopened day shows silent PRESENT defaults
+// and a careless re-save would flip real absences to present.
+export async function rosterAttendance(
+  db: PrismaClient,
+  caller: Caller,
+  input: RosterInput,
+): Promise<{ records: { studentId: string; status: string }[] }> {
+  const section = await db.section.findFirst({ where: { id: input.sectionId } });
+  if (!section) {
+    throw new AuthError(404, "SECTION_NOT_FOUND", "Section not found in this school.");
+  }
+  if (caller.role !== "SCHOOL_ADMIN") {
+    const staff = await db.staff.findFirst({ where: { userId: caller.userId } });
+    if (!staff || section.classTeacherId !== staff.id) {
+      throw new AuthError(
+        403,
+        "NOT_SECTION_TEACHER",
+        "Only the section's class teacher or a School Admin may read its attendance.",
+      );
+    }
+  }
+  const date = new Date(`${input.date}T00:00:00Z`);
+  const rows = await db.attendance.findMany({
+    where: { sectionId: section.id, date },
+    select: { studentId: true, status: true },
+  });
+  return { records: rows.map((r) => ({ studentId: r.studentId, status: r.status })) };
 }

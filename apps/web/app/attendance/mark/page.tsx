@@ -56,7 +56,7 @@ export default function MarkAttendancePage() {
   }, [schoolId, apiFetch]);
 
   const loadRoster = useCallback(
-    async (nextSection: string) => {
+    async (nextSection: string, day: string) => {
       if (!schoolId) {
         return;
       }
@@ -76,6 +76,28 @@ export default function MarkAttendancePage() {
           initial[row.id] = "PRESENT";
         }
         setMarks(initial);
+        // Hydrate saved statuses for this day (best-effort): a reopened day
+        // must show what was actually saved - silent PRESENT defaults would
+        // make a careless re-save flip real absences to present.
+        try {
+          const savedResponse = await apiFetch(
+            `/api/v1/schools/${schoolId}/attendance?date=${encodeURIComponent(day)}&sectionId=${encodeURIComponent(nextSection)}`,
+          );
+          const savedBody = (await savedResponse.json()) as
+            | { data: { records: { studentId: string; status: string }[] } }
+            | ApiError;
+          if (!isFailure(savedResponse, savedBody)) {
+            const merged: Record<string, Mark> = { ...initial };
+            for (const record of savedBody.data.records) {
+              if (record.status === "PRESENT" || record.status === "ABSENT") {
+                merged[record.studentId] = record.status;
+              }
+            }
+            setMarks(merged);
+          }
+        } catch {
+          // Hydration is best-effort - the PRESENT defaults already stand.
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Network error.");
       } finally {
@@ -103,7 +125,17 @@ export default function MarkAttendancePage() {
     const next = event.target.value;
     setSectionId(next);
     if (next) {
-      void loadRoster(next);
+      void loadRoster(next, date);
+    }
+  }
+
+  function pickDate(event: React.ChangeEvent<HTMLInputElement>): void {
+    const next = event.target.value;
+    setDate(next);
+    if (sectionId) {
+      // Re-hydrate against the newly chosen day - saved statuses there win
+      // over the local defaults (and any stale edits for the old day).
+      void loadRoster(sectionId, next);
     }
   }
 
@@ -224,7 +256,7 @@ export default function MarkAttendancePage() {
         </label>
         <label style={labelStyle}>
           Date
-          <input className="sf-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <input className="sf-input" type="date" value={date} onChange={pickDate} required />
         </label>
       </div>
       {sectionId ? (
@@ -235,7 +267,7 @@ export default function MarkAttendancePage() {
             </button>
             <button
               type="button"
-              onClick={() => void loadRoster(sectionId)}
+              onClick={() => void loadRoster(sectionId, date)}
               disabled={loading}
               style={{ ...secondaryBtn, opacity: loading ? 0.6 : 1 }}
             >
@@ -279,6 +311,7 @@ export default function MarkAttendancePage() {
                           <div style={{ display: "flex", gap: 8 }} role="group" aria-label={`Mark ${row.user.name}`}>
                             <button
                               type="button"
+                              aria-pressed={marks[row.id] === "PRESENT"}
                               style={togglePill(marks[row.id] === "PRESENT", colors.success, colors.successTint)}
                               onClick={() => toggle(row.id)}
                             >
@@ -286,6 +319,7 @@ export default function MarkAttendancePage() {
                             </button>
                             <button
                               type="button"
+                              aria-pressed={marks[row.id] === "ABSENT"}
                               style={togglePill(marks[row.id] === "ABSENT", colors.danger, colors.dangerTint)}
                               onClick={() => toggle(row.id)}
                             >

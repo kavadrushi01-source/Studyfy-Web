@@ -184,3 +184,94 @@ describe("POST /api/v1/schools/:schoolId/attendance (bulk marking)", () => {
       .expect(401);
   });
 });
+
+describe("GET /api/v1/schools/:schoolId/attendance (daily roster hydration)", () => {
+  it("returns saved statuses for the section+day, empty for an unmarked day", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    const sectionId = await makeSection(schoolId, "A");
+    const s1 = await makeStudent(schoolId, sectionId);
+    const s2 = await makeStudent(schoolId, sectionId);
+
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/attendance`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        sectionId,
+        date: DAY,
+        records: [
+          { studentId: s1, status: "PRESENT" },
+          { studentId: s2, status: "ABSENT" },
+        ],
+      })
+      .expect(200);
+
+    const day = await request(app)
+      .get(`/api/v1/schools/${schoolId}/attendance?date=${DAY}&sectionId=${sectionId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    const records = day.body.data.records as { studentId: string; status: string }[];
+    expect(records).toHaveLength(2);
+    expect(records.find((r) => r.studentId === s1)?.status).toBe("PRESENT");
+    expect(records.find((r) => r.studentId === s2)?.status).toBe("ABSENT");
+
+    const otherDay = await request(app)
+      .get(`/api/v1/schools/${schoolId}/attendance?date=2026-09-11&sectionId=${sectionId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    expect(otherDay.body.data.records).toHaveLength(0);
+  });
+
+  it("mirrors the marking gate: class teacher in, other staff out, bad input rejected", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    void adminToken;
+    const sectionA = await makeSection(schoolId, "A");
+    const sectionB = await makeSection(schoolId, "B");
+    await makeStudent(schoolId, sectionA);
+    const teacherA = await makeTeacher(schoolId, slug, "TEACHER", sectionA);
+    const teacherB = await makeTeacher(schoolId, slug, "TEACHER", sectionB);
+    const teacherNone = await makeTeacher(schoolId, slug, "TEACHER", null);
+    const accountant = await makeTeacher(schoolId, slug, "ACCOUNTANT", null);
+
+    const allowed = await request(app)
+      .get(`/api/v1/schools/${schoolId}/attendance?date=${DAY}&sectionId=${sectionA}`)
+      .set("Authorization", `Bearer ${teacherA}`)
+      .expect(200);
+    expect(Array.isArray(allowed.body.data.records)).toBe(true);
+
+    for (const token of [teacherB, teacherNone]) {
+      const denied = await request(app)
+        .get(`/api/v1/schools/${schoolId}/attendance?date=${DAY}&sectionId=${sectionA}`)
+        .set("Authorization", `Bearer ${token}`)
+        .expect(403);
+      expect(denied.body.error.code).toBe("NOT_SECTION_TEACHER");
+    }
+
+    const noKey = await request(app)
+      .get(`/api/v1/schools/${schoolId}/attendance?date=${DAY}&sectionId=${sectionA}`)
+      .set("Authorization", `Bearer ${accountant}`)
+      .expect(403);
+    expect(noKey.body.error.code).toBe("PERMISSION_DENIED");
+
+    await request(app)
+      .get(`/api/v1/schools/${schoolId}/attendance?date=${DAY}&sectionId=${sectionA}`)
+      .expect(401);
+
+    const badDate = await request(app)
+      .get(`/api/v1/schools/${schoolId}/attendance?date=10-09-2026&sectionId=${sectionA}`)
+      .set("Authorization", `Bearer ${teacherA}`)
+      .expect(400);
+    expect(badDate.body.error.code).toBe("VALIDATION_ERROR");
+
+    const missingSection = await request(app)
+      .get(`/api/v1/schools/${schoolId}/attendance?date=${DAY}&sectionId=`)
+      .set("Authorization", `Bearer ${teacherA}`)
+      .expect(400);
+    expect(missingSection.body.error.code).toBe("VALIDATION_ERROR");
+
+    const unknownSection = await request(app)
+      .get(`/api/v1/schools/${schoolId}/attendance?date=${DAY}&sectionId=${randomUUID().slice(0, 24)}`)
+      .set("Authorization", `Bearer ${teacherA}`)
+      .expect(404);
+    expect(unknownSection.body.error.code).toBe("SECTION_NOT_FOUND");
+  });
+});

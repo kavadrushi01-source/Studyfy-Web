@@ -1,0 +1,296 @@
+import { expect, test } from "@playwright/test";
+import { ACCOUNTS, SOS_SLUG, login, logout } from "./helpers.js";
+
+// Deep human-like pass: the things a careful person does that the flow
+// specs don't - reopening a saved day, typing bad numbers, resizing the
+// window, hammering Back after logout, clicking every menu item. Runs
+// against the same seeded e2e DB as the rest of the suite.
+
+test.describe("role journeys", () => {
+  test("admitted pupil signs in with the one-time password", async ({ page }) => {
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/students/new");
+    const stamp = Date.now().toString(36);
+    const name = `E2E OneTime ${stamp}`;
+    const email = `e2e-onetime-${stamp}@example.com`;
+    await page.getByLabel(/full name/i).fill(name);
+    await page.getByLabel("Email (student login)").fill(email);
+    await expect(page.locator('select[aria-label="Section"]')).toBeAttached({ timeout: 20000 });
+    await page.getByLabel(/section/i).selectOption({ index: 1 });
+    await page.getByRole("button", { name: /admit student/i }).click();
+    await expect(page.getByRole("heading", { name: /admitted/i })).toBeVisible({ timeout: 20000 });
+    const tempPassword = (await page.locator("code").first().textContent())?.trim() ?? "";
+    expect(tempPassword.length).toBeGreaterThan(5);
+
+    await logout(page);
+    await page.goto("/login");
+    await page.getByLabel(/school slug/i).fill(SOS_SLUG);
+    await page.getByLabel(/email/i).fill(email);
+    await page.getByLabel(/^password/i).fill(tempPassword);
+    await page.getByRole("button", { name: /^login$/i }).click();
+    await expect(page.getByText(/signed in as/i)).toBeVisible({ timeout: 20000 });
+    // Login lands on the signed-in panel; the human path is its board link.
+    await page.getByRole("link", { name: /open my board/i }).click();
+    await expect(page).toHaveURL(/\/dashboard\/student/, { timeout: 20000 });
+    // The fresh account is a pupil: own board, own name, no staff pages.
+    await page.goto("/profile");
+    await expect(page.getByText(name).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/school admin/i)).toHaveCount(0);
+  });
+
+  test("roster table: search, sort, paginate, empty state, open a profile", async ({ page }) => {
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/students");
+    await expect(page.getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
+
+    const nameHeader = page.getByRole("button", { name: /^name$/i });
+    await nameHeader.click();
+    await expect(nameHeader).toHaveAttribute("aria-sort", /ascending|descending/);
+
+    await page.getByLabel(/search/i).fill("Ishita Choudhary");
+    await page.getByRole("button", { name: /search/i }).click();
+    await expect(page.getByText(/(?<!\d)1 total/)).toBeVisible({ timeout: 20000 });
+
+    await page.getByLabel(/search/i).fill("zzz-no-such-pupil-zzz");
+    await page.getByRole("button", { name: /search/i }).click();
+    await expect(page.getByText(/No students found/i)).toBeVisible({ timeout: 20000 });
+
+    await page.getByLabel(/search/i).fill("");
+    await page.getByRole("button", { name: /search/i }).click();
+    await expect(page.getByText(/\d+ total/)).toBeVisible({ timeout: 20000 });
+    const next = page.getByRole("button", { name: /^next$/i });
+    await expect(next).toBeEnabled();
+    await next.click();
+    await expect(page.getByText(/Page 2 of/)).toBeVisible({ timeout: 20000 });
+
+    await page.getByLabel(/search/i).fill("Priya Patel");
+    await page.getByRole("button", { name: /search/i }).click();
+    await page.getByText("Priya Patel").first().click();
+    await expect(page).toHaveURL(/\/students\/[a-z0-9]+/i);
+    await expect(page.getByText(/report card/i).first()).toBeVisible({ timeout: 20000 });
+  });
+
+  test("counter payments: zero is rejected loudly, a real partial goes through", async ({ page }) => {
+    await login(page, ACCOUNTS.sosAccountant, SOS_SLUG);
+    await page.goto("/fees");
+    await expect(page.getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
+
+    await page.getByLabel(/filter by status/i).selectOption({ label: "Paid" });
+    await page.getByRole("button", { name: /^filter$/i }).click();
+    await expect(page.getByText("PENDING", { exact: true })).toHaveCount(0, { timeout: 20000 });
+    await page.getByLabel(/filter by status/i).selectOption({ index: 0 });
+    await page.getByRole("button", { name: /^filter$/i }).click();
+
+    await expect(page.locator('select[aria-label="Unpaid invoice"]')).toBeVisible({ timeout: 20000 });
+    await page.getByLabel(/unpaid invoice/i).selectOption({ index: 1 });
+    await page.getByLabel(/amount/i).fill("0");
+    await page.getByRole("button", { name: /record payment/i }).click();
+    await expect(page.getByText(/greater than zero|positive number/i)).toBeVisible({ timeout: 20000 });
+
+    await page.getByLabel(/amount/i).fill("25");
+    await page.getByRole("button", { name: /record payment/i }).click();
+    await expect(page.getByText(/Recorded . invoice is now/i)).toBeVisible({ timeout: 20000 });
+  });
+
+  test("saved absences come back when the day is reopened", async ({ page }) => {
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/attendance/mark");
+    // Grade 10 A: no other attendance test touches this section.
+    await page.getByLabel(/section/i).selectOption({ label: "Grade 10 · A" });
+    await expect(page.getByText("Priya Patel")).toBeVisible({ timeout: 20000 });
+
+    await page.getByRole("button", { name: /mark all present/i }).click();
+    const priyaRow = page.getByRole("group", { name: "Mark Priya Patel" });
+    await priyaRow.getByRole("button", { name: /^absent$/i }).click();
+    await page.getByRole("button", { name: /save attendance/i }).click();
+    await expect(page.getByText(/saved attendance for/i)).toBeVisible({ timeout: 20000 });
+
+    // Hard reload, pick the section again: the saved ABSENT must come back
+    // as the active pill - not a silent PRESENT default.
+    await page.reload();
+    await page.getByLabel(/section/i).selectOption({ label: "Grade 10 · A" });
+    await expect(page.getByText("Priya Patel")).toBeVisible({ timeout: 20000 });
+    await expect(priyaRow.getByRole("button", { name: /^absent$/i })).toHaveAttribute("aria-pressed", "true", {
+      timeout: 20000,
+    });
+    await expect(priyaRow.getByRole("button", { name: /^present$/i })).toHaveAttribute("aria-pressed", "false");
+
+    // Changing the day re-hydrates against that day (unmarked -> defaults).
+    await page.getByLabel(/date/i).fill("2026-09-01");
+    await expect(priyaRow.getByRole("button", { name: /^present$/i })).toHaveAttribute("aria-pressed", "true", {
+      timeout: 20000,
+    });
+  });
+
+  test("a class-targeted notice reaches that class and only that class", async ({ page }) => {
+    test.setTimeout(90000);
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/notices");
+    const stamp = Date.now().toString(36);
+    const title = `E2E Grade10 Notice ${stamp}`;
+    await page.getByLabel(/title/i).fill(title);
+    await page.getByLabel(/^message/i).fill("Scoped notice for Grade 10 only.");
+    await page.getByLabel(/notice audience/i).selectOption("CLASS");
+    await expect(page.locator('select[aria-label="Class"]')).toBeAttached({ timeout: 20000 });
+    await page.locator('select[aria-label="Class"]').selectOption({ label: "Grade 10" });
+    await page.getByRole("button", { name: /publish notice/i }).click();
+    await expect(page.getByText(title).first()).toBeVisible({ timeout: 20000 });
+
+    // A Grade 10 pupil admitted on the spot can see it...
+    await page.goto("/students/new");
+    const pupilEmail = `e2e-g10-${stamp}@example.com`;
+    const pupilName = `E2E Grade10 ${stamp}`;
+    await page.getByLabel(/full name/i).fill(pupilName);
+    await page.getByLabel("Email (student login)").fill(pupilEmail);
+    await expect(page.locator('select[aria-label="Section"]')).toBeAttached({ timeout: 20000 });
+    const sectionTexts = await page
+      .locator('select[aria-label="Section"] option')
+      .evaluateAll((opts) => opts.map((o) => o.textContent ?? ""));
+    const g10 = sectionTexts.find((t) => t.includes("Grade 10"));
+    expect(g10).toBeTruthy();
+    await page.getByLabel(/section/i).selectOption({ label: g10 ?? "" });
+    await page.getByRole("button", { name: /admit student/i }).click();
+    await expect(page.getByRole("heading", { name: /admitted/i })).toBeVisible({ timeout: 20000 });
+    const tempPassword = (await page.locator("code").first().textContent())?.trim() ?? "";
+
+    await logout(page);
+    await page.goto("/login");
+    await page.getByLabel(/school slug/i).fill(SOS_SLUG);
+    await page.getByLabel(/email/i).fill(pupilEmail);
+    await page.getByLabel(/^password/i).fill(tempPassword);
+    await page.getByRole("button", { name: /^login$/i }).click();
+    await expect(page.getByText(/signed in as/i)).toBeVisible({ timeout: 20000 });
+    await page.goto("/notices");
+    await expect(page.getByText(title).first()).toBeVisible({ timeout: 20000 });
+
+    // ...and a Grade 9 pupil never does, while school-wide notices still land.
+    await logout(page);
+    await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
+    await page.goto("/notices");
+    await expect(page.getByText(title)).toHaveCount(0, { timeout: 20000 });
+    await expect(page.getByText("Parent-Teacher Meeting on Saturday").first()).toBeVisible({ timeout: 20000 });
+  });
+
+  test("marks entry refuses scores above the subject maximum", async ({ page }) => {
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/exams/results");
+    const entryExam = page.getByLabel(/entry exam/i);
+    await expect(entryExam).toBeVisible({ timeout: 20000 });
+    await entryExam.selectOption({ index: 1 });
+    const entrySubject = page.getByLabel(/entry subject/i);
+    await expect(entrySubject).toBeVisible({ timeout: 20000 });
+    await entrySubject.selectOption({ index: 1 });
+    const entrySection = page.getByLabel(/entry section/i);
+    await expect(entrySection).toBeAttached({ timeout: 20000 });
+    await entrySection.selectOption({ index: 1 });
+    await expect(page.getByPlaceholder("Marks").first()).toBeVisible({ timeout: 20000 });
+    await page.getByPlaceholder("Marks").first().fill("9999");
+    await page.getByRole("button", { name: /save marks/i }).click();
+    await expect(page.getByText(/cannot exceed the maximum/i)).toBeVisible({ timeout: 20000 });
+  });
+});
+
+test.describe("session, gates and edges", () => {
+  test("signed-out gates, friendly 404, reload keeps the session, logout sticks", async ({ page }) => {
+    await page.goto("/students");
+    await expect(page.getByText(/Please sign in to view students/i)).toBeVisible({ timeout: 20000 });
+    await page.getByRole("link", { name: /go to login/i }).click();
+    await expect(page).toHaveURL(/\/login/);
+
+    await page.goto("/this-route-never-existed");
+    await expect(page.getByText(/404/).first()).toBeVisible({ timeout: 20000 });
+
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/students");
+    const admit = page.getByRole("link", { name: /admit student/i });
+    await expect(admit).toBeVisible({ timeout: 20000 });
+    await page.reload();
+    await expect(admit).toBeVisible({ timeout: 20000 });
+
+    await logout(page);
+    await page.goBack();
+    await page.waitForLoadState("load");
+    await expect(page.getByRole("link", { name: /admit student/i })).toHaveCount(0, { timeout: 10000 });
+  });
+
+  test("phone-sized viewport: login and the shell stay usable", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.getByRole("link", { name: /open my board/i }).click();
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
+    await expect(page.locator("h1").first()).toBeVisible({ timeout: 20000 });
+    // Sidebar stacks above the content at this width but every link works.
+    const studentsLink = page.getByRole("link", { name: /^students$/i });
+    await expect(studentsLink).toBeVisible();
+    await studentsLink.click();
+    await expect(page).toHaveURL(/\/students/);
+    await expect(page.getByRole("heading", { name: /^students$/i })).toBeVisible({ timeout: 20000 });
+    await page.setViewportSize({ width: 1440, height: 900 });
+  });
+
+  test("every sidebar destination opens clean for all six roles", async ({ page }) => {
+    test.setTimeout(300000);
+    const errors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        errors.push(`console: ${msg.text()}`);
+      }
+    });
+    page.on("pageerror", (err) => {
+      errors.push(`pageerror: ${err.message}`);
+    });
+
+    const walks: { email: string; slug: string | null; hrefs: string[] }[] = [
+      {
+        email: ACCOUNTS.sosAdmin,
+        slug: SOS_SLUG,
+        hrefs: [
+          "/dashboard",
+          "/students",
+          "/teachers",
+          "/sections",
+          "/attendance/mark",
+          "/fees",
+          "/exams/results",
+          "/timetable",
+          "/homework",
+          "/messages",
+          "/notices",
+          "/profile",
+        ],
+      },
+      {
+        email: ACCOUNTS.sosTeacher,
+        slug: SOS_SLUG,
+        hrefs: ["/dashboard/teacher", "/attendance/mark", "/exams/results", "/homework", "/timetable", "/messages", "/profile"],
+      },
+      {
+        email: ACCOUNTS.sosAccountant,
+        slug: SOS_SLUG,
+        hrefs: ["/dashboard/accountant", "/fees", "/fees/payments", "/profile"],
+      },
+      {
+        email: ACCOUNTS.sosStudent,
+        slug: SOS_SLUG,
+        hrefs: ["/dashboard/student", "/exams/results", "/homework", "/timetable", "/fees", "/notices", "/messages", "/profile"],
+      },
+      {
+        email: ACCOUNTS.sosParent,
+        slug: SOS_SLUG,
+        hrefs: ["/dashboard/parent", "/exams/results", "/homework", "/fees", "/notices", "/messages", "/profile"],
+      },
+      { email: ACCOUNTS.owner, slug: null, hrefs: ["/dashboard/owner", "/profile"] },
+    ];
+
+    for (const walk of walks) {
+      await login(page, walk.email, walk.slug);
+      for (const href of walk.hrefs) {
+        await page.goto(href);
+        await expect(page.locator("h1").first()).toBeVisible({ timeout: 20000 });
+      }
+      await logout(page);
+    }
+
+    expect(errors).toEqual([]);
+  });
+});

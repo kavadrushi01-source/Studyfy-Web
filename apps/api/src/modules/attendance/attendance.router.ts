@@ -5,8 +5,8 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { markAttendanceSchema, summarySchema } from "./attendance.schemas.js";
-import { attendanceSummary, markAttendance } from "./attendance.service.js";
+import { markAttendanceSchema, rosterSchema, summarySchema } from "./attendance.schemas.js";
+import { attendanceSummary, markAttendance, rosterAttendance } from "./attendance.service.js";
 
 export const attendanceRouter = Router();
 
@@ -50,6 +50,48 @@ attendanceRouter.post(
         parsed.data,
       );
       res.status(200).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendAttendanceError(res, err);
+    }
+  }),
+);
+
+// Daily roster hydration for the marking screen: the saved statuses for
+// one section+day, so reopening a marked day shows its real state instead
+// of all-PRESENT defaults. Read side of daily marking - same authorization
+// (attendance.mark + the admin/class-teacher check in the service).
+attendanceRouter.get(
+  "/schools/:schoolId/attendance",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("attendance.mark"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = rosterSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await rosterAttendance(
+        req.prisma,
+        { userId: req.user.userId, role: req.user.role },
+        parsed.data,
+      );
+      res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendAttendanceError(res, err);
     }
