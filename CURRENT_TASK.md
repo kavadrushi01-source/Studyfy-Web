@@ -9,21 +9,23 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE (deep human pass complete — fixes in `bf50a1b`, pushed with this handoff)
+**Status:** IDLE (Chunk 5 verification complete — marketing + enquiry needed no code changes, pushed with this handoff)
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
 ## What's done in this task so far
 - Nothing in progress. Recent finished work (details in `STATUS.md`, bugs in `BUGSFIX.md`):
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
-  - `3f624d9` + `aadbe6c` — route×role sweep round: 11 bugs fixed (BUGSFIX 22–26), sweep spec created, run clean, deleted.
-  - `bf50a1b` + this handoff — **deep human pass** (2026-09-27): 9 new journey/edge tests kept permanently as `e2e/human.spec.ts` (temp-password admit→login, roster search/sort/paginate, payment zero-reject, attendance day-reopen persistence, class-targeted notice scoping, over-max marks refusal, signed-out gates/404/session/back-after-logout, 390px viewport, all-6-roles nav walk with zero-console-error assertion); found + fixed BUGSFIX 27–28 (attendance hydration via new `GET /attendance` roster endpoint + `aria-pressed` pills; typed-marks-only save — blank inputs were being sent as zeros). Verification: e2e **38/38** twice consecutive (one stall-retry run absorbed), API **183/183**, all gates 0.
+  - `3f624d9` + `aadbe6c` — route×role sweep round: 11 bugs fixed (BUGSFIX 22–26).
+  - `bf50a1b` + `34da56d` — deep human pass: 9 journey/edge tests (`human.spec.ts`), BUGSFIX 27–28, API 183/183, e2e 38/38.
+  - This handoff — **Chunk 5 verification**: landing + enquiry re-checked line-by-line vs §8.3 (all copy exact, all §8.1 exclusions honored, login spec-clean with deliberate no-Google/no-tabs); public.spec 5/5, enquiries API 4/4, full e2e 38/38, both prod builds green, CI already covers gates. No code changes required. Deploy readiness confirmed — actual deploy needs founder accounts (below).
 
 ## What's left in this task
-- Nothing. Next founder-gated task: Chunk 5 (public site/deploy/Phase-1 close-out, spec §7 Phase 1 #10).
+- Deploy (FOUNDER ACTION — agent cannot do this): Aiven MySQL account + `DATABASE_URL`, Render account (API), Vercel account (web), Brevo SMTP creds, Cloudinary creds; then spec §1.1 steps 1–9 (`migrate deploy` → Render → Vercel → `FRONTEND_ORIGIN` → live smoke test).
+- Scope decision for founder: attendance monthly/term reports UI is the one non-DONE Phase 1 item (`STATUS.md` — API endpoint exists + tested, UI missing). Small build; say the word and it's the next task.
 
 ## Exact next action
-- None — start from `AGENT_START_HERE.md`.
+- None for the agent — founder deploys per spec §1.1, or approves the attendance-reports UI build. Start from `AGENT_START_HERE.md`.
 
 ## Notes / decisions made mid-task (carry-over operational knowledge — keep)
 - Local API start command (3 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_RATE_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.
@@ -34,7 +36,7 @@
 - Design rules: inline styles only (no Tailwind), no new runtime deps (lucide-react present), spec-pinned copy/labels/aria/hrefs/nav untouched, navy sidebar + blue `#2563EB` kept.
 
 ## Repo state right now
-- YES — clean tree (this handoff is the last commit), all gates green (web+api typecheck/lint 0, root lint 0, **API 183/183**, **e2e 38/38 ×2** — 29 flow specs + 9 `human.spec.ts`). Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Demo login: slug `school-of-science`, password `Demo@1234` (see `DEMO_DATA.md`).
+- YES — clean tree (this handoff is the last commit), Chunk 5 verified with zero code changes (public.spec 5/5, enquiries 4/4, e2e 38/38, both prod builds green). Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Demo login: slug `school-of-science`, password `Demo@1234` (see `DEMO_DATA.md`).
 
 ---
 
