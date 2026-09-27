@@ -21,13 +21,14 @@
   - `f2150c3` + `9e6f38c` — Chunk 5 verification (marketing+enquiry vs §8.3, zero code changes).
   - `f2150c3` + `88cb8e3` + `fe17da3` — **LIVE DEPLOY + GATE**: Aiven MySQL (migrated + seeded), Render API + Vercel web live, 2 live blockers fixed (Vercel env, CORS), 6-test live gate green, login limiter restored.
   - This handoff — **attendance reports UI** (last Phase-1 gap): new `/attendance/reports` (month + custom from/to + staff section filter, range caption, empty states, pupil self-scope, no staff 403s) + reports link on the mark page; 2 new e2e (admin month/section/empty/range journey, pupil self-only). Verified: e2e **40/40**, web gates 0. `STATUS.md` Attendance row → DONE.
+  - Founder acceptance 2026-09-27: personally verified Phase 1 end-to-end on the live site — declared complete. Phase 2 queued for next session (Razorpay test mode, SMS/WhatsApp stub, library, transport, payroll, CRM, certificates) — NOT started.
 
 ## What's left in this task
-- Founder decisions only: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school. Phase 1 code is complete — all 10 items DONE.
+- Founder items: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school; (3) Phase 2 kickoff next session — Razorpay TEST MODE first (spec §7 #12), per spec never live keys.
 - Watch items: Aiven free sleeps when idle (power on from console if DB errors); Render free cold-starts ~50s; Brevo freemail sender may land in spam (custom domain + DKIM later).
 
 ## Exact next action
-- None for the agent — pilot with a real school, or say the word for Phase 2. Start from `AGENT_START_HERE.md`.
+- None for the agent — next session starts Phase 2 (Razorpay TEST MODE first). Start from `AGENT_START_HERE.md`.
 
 ## Notes / decisions made mid-task (carry-over operational knowledge — keep)
 - Local API start command (3 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_RATE_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.
