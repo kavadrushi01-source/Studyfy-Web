@@ -181,6 +181,25 @@ npm audit --audit-level=high
     timetable only probes the full section list as admin/teacher —
     pupils go straight to their scoped endpoint. Sweep re-run after the
     fixes: 0 findings, 0 console errors across 26 routes × 6 roles.
+27. **Reopened attendance day showed silent all-PRESENT defaults
+    (2026-09-27).** The marking screen loaded only the roster and never
+    fetched what had already been saved for that date - so reloading a
+    marked day displayed every student as Present, and a careless re-save
+    would have flipped real absences to present (silent data loss).
+    Found in the deep human pass: added `GET
+    /schools/:schoolId/attendance?date&sectionId` (same admin/class-teacher
+    gate as marking, 2 API tests) and hydrated the screen from it - on
+    section pick, Reload, and date change. Present/Absent pills also
+    gained `aria-pressed` so state is assertable (and screen-reader
+    legible) instead of style-only.
+28. **Blank marks inputs were saved as zeros (2026-09-27).** Marks entry
+    mapped every roster row through `Number(marks[id] ?? "")`, and
+    `Number("")` is `0` - typing one student's score silently sent 0 for
+    every untouched classmate, and re-entry overwrites server-side, so one
+    casual save would have wiped the section's real marks. Only rows the
+    teacher actually typed into are sent now; over-max scores are still
+    refused server-side ("Marks cannot exceed the maximum of N"), pinned
+    by the new e2e.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

@@ -9,14 +9,15 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE (deep-test round complete — fixes in `3f624d9`, pushed with this handoff)
+**Status:** IDLE (deep human pass complete — fixes in `bf50a1b`, pushed with this handoff)
 **Phase / Module:** —
-**Last updated:** 2026-09-26
+**Last updated:** 2026-09-27
 
 ## What's done in this task so far
 - Nothing in progress. Recent finished work (details in `STATUS.md`, bugs in `BUGSFIX.md`):
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
-  - `3f624d9` — deep-test round: every-route × 6-role sweep (temporary `_sweep.spec.ts`, deleted after going clean), 11 bugs fixed (BUGSFIX 22–26: favicon/robots 404s, param-driven detail pages, receipt popup false-block, roster dead ends, role-gated staff fetches/forms). Verified: e2e 29/29 twice consecutive, API 181/181, all gates 0, sweep 0 findings.
+  - `3f624d9` + `aadbe6c` — route×role sweep round: 11 bugs fixed (BUGSFIX 22–26), sweep spec created, run clean, deleted.
+  - `bf50a1b` + this handoff — **deep human pass** (2026-09-27): 9 new journey/edge tests kept permanently as `e2e/human.spec.ts` (temp-password admit→login, roster search/sort/paginate, payment zero-reject, attendance day-reopen persistence, class-targeted notice scoping, over-max marks refusal, signed-out gates/404/session/back-after-logout, 390px viewport, all-6-roles nav walk with zero-console-error assertion); found + fixed BUGSFIX 27–28 (attendance hydration via new `GET /attendance` roster endpoint + `aria-pressed` pills; typed-marks-only save — blank inputs were being sent as zeros). Verification: e2e **38/38** twice consecutive (one stall-retry run absorbed), API **183/183**, all gates 0.
 
 ## What's left in this task
 - Nothing. Next founder-gated task: Chunk 5 (public site/deploy/Phase-1 close-out, spec §7 Phase 1 #10).
@@ -27,12 +28,13 @@
 ## Notes / decisions made mid-task (carry-over operational knowledge — keep)
 - Local API start command (3 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_RATE_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.
 - Background processes: shell jobs die with the shell — use `Start-Process -WindowStyle Hidden`; kill by CommandLine `*server.js*` (API) vs `*next*` (web). Never run tsc/eslint/vitest IN PARALLEL with the e2e suite (contention → failures).
-- Local suite reality: green duration ~1.4–1.7m on this box; `retries: 1` absorbs machine stalls (a genuine regression fails both attempts — trace showed one 38s server-side stall once).
+- Local suite reality: green duration ~1m warm (38 tests; first cold run up to ~3m); `retries: 1` absorbs machine stalls (a genuine regression fails both attempts — trace showed one 38s server-side stall once).
+- MySQL sandbox (3307) can silently die mid-session; recovery: kill the stale `mysqld`, then `Start-Process -FilePath "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe" -ArgumentList "--datadir=C:\Users\kavad\studyfy-mysql-data","--port=3307","--bind-address=127.0.0.1","--mysqlx=OFF"` (mysqld is NOT on PATH). Datadir persists — no re-seed needed. The MySQL80 service on 3306 is unrelated — never touch it. Symptom: API tests fail suite-wide with "Can't reach database server at 127.0.0.1:3307".
 - Known externals unchanged: Brevo SMTP 525 (emails don't deliver; fails fast), Cloudinary 503 (uploads disabled by design).
 - Design rules: inline styles only (no Tailwind), no new runtime deps (lucide-react present), spec-pinned copy/labels/aria/hrefs/nav untouched, navy sidebar + blue `#2563EB` kept.
 
 ## Repo state right now
-- YES — clean tree (this handoff is the last commit), all gates green (web+api typecheck/lint 0, root lint 0, API 181/181, e2e 29/29 ×2). Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Demo login: slug `school-of-science`, password `Demo@1234` (see `DEMO_DATA.md`).
+- YES — clean tree (this handoff is the last commit), all gates green (web+api typecheck/lint 0, root lint 0, **API 183/183**, **e2e 38/38 ×2** — 29 flow specs + 9 `human.spec.ts`). Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Demo login: slug `school-of-science`, password `Demo@1234` (see `DEMO_DATA.md`).
 
 ---
 
