@@ -200,6 +200,20 @@ npm audit --audit-level=high
     teacher actually typed into are sent now; over-max scores are still
     refused server-side ("Marks cannot exceed the maximum of N"), pinned
     by the new e2e.
+29. **Pupil submit boxes rendered for every role (2026-09-28).** The
+    homework board's "Your answer" form + Submit button rendered under
+    every assignment for teachers, admins, and parents - dead forms
+    (their submit 403s server-side), confusing enough that a human tester
+    tried to use one. Same leak class as BUGSFIX 26, mirrored direction:
+    the submit block is now STUDENT-gated (post + grade were already
+    staff-gated). Pinned by e2e (teacher board carries zero submit boxes;
+    full teacher-post to pupil-submit loop green). Companion observations,
+    unchanged by design: (a) the Subject dropdown lists every subject
+    while posting is qualification-gated - the refusal ("Only a teacher
+    of this subject and section may post its homework.") is correct
+    server-side validation, not a bug; (b) the pupil board takes the 100
+    earliest-due rows, so far-future fixtures hide below backlog - date
+    e2e fixtures near-term.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

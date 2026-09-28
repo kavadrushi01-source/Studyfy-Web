@@ -328,3 +328,51 @@ test.describe("attendance reports", () => {
     await expect(page.getByLabel(/section/i)).toHaveCount(0);
   });
 });
+
+test.describe("homework submit scope", () => {
+  test("submit box is pupil-only; teacher posts own subject successfully", async ({ page }) => {
+    test.setTimeout(120000);
+    await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
+    const [boardResp] = await Promise.all([
+      page.waitForResponse(
+        (r) => /\/homework(\?|$)/.test(r.url()) && r.request().method() === "GET",
+        { timeout: 20000 },
+      ),
+      page.goto("/homework"),
+    ]);
+    expect(boardResp.ok()).toBeTruthy();
+    await expect(page.getByText("Post homework (teacher)").first()).toBeVisible();
+    // Teachers grade here - they never get the pupil submit box.
+    await expect(page.getByText("Your answer (student)")).toHaveCount(0);
+
+    // Arjun teaches Mathematics: qualified posting succeeds (Astronomy is
+    // correctly refused server-side - teaching-relationship gate).
+    await expect(page.locator('select[aria-label="Section ID"]')).toBeAttached({ timeout: 20000 });
+    await page.getByLabel(/section/i).selectOption({ label: "Grade 9 A" });
+    await expect(page.locator('select[aria-label="Subject"]')).toBeAttached({ timeout: 20000 });
+    const subjects = await page
+      .locator('select[aria-label="Subject"] option')
+      .evaluateAll((opts) => opts.map((o) => o.textContent ?? ""));
+    const math = subjects.find((t) => t.includes("Mathematics"));
+    expect(math).toBeTruthy();
+    await page.getByLabel(/subject/i).selectOption({ label: math ?? "" });
+    const stamp = Date.now().toString(36);
+    await page.getByLabel(/title/i).fill(`E2E Math ${stamp}`);
+    await page.getByLabel(/description/i).fill("Teacher-qualified posting check.");
+    // Due tomorrow: the pupil board takes the 100 earliest-due rows, so a
+    // far-future date would bury the fresh card beyond older backlog.
+    await page.getByLabel(/due date/i).fill(new Date(Date.now() + 86400000).toISOString().slice(0, 10));
+    await page.getByRole("button", { name: /post homework/i }).click();
+    await expect(page.getByText(`E2E Math ${stamp}`).first()).toBeVisible({ timeout: 20000 });
+
+    // The pupil (Grade 9 A) sees the submit box on the fresh card and submits.
+    await logout(page);
+    await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
+    await page.goto("/homework");
+    const card = page.locator("article", { hasText: `E2E Math ${stamp}` });
+    await expect(card.getByText("Your answer (student)")).toBeVisible({ timeout: 20000 });
+    await card.getByRole("textbox", { name: `Answer for E2E Math ${stamp}` }).fill("E2E answers here.");
+    await card.getByRole("button", { name: /^submit$/i }).click();
+    await expect(page.getByText(/Submitted — your teacher will grade it soon/i)).toBeVisible({ timeout: 20000 });
+  });
+});

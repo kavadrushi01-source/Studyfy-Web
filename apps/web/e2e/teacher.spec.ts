@@ -9,7 +9,10 @@ test.describe("SOS teacher circuit", () => {
     await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
     await page.goto("/dashboard/teacher");
     await expect(page.getByText("Arjun Mehta").first()).toBeVisible({ timeout: 20000 });
-    await expect(page.getByText("Grade 9 · A")).toBeVisible();
+    // Presence, not exact-once: the E2E DB accumulates homework rows across
+    // runs (each run posts its own), so several "Grade 9 · A" labels may
+    // legitimately render. The scoping proof is the "Grade 10" zero below.
+    await expect(page.getByText("Grade 9 · A").first()).toBeVisible();
     await expect(page.getByText("Grade 10")).toHaveCount(0);
     await page.screenshot({ path: "e2e/shots/teacher-board.png" });
 

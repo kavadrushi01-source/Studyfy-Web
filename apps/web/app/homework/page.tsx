@@ -470,6 +470,7 @@ export default function HomeworkPage() {
                 {item.subject.name} · {item.section.className} {item.section.name} · {item.teacher.name} · due{" "}
                 {fmtDue(item.dueDate)}
               </small>
+              {user?.role === "STUDENT" ? (
               <div style={{ marginTop: 12, borderTop: `1px solid ${colors.lineSoft}`, paddingTop: 12 }}>
                 <label
                   style={{ display: "block", fontSize: 13, fontWeight: 600, color: colors.inkSoft, marginBottom: 6 }}
@@ -505,6 +506,7 @@ export default function HomeworkPage() {
                   </button>
                 </div>
               </div>
+              ) : null}
             </article>
           );
         })
