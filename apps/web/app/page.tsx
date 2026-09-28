@@ -84,7 +84,7 @@ export default function LandingPage() {
           <span style={logoTile}>S</span>
           <span style={{ fontWeight: 700, fontSize: 18, color: colors.ink, letterSpacing: "-0.02em" }}>Studyfy</span>
         </Link>
-        <nav style={{ display: "flex", gap: 20, flex: 1, justifyContent: "center", fontSize: 14 }}>
+        <nav className="sf-public-nav" style={{ display: "flex", gap: 20, flex: 1, justifyContent: "center", fontSize: 14 }}>
           <a href="#top" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Home</a>
           <a href="#features" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Features</a>
           <a href="#pricing" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Pricing</a>

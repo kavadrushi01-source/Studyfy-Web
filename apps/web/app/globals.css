@@ -369,6 +369,25 @@ h3 {
   }
 }
 
+/* Grid children must never force their track wider than the viewport:
+   long content wraps inside the card instead of pushing the whole page.
+   (Without this, one long row can stretch its card past a 1fr track.) */
+.sf-grid-kpi > *,
+.sf-grid-2-1 > *,
+.sf-grid-1-1 > *,
+.sf-grid-3 > *,
+.sf-grid-hero > * {
+  min-width: 0;
+}
+
+/* Public landing header: center links collapse on phones (logo + Login +
+   Get Started stay). !important beats the nav's inline display:flex. */
+@media (max-width: 760px) {
+  .sf-public-nav {
+    display: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -232,7 +232,7 @@ export default function TeacherDashboardPage() {
                   }}
                 >
                   <span style={{ minWidth: 72, fontSize: 13, fontWeight: 700, color: colors.primary }}>Period {slot.period}</span>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, color: colors.ink, fontWeight: 600 }}>{slot.subjectName}</div>
                     <div style={{ fontSize: 12, color: colors.muted }}>
                       {slot.className} · {slot.sectionName}
@@ -338,7 +338,7 @@ export default function TeacherDashboardPage() {
                   >
                     <span style={{ width: 7, height: 7, borderRadius: 999, background: colors.warning }} />
                   </span>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ color: colors.ink, fontWeight: 600 }}>{item.title}</div>
                     <div style={{ fontSize: 12, color: colors.muted }}>
                       Homework{item.sectionName ? ` · ${item.sectionName}` : ""} · due {item.date ?? "no date"}
@@ -377,7 +377,7 @@ export default function TeacherDashboardPage() {
                   >
                     <span style={{ width: 7, height: 7, borderRadius: 999, background: colors.accent }} />
                   </span>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ color: colors.ink, fontWeight: 600 }}>{item.title}</div>
                     <div style={{ fontSize: 12, color: colors.muted }}>Exam · {item.date ?? "date to be announced"}</div>
                   </div>
@@ -407,7 +407,7 @@ export default function TeacherDashboardPage() {
                   }}
                 >
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span style={{ fontWeight: 600, color: colors.ink, flex: 1 }}>{message.user.name}</span>
+                    <span style={{ fontWeight: 600, color: colors.ink, flex: 1, minWidth: 0 }}>{message.user.name}</span>
                     {message.unread > 0 ? (
                       <span style={pill(colors.primary, colors.primaryGhost)}>
                         {message.unread} new

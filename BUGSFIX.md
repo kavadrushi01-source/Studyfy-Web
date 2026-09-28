@@ -214,6 +214,21 @@ npm audit --audit-level=high
     server-side validation, not a bug; (b) the pupil board takes the 100
     earliest-due rows, so far-future fixtures hide below backlog - date
     e2e fixtures near-term.
+30. **Three mobile-viewport overflows (2026-09-28).** A 390px sweep over
+    every route and role found exactly three pages pushing past the
+    viewport: (a) landing header (+253px) - center nav plus Login/Get
+    Started block; fixed by collapsing center links at 760px or below
+    (needed `!important` - the nav's inline `display:flex` beats any
+    stylesheet rule); (b) dashboard cards with long rows (+9px) - grid
+    children forcing their 1fr track wider; fixed with a global
+    `min-width: 0` rule on grid children plus `min-width: 0` on the row
+    content divs; (c) messages thread rows with long previews (+26px) -
+    the threads list needed `minmax(0, 1fr)`. Re-sweep after the fixes:
+    0px on all 30+ pages, header screenshot-verified. Debugging rules
+    earned: when CSS "doesn't apply", suspect inline styles first; when
+    a fix "doesn't take", verify which server build is actually serving
+    (a stale process held port 3001 through two restarts here); hunt
+    overflowing elements with bounding-rect measurements, not theory.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

@@ -386,7 +386,7 @@ export default function MessagesPage() {
               detail="Threads appear here once someone writes to you."
             />
           ) : (
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8, gridTemplateColumns: "minmax(0, 1fr)" }}>
               {threads.map((t) => {
                 const active = t.user.id === activeUserId;
                 return (
