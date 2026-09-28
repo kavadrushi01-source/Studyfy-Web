@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE (homework submit-scope fix — pushed with this handoff)
+**Status:** IDLE (role-depth round: 8 new tests, zero product bugs, 49/49 — pushed with this handoff)
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
@@ -22,7 +22,8 @@
   - `f2150c3` + `88cb8e3` + `fe17da3` — **LIVE DEPLOY + GATE**: Aiven MySQL (migrated + seeded), Render API + Vercel web live, 2 live blockers fixed (Vercel env, CORS), 6-test live gate green, login limiter restored.
   - This handoff — **attendance reports UI** (last Phase-1 gap): new `/attendance/reports` (month + custom from/to + staff section filter, range caption, empty states, pupil self-scope, no staff 403s) + reports link on the mark page; 2 new e2e (admin month/section/empty/range journey, pupil self-only). Verified: e2e **40/40**, web gates 0. `STATUS.md` Attendance row → DONE.
   - Founder acceptance 2026-09-27: personally verified Phase 1 end-to-end on the live site — declared complete. Phase 2 queued for next session (Razorpay test mode, SMS/WhatsApp stub, library, transport, payroll, CRM, certificates) — NOT started.
-  - This handoff — **homework submit-scope fix** (founder-found while testing): pupil submit boxes rendered for every role (teachers saw dead submit forms); submit block now STUDENT-gated. Also corrected: Arjun teaches Mathematics, not Astronomy — the "Only a teacher of this subject and section" refusal was correct server-side validation, not a bug. New e2e (teacher zero-submit-boxes + qualified Math post + pupil submit loop). Verified: e2e **41/41**, web gates 0. BUGSFIX 29.
+  - `0c3cff3` + `f181171` — **homework submit-scope fix** (founder-found): pupil submit boxes were rendering for every role; submit block now STUDENT-gated. Arjun teaches Mathematics (Astronomy refusal was correct validation). BUGSFIX 29.
+  - This handoff — **role-depth round** (teacher/student/parent, human-level): 8 new e2e — teacher 9-B roster empty-state + disabled save (API 403 NOT_SECTION_TEACHER), pupil resubmit succeeds twice, student-only fees, parent homework read, parent→teacher message, pupil profile tamper fails closed ("Not your record."), pupil admin-board denial, overpayment refused with balance. Finding: ZERO product bugs — every refusal/message correct; only fix was teacher.spec exact-count → presence assert (suite convention: assert presence, not seed counts). Verified: e2e **49/49**, web TC+lint 0.
 
 ## What's left in this task
 - Founder items: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school; (3) Phase 2 kickoff next session — Razorpay TEST MODE first (spec §7 #12), per spec never live keys.
@@ -34,13 +35,13 @@
 ## Notes / decisions made mid-task (carry-over operational knowledge — keep)
 - Local API start command (3 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_RATE_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.
 - Background processes: shell jobs die with the shell — use `Start-Process -WindowStyle Hidden`; kill by CommandLine `*server.js*` (API) vs `*next*` (web). Never run tsc/eslint/vitest IN PARALLEL with the e2e suite (contention → failures).
-- Local suite reality: green duration ~1m warm (41 tests; first cold run up to ~3m); `retries: 1` absorbs machine stalls (a genuine regression fails both attempts — trace showed one 38s server-side stall once).
+- Local suite reality: green duration ~1-2m warm (49 tests; first cold run up to ~4m); `retries: 1` absorbs machine stalls (a genuine regression fails both attempts — trace showed one 38s server-side stall once).
 - MySQL sandbox (3307) can silently die mid-session; recovery: kill the stale `mysqld`, then `Start-Process -FilePath "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe" -ArgumentList "--datadir=C:\Users\kavad\studyfy-mysql-data","--port=3307","--bind-address=127.0.0.1","--mysqlx=OFF"` (mysqld is NOT on PATH). Datadir persists — no re-seed needed. The MySQL80 service on 3306 is unrelated — never touch it. Symptom: API tests fail suite-wide with "Can't reach database server at 127.0.0.1:3307".
 - Known externals unchanged: Brevo SMTP 525 (emails don't deliver; fails fast), Cloudinary 503 (uploads disabled by design).
 - Design rules: inline styles only (no Tailwind), no new runtime deps (lucide-react present), spec-pinned copy/labels/aria/hrefs/nav untouched, navy sidebar + blue `#2563EB` kept.
 
 ## Repo state right now
-- YES — clean tree (this handoff is the last commit), homework submit-scope fixed (e2e 41/41, web gates 0). Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Demo login: slug `school-of-science`, password `Demo@1234` (see `DEMO_DATA.md`).
+- YES — clean tree (this handoff is the last commit), role-depth round, zero product bugs (e2e 49/49, web gates 0). Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Demo login: slug `school-of-science`, password `Demo@1234` (see `DEMO_DATA.md`).
 
 ---
 

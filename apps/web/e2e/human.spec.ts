@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { ACCOUNTS, SOS_SLUG, login, logout } from "./helpers.js";
+import { ACCOUNTS, PASSWORD, SOS_SLUG, login, logout } from "./helpers.js";
+
+const API = process.env.E2E_API_URL ?? "http://localhost:4001";
 
 // Deep human-like pass: the things a careful person does that the flow
 // specs don't - reopening a saved day, typing bad numbers, resizing the
@@ -374,5 +376,130 @@ test.describe("homework submit scope", () => {
     await card.getByRole("textbox", { name: `Answer for E2E Math ${stamp}` }).fill("E2E answers here.");
     await card.getByRole("button", { name: /^submit$/i }).click();
     await expect(page.getByText(/Submitted — your teacher will grade it soon/i)).toBeVisible({ timeout: 20000 });
+  });
+});
+
+test.describe("role depth: teacher, student, parent", () => {
+  test("teacher sees only own section roster; others show the empty state", async ({ page }) => {
+    await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
+    await page.goto("/attendance/mark");
+    await page.getByLabel(/section/i).selectOption({ label: "Grade 9 · B" });
+    await expect(page.getByText("No students in this section")).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole("button", { name: /save attendance/i })).toBeDisabled();
+    await page.getByLabel(/section/i).selectOption({ label: "Grade 9 · A" });
+    await expect(page.getByText("Aditya Sharma")).toBeVisible({ timeout: 20000 });
+  });
+
+  test("pupil resubmits: second submit also succeeds", async ({ page }) => {
+    test.setTimeout(120000);
+    await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
+    await page.goto("/homework");
+    await expect(page.locator('select[aria-label="Section ID"]')).toBeAttached({ timeout: 20000 });
+    await page.getByLabel(/section/i).selectOption({ label: "Grade 9 A" });
+    await expect(page.locator('select[aria-label="Subject"]')).toBeAttached({ timeout: 20000 });
+    const subjects = await page
+      .locator('select[aria-label="Subject"] option')
+      .evaluateAll((opts) => opts.map((o) => o.textContent ?? ""));
+    const math = subjects.find((t) => t.includes("Mathematics"));
+    expect(math).toBeTruthy();
+    await page.getByLabel(/subject/i).selectOption({ label: math ?? "" });
+    const stamp = Date.now().toString(36);
+    await page.getByLabel(/title/i).fill(`E2E Resubmit ${stamp}`);
+    await page.getByLabel(/description/i).fill("Resubmit path check.");
+    await page.getByLabel(/due date/i).fill(new Date(Date.now() + 86400000).toISOString().slice(0, 10));
+    await page.getByRole("button", { name: /post homework/i }).click();
+    await expect(page.getByText(`E2E Resubmit ${stamp}`).first()).toBeVisible({ timeout: 20000 });
+
+    await logout(page);
+    await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
+    await page.goto("/homework");
+    const card = page.locator("article", { hasText: `E2E Resubmit ${stamp}` });
+    const box = card.getByRole("textbox", { name: `Answer for E2E Resubmit ${stamp}` });
+    await expect(box).toBeVisible({ timeout: 20000 });
+    await box.fill("First attempt answers.");
+    await card.getByRole("button", { name: /^submit$/i }).click();
+    await expect(page.getByText(/Submitted — your teacher will grade it soon/i).first()).toBeVisible({
+      timeout: 20000,
+    });
+    await box.fill("Second attempt, improved answers.");
+    await card.getByRole("button", { name: /^submit$/i }).click();
+    await expect(page.getByText(/Submitted — your teacher will grade it soon/i).first()).toBeVisible({
+      timeout: 20000,
+    });
+  });
+
+  test("student fees show only their own invoices", async ({ page }) => {
+    await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
+    await page.goto("/fees");
+    await expect(page.getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("Priya Patel")).toHaveCount(0);
+  });
+
+  test("parent reads the child's homework board", async ({ page }) => {
+    await login(page, ACCOUNTS.sosParent, SOS_SLUG);
+    await page.goto("/homework");
+    await expect(page.getByText("Geometry Problems").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByLabel(/section/i)).toHaveCount(0);
+  });
+
+  test("parent messages the linked teacher", async ({ page }) => {
+    test.setTimeout(90000);
+    await login(page, ACCOUNTS.sosParent, SOS_SLUG);
+    await page.goto("/messages");
+    await expect(page.getByLabel(/recipient/i).locator("option", { hasText: /^Arjun Mehta/ })).toBeAttached({
+      timeout: 20000,
+    });
+    const recipients = await page
+      .getByLabel(/recipient/i)
+      .locator("option")
+      .evaluateAll((opts) => opts.map((o) => ({ value: (o as HTMLOptionElement).value, text: o.textContent ?? "" })));
+    const arjun = recipients.find((c) => c.text.startsWith("Arjun Mehta"));
+    expect(arjun?.value).toBeTruthy();
+    await page.getByLabel(/recipient/i).selectOption(arjun?.value ?? "");
+    const stamp = Date.now().toString(36);
+    await page.getByLabel(/first message/i).fill(`Parent probe ${stamp} - how is Aditya doing in maths?`);
+    await page.getByRole("button", { name: /start conversation/i }).click();
+    await expect(page.getByText(`Parent probe ${stamp}`).first()).toBeVisible({ timeout: 20000 });
+  });
+
+  test("pupil cannot open another pupil's profile", async ({ page, request }) => {
+    const loginRes = await request.post(`${API}/api/v1/auth/login`, {
+      data: { email: ACCOUNTS.sosAdmin, password: PASSWORD, schoolSlug: SOS_SLUG },
+    });
+    expect(loginRes.ok()).toBeTruthy();
+    const loginBody = (await loginRes.json()) as {
+      data: { accessToken: string; user: { schoolId: string } };
+    };
+    const token = loginBody.data.accessToken;
+    const schoolId = loginBody.data.user.schoolId;
+    const listRes = await request.get(`${API}/api/v1/schools/${schoolId}/students?search=Priya&pageSize=3`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const listBody = (await listRes.json()) as { data: { students: { id: string }[] } };
+    const priyaId = listBody.data.students[0]?.id ?? "";
+    expect(priyaId).toBeTruthy();
+
+    await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
+    await page.goto(`/students/${priyaId}`);
+    await expect(page.getByText("Priya Patel")).toHaveCount(0, { timeout: 20000 });
+    await expect(page.getByText(/not your record|not found|failed to load|forbidden|denied/i)).toBeVisible({
+      timeout: 20000,
+    });
+  });
+
+  test("pupil is denied the admin dashboard", async ({ page }) => {
+    await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
+    await page.goto("/dashboard");
+    await expect(page.getByText(/not for your role|forbidden|permission/i)).toBeVisible({ timeout: 20000 });
+  });
+
+  test("counter refuses overpayment with the balance message", async ({ page }) => {
+    await login(page, ACCOUNTS.sosAccountant, SOS_SLUG);
+    await page.goto("/fees");
+    await expect(page.locator('select[aria-label="Unpaid invoice"]')).toBeVisible({ timeout: 20000 });
+    await page.getByLabel(/unpaid invoice/i).selectOption({ index: 1 });
+    await page.getByLabel(/amount/i).fill("999999");
+    await page.getByRole("button", { name: /record payment/i }).click();
+    await expect(page.getByText(/exceeds the outstanding balance/i)).toBeVisible({ timeout: 20000 });
   });
 });
