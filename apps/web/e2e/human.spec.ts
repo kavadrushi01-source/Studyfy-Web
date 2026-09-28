@@ -221,8 +221,13 @@ test.describe("session, gates and edges", () => {
     await page.getByRole("link", { name: /open my board/i }).click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
     await expect(page.locator("h1").first()).toBeVisible({ timeout: 20000 });
-    // Sidebar stacks above the content at this width but every link works.
+    // Phones start with the menu collapsed: content first, links one tap away.
+    const menuButton = page.getByRole("button", { name: /open menu/i });
+    await expect(menuButton).toBeVisible();
     const studentsLink = page.getByRole("link", { name: /^students$/i });
+    await expect(studentsLink).toBeHidden();
+    await menuButton.click();
+    await expect(page.getByRole("button", { name: /close menu/i })).toBeVisible();
     await expect(studentsLink).toBeVisible();
     await studentsLink.click();
     await expect(page).toHaveURL(/\/students/);

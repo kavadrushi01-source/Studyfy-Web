@@ -229,6 +229,17 @@ npm audit --audit-level=high
     a fix "doesn't take", verify which server build is actually serving
     (a stale process held port 3001 through two restarts here); hunt
     overflowing elements with bounding-rect measurements, not theory.
+31. **Sidebar ate the whole phone screen (2026-09-28).** Past the overflow
+    fixes, every dashboard still opened with the full navy menu (logo,
+    badge, 12 links, logout) stacked above the content - usable but not
+    phone-grade. The sidebar is now a collapsible top strip on narrow
+    screens: logo + badge + hamburger, menu collapsed by default, content
+    first. Caught mid-build by screenshot review: the collapse CSS did
+    nothing at first because the nav/logout carry inline `display`
+    styles - same inline-beats-stylesheet trap as BUGSFIX 30, same
+    `!important` cure, now a standing rule (visibility always lives in
+    classes, never inline). Pinned by e2e (collapsed-by-default,
+    open-close, navigate).
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

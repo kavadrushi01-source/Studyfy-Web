@@ -1,7 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { LogOut } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { gradients, shadows } from "@/lib/theme";
 import { ROLE_BOARDS } from "./role-boards";
@@ -25,6 +25,9 @@ export function Shell({
     throw new Error(`Unknown role board: ${role}`);
   }
   const { logout } = useAuth();
+  // Phones start with the menu collapsed (content first, one tap to
+  // navigate); desktops start open. CSS hides the toggle above 900px.
+  const [menuOpen, setMenuOpen] = useState(() => (typeof window === "undefined" ? true : window.innerWidth > 900));
 
   async function handleLogout(): Promise<void> {
     await logout();
@@ -34,7 +37,7 @@ export function Shell({
   return (
     <div className="sf-shell" style={{ fontFamily: "Inter, system-ui, sans-serif" }}>
       <aside
-        className="sf-sidebar"
+        className={`sf-sidebar${menuOpen ? "" : " sf-side-collapsed"}`}
         style={{
           background: gradients.sidebar,
           color: "#E2E8F0",
@@ -63,9 +66,29 @@ export function Shell({
           >
             S
           </span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: "#fff", letterSpacing: "-0.02em" }}>
+          <span style={{ fontWeight: 700, fontSize: 18, color: "#fff", letterSpacing: "-0.02em", flex: 1 }}>
             Studyfy
           </span>
+          <button
+            type="button"
+            className="sf-menu-btn"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
+            style={{
+              alignItems: "center",
+              justifyContent: "center",
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              border: "1px solid rgba(148,163,184,.25)",
+              background: "rgba(255,255,255,.06)",
+              color: "#E2E8F0",
+              cursor: "pointer",
+            }}
+          >
+            {menuOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
+          </button>
         </div>
         <div
           style={{
@@ -89,7 +112,7 @@ export function Shell({
         >
           {board.badge}
         </div>
-        <nav style={{ display: "grid", gap: 3, flex: 1 }}>
+        <nav className="sf-side-nav" style={{ display: "grid", gap: 3, flex: 1 }}>
           {board.nav.map((item) => {
             const active = item.href === activeHref;
             if (!item.href) {
@@ -177,6 +200,7 @@ export function Shell({
         </nav>
         <button
           type="button"
+          className="sf-side-logout"
           onClick={handleLogout}
           style={{
             marginTop: 16,

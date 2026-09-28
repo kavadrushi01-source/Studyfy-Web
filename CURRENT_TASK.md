@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE (responsive round: 3 mobile overflows fixed, sweep 0px everywhere — pushed with this handoff)
+**Status:** IDLE (mobile-menu round: collapsible sidebar on phones — pushed with this handoff)
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
@@ -24,7 +24,8 @@
   - Founder acceptance 2026-09-27: personally verified Phase 1 end-to-end on the live site — declared complete. Phase 2 queued for next session (Razorpay test mode, SMS/WhatsApp stub, library, transport, payroll, CRM, certificates) — NOT started.
   - `0c3cff3` + `f181171` — **homework submit-scope fix** (founder-found): pupil submit boxes were rendering for every role; submit block now STUDENT-gated. Arjun teaches Mathematics (Astronomy refusal was correct validation). BUGSFIX 29.
   - `7f6c476` — **role-depth round** (teacher/student/parent, human-level): 8 new e2e, zero product bugs, teacher.spec presence-assert fix. Verified: e2e **49/49**, web TC+lint 0.
-  - This handoff — **responsive round** (founder: site not responsive on phone): 390px sweep over every route × role found exactly 3 overflows — landing header (+253px, center nav collapsed ≤760px with `!important` vs inline style), dashboard cards (+9px, global grid-children `min-width: 0` + row fixes), messages threads (+26px, `minmax(0, 1fr)`). Re-sweep 0px everywhere, header screenshot-verified, e2e 49/49. BUGSFIX 30.
+  - `a80cd8c` — **responsive round**: 390px sweep found 3 overflows (landing header +253px, dashboard cards +9px, message threads +26px), all fixed, re-sweep 0px. BUGSFIX 30.
+  - This handoff — **mobile-menu round** (founder: make it perfect): sidebar collapses to logo + badge + hamburger on narrow screens (open on desktop), nav + logout hide until tapped; mobile e2e updated (collapsed-by-default, toggle, navigate). Screenshot-verified both states, e2e 49/49. BUGSFIX 31. Standing rule: visibility lives in classes, never inline display.
 
 ## What's left in this task
 - Founder items: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school; (3) Phase 2 kickoff next session — Razorpay TEST MODE first (spec §7 #12), per spec never live keys.
@@ -42,7 +43,7 @@
 - Design rules: inline styles only (no Tailwind), no new runtime deps (lucide-react present), spec-pinned copy/labels/aria/hrefs/nav untouched, navy sidebar + blue `#2563EB` kept.
 
 ## Repo state right now
-- YES — clean tree (this handoff is the last commit), role-depth round + responsive fixes (e2e 49/49, web gates 0). Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Demo login: slug `school-of-science`, password `Demo@1234` (see `DEMO_DATA.md`).
+- YES — clean tree (this handoff is the last commit), role-depth + responsive + mobile-menu rounds (e2e 49/49, web gates 0). Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Demo login: slug `school-of-science`, password `Demo@1234` (see `DEMO_DATA.md`).
 
 ---
 

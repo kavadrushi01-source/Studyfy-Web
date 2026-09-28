@@ -380,6 +380,24 @@ h3 {
   min-width: 0;
 }
 
+/* App-shell mobile menu: the toggle only exists on narrow screens, and a
+   collapsed sidebar shows just logo + badge (content first, one tap to
+   navigate). Classes carry visibility (never inline display) so the
+   stylesheet always wins. */
+.sf-menu-btn {
+  display: none;
+}
+@media (max-width: 900px) {
+  .sf-menu-btn {
+    display: inline-flex;
+  }
+  /* !important: both targets carry inline display styles that would win. */
+  .sf-side-collapsed .sf-side-nav,
+  .sf-side-collapsed .sf-side-logout {
+    display: none !important;
+  }
+}
+
 /* Public landing header: center links collapse on phones (logo + Login +
    Get Started stay). !important beats the nav's inline display:flex. */
 @media (max-width: 760px) {
