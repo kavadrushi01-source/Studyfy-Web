@@ -514,7 +514,7 @@ schools (tenant root, has `timezone` §12.7 and `subscriptionStatus`/`trialEndsA
  ├── staff (user_id FK)
  ├── teacher_subjects (staff_id FK, subject_id FK)  ← which subjects a teacher is qualified to teach; added in Phase 1 (Timetable generation and Messaging's teaching-relationship scope both need it — see §9.1's note below), not part of Phase 0's initial schema
  ├── attendance (student_id FK, marked_by FK → staff, date, status)
- ├── fee_structures (class_id FK) ── fee_invoices (student_id FK) ── fee_payments (invoice_id FK)
+  ├── fee_structures (class_id FK) ── fee_invoices (student_id FK) ── fee_payments (invoice_id FK, provider_order_id + provider_payment_id UNIQUE NULLABLE — §13.8 idempotency keys, see note below)
  ├── exams (school_id FK) ── exam_subjects (→ subjects) ── marks (student_id FK, exam_subject_id FK)
  ├── timetable_slots (section_id FK, subject_id FK, teacher_id FK, day, period)
  ├── homework (section_id FK, subject_id FK, teacher_id FK) ── homework_submissions (student_id FK)
@@ -581,8 +581,25 @@ schools (tenant root, has `timezone` §12.7 and `subscriptionStatus`/`trialEndsA
   mental-simulation review passes on this plan kept finding things a pure
   read didn't. Add this table in Phase 1 (Chunk 3, alongside Timetable),
   and add it to `SECURITY_PATTERNS.md`'s `TENANT_MODELS` in the same
-  commit — don't let it become a fourth instance of that exact list
-  missing an entry.
+   commit — don't let it become a fourth instance of that exact list
+   missing an entry.
+- **`fee_payments.provider_order_id / provider_payment_id`** (the §13.8
+  idempotency keys) were missing from this schema the same way —
+  `provider_payment_id` got its UNIQUE when receipts were built, but
+  nothing could actually look a payment up by the provider's order ID,
+  which is exactly what §13.8's "look up the invoice by the Razorpay
+  order/payment ID" requires the webhook to do. Both columns are now
+  UNIQUE NULLABLE (NULL for manual counter payments — MySQL allows
+  multiple NULLs, so the counter flow is untouched), and the Phase 2
+  webhook resolves invoice + school through them instead of trusting
+  anything embedded in the payload. Two deliberate non-decisions,
+  recorded so nobody "fixes" them later: the columns are named
+  `provider_*`, not `razorpay_*` — gateway-agnostic on purpose, so the
+  names survive a gateway change; and there is deliberately NO status
+  column on `fee_payments` — payment rows are created only on capture
+  (immutable money records), while `fee_invoices.status` already carries
+  PENDING/PARTIAL/PAID/OVERDUE/REFUNDED, so a payment-level status would
+  be a second source of truth with no reader.
 
 ### 9.2 Indexing
 Composite `attendance(school_id, section_id, date)`, `students(school_id,

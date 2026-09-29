@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE (§13.8 idempotency gap closed — pushed with this handoff)
+**Status:** IDLE (spec §9.1 aligned with shipped idempotency — pushed with this handoff)
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
@@ -27,6 +27,7 @@
   - `a80cd8c` — **responsive round**: 390px sweep found 3 overflows (landing header +253px, dashboard cards +9px, message threads +26px), all fixed, re-sweep 0px. BUGSFIX 30.
   - `2aff06b` — **mobile-menu round**: collapsible sidebar on phones, e2e 49/49. BUGSFIX 31.
   - This handoff — **§13.8 idempotency gap** (Phase 2 prep): `providerOrderId` had no unique/index and nothing looked payments up by provider ids. Now both ids UNIQUE (NULL-safe for counter payments), new `findPaymentByProviderId` (resolves invoice+school for the future webhook), migration applied to all local DBs, 3 new API tests (lookup both ways, NULL coexistence, duplicate rejection). Verified: API **186/186**, gates 0.
+  - This handoff — **spec §9.1 alignment**: the ER overview + a `teacher_subjects`-style honest-gap note now document `provider_order_id`/`provider_payment_id` UNIQUE NULLABLE, why the names are `provider_*` not `razorpay_*`, and why there is deliberately no payment status column. No code changes (schema/code already shipped); spec-only commit.
 
 ## What's left in this task
 - Founder items: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school; (3) Phase 2 kickoff next session — Razorpay TEST MODE first (spec §7 #12), per spec never live keys.
