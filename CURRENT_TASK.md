@@ -97,3 +97,4 @@
    `RULES.md` §6.1) — `STATUS.md` tracks *finished* features at the phase
    level; this file tracks the *one task in progress* at the step level.
    Don't let detail pile up in both places.
+
