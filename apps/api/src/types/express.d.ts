@@ -22,6 +22,11 @@ declare global {
       // this teacher owns (classTeacherId). Absent = unconstrained.
       // Empty array = fail-closed, sees nothing. List handlers MUST apply it.
       sectionScope?: string[];
+      // Set for EVERY JSON request by the body parser (see app.ts): the
+      // exact raw bytes received. Webhook signature verification (§13.8)
+      // must HMAC these bytes — re-serializing req.body would produce
+      // different bytes and break every signature.
+      rawBody?: Buffer;
     }
   }
 }

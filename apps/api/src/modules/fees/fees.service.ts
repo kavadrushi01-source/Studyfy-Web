@@ -547,3 +547,79 @@ export async function initiateOnlinePayment(
     status: payment.status,
   };
 }
+
+export interface OnlineCaptureResult {
+  paymentId: string;
+  invoiceId: string;
+  status: string;
+  alreadyProcessed: boolean;
+}
+
+// Webhook capture (§13.8): record a captured online payment. The caller
+// (the route, after signature verification) passes ONLY the provider
+// order id, payment id, and paid paise — everything else comes from OUR
+// database: the PENDING row (created at initiation) gives the invoice,
+// and the invoice gives the school and the outstanding balance.
+// - Existing payment id → already processed (redelivery): return without
+//   touching anything, so a duplicate can never double-credit.
+// - Unknown order id → 404: money is never recorded for an order we did
+//   not initiate, no matter what the payload claims.
+// - Paid paise must equal the recomputed outstanding exactly, or the
+//   capture is refused (server-side amount discipline, same as initiation).
+// - A simultaneous redelivery racing this transaction hits the UNIQUE
+//   constraint (P2002) and is treated as already-processed, not an error.
+export async function recordOnlineCapture(
+  db: PrismaClient,
+  input: { razorpayOrderId: string; razorpayPaymentId: string; amountPaise: number },
+): Promise<OnlineCaptureResult> {
+  const existing = await db.feePayment.findUnique({ where: { razorpayPaymentId: input.razorpayPaymentId } });
+  if (existing) {
+    return { paymentId: existing.id, invoiceId: existing.invoiceId, status: existing.status, alreadyProcessed: true };
+  }
+  const pending = await db.feePayment.findUnique({ where: { razorpayOrderId: input.razorpayOrderId } });
+  if (!pending) {
+    throw new AuthError(404, "ORDER_NOT_FOUND", "No payment initiation matches this order.");
+  }
+  if (pending.status === "CAPTURED") {
+    return { paymentId: pending.id, invoiceId: pending.invoiceId, status: pending.status, alreadyProcessed: true };
+  }
+  const invoice = await db.feeInvoice.findFirst({ where: { id: pending.invoiceId } });
+  if (!invoice) {
+    throw new AuthError(404, "INVOICE_NOT_FOUND", "Invoice not found in this school.");
+  }
+  const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
+  if (Math.round(outstanding.toNumber() * 100) !== input.amountPaise) {
+    throw new AuthError(400, "AMOUNT_MISMATCH", "Paid amount does not match the outstanding balance.");
+  }
+  const amount = new Prisma.Decimal(input.amountPaise).dividedBy(100);
+  const newPaid = new Prisma.Decimal(invoice.amountPaid).plus(amount);
+  const settled = newPaid.greaterThanOrEqualTo(new Prisma.Decimal(invoice.amount));
+  try {
+    const [payment, updated] = await db.$transaction([
+      db.feePayment.update({
+        where: { id: pending.id },
+        data: { razorpayPaymentId: input.razorpayPaymentId, amount, status: "CAPTURED" },
+      }),
+      db.feeInvoice.update({
+        where: { id: invoice.id },
+        data: { amountPaid: newPaid, status: settled ? "PAID" : "PARTIAL" },
+      }),
+    ]);
+    invalidateFeeKpis(invoice.schoolId);
+    invalidateActivityFeed(invoice.schoolId);
+    invalidateAccountantBoards(invoice.schoolId);
+    invalidateStudentBoards(invoice.schoolId);
+    return { paymentId: payment.id, invoiceId: updated.id, status: payment.status, alreadyProcessed: false };
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const raced = await db.feePayment.findUnique({ where: { razorpayPaymentId: input.razorpayPaymentId } });
+      return {
+        paymentId: raced?.id ?? pending.id,
+        invoiceId: pending.invoiceId,
+        status: raced?.status ?? "CAPTURED",
+        alreadyProcessed: true,
+      };
+    }
+    throw err;
+  }
+}

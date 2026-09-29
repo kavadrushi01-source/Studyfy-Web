@@ -60,7 +60,7 @@
 | Module | Status | Notes |
 |---|---|---|
 | SMS/WhatsApp | NOT STARTED | Stub until a real gateway is deliberately enabled |
-| Online fee payment (Razorpay/UPI) | IN PROGRESS — pay-order endpoint built (invoice-id-only in, server-computed paise out, PENDING row, self-scoped, TEST-guard; 5 API tests green) — webhook + TEST MODE UI remain | **Build for real, TEST MODE only, permanently.** Follow spec §13.8's full checklist. Never add live keys — see §1/§13.8 |
+| Online fee payment (Razorpay/UPI) | IN PROGRESS — pay-order + webhook + checkout UI built and tested (TEST MODE badges, hermetic e2e); needs webhook registration + live test payment | **Build for real, TEST MODE only, permanently.** Follow spec §13.8's full checklist. Never add live keys — see §1/§13.8 |
 | Library | NOT STARTED | |
 | Transport | NOT STARTED | |
 | HR/Payroll | NOT STARTED | |

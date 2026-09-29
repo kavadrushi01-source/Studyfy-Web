@@ -24,7 +24,16 @@ export function createApp(): Express {
   app.set("trust proxy", 1);
   applyHelmet(app);
   applyCors(app);
-  app.use(express.json());
+  app.use(
+    express.json({
+      // Stash the exact raw bytes on every JSON request — the payments
+      // webhook (§13.8) HMACs these, since re-serialized JSON would break
+      // signatures. Nothing else reads rawBody today.
+      verify: (req, _res, buf) => {
+        (req as Express.Request).rawBody = buf;
+      },
+    }),
+  );
   app.use(cookieParser());
 
   // Blank hello-world route — real modules mount under /api/v1/... per spec §10.

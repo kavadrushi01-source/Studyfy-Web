@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import Razorpay from "razorpay";
 import { AuthError } from "../modules/auth/auth.service.js";
 
@@ -47,4 +48,28 @@ export async function createRazorpayOrder(
     notes,
   })) as { id: string; amount: number; currency: string; receipt: string; status: string };
   return { id: order.id, amount: order.amount, currency: order.currency, receipt: order.receipt, status: order.status, keyId };
+}
+
+// Webhook trust root (§13.8): the HMAC-SHA256 of the RAW request bytes,
+// keyed with the webhook secret, must equal Razorpay's signature header -
+// compared in constant time. Anything else (missing secret, missing or
+// wrong signature) fails closed: the payload is never even parsed for
+// decisions. Missing secret is a 503 (can't verify = can't process),
+// wrong signature is for the caller to treat as 401.
+export function webhookSecret(): string {
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET ?? "";
+  if (!secret) {
+    throw new AuthError(503, "PAYMENTS_UNCONFIGURED", "Online payments are not configured yet.");
+  }
+  return secret;
+}
+
+export function verifyWebhookSignature(rawBody: Buffer, signature: string): boolean {
+  if (!signature) {
+    return false;
+  }
+  const expected = crypto.createHmac("sha256", webhookSecret()).update(rawBody).digest("hex");
+  const a = Buffer.from(expected, "utf8");
+  const b = Buffer.from(signature, "utf8");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }

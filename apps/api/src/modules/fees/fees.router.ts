@@ -6,7 +6,9 @@ import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { createStructureSchema, generateInvoicesSchema, listInvoicesSchema, listPaymentsSchema, recordPaymentSchema } from "./fees.schemas.js";
-import { createStructure, generateInvoices, initiateOnlinePayment, listInvoices, listPayments, recordPayment, runFeeReminders } from "./fees.service.js";
+import { createStructure, generateInvoices, initiateOnlinePayment, listInvoices, listPayments, recordOnlineCapture, recordPayment, runFeeReminders } from "./fees.service.js";
+import { verifyWebhookSignature } from "../../lib/razorpay.js";
+import { prisma } from "../../lib/prisma.js";
 import { generateFeeReceipt } from "../../lib/receipt.js";
 
 export const feesRouter = Router();
@@ -335,5 +337,78 @@ feesRouter.post(
     }
     const result = await runFeeReminders(req.prisma, req.schoolId ?? "");
     res.status(200).json({ success: true, data: result, error: null, meta: null });
+  }),
+);
+
+// Razorpay webhook (§13.8, Phase 2 TEST MODE). Deliberately OUTSIDE auth,
+// tenant, AND rate-limit middleware: webhooks carry no JWT or school
+// context (throttling them would cause redelivery storms), and the tenant
+// is resolved from OUR database via the order id — never from anything
+// embedded in the payload. The HMAC signature IS the authentication:
+// unverified requests are rejected before a single byte is trusted.
+feesRouter.post(
+  "/payments/webhook",
+  catchAsync(async (req: Request, res: Response) => {
+    // NOTE: intentionally the RAW client, not req.prisma — there is no
+    // tenant context on a webhook (no JWT, no :schoolId), exactly like the
+    // public enquiries and auth-register routes. Tenant identity comes
+    // OUT of the lookup below (the invoice's own schoolId), never in.
+    const db = prisma;
+    if (!req.rawBody) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: "Expected a JSON webhook body." },
+        meta: null,
+      });
+      return;
+    }
+    let verified = false;
+    try {
+      verified = verifyWebhookSignature(req.rawBody, req.header("x-razorpay-signature") ?? "");
+    } catch (err) {
+      sendFeesError(res, err);
+      return;
+    }
+    if (!verified) {
+      res.status(401).json({
+        success: false,
+        data: null,
+        error: { code: "WEBHOOK_UNAUTHORIZED", message: "Invalid webhook signature." },
+        meta: null,
+      });
+      return;
+    }
+    const event = (req.body as { event?: string })?.event ?? "";
+    if (event !== "payment.captured") {
+      // Acknowledge everything else so Razorpay stops redelivering it.
+      // Only captures move money; failed/refund events are Phase 2 scope.
+      res.json({ success: true, data: { received: true, ignored: event }, error: null, meta: null });
+      return;
+    }
+    const entity = (req.body as { payload?: { payment?: { entity?: Record<string, unknown> } } })?.payload?.payment
+      ?.entity;
+    const orderId = entity?.["order_id"];
+    const paymentId = entity?.["id"];
+    const amount = entity?.["amount"];
+    if (typeof orderId !== "string" || typeof paymentId !== "string" || typeof amount !== "number") {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: "Malformed payment.captured payload." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await recordOnlineCapture(db, {
+        razorpayOrderId: orderId,
+        razorpayPaymentId: paymentId,
+        amountPaise: amount,
+      });
+      res.json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendFeesError(res, err);
+    }
   }),
 );
