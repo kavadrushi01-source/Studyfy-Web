@@ -160,3 +160,28 @@ describe("fee razorpay-id idempotency (§13.8)", () => {
     expect(await prisma.feePayment.count({ where: { razorpayOrderId: orderId } })).toBe(1);
   });
 });
+
+describe("refund state representability (§13.8: plan for refunds, no flow yet)", () => {
+  it("invoice and payment rows both carry REFUNDED with no schema change", async () => {
+    const { schoolId } = await registerSchool();
+    const invoiceId = await makeInvoice(schoolId);
+    const payment = await prisma.feePayment.create({
+      data: {
+        schoolId,
+        invoiceId,
+        amount: "15000.00",
+        method: "CARD",
+        razorpayOrderId: `order_RFD_${uid()}`,
+        razorpayPaymentId: `pay_RFD_${uid()}`,
+        status: "CAPTURED",
+      },
+    });
+    // A future refund flow only flips these two values - no migration.
+    await prisma.feePayment.update({ where: { id: payment.id }, data: { status: "REFUNDED" } });
+    await prisma.feeInvoice.update({ where: { id: invoiceId }, data: { status: "REFUNDED" } });
+    const reloadedPayment = await prisma.feePayment.findUnique({ where: { id: payment.id } });
+    const reloadedInvoice = await prisma.feeInvoice.findUnique({ where: { id: invoiceId } });
+    expect(reloadedPayment?.status).toBe("REFUNDED");
+    expect(reloadedInvoice?.status).toBe("REFUNDED");
+  });
+});
