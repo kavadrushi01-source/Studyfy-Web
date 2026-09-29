@@ -13,7 +13,10 @@ test.describe("SOS accountant circuit", () => {
     // purpose: e2e runs share one DB and pay down the same invoices, so a
     // big fixed amount eventually exceeds the remaining due and fails.
     await page.goto("/fees");
-    await expect(page.getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
+    // Table-scoped: the counter form's invoice dropdown also renders
+    // student names (hidden options), so a page-wide .first() can land on
+    // an option instead of the ledger row as E2E invoices accumulate.
+    await expect(page.locator("table").getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
     await page.getByLabel(/unpaid invoice/i).selectOption({ index: 1 });
     await page.getByLabel(/amount/i).fill("50");
     await page.getByLabel(/method/i).selectOption("CASH");

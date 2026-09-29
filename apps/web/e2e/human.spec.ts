@@ -75,7 +75,7 @@ test.describe("role journeys", () => {
   test("counter payments: zero is rejected loudly, a real partial goes through", async ({ page }) => {
     await login(page, ACCOUNTS.sosAccountant, SOS_SLUG);
     await page.goto("/fees");
-    await expect(page.getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.locator("table").getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
 
     await page.getByLabel(/filter by status/i).selectOption({ label: "Paid" });
     await page.getByRole("button", { name: /^filter$/i }).click();
@@ -506,5 +506,116 @@ test.describe("role depth: teacher, student, parent", () => {
     await page.getByLabel(/amount/i).fill("999999");
     await page.getByRole("button", { name: /record payment/i }).click();
     await expect(page.getByText(/exceeds the outstanding balance/i)).toBeVisible({ timeout: 20000 });
+  });
+});
+
+test.describe("online pay flow", () => {
+  test("parent pays online: TEST MODE shown, no amount sent, stubbed checkout succeeds, no card form", async ({
+    page,
+    request,
+  }) => {
+    // Hermetic: the pay-order API is answered with a canned order and the
+    // Razorpay object is stubbed - no real gateway traffic, no card form
+    // anywhere. What IS proven: our UI sends no amount, passes the
+    // server order id + key into checkout, and handles success.
+    const stamp = Date.now().toString(36);
+    // Guarantee the child owes something: mint a fresh invoice via API
+    // (Aditya's seeded invoices may all be settled by earlier runs).
+    const adminLogin = await request.post(`${API}/api/v1/auth/login`, {
+      data: { email: ACCOUNTS.sosAdmin, password: PASSWORD, schoolSlug: SOS_SLUG },
+    });
+    expect(adminLogin.ok()).toBeTruthy();
+    const adminBody = (await adminLogin.json()) as {
+      data: { accessToken: string; user: { schoolId: string } };
+    };
+    const adminToken = adminBody.data.accessToken;
+    const schoolId = adminBody.data.user.schoolId;
+    const adminHeaders = { Authorization: `Bearer ${adminToken}` };
+    const sectionsBody = (await (
+      await request.get(`${API}/api/v1/schools/${schoolId}/sections`, { headers: adminHeaders })
+    ).json()) as { data: { sections: { id: string; name: string; class: { id: string; name: string } }[] } };
+    const section9A = sectionsBody.data.sections.find((s) => s.class.name === "Grade 9" && s.name === "A");
+    expect(section9A?.id).toBeTruthy();
+    const structRes = await request.post(`${API}/api/v1/schools/${schoolId}/fees/structures`, {
+      headers: adminHeaders,
+      data: {
+        classId: section9A?.class.id ?? "",
+        name: `E2E Online Struct ${stamp}`,
+        amount: "1200.00",
+        term: "Term 1",
+        category: "TUITION",
+      },
+    });
+    expect(structRes.ok()).toBeTruthy();
+    const structBody = (await structRes.json()) as { data: { structure: { id: string } } };
+    const pupilsBody = (await (
+      await request.get(`${API}/api/v1/schools/${schoolId}/students?search=Aditya&pageSize=3`, {
+        headers: adminHeaders,
+      })
+    ).json()) as { data: { students: { id: string }[] } };
+    const adityaId = pupilsBody.data.students[0]?.id ?? "";
+    expect(adityaId).toBeTruthy();
+    const future = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    const genRes = await request.post(`${API}/api/v1/schools/${schoolId}/fees/invoices/generate`, {
+      headers: adminHeaders,
+      data: { structureId: structBody.data.structure.id, studentIds: [adityaId], dueDate: future },
+    });
+    expect(genRes.status()).toBe(201);
+
+    const bodies: string[] = [];
+    await page.addInitScript(() => {
+      (window as unknown as { __checkouts: { orderId: string; key: string }[] }).__checkouts = [];
+      (window as unknown as { Razorpay?: unknown }).Razorpay = class {
+        private options: Record<string, unknown>;
+        constructor(options: Record<string, unknown>) {
+          this.options = options;
+        }
+        open(): void {
+          (window as unknown as { __checkouts: { orderId: string; key: string }[] }).__checkouts.push({
+            orderId: this.options["order_id"] as string,
+            key: this.options["key"] as string,
+          });
+          const handler = this.options["handler"] as (r: unknown) => void;
+          handler({
+            razorpay_payment_id: "pay_TEST_e2e",
+            razorpay_order_id: this.options["order_id"],
+            razorpay_signature: "sig_TEST_e2e",
+          });
+        }
+        close(): void {}
+        on(): void {}
+      };
+    });
+    await page.route("**/fees/invoices/*/pay-order", async (route) => {
+      bodies.push(route.request().postData() ?? "");
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: { orderId: "order_TEST_e2e", keyId: "rzp_test_fake", amount: "15000.00", currency: "INR" },
+          error: null,
+          meta: null,
+        }),
+      });
+    });
+
+    await login(page, ACCOUNTS.sosParent, SOS_SLUG);
+    await page.goto("/fees");
+    await expect(page.getByText("TEST MODE").first()).toBeVisible({ timeout: 20000 });
+    const payButton = page.getByRole("button", { name: /^pay$/i }).first();
+    await expect(payButton).toBeVisible({ timeout: 20000 });
+    await payButton.click();
+    // The frontend sends ONLY the invoice id in the path - the body carries
+    // no amount for anyone to tamper with.
+    await expect(page.getByText(/Payment submitted \(pay_TEST_e2e\)/).first()).toBeVisible({ timeout: 20000 });
+    expect(bodies.length).toBeGreaterThan(0);
+    expect(bodies[0]).toBe("{}");
+    const seen = await page.evaluate(
+      () => (window as unknown as { __checkouts: { orderId: string; key: string }[] }).__checkouts,
+    );
+    expect(seen).toEqual([{ orderId: "order_TEST_e2e", key: "rzp_test_fake" }]);
+    // No custom card form exists anywhere on this page, by design (§13.8).
+    await expect(page.getByText(/card number/i)).toHaveCount(0);
   });
 });

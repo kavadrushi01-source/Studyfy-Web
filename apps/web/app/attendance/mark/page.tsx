@@ -64,7 +64,7 @@ export default function MarkAttendancePage() {
       setError("");
       setNotice("");
       try {
-        const params = new URLSearchParams({ sectionId: nextSection, pageSize: "100", sort: "name", order: "asc" });
+        const params = new URLSearchParams({ sectionId: nextSection, pageSize: "500", sort: "name", order: "asc" });
         const response = await apiFetch(`/api/v1/schools/${schoolId}/students?${params}`);
         const body = (await response.json()) as { data: { students: RosterRow[] } } | ApiError;
         if (isFailure(response, body)) {

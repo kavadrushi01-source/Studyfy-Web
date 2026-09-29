@@ -63,7 +63,7 @@ test.describe("SOS admin full circuit", () => {
     await expect(page.getByText(/saved attendance for/i)).toBeVisible({ timeout: 20000 });
 
     await page.goto("/fees");
-    await expect(page.getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.locator("table").getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
     await page.getByLabel(/unpaid invoice/i).selectOption({ index: 1 });
     await page.getByLabel(/amount/i).fill("50");
     await page.getByLabel(/method/i).selectOption("CASH");

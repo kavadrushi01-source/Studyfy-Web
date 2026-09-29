@@ -6,6 +6,7 @@ import { Clock, ReceiptText, Wallet } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
 import { SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "@/lib/api";
+import { loadCheckoutScript, openCheckout } from "@/lib/razorpay-checkout";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
 
@@ -51,6 +52,8 @@ export default function FeesPage() {
   const [payMethod, setPayMethod] = useState("CASH");
   const [paying, setPaying] = useState(false);
   const [payNotice, setPayNotice] = useState("");
+  const [payingOnlineId, setPayingOnlineId] = useState<string | null>(null);
+  const [onlineMsg, setOnlineMsg] = useState("");
 
   const load = useCallback(
     async (next: { status: string; page: number }) => {
@@ -136,6 +139,55 @@ export default function FeesPage() {
   function fmtDue(iso: string): string {
     const parsed = new Date(iso);
     return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleDateString("en-GB");
+  }
+
+  // Online payment (§13.8, Phase 2 TEST MODE): one click per invoice sends
+  // ONLY the invoice id to pay-order - the server recomputes the amount
+  // and returns a Razorpay order. No card form exists anywhere here on
+  // purpose: Razorpay's hosted checkout collects card details, raw numbers
+  // never touch us. The TEST MODE pill below + the confirmation panel both
+  // say so out loud (§13.8).
+  async function payOnline(invoiceId: string): Promise<void> {
+    if (!schoolId) {
+      setError("Please sign in to pay online.");
+      return;
+    }
+    setPayingOnlineId(invoiceId);
+    setOnlineMsg("");
+    setError("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/fees/invoices/${invoiceId}/pay-order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const body = (await response.json()) as {
+        data: { orderId: string; keyId: string; amount: string; currency: string };
+      } | { error: { message: string } };
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not start the online payment.");
+      }
+      await loadCheckoutScript();
+      openCheckout({
+        key: body.data.keyId,
+        orderId: body.data.orderId,
+        amountPaise: Math.round(Number(body.data.amount) * 100),
+        description: `School fee invoice ending ${invoiceId.slice(-6)}`,
+        onSuccess: (payment) => {
+          setOnlineMsg(
+            `Payment submitted (${payment.razorpay_payment_id}) — the receipt appears here once the school confirms it.`,
+          );
+          void load({ status: appliedStatus, page });
+        },
+        onDismiss: () => {
+          setOnlineMsg("Payment window closed — no charge was made.");
+        },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setPayingOnlineId(null);
+    }
   }
 
   const statusPill = (value: string): React.CSSProperties => {
@@ -316,6 +368,10 @@ export default function FeesPage() {
           </>
         )}
       </section>
+      <p style={{ ...mutedStyle, margin: "0 0 8px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={pill(colors.warning, colors.warningTint)}>TEST MODE</span>
+        Online payments are test-only — no real money moves. Card details are entered on Razorpay&apos;s own checkout, never here.
+      </p>
       <DataTable<InvoiceRow>
         columns={[
           { key: "student", label: "Student", render: (r) => r.student.name },
@@ -340,6 +396,23 @@ export default function FeesPage() {
           },
           { key: "due", label: "Due date", render: (r) => fmtDue(r.dueDate) },
           { key: "status", label: "Status", render: (r) => <span style={statusPill(r.status)}>{r.status}</span> },
+          {
+            key: "online",
+            label: "Pay online",
+            render: (r) =>
+              Number(r.outstanding) > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => void payOnline(r.id)}
+                  disabled={payingOnlineId === r.id}
+                  style={{ ...primaryBtn, padding: "6px 14px", fontSize: 13, opacity: payingOnlineId === r.id ? 0.6 : 1 }}
+                >
+                  {payingOnlineId === r.id ? "Opening…" : "Pay"}
+                </button>
+              ) : (
+                <span style={{ color: colors.muted }}>—</span>
+              ),
+          },
         ]}
         rows={rows}
         rowKey={(r) => r.id}
@@ -352,6 +425,12 @@ export default function FeesPage() {
         onPage={changePage}
         loading={loading}
       />
+      {onlineMsg ? (
+        <p style={{ color: colors.success, fontSize: 14, margin: "12px 0 0" }}>
+          <span style={{ ...pill(colors.warning, colors.warningTint), marginRight: 8 }}>TEST MODE</span>
+          {onlineMsg}
+        </p>
+      ) : null}
       {error ? (
         <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "12px 0 0" }}>
           {error}
