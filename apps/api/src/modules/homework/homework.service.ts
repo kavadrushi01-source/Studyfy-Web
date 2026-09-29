@@ -269,7 +269,9 @@ export async function homeworkBoard(
         submissions: { where: { studentId: { in: [...pinned] } }, select: { studentId: true, status: true } },
       },
       orderBy: { dueDate: "asc" },
-      take: 100,
+      // 500, not 100: far-future-dated cards must stay visible while old
+      // backlog accumulates, or newly posted homework silently vanishes.
+      take: 500,
     });
     return {
       homework: rows.map((row) => ({
@@ -308,7 +310,8 @@ export async function homeworkBoard(
       },
     },
     orderBy: { dueDate: "asc" },
-    take: 100,
+    // 500, not 100: same backlog reasoning as the pupil branch above.
+    take: 500,
   });
   return {
     homework: rows.map((row) => {

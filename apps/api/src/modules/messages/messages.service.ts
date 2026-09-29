@@ -323,16 +323,21 @@ export async function readThread(db: PrismaClient, viewer: ThreadViewer, otherUs
     include: {
       sender: { select: { id: true, name: true } },
     },
-    orderBy: { createdAt: "asc" },
+    // Newest-first with a cap, reversed below into chronological display
+    // order: a take cap on oldest-first silently amputates every new
+    // message once a conversation passes 200 rows (the admin oversight
+    // view, which spans ALL of one user's messages, hit this first).
+    orderBy: { createdAt: "desc" },
     take: 200,
   } as const;
   if (viewer.role === "SCHOOL_ADMIN") {
-    // Oversight: every message TO or FROM this user — not the admin's own
+    // Oversight: every message TO or FROM this user - not the admin's own
     // (empty) pair thread, which is what a naive threadKey lookup returns.
-    return db.message.findMany({
+    const rows = await db.message.findMany({
       where: { OR: [{ senderId: other.id }, { receiverId: other.id }] },
       ...messageSelect,
     });
+    return rows.reverse();
   }
   const viewerRole = (await db.user.findUnique({ where: { id: viewer.userId }, include: { role: true } }))?.role.name;
   if (!viewerRole) {
@@ -348,8 +353,9 @@ export async function readThread(db: PrismaClient, viewer: ThreadViewer, otherUs
   if (!forward && !backward) {
     throw new AuthError(403, "MESSAGING_NOT_ALLOWED", "You cannot view this conversation.");
   }
-  return db.message.findMany({
+  const rows = await db.message.findMany({
     where: { threadId: threadKey(viewer.userId, other.id) },
     ...messageSelect,
   });
+  return rows.reverse();
 }

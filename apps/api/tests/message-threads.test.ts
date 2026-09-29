@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
+import { threadKey } from "../src/modules/messages/messages.service.js";
 
 const app = createApp();
 
@@ -151,5 +152,47 @@ describe("GET /api/v1/schools/:schoolId/messages/threads", () => {
     expect(cross.body.error.code).toBe("TENANT_MISMATCH");
 
     await request(app).get(`/api/v1/schools/${schoolId}/messages/threads`).expect(401);
+  });
+});
+
+describe("GET thread read past 200 messages (recency first)", () => {
+  it("returns the newest 200 in chronological order, never a stale oldest-only window", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const sectionId = await makeSection(schoolId);
+    const subject = await prisma.subject.create({ data: { schoolId, name: `Subject ${uid()}`, group: "Core" } });
+    const teacher = await makeTeacher(schoolId, slug, [subject.id], sectionId);
+    const pupil = await makeStudent(schoolId, slug, sectionId);
+
+    // 205 messages, one minute apart - deterministic order, no flakiness.
+    const base = Date.UTC(2026, 8, 1, 0, 0, 0);
+    const key = threadKey(teacher.userId, pupil.userId);
+    await prisma.message.createMany({
+      data: Array.from({ length: 205 }, (_, i) => ({
+        id: `msg-${uid()}-${i}`,
+        schoolId,
+        senderId: i % 2 === 0 ? teacher.userId : pupil.userId,
+        receiverId: i % 2 === 0 ? pupil.userId : teacher.userId,
+        threadId: key,
+        body: `Bulk message ${i}`,
+        createdAt: new Date(base + i * 60000),
+      })),
+    });
+
+    const asTeacher = await request(app)
+      .get(`/api/v1/schools/${schoolId}/messages?with=${pupil.userId}`)
+      .set("Authorization", `Bearer ${teacher.token}`)
+      .expect(200);
+    const rows = asTeacher.body.data.messages as { body: string }[];
+    expect(rows).toHaveLength(200);
+    expect(rows[0]?.body).toBe("Bulk message 5");
+    expect(rows[199]?.body).toBe("Bulk message 204");
+
+    // Admin oversight sees the same newest message, not ancient history.
+    const asAdmin = await request(app)
+      .get(`/api/v1/schools/${schoolId}/messages?with=${pupil.userId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    const adminRows = asAdmin.body.data.messages as { body: string }[];
+    expect(adminRows[adminRows.length - 1]?.body).toBe("Bulk message 204");
   });
 });

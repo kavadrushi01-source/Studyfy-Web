@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE (pay-order endpoint built + tested — pushed with this handoff; webhook + UI remain for Phase 2)
+**Status:** IDLE (stale-thread + take-cap fixes — pushed with this handoff)
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
@@ -30,7 +30,8 @@
   - `ef2f949` + `dbf1f63` — **razorpay rename + status** (founder-directed): `provider_*` → `razorpay_*` + status enum via RENAME migration; service/tests/spec updated; production migrated. API 186/186.
   - This handoff — **pay-order endpoint** (Phase 2 §7 #12, §13.8): POST .../invoices/:id/pay-order — frontend sends only the invoice id, server recomputes outstanding, creates the Razorpay order in paise, stores PENDING row; self-scope enforced (parent only own children); missing keys 503, live-prefixed key refused; gateway mocked in tests, real guard tested directly. 5 new API tests. Verified: API **191/191**, gates 0, audit 0.
   - Live proof (production): real test order `order_Thi9JFfswQRSPx` created through the live API for ₹15,790.00 (server-computed, empty body sent); PENDING RAZORPAY row stored in Aiven against the right invoice. Founder added test keys to Render env.
-  - This handoff — **spec §9.1 alignment**: the ER overview + a `teacher_subjects`-style honest-gap note now document `provider_order_id`/`provider_payment_id` UNIQUE NULLABLE, why the names are `provider_*` not `razorpay_*`, and why there is deliberately no payment status column. No code changes (schema/code already shipped); spec-only commit.
+  - This handoff — **spec §9.1 alignment**: the ER overview + a `teacher_subjects`-style honest-gap note documented the idempotency keys (later superseded: founder directed `razorpay_*` names + status column, see next bullet). No code changes in that commit; spec-only.
+  - This handoff — **stale-thread + take-cap fixes** (human-level round found real bugs): (1) thread reads were oldest-first + take 200, so conversations past 200 rows showed ancient history while previews promised new messages — now newest-first + chronological reverse, pinned by a 205-message API test (both participant + admin-oversight reads); (2) students list pageSize max 100→500 + attendance roster and homework boards take 100→500 (backlog was amputating newest rows). Verified: API **192/192**, gates 0. BUGSFIX 32.
 
 ## What's left in this task
 - Founder items: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school; (3) Phase 2 kickoff next session — Razorpay TEST MODE first (spec §7 #12), per spec never live keys.
