@@ -6,7 +6,7 @@ import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { createStructureSchema, generateInvoicesSchema, listInvoicesSchema, listPaymentsSchema, recordPaymentSchema } from "./fees.schemas.js";
-import { createStructure, generateInvoices, listInvoices, listPayments, recordPayment, runFeeReminders } from "./fees.service.js";
+import { createStructure, generateInvoices, initiateOnlinePayment, listInvoices, listPayments, recordPayment, runFeeReminders } from "./fees.service.js";
 import { generateFeeReceipt } from "../../lib/receipt.js";
 
 export const feesRouter = Router();
@@ -206,6 +206,41 @@ feesRouter.post(
     try {
       const result = await recordPayment(req.prisma, req.params.invoiceId ?? "", req.user.userId, parsed.data);
       res.status(200).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendFeesError(res, err);
+    }
+  }),
+);
+
+// Online payment initiation (§13.8, Phase 2 TEST MODE). The frontend sends
+// ONLY the invoice id in the path — any amount in the body is ignored by
+// design (the server recomputes from the invoice). STUDENT/PARENT are
+// pinned to own/linked invoices via studentSelfScope + the service check;
+// staff (fees.read, no pins) may initiate for any invoice in the school.
+feesRouter.post(
+  "/schools/:schoolId/fees/invoices/:invoiceId/pay-order",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("fees.read"),
+  studentSelfScope,
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await initiateOnlinePayment(
+        req.prisma,
+        { userId: req.user.userId, role: req.user.role },
+        req.studentScope ? req.studentScope.studentIds : null,
+        req.params.invoiceId ?? "",
+      );
+      res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendFeesError(res, err);
     }

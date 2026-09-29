@@ -4,6 +4,7 @@ import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { schoolDay } from "../../lib/school-time.js";
 import { invalidateAccountantBoards, invalidateActivityFeed, invalidateFeeKpis, invalidateStudentBoards } from "../metrics/metrics.service.js";
 import { AuthError } from "../auth/auth.service.js";
+import { createRazorpayOrder } from "../../lib/razorpay.js";
 import type { CreateStructureInput, GenerateInvoicesInput, ListInvoicesInput, ListPaymentsInput, RecordPaymentInput } from "./fees.schemas.js";
 
 export interface InvoiceLedger {
@@ -483,4 +484,66 @@ export async function findPaymentByRazorpayId(
     where: { OR: ors },
     select: { id: true, invoiceId: true, schoolId: true, razorpayOrderId: true, razorpayPaymentId: true, status: true },
   });
+}
+
+export interface OnlinePaymentInit {
+  orderId: string;
+  keyId: string;
+  amount: string;
+  currency: string;
+  invoiceId: string;
+  status: string;
+}
+
+// Online payment initiation (§13.8, Phase 2 TEST MODE): the frontend sends
+// ONLY the invoice id — never an amount. The server loads the real invoice,
+// recomputes the outstanding balance itself, and creates the Razorpay order
+// for that exact number, so a tampered client request is structurally
+// incapable of paying less than owed. Amounts cross to Razorpay in paise
+// (integer) under §13.6 Decimal discipline. Self-scope (§5): with pins
+// (STUDENT/PARENT) the invoice's student must be one of them; staff (null
+// pins) may initiate for any invoice in the school. The created
+// fee_payments row is PENDING (order created, money not moved) — only the
+// webhook flips it to CAPTURED. Always creates a fresh order, never reuses
+// an old one (amounts may have changed since, checkouts expire).
+export async function initiateOnlinePayment(
+  db: PrismaClient,
+  caller: { userId: string; role: string },
+  allowedIds: string[] | null,
+  invoiceId: string,
+): Promise<OnlinePaymentInit> {
+  const invoice = await db.feeInvoice.findFirst({ where: { id: invoiceId } });
+  if (!invoice) {
+    throw new AuthError(404, "INVOICE_NOT_FOUND", "Invoice not found in this school.");
+  }
+  if (allowedIds && !allowedIds.includes(invoice.studentId)) {
+    throw new AuthError(403, "FORBIDDEN", caller.role === "PARENT" ? "Not your child." : "Not your record.");
+  }
+  if (invoice.status === "PAID" || invoice.status === "REFUNDED") {
+    throw new AuthError(409, "INVOICE_SETTLED", `Invoice is already ${invoice.status.toLowerCase()}.`);
+  }
+  const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
+  if (outstanding.lessThanOrEqualTo(0)) {
+    throw new AuthError(400, "NOTHING_DUE", "Invoice has no outstanding balance.");
+  }
+  const paise = Math.round(outstanding.toNumber() * 100);
+  const order = await createRazorpayOrder(paise, invoice.id, { schoolId: invoice.schoolId, invoiceId: invoice.id });
+  const payment = await db.feePayment.create({
+    data: {
+      schoolId: invoice.schoolId,
+      invoiceId: invoice.id,
+      amount: outstanding,
+      method: "RAZORPAY",
+      razorpayOrderId: order.id,
+      status: "PENDING",
+    },
+  });
+  return {
+    orderId: order.id,
+    keyId: order.keyId,
+    amount: outstanding.toFixed(2),
+    currency: order.currency,
+    invoiceId: invoice.id,
+    status: payment.status,
+  };
 }
