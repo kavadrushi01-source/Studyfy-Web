@@ -451,35 +451,36 @@ export async function runFeeReminders(
 }
 
 // Webhook lookup foundation (§13.8): resolve a recorded online payment by
-// the provider's order or payment ID. Returns the payment together with
+// the Razorpay order or payment ID. Returns the payment together with
 // the invoice and school it belongs to — the webhook payload identifies
 // the transaction, but THIS lookup is what identifies which invoice and
 // which school, never any school_id/invoiceId embedded in the payload
 // itself. Called by the Phase 2 Razorpay webhook; redelivered events hit
 // the UNIQUE constraints (P2002) and are treated as already-processed
 // instead of recorded twice.
-export async function findPaymentByProviderId(
+export async function findPaymentByRazorpayId(
   db: PrismaClient,
-  input: { orderId?: string; paymentId?: string },
+  input: { razorpayOrderId?: string; razorpayPaymentId?: string },
 ): Promise<{
   id: string;
   invoiceId: string;
   schoolId: string;
-  providerOrderId: string | null;
-  providerPaymentId: string | null;
+  razorpayOrderId: string | null;
+  razorpayPaymentId: string | null;
+  status: string;
 } | null> {
-  const ors: { providerOrderId?: string; providerPaymentId?: string }[] = [];
-  if (input.orderId) {
-    ors.push({ providerOrderId: input.orderId });
+  const ors: { razorpayOrderId?: string; razorpayPaymentId?: string }[] = [];
+  if (input.razorpayOrderId) {
+    ors.push({ razorpayOrderId: input.razorpayOrderId });
   }
-  if (input.paymentId) {
-    ors.push({ providerPaymentId: input.paymentId });
+  if (input.razorpayPaymentId) {
+    ors.push({ razorpayPaymentId: input.razorpayPaymentId });
   }
   if (ors.length === 0) {
     return null;
   }
   return db.feePayment.findFirst({
     where: { OR: ors },
-    select: { id: true, invoiceId: true, schoolId: true, providerOrderId: true, providerPaymentId: true },
+    select: { id: true, invoiceId: true, schoolId: true, razorpayOrderId: true, razorpayPaymentId: true, status: true },
   });
 }

@@ -59,6 +59,17 @@ enum PaymentMethod {
   RAZORPAY
 }
 
+// Provider-side lifecycle of one money movement (§13.8). Rows are
+// CAPTURED at creation — manual counter money and confirmed webhooks
+// alike. PENDING/FAILED belong to the order attempt and REFUNDED to the
+// refund path; all are Phase 2 webhook transitions, never hand-edited.
+enum FeePaymentStatus {
+  PENDING
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
 enum NoticeTarget {
   SCHOOL
   CLASS
@@ -462,14 +473,15 @@ model FeePayment {
   invoice  FeeInvoice @relation(fields: [invoiceId], references: [id])
   amount   Decimal @map("amount") @db.Decimal(10, 2)
   method   PaymentMethod @default(CASH) @map("method")
-  // Razorpay idempotency keys (§13.8): redelivered webhooks must not
-  // double-record. BOTH ids are unique so a repeat order or payment id is
-  // a no-op (P2002) instead of a second row. Nullable for manual counter
-  // payments (MySQL allows multiple NULLs in unique columns). The Phase 2
-  // webhook resolves invoices through these ids (findPaymentByProviderId)
-  // — never from ids embedded in the payload itself.
-  providerOrderId   String? @unique @map("provider_order_id")
-  providerPaymentId String? @unique @map("provider_payment_id")
+  // Razorpay ids (§13.8): redelivered webhooks must not double-record.
+  // BOTH ids are unique so a repeat order or payment id is a no-op
+  // (P2002) instead of a second row. Nullable for manual counter
+  // payments (MySQL allows multiple NULLs in unique columns). The
+  // Phase 2 webhook resolves the invoice through these ids
+  // (findPaymentByProviderId) — never from ids embedded in the payload.
+  razorpayOrderId   String? @unique @map("razorpay_order_id")
+  razorpayPaymentId String? @unique @map("razorpay_payment_id")
+  status            FeePaymentStatus @default(CAPTURED) @map("status")
   receivedById String? @map("received_by")
   receivedBy   User?   @relation("PaymentReceiver", fields: [receivedById], references: [id])
   paidAt     DateTime @default(now()) @map("paid_at")
