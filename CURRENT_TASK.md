@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE (stale-thread + take-cap fixes — pushed with this handoff)
+**Status:** IDLE (webhook built and tested; registration needs founder) — pushed with this handoff
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
