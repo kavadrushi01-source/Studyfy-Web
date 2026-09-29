@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE (mobile-menu round: collapsible sidebar on phones — pushed with this handoff)
+**Status:** IDLE (§13.8 idempotency gap closed — pushed with this handoff)
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
@@ -25,7 +25,8 @@
   - `0c3cff3` + `f181171` — **homework submit-scope fix** (founder-found): pupil submit boxes were rendering for every role; submit block now STUDENT-gated. Arjun teaches Mathematics (Astronomy refusal was correct validation). BUGSFIX 29.
   - `7f6c476` — **role-depth round** (teacher/student/parent, human-level): 8 new e2e, zero product bugs, teacher.spec presence-assert fix. Verified: e2e **49/49**, web TC+lint 0.
   - `a80cd8c` — **responsive round**: 390px sweep found 3 overflows (landing header +253px, dashboard cards +9px, message threads +26px), all fixed, re-sweep 0px. BUGSFIX 30.
-  - This handoff — **mobile-menu round** (founder: make it perfect): sidebar collapses to logo + badge + hamburger on narrow screens (open on desktop), nav + logout hide until tapped; mobile e2e updated (collapsed-by-default, toggle, navigate). Screenshot-verified both states, e2e 49/49. BUGSFIX 31. Standing rule: visibility lives in classes, never inline display.
+  - `2aff06b` — **mobile-menu round**: collapsible sidebar on phones, e2e 49/49. BUGSFIX 31.
+  - This handoff — **§13.8 idempotency gap** (Phase 2 prep): `providerOrderId` had no unique/index and nothing looked payments up by provider ids. Now both ids UNIQUE (NULL-safe for counter payments), new `findPaymentByProviderId` (resolves invoice+school for the future webhook), migration applied to all local DBs, 3 new API tests (lookup both ways, NULL coexistence, duplicate rejection). Verified: API **186/186**, gates 0.
 
 ## What's left in this task
 - Founder items: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school; (3) Phase 2 kickoff next session — Razorpay TEST MODE first (spec §7 #12), per spec never live keys.

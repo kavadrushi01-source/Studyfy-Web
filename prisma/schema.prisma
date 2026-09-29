@@ -462,10 +462,13 @@ model FeePayment {
   invoice  FeeInvoice @relation(fields: [invoiceId], references: [id])
   amount   Decimal @map("amount") @db.Decimal(10, 2)
   method   PaymentMethod @default(CASH) @map("method")
-  // Razorpay idempotency key: redelivered webhooks must not double-record
-  // (§13.8). Nullable until Phase 2; UNIQUE so a repeat payment id is a
-  // no-op instead of a second row. (MySQL allows multiple NULLs here.)
-  providerOrderId   String? @map("provider_order_id")
+  // Razorpay idempotency keys (§13.8): redelivered webhooks must not
+  // double-record. BOTH ids are unique so a repeat order or payment id is
+  // a no-op (P2002) instead of a second row. Nullable for manual counter
+  // payments (MySQL allows multiple NULLs in unique columns). The Phase 2
+  // webhook resolves invoices through these ids (findPaymentByProviderId)
+  // — never from ids embedded in the payload itself.
+  providerOrderId   String? @unique @map("provider_order_id")
   providerPaymentId String? @unique @map("provider_payment_id")
   receivedById String? @map("received_by")
   receivedBy   User?   @relation("PaymentReceiver", fields: [receivedById], references: [id])

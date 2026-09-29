@@ -449,3 +449,37 @@ export async function runFeeReminders(
   }
   return { emailed, skipped };
 }
+
+// Webhook lookup foundation (§13.8): resolve a recorded online payment by
+// the provider's order or payment ID. Returns the payment together with
+// the invoice and school it belongs to — the webhook payload identifies
+// the transaction, but THIS lookup is what identifies which invoice and
+// which school, never any school_id/invoiceId embedded in the payload
+// itself. Called by the Phase 2 Razorpay webhook; redelivered events hit
+// the UNIQUE constraints (P2002) and are treated as already-processed
+// instead of recorded twice.
+export async function findPaymentByProviderId(
+  db: PrismaClient,
+  input: { orderId?: string; paymentId?: string },
+): Promise<{
+  id: string;
+  invoiceId: string;
+  schoolId: string;
+  providerOrderId: string | null;
+  providerPaymentId: string | null;
+} | null> {
+  const ors: { providerOrderId?: string; providerPaymentId?: string }[] = [];
+  if (input.orderId) {
+    ors.push({ providerOrderId: input.orderId });
+  }
+  if (input.paymentId) {
+    ors.push({ providerPaymentId: input.paymentId });
+  }
+  if (ors.length === 0) {
+    return null;
+  }
+  return db.feePayment.findFirst({
+    where: { OR: ors },
+    select: { id: true, invoiceId: true, schoolId: true, providerOrderId: true, providerPaymentId: true },
+  });
+}
