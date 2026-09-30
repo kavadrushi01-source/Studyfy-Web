@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE (webhook built and tested; registration needs founder) — pushed with this handoff
+**Status:** IDLE (account-keyed login limiter fixed and tested - pushed with this handoff)
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
@@ -37,6 +37,7 @@
   - Refund representability (§13.8): confirmed both enums already carry REFUNDED (invoice had it from day one, payment got it with the status enum) + regression test flips both values with no migration. No flow built, per spec.
   - This handoff — **spec §9.1 alignment**: the ER overview + a `teacher_subjects`-style honest-gap note documented the idempotency keys (later superseded: founder directed `razorpay_*` names + status column, see next bullet). No code changes in that commit; spec-only.
   - This handoff — **stale-thread + take-cap fixes** (human-level round found real bugs): (1) thread reads were oldest-first + take 200, so conversations past 200 rows showed ancient history while previews promised new messages — now newest-first + chronological reverse, pinned by a 205-message API test (both participant + admin-oversight reads); (2) students list pageSize max 100→500 + attendance roster and homework boards take 100→500 (backlog was amputating newest rows). Verified: API **192/192**, gates 0. BUGSFIX 32.
+  - This handoff — **account-keyed login limiter (§11 fix for the trust-proxy finding)**: per-IP buckets proved unreliable behind Render's proxy chain, so POST /auth/login now also carries a normalized-email bucket (5/15min, successes skipped, other accounts unaffected). `trust proxy` deliberately untouched (spoof risk). Own knob `LOGIN_ACCOUNT_LIMIT_MAX` (default 5); local start command now sets 4 knobs. 3 new API tests (lockout, budget, normalization). Verified: API **201/201** (55 files, incl. 3 new limiter tests), gates 0.
 
 ## What's left in this task
 - Founder items: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school; (3) Phase 2 kickoff next session — Razorpay TEST MODE first (spec §7 #12), per spec never live keys.
@@ -46,7 +47,7 @@
 - None for the agent — next session starts Phase 2 (Razorpay TEST MODE first). Start from `AGENT_START_HERE.md`.
 
 ## Notes / decisions made mid-task (carry-over operational knowledge — keep)
-- Local API start command (3 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_RATE_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.
+- Local API start command (4 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_RATE_LIMIT_MAX=200&& set LOGIN_ACCOUNT_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.
 - Background processes: shell jobs die with the shell — use `Start-Process -WindowStyle Hidden`; kill by CommandLine `*server.js*` (API) vs `*next*` (web). Never run tsc/eslint/vitest IN PARALLEL with the e2e suite (contention → failures).
 - Local suite reality: green duration ~1-2m warm (49 tests; first cold run up to ~4m); `retries: 1` absorbs machine stalls (a genuine regression fails both attempts — trace showed one 38s server-side stall once).
 - MySQL sandbox (3307) can silently die mid-session; recovery: kill the stale `mysqld`, then `Start-Process -FilePath "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe" -ArgumentList "--datadir=C:\Users\kavad\studyfy-mysql-data","--port=3307","--bind-address=127.0.0.1","--mysqlx=OFF"` (mysqld is NOT on PATH). Datadir persists — no re-seed needed. The MySQL80 service on 3306 is unrelated — never touch it. Symptom: API tests fail suite-wide with "Can't reach database server at 127.0.0.1:3307".
@@ -101,4 +102,5 @@
    `RULES.md` §6.1) — `STATUS.md` tracks *finished* features at the phase
    level; this file tracks the *one task in progress* at the step level.
    Don't let detail pile up in both places.
+
 

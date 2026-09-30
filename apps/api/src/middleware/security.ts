@@ -57,10 +57,10 @@ function maybeLimit(...args: Parameters<typeof rateLimit>) {
   return rateLimit(...args);
 }
 
-// Login brute-force guard (§11 sliding window). CURRENTLY DISCONNECTED from
-// POST /auth/login for the dev/testing period (see RATE_LIMITING.md —
-// restore it before any real-business use). CI and production must run the
-// default 5; LOGIN_RATE_LIMIT_MAX stays as the local-only override knob.
+// Login brute-force guard (§11 sliding window): 5 attempts / 15 min / IP.
+// Restored before the production pilot (RATE_LIMITING.md) — leave
+// LOGIN_RATE_LIMIT_MAX unset in production/CI so the default 5 applies;
+// it exists only as a local-testing override.
 function loginLimit(): number {
   const raw = Number(process.env.LOGIN_RATE_LIMIT_MAX);
   if (Number.isInteger(raw) && raw > 0) {
@@ -76,6 +76,47 @@ export const loginLimiter = () =>
     legacyHeaders: false,
     handler: (_req, res) => {
       const body = limited("Too many login attempts. Try again in 15 minutes.");
+      res.status(body.statusCode).type("application/json").send(body.message);
+    },
+  });
+
+// Account-keyed login guard (same §11 rule, different key): 5 attempts /
+// 15 min / ACCOUNT. Per-IP limiting alone is unreliable behind Render's
+// proxy chain — one client can land in different IP buckets per request
+// (proven live: RateLimit-Remaining jumped 3→1→2 across back-to-back
+// requests), so an attacker gets ~5 tries per bucket instead of 5 total.
+// Keying on the normalized email makes brute force deterministic: hammer
+// one account and the 6th attempt is refused no matter which IPs the
+// attempts arrive from. Combined with enumeration-safe 401s (no account
+// oracle), spraying across accounts gains nothing either. Successful
+// logins don't consume budget, so legitimate users with many devices are
+// never locked out by their own logins. Runs IN ADDITION TO the IP
+// limiter (defense in depth) — and deliberately does NOT touch
+// `trust proxy` (trusting more hops would let attackers spoof IPs and
+// evade entirely, worse than today).
+// Own knob LOGIN_ACCOUNT_LIMIT_MAX (default 5, local-only override like
+// the IP one); headers off so the IP limiter's RateLimit-* headers stay
+// canonical — the two limiters are told apart by their 429 messages.
+function loginAccountLimit(): number {
+  const raw = Number(process.env.LOGIN_ACCOUNT_LIMIT_MAX);
+  if (Number.isInteger(raw) && raw > 0) {
+    return raw;
+  }
+  return 5;
+}
+export const loginAccountLimiter = () =>
+  maybeLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: loginAccountLimit(),
+    standardHeaders: false,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const email = (req.body as { email?: unknown } | undefined)?.email;
+      return typeof email === "string" && email.trim() ? email.trim().toLowerCase() : "no-email";
+    },
+    skipSuccessfulRequests: true,
+    handler: (_req, res) => {
+      const body = limited("Too many login attempts for this account. Try again in 15 minutes.");
       res.status(body.statusCode).type("application/json").send(body.message);
     },
   });

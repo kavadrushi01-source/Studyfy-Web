@@ -2,7 +2,7 @@ import { Router, type CookieOptions, type Request, type Response } from "express
 import { catchAsync } from "../../lib/async.js";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
-import { loginLimiter, registerLimiter } from "../../middleware/security.js";
+import { loginAccountLimiter, loginLimiter, registerLimiter } from "../../middleware/security.js";
 import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema } from "./auth.schemas.js";
 import { AuthError, login, logout, register, requestPasswordReset, resetPassword, rotateRefreshToken } from "./auth.service.js";
 
@@ -94,6 +94,7 @@ authRouter.post(
 authRouter.post(
   "/login",
   loginLimiter(),
+  loginAccountLimiter(),
   catchAsync(async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
