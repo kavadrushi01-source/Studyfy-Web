@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** BLOCKED (Render free hours exhausted again - local stack verified green, waiting reset; free-only rule stands)
+**Status:** BLOCKED (wanderlust suspended by founder; waiting billing reset ~Oct 1; only studyfy-api may run after)
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
