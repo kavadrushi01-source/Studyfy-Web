@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** BLOCKED (Render free hours exhausted 2026-09-29 - service suspended till next billing period unless upgraded; code pushed and green)
+**Status:** BLOCKED (Render free hours exhausted - waiting on next billing reset; FOUNDER RULE: whole project stays free, never propose paid tiers)
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
