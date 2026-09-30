@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE (account-keyed login limiter fixed and tested - pushed with this handoff)
+**Status:** BLOCKED (Render suspended studyfy-api - founder must resolve in Render dashboard; code pushed and green)
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
