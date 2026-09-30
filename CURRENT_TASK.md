@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** BLOCKED (Render suspended studyfy-api - founder must resolve in Render dashboard; code pushed and green)
+**Status:** BLOCKED (Render free hours exhausted 2026-09-29 - service suspended till next billing period unless upgraded; code pushed and green)
 **Phase / Module:** —
 **Last updated:** 2026-09-27
 
