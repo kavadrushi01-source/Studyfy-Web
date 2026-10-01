@@ -9,12 +9,20 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** LIVE + all proofs done (billing reset Oct 1; account-keyed limiter proven on production; only studyfy-api runs — portfolio, wanderlust, FoodHub all suspended)
-**Phase / Module:** Phase 2 (Razorpay TEST MODE) complete; awaiting founder's next pick
+**Status:** IDLE — Chunk 1 of 5 complete (Razorpay/online fee payment → DONE in `STATUS.md` per Definition of Done, committed). Next is Chunk 2 — Admission/Enquiry CRM + Certificate Generator (not started).
+**Phase / Module:** Phase 2, Chunk 2 (Admission/Enquiry CRM + Certificate Generator) — awaiting start
 **Last updated:** 2026-10-01
 
 ## What's done in this task so far
-- Nothing in progress. Recent finished work (details in `STATUS.md`, bugs in `BUGSFIX.md`):
+- Chunk 1 of 5 DONE: Razorpay TEST MODE online fee payment (pay-order + webhook + checkout UI + human verification, zero product bugs). Full record in `STATUS.md` Phase 2 row; detail in this file's history below.
+
+## What's left in this task
+- Chunk 2 — Admission/Enquiry CRM + Certificate Generator: not started. Start from `AGENT_START_HERE.md` (read `STATUS.md` first, per RULES.md §6.1).
+
+## Exact next action
+- Begin Chunk 2 (Admission/Enquiry CRM + Certificate Generator) whenever the founder says go — no code changes pending, tree clean after this commit.
+
+## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
   - `3f624d9` + `aadbe6c` — route×role sweep round: 11 bugs fixed (BUGSFIX 22–26).
   - `bf50a1b` + `34da56d` — deep human pass: 9 journey/edge tests (`human.spec.ts`), BUGSFIX 27–28, API 183/183, e2e 38/38.
@@ -41,16 +49,16 @@
    - Oct 1 session — **Render billing reset + live limiter proof CLOSED**: founder suspended FoodHub (`foodhub-api-u3oy`) so only studyfy-api runs (fits 750 free hrs). After reset, service resumed but was running an OLD build (15 failed logins for one email → all plain 401s, zero account lockout → middleware absent). Founder did Manual Deploy → **`1d30103` Live**. Proof on production then passed: exactly 5×401 → 6th = 429 `"Too many login attempts for this account."`; different email unaffected (401); legit login 200. Also confirmed webhook returns 401 WEBHOOK_UNAUTHORIZED (build marker) and `x-render-routing: suspend` was the suspension signature. **Lesson: after resume, always verify the deployed commit matches HEAD — suspension/restart does not auto-build.**
    - Oct 1 session — **Phase 2 Chunk 1 human verification (Razorpay fee-payment vs spec §13.8), zero product bugs found**: baselines green (API 201/201 ×55 files, e2e 50/50, web gates 0). API journey harness 20/20: tampered amount ignored (server computes from invoice), `rzp_test_` key, bad/missing webhook sig 401, unknown order 404, wrong amount 400 AMOUNT_MISMATCH, capture→replay idempotent (alreadyProcessed, 1 row), invoice PAID, pay-order on PAID 409 INVOICE_SETTLED, receipt PDF 200, stranger receipt 403. Cross-family probes: stranger-parent/foreign-student/foreign-invoice → 403. UI journey (hosted checkout): TEST MODE visible, no card form on our page, real test card `5267 3181 8797 5449`/12-30/123/OTP 123456 → payment ack; receipt page opens → blob URL serves real `%PDF-` bytes; PAID pill + outstanding drop reflected. OVERDUE invoice payable; partial payment (₹500 cash → pay-order charged ₹700 remainder → webhook 70000 paise captured → PAID; 120000 mismatch 400). Local webhook exercised with signed payload (local `.env` secret `wh-local-human-pass`, gitignored — Razorpay can't reach localhost, so signed delivery was replayed manually). **Lesson: local API runs `dist/` — a stale build hid the webhook route (404) until `npm run build --workspace=@studyfy/api`; after editing API source, REBUILD before testing.**
 
-## What's left in this task
-- Nothing blocked. Everything through Phase 2 (Razorpay TEST MODE) is DONE and live-proven; the trust-proxy/limiter thread is CLOSED.
-- Founder items: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school; (3) pick next build target from the spec (SMS/WhatsApp stub, library, transport, payroll, CRM, certificates).
-- Watch items: Render auto-deploy setting (verify it's On — a manual deploy was needed Oct 1); Aiven free sleeps when idle (power on from console if DB errors); Render free cold-starts ~50s; budget math: only studyfy-api may run (1 × 24×31 ≈ 744/750 hrs); Brevo freemail sender may land in spam (custom domain + DKIM later).
+## What's left in this task (folded into History above — IDLE, nothing active)
+- Founder items (standing): (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school.
+- Watch items: Render auto-deploy (a manual deploy was needed Oct 1 — verify new commits go Live); Aiven free sleeps when idle; Render free cold-starts ~50s; budget: only studyfy-api may run (≈744/750 hrs); Brevo freemail may land in spam.
+- Follow-up (not blocking DONE): `npm audit` 2026-10-01 flags 1 critical — next 16.2.0–16.3.5 `next/og` ImageResponse RCE, module never imported here; fix = bump to next 16.3.8 + rebuild + full re-verify. Deliberate upgrade task for a future session.
 
 ## Exact next action
-- Chunk 1 human verification done (all green, zero product bugs). Next: report done to founder and propose the next Phase 2 chunk from spec §7 — #11 SMS/WhatsApp stub, #13 library, #14 transport, #15 payroll, #16 CRM, #17 certificates. Ask whether to commit `CURRENT_TASK.md`.
+- IDLE. Chunk 2 (Admission/Enquiry CRM + Certificate Generator) starts whenever the founder says go.
 
 ## Repo state right now
-- `CURRENT_TASK.md` modified, UNCOMMITTED (handoff notes only — ask founder before committing). Everything else clean. Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Local `.env` gained `RAZORPAY_WEBHOOK_SECRET=wh-local-human-pass` (gitignored). Temp test scripts deleted. Demo login: slug `school-of-science`, password `Demo@1234` (see `DEMO_DATA.md`).
+- Clean after this commit. Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Local `.env` has `RAZORPAY_WEBHOOK_SECRET=wh-local-human-pass` (gitignored). Demo login: slug `school-of-science`, password `Demo@1234`.
 
 ## Notes / decisions made mid-task (carry-over operational knowledge — keep)
 - Local API start command (4 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_RATE_LIMIT_MAX=200&& set LOGIN_ACCOUNT_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.

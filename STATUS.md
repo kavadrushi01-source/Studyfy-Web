@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** 2026-09-16 | **Last updated:** 2026-09-27
+**Started:** 2026-09-16 | **Last updated:** 2026-10-01
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -60,7 +60,7 @@
 | Module | Status | Notes |
 |---|---|---|
 | SMS/WhatsApp | NOT STARTED | Stub until a real gateway is deliberately enabled |
-| Online fee payment (Razorpay/UPI) | IN PROGRESS — pay-order + webhook + checkout UI built and tested (TEST MODE badges, hermetic e2e); needs webhook registration + live test payment | **Build for real, TEST MODE only, permanently.** Follow spec §13.8's full checklist. Never add live keys — see §1/§13.8 |
+| Online fee payment (Razorpay/UPI) | DONE — pay-order (server-computed paise, self-scope) + HMAC webhook (order-id lookup, idempotency, amount re-verify) + hosted-checkout UI (TEST MODE pills, no card form on our page) + REFUNDED representability. Verified: API 201/201 (5 pay-order + 5 webhook + guard/idempotency tests), e2e 50/50 incl. online-pay, lint+typecheck 0, live proofs (real test order, signed webhook → PAID, real test-card payments incl. `pay_ThpAGvC66ZdWt2`, replay once-only, stranger-invoice 403) + Oct-1 human pass (20/20 API journey, real-card UI journey `pay_TIWeBB1DeWF0mw`, receipt-PDF bytes, OVERDUE payable, partial-remainder loop). Cross-tenant enforced by tenant middleware on all fee routes (Phase-0 proven) + fee-level self-scope tests (foreign family/pupil → 403). Honest note: `npm audit` 2026-10-01 flags 1 critical (next 16.2.0–16.3.5 `next/og` ImageResponse RCE) — that module is never imported here (grep-verified, no reachable path); fix needs a range-breaking bump to next 16.3.8, deferred as a deliberate upgrade task | **Build for real, TEST MODE only, permanently.** Follow spec §13.8's full checklist. Never add live keys — see §1/§13.8 |
 | Library | NOT STARTED | |
 | Transport | NOT STARTED | |
 | HR/Payroll | NOT STARTED | |
