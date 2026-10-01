@@ -9,9 +9,9 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** BLOCKED (wanderlust suspended by founder; waiting billing reset ~Oct 1; only studyfy-api may run after)
-**Phase / Module:** —
-**Last updated:** 2026-09-27
+**Status:** LIVE + all proofs done (billing reset Oct 1; account-keyed limiter proven on production; only studyfy-api runs — portfolio, wanderlust, FoodHub all suspended)
+**Phase / Module:** Phase 2 (Razorpay TEST MODE) complete; awaiting founder's next pick
+**Last updated:** 2026-10-01
 
 ## What's done in this task so far
 - Nothing in progress. Recent finished work (details in `STATUS.md`, bugs in `BUGSFIX.md`):
@@ -37,14 +37,20 @@
   - Refund representability (§13.8): confirmed both enums already carry REFUNDED (invoice had it from day one, payment got it with the status enum) + regression test flips both values with no migration. No flow built, per spec.
   - This handoff — **spec §9.1 alignment**: the ER overview + a `teacher_subjects`-style honest-gap note documented the idempotency keys (later superseded: founder directed `razorpay_*` names + status column, see next bullet). No code changes in that commit; spec-only.
   - This handoff — **stale-thread + take-cap fixes** (human-level round found real bugs): (1) thread reads were oldest-first + take 200, so conversations past 200 rows showed ancient history while previews promised new messages — now newest-first + chronological reverse, pinned by a 205-message API test (both participant + admin-oversight reads); (2) students list pageSize max 100→500 + attendance roster and homework boards take 100→500 (backlog was amputating newest rows). Verified: API **192/192**, gates 0. BUGSFIX 32.
-  - This handoff — **account-keyed login limiter (§11 fix for the trust-proxy finding)**: per-IP buckets proved unreliable behind Render's proxy chain, so POST /auth/login now also carries a normalized-email bucket (5/15min, successes skipped, other accounts unaffected). `trust proxy` deliberately untouched (spoof risk). Own knob `LOGIN_ACCOUNT_LIMIT_MAX` (default 5); local start command now sets 4 knobs. 3 new API tests (lockout, budget, normalization). Verified: API **201/201** (55 files, incl. 3 new limiter tests), gates 0.
+   - This handoff — **account-keyed login limiter (§11 fix for the trust-proxy finding)**: per-IP buckets proved unreliable behind Render's proxy chain, so POST /auth/login now also carries a normalized-email bucket (5/15min, successes skipped, other accounts unaffected). `trust proxy` deliberately untouched (spoof risk). Own knob `LOGIN_ACCOUNT_LIMIT_MAX` (default 5); local start command now sets 4 knobs. 3 new API tests (lockout, budget, normalization). Verified: API **201/201** (55 files, incl. 3 new limiter tests), gates 0.
+   - Oct 1 session — **Render billing reset + live limiter proof CLOSED**: founder suspended FoodHub (`foodhub-api-u3oy`) so only studyfy-api runs (fits 750 free hrs). After reset, service resumed but was running an OLD build (15 failed logins for one email → all plain 401s, zero account lockout → middleware absent). Founder did Manual Deploy → **`1d30103` Live**. Proof on production then passed: exactly 5×401 → 6th = 429 `"Too many login attempts for this account."`; different email unaffected (401); legit login 200. Also confirmed webhook returns 401 WEBHOOK_UNAUTHORIZED (build marker) and `x-render-routing: suspend` was the suspension signature. **Lesson: after resume, always verify the deployed commit matches HEAD — suspension/restart does not auto-build.**
+   - Oct 1 session — **Phase 2 Chunk 1 human verification (Razorpay fee-payment vs spec §13.8), zero product bugs found**: baselines green (API 201/201 ×55 files, e2e 50/50, web gates 0). API journey harness 20/20: tampered amount ignored (server computes from invoice), `rzp_test_` key, bad/missing webhook sig 401, unknown order 404, wrong amount 400 AMOUNT_MISMATCH, capture→replay idempotent (alreadyProcessed, 1 row), invoice PAID, pay-order on PAID 409 INVOICE_SETTLED, receipt PDF 200, stranger receipt 403. Cross-family probes: stranger-parent/foreign-student/foreign-invoice → 403. UI journey (hosted checkout): TEST MODE visible, no card form on our page, real test card `5267 3181 8797 5449`/12-30/123/OTP 123456 → payment ack; receipt page opens → blob URL serves real `%PDF-` bytes; PAID pill + outstanding drop reflected. OVERDUE invoice payable; partial payment (₹500 cash → pay-order charged ₹700 remainder → webhook 70000 paise captured → PAID; 120000 mismatch 400). Local webhook exercised with signed payload (local `.env` secret `wh-local-human-pass`, gitignored — Razorpay can't reach localhost, so signed delivery was replayed manually). **Lesson: local API runs `dist/` — a stale build hid the webhook route (404) until `npm run build --workspace=@studyfy/api`; after editing API source, REBUILD before testing.**
 
 ## What's left in this task
-- Founder items: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school; (3) Phase 2 kickoff next session — Razorpay TEST MODE first (spec §7 #12), per spec never live keys.
-- Watch items: Aiven free sleeps when idle (power on from console if DB errors); Render free cold-starts ~50s; Brevo freemail sender may land in spam (custom domain + DKIM later).
+- Nothing blocked. Everything through Phase 2 (Razorpay TEST MODE) is DONE and live-proven; the trust-proxy/limiter thread is CLOSED.
+- Founder items: (1) rotate secrets pasted in chat (Aiven password, Cloudinary key, Brevo SMTP key — regenerate each, update Render env); (2) pilot with a real school; (3) pick next build target from the spec (SMS/WhatsApp stub, library, transport, payroll, CRM, certificates).
+- Watch items: Render auto-deploy setting (verify it's On — a manual deploy was needed Oct 1); Aiven free sleeps when idle (power on from console if DB errors); Render free cold-starts ~50s; budget math: only studyfy-api may run (1 × 24×31 ≈ 744/750 hrs); Brevo freemail sender may land in spam (custom domain + DKIM later).
 
 ## Exact next action
-- None for the agent — next session starts Phase 2 (Razorpay TEST MODE first). Start from `AGENT_START_HERE.md`.
+- Chunk 1 human verification done (all green, zero product bugs). Next: report done to founder and propose the next Phase 2 chunk from spec §7 — #11 SMS/WhatsApp stub, #13 library, #14 transport, #15 payroll, #16 CRM, #17 certificates. Ask whether to commit `CURRENT_TASK.md`.
+
+## Repo state right now
+- `CURRENT_TASK.md` modified, UNCOMMITTED (handoff notes only — ask founder before committing). Everything else clean. Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Local `.env` gained `RAZORPAY_WEBHOOK_SECRET=wh-local-human-pass` (gitignored). Temp test scripts deleted. Demo login: slug `school-of-science`, password `Demo@1234` (see `DEMO_DATA.md`).
 
 ## Notes / decisions made mid-task (carry-over operational knowledge — keep)
 - Local API start command (4 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_RATE_LIMIT_MAX=200&& set LOGIN_ACCOUNT_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.
@@ -53,9 +59,6 @@
 - MySQL sandbox (3307) can silently die mid-session; recovery: kill the stale `mysqld`, then `Start-Process -FilePath "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe" -ArgumentList "--datadir=C:\Users\kavad\studyfy-mysql-data","--port=3307","--bind-address=127.0.0.1","--mysqlx=OFF"` (mysqld is NOT on PATH). Datadir persists — no re-seed needed. The MySQL80 service on 3306 is unrelated — never touch it. Symptom: API tests fail suite-wide with "Can't reach database server at 127.0.0.1:3307".
 - Known externals unchanged: Brevo SMTP 525 (emails don't deliver; fails fast), Cloudinary 503 (uploads disabled by design).
 - Design rules: inline styles only (no Tailwind), no new runtime deps (lucide-react present), spec-pinned copy/labels/aria/hrefs/nav untouched, navy sidebar + blue `#2563EB` kept.
-
-## Repo state right now
-- YES — clean tree (this handoff is the last commit), role-depth + responsive + mobile-menu rounds (e2e 49/49, web gates 0). Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Demo login: slug `school-of-science`, password `Demo@1234` (see `DEMO_DATA.md`).
 
 ---
 
