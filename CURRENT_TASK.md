@@ -9,13 +9,13 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — founder confirmed homework PDFs open (Cloudinary "PDF and ZIP files delivery" set to Allow; the 401 is gone). Next: Chunk 2 (Admission/Enquiry CRM + Certificate Generator) whenever the founder returns.
-**Phase / Module:** Between chunks — all prior work committed + pushed (`c9962d9` clean)
+**Status:** DONE — Chunk 2 (Admission/Enquiry CRM §7 #16 + Certificate Generator #17, implemented + verified, committed + pushed). Awaiting founder's live test.
+**Phase / Module:** Phase 2, Chunk 2 complete; next queued: Chunk 3 (founder picks: SMS/WhatsApp stub, library, transport, payroll)
 **Last updated:** 2026-10-02
 
 ## What's done in this task so far
-- Follow-up round DONE + verified (details BUGSFIX 34): (1) homework uploads now magic-byte validated (%PDF-/JPEG/PNG/WebP) + 2MB cap + Download fallback — renamed/corrupt files rejected at submit with a clear message; (2) exam ranks compute over ALL takers, pins filter display only (human proof scoped 8 = admin 8; report cards were already full-set); (3) graded rows vanish optimistically on Mark graded click; (4) one-file-per-submission already held. Verified: API 207/207, e2e 51/51, typecheck+lint 0, human pass incl. rank proof. Note: the founder's exact failing PDF link is needed if it still fails (no pending fileUrl exists on prod to inspect — likely graded already).
-- Previous: screenshot round DONE (BUGSFIX 33, committed `5ff8aa2`).
+- Chunk 2 DONE + verified (details BUGSFIX 35): CRM pipeline (public intake → stages + assignee + notes timeline, office-only; /crm UI) + certificates (Bonafide/Transfer/Character PDFs, CERT/year/sequence serials, frozen snapshots, re-download; /certificates UI). New tables via migration + idempotent permission-keys data migration (prod gets keys via `migrate deploy`). Verified: API 212/212 (57 files), e2e 56/56, typecheck+lint 0, 10-check human pass (public→CONTACTED, TRANSFER CERT/2026/0003, 2073 PDF bytes, nav).
+- Previous: follow-up round DONE (BUGSFIX 34).
 - Chunk 1 of 5 DONE earlier: Razorpay TEST MODE online fee payment. Full record in `STATUS.md` Phase 2 row; detail in History below.
 
 ## What's left in this task

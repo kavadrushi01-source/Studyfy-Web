@@ -139,6 +139,8 @@ model School {
   homeworkSubmissions HomeworkSubmission[]
   notices             Notice[]
   enquiries           Enquiry[]
+  enquiryNotes        EnquiryNote[]
+  certificates        Certificate[]
   documents           Document[]
   messages            Message[]
 
@@ -175,6 +177,9 @@ model User {
   documents        Document[]
   sentMessages     Message[]         @relation("MessageSender")
   receivedMessages Message[]         @relation("MessageReceiver")
+  assignedEnquiries Enquiry[]        @relation("EnquiryAssignee")
+  enquiryNotes      EnquiryNote[]    @relation("EnquiryNoteAuthor")
+  issuedCertificates Certificate[]   @relation("CertificateIssuer")
 
   @@unique([schoolId, email])
   @@index([schoolId])
@@ -318,6 +323,7 @@ model Student {
   feeInvoices   FeeInvoice[]
   marks         Mark[]
   submissions   HomeworkSubmission[]
+  certificates  Certificate[]
 
   @@index([schoolId, sectionId])
   @@map("students")
@@ -680,10 +686,57 @@ model Enquiry {
   email     String?  @map("email")
   message   String   @map("message") @db.Text
   status    String   @default("NEW") @map("status")
+  // Pipeline ownership (Phase 2 CRM §7 #16): which staffer is working this
+  // enquiry. Null = unassigned queue.
+  assigneeId String? @map("assignee_id")
+  assignee   User?   @relation("EnquiryAssignee", fields: [assigneeId], references: [id])
+  notes     EnquiryNote[]
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@index([schoolId, status, createdAt])
   @@index([schoolId, createdAt])
   @@map("enquiries")
+}
+
+// Follow-up log for one enquiry (Phase 2 CRM §7 #16): calls, visits,
+// status moves (recorded as notes by the API so the timeline tells the
+// whole story). Authors are staff; never shown publicly.
+model EnquiryNote {
+  id        String   @id @default(cuid()) @map("id")
+  schoolId  String   @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id])
+  enquiryId String   @map("enquiry_id")
+  enquiry   Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  authorId  String   @map("author_id")
+  author    User     @relation("EnquiryNoteAuthor", fields: [authorId], references: [id])
+  body      String   @map("body") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([enquiryId, createdAt])
+  @@map("enquiry_notes")
+}
+
+// Issued certificates (Phase 2 §7 #17): one row per issuance with a
+// human-meaningful serial (CERT/<year>/<per-school sequence>) and a
+// frozen payload snapshot, so re-downloads years later print exactly
+// what was issued even if the pupil's record changed since.
+model Certificate {
+  id        String   @id @default(cuid()) @map("id")
+  schoolId  String   @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id])
+  studentId String   @map("student_id")
+  student   Student  @relation(fields: [studentId], references: [id])
+  type      String   @map("type")
+  serial    String   @map("serial")
+  payload   Json     @map("payload")
+  issuedBy  String   @map("issued_by")
+  issuer    User     @relation("CertificateIssuer", fields: [issuedBy], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([schoolId, serial])
+  @@index([schoolId, studentId, createdAt])
+  @@map("certificates")
 }
 
 // ---------------------------------------------------------------------------

@@ -29,6 +29,8 @@ export const TENANT_MODELS = [
   "HomeworkSubmission",
   "Notice",
   "Enquiry",
+  "EnquiryNote",
+  "Certificate",
   "Document",
   "Message",
 ] as const;

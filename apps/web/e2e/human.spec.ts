@@ -268,6 +268,8 @@ test.describe("session, gates and edges", () => {
           "/timetable",
           "/homework",
           "/messages",
+          "/crm",
+          "/certificates",
           "/notices",
           "/profile",
         ],
@@ -280,7 +282,7 @@ test.describe("session, gates and edges", () => {
       {
         email: ACCOUNTS.sosAccountant,
         slug: SOS_SLUG,
-        hrefs: ["/dashboard/accountant", "/fees", "/fees/payments", "/profile"],
+        hrefs: ["/dashboard/accountant", "/fees", "/fees/payments", "/crm", "/certificates", "/profile"],
       },
       {
         email: ACCOUNTS.sosStudent,

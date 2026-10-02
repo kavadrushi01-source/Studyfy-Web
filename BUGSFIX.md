@@ -310,6 +310,18 @@ npm audit --audit-level=high
     (4) Uploads capped at 2 MB + one file (founder's DB-load ask), hint
     text on the submit box. Pinned by API tests (magic/size gates, true
     pinned rank) — API 207/207, e2e 51/51.
+35. **Chunk 2 build notes (2026-10-02, not bugs — first implementation).**
+    Admission CRM + Certificate generator (§7 #16/#17): new tables
+    (enquiry_notes, certificates) + enquiry assignee/updatedAt via
+    migration (updated_at backfilled from created_at for existing rows);
+    four RBAC keys (crm.read/manage, certificates.read/manage) seeded AND
+    shipped as an idempotent data migration so production (never seeded)
+    gets them with `migrate deploy`; PDFKit refused byte-identical
+    re-downloads (timestamps/IDs embedded — assert validity + size, not
+    bytes); displayed-but-untyped form defaults and missing Content-Type
+    on hand-written POSTs were the two UI traps, same as the timetable
+    build. Verified: API 212/212, e2e 56/56, human pass (public→CONTACTED
+    journey, TRANSFER CERT/2026/0003 with 2073 real PDF bytes).
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

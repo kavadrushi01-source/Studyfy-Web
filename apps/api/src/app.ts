@@ -2,6 +2,8 @@ import cookieParser from "cookie-parser";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import { authRouter } from "./modules/auth/auth.router.js";
 import { attendanceRouter } from "./modules/attendance/attendance.router.js";
+import { certificatesRouter } from "./modules/certificates/certificates.router.js";
+import { crmRouter } from "./modules/crm/crm.router.js";
 import { documentsRouter } from "./modules/documents/documents.router.js";
 import { examsRouter } from "./modules/exams/exams.router.js";
 import { homeworkRouter } from "./modules/homework/homework.router.js";
@@ -48,6 +50,8 @@ export function createApp(): Express {
   app.use("/api/v1/platform", platformRouter);
   app.use("/api/v1/public", publicRouter);
   app.use("/api/v1", attendanceRouter);
+  app.use("/api/v1", certificatesRouter);
+  app.use("/api/v1", crmRouter);
   app.use("/api/v1", dashboardRouter);
   app.use("/api/v1", documentsRouter);
   app.use("/api/v1", examsRouter);

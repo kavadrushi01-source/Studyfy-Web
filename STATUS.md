@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** 2026-09-16 | **Last updated:** 2026-10-01
+**Started:** 2026-09-16 | **Last updated:** 2026-10-02
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -64,8 +64,8 @@
 | Library | NOT STARTED | |
 | Transport | NOT STARTED | |
 | HR/Payroll | NOT STARTED | |
-| Admission CRM | NOT STARTED | |
-| Certificate generator | NOT STARTED | |
+| Admission CRM | DONE — pipeline on the public intake: NEW→CONTACTED→VISITED→ADMITTED/REJECTED with assignee + follow-up timeline (stage moves auto-noted); filter/search/totals; office-only (admin manages, accountant reads). Verified: API 5 tests (pipeline, notes, validation, cross-tenant, permission gates), e2e 5 (public→CONTACTED journey, read-only, denials), human pass (form→filter→note→move, serial screenshots) | Public form unchanged (limiter + honeypot); staff UI at /crm |
+| Certificate generator | DONE — Bonafide/Transfer/Character PDFs (PDFKit, brand header, CERT/year/sequence serials, frozen payload snapshots, re-download regenerates exactly); issued log; office-only (admin + accountant). Verified: API 4 tests (serials, PDF validity, gates, cross-tenant), e2e (issue→PDF opens), human pass (TRANSFER CERT/2026/0003, 2073 real PDF bytes) | UI at /certificates |
 
 ## Phase 3 — Scale & Retention
 | Module | Status | Notes |

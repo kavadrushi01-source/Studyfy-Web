@@ -96,6 +96,10 @@ const PERMISSIONS: { key: string; description: string }[] = [
   { key: "homework.grade", description: "Grade submissions (teacher of the subject/section, School Admin)" },
   { key: "documents.read", description: "Read uploaded documents (staff; students/parents narrowed to own)" },
   { key: "documents.write", description: "Upload admission documents (School Admin, Accountant)" },
+  { key: "crm.read", description: "Read the admission enquiry pipeline (School Admin, Accountant)" },
+  { key: "crm.manage", description: "Work the pipeline: statuses, assignees, follow-up notes (School Admin)" },
+  { key: "certificates.read", description: "Read issued certificates (School Admin, Accountant)" },
+  { key: "certificates.manage", description: "Issue certificates (School Admin, Accountant)" },
   { key: "dashboard.read", description: "Read own role's dashboard bundle (each board's route additionally role-guards its audience)" },
   { key: "platform.schools.read", description: "List every school cross-tenant (Platform Owner only)" },
 ];
@@ -104,9 +108,9 @@ const PERMISSIONS: { key: string; description: string }[] = [
 // PERMISSION grants access while self-scope narrows ROWS — holding the key
 // never means seeing everyone.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.read", "homework.submit", "homework.grade", "messages.read", "documents.read", "documents.write", "dashboard.read"],
+  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.read", "homework.submit", "homework.grade", "messages.read", "documents.read", "documents.write", "crm.read", "crm.manage", "certificates.read", "certificates.manage", "dashboard.read"],
   TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "notices.read", "notices.write", "exams.manage", "exams.read", "timetable.read", "homework.manage", "homework.read", "homework.grade", "messages.send", "messages.read", "documents.read", "dashboard.read"],
-  ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "notices.read", "fees.manage", "fees.read", "exams.read", "timetable.read", "documents.read", "documents.write", "dashboard.read"],
+  ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "notices.read", "fees.manage", "fees.read", "exams.read", "timetable.read", "documents.read", "documents.write", "crm.read", "certificates.read", "certificates.manage", "dashboard.read"],
   STUDENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.submit", "homework.read", "messages.send", "messages.read", "dashboard.read"],
   PARENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.read", "messages.send", "messages.read", "dashboard.read"],
   PLATFORM_OWNER: ["platform.schools.read"],
@@ -551,6 +555,7 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
     await seedHomework(db, school.id, sectionIds, mathTeacher, seeded);
   }
   await seedNotices(db, school.id, classIds, adminId, spec.eventNotice);
+  await seedEnquiries(db, school.id, adminId);
 }
 
 async function seedFees(
@@ -838,6 +843,39 @@ async function seedNotices(
         createdAt: new Date(Date.now() - (3 - index) * day),
       },
     });
+  }
+}
+
+async function seedEnquiries(db: PrismaClient, schoolId: string, adminId: string): Promise<void> {
+  // Deterministic pipeline demo (idempotent by name): one enquiry per
+  // stage so the CRM board shows the whole funnel on first open.
+  const day = 86400000;
+  const rows: { name: string; phone: string; message: string; status: string; ageDays: number; note?: string }[] = [
+    { name: "Prospective Parent A", phone: "9000000001", message: "Admission for Grade 1 next year.", status: "NEW", ageDays: 1 },
+    { name: "Prospective Parent B", phone: "9000000002", message: "Fee structure for Grade 6, please.", status: "CONTACTED", ageDays: 4, note: "Called — asked about transport routes." },
+    { name: "Prospective Parent C", phone: "9000000003", message: "Visited the school; wants to meet the principal.", status: "VISITED", ageDays: 9, note: "Campus tour done Saturday." },
+    { name: "Prospective Parent D", phone: "9000000004", message: "Sibling of an existing student.", status: "ADMITTED", ageDays: 15, note: "Admission form collected at the office." },
+  ];
+  for (const row of rows) {
+    const existing = await db.enquiry.findFirst({ where: { schoolId, name: row.name } });
+    if (existing) {
+      continue;
+    }
+    const created = await db.enquiry.create({
+      data: {
+        schoolId,
+        name: row.name,
+        phone: row.phone,
+        message: row.message,
+        status: row.status,
+        createdAt: new Date(Date.now() - row.ageDays * day),
+      },
+    });
+    if (row.note) {
+      await db.enquiryNote.create({
+        data: { schoolId, enquiryId: created.id, authorId: adminId, body: row.note },
+      });
+    }
   }
 }
 
