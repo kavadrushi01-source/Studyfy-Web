@@ -236,4 +236,46 @@ describe("homework submissions + grading (§7 Phase 1 #6)", () => {
       .expect(404);
     expect(missing.body.error.code).toBe("SUBMISSION_NOT_FOUND");
   });
+
+  it("caps files at 2 MB and rejects renamed impostors by magic bytes", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const sectionId = await makeSection(schoolId);
+    const math = await makeSubject(schoolId);
+    const pupil = await makeStudent(schoolId, slug, sectionId);
+    const homeworkId = await postHomework(schoolId, adminToken, sectionId, math);
+
+    // 2 MB + 1 byte of real PDF header: size gate fires first.
+    const big = await request(app)
+      .post(`/api/v1/schools/${schoolId}/homework/${homeworkId}/submissions`)
+      .set("Authorization", `Bearer ${pupil.token}`)
+      .attach("file", Buffer.concat([Buffer.from("%PDF-"), Buffer.alloc(2 * 1024 * 1024)]), {
+        filename: "big.pdf",
+        contentType: "application/pdf",
+      })
+      .expect(413);
+    expect(big.body.error.code).toBe("FILE_TOO_LARGE");
+    expect(big.body.error.message).toContain("2 MB");
+
+    // Right extension + mime, wrong bytes: a renamed file that would die
+    // in every viewer with "Failed to load PDF document".
+    const fake = await request(app)
+      .post(`/api/v1/schools/${schoolId}/homework/${homeworkId}/submissions`)
+      .set("Authorization", `Bearer ${pupil.token}`)
+      .attach("file", Buffer.from("<html>not a pdf at all</html>"), {
+        filename: "fake.pdf",
+        contentType: "application/pdf",
+      })
+      .expect(415);
+    expect(fake.body.error.code).toBe("FILE_CONTENT_MISMATCH");
+
+    // And a genuine small PDF still passes.
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/homework/${homeworkId}/submissions`)
+      .set("Authorization", `Bearer ${pupil.token}`)
+      .attach("file", Buffer.from("%PDF-1.4 one page"), {
+        filename: "real.pdf",
+        contentType: "application/pdf",
+      })
+      .expect(201);
+  });
 });

@@ -198,6 +198,17 @@ export default function HomeworkPage() {
     setGradingId(submissionId);
     setError("");
     setNotice("");
+    // Optimistic removal: the row vanishes the instant grading starts, so
+    // a graded submission can never sit in the queue (or be graded twice)
+    // while the confirmation round-trips. A failed grade reloads the true
+    // board below, restoring the row with the error shown.
+    setItems((prev) =>
+      prev.map((item) => ({
+        ...item,
+        pending: (item.pending ?? []).filter((s) => s.id !== submissionId),
+        counts: item.counts ? { ...item.counts, graded: item.counts.graded + 1 } : item.counts,
+      })),
+    );
     try {
       const response = await apiFetch(`/api/v1/schools/${schoolId}/submissions/${submissionId}/grade`, {
         method: "POST",
@@ -452,14 +463,23 @@ export default function HomeworkPage() {
                   <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 12, color: colors.muted }}>
                     <span>Submitted {new Date(sub.submittedAt).toLocaleString("en-GB")}</span>
                     {sub.fileUrl ? (
-                      <a
-                        href={sub.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ color: colors.primary, fontWeight: 600, textDecoration: "none" }}
-                      >
-                        Open attached file
-                      </a>
+                      <>
+                        <a
+                          href={sub.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: colors.primary, fontWeight: 600, textDecoration: "none" }}
+                        >
+                          Open attached file
+                        </a>
+                        <a
+                          href={sub.fileUrl}
+                          download
+                          style={{ color: colors.primary, fontWeight: 600, textDecoration: "none" }}
+                        >
+                          Download
+                        </a>
+                      </>
                     ) : (
                       <span>No file attached</span>
                     )}
@@ -543,6 +563,10 @@ export default function HomeworkPage() {
                     <Send size={14} aria-hidden="true" /> {busy ? "Submitting…" : "Submit"}
                   </button>
                 </div>
+                <p style={{ fontSize: 12, color: colors.muted, margin: "6px 0 0" }}>
+                  One file only — real PDF or photo, max 2 MB. Renamed files that aren&apos;t really
+                  PDFs/photos are rejected.
+                </p>
               </div>
               ) : null}
             </article>

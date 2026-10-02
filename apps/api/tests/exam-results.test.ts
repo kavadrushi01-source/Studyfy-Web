@@ -163,6 +163,38 @@ describe("GET /api/v1/schools/:schoolId/exams/:examId/results (§11)", () => {
       .expect(404);
     expect(foreign.body.error.code).toBe("EXAM_NOT_FOUND");
   });
+
+  it("shows pinned pupils their TRUE whole-class rank, never #1-of-1", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    const sectionId = await makeSection(schoolId);
+    // 95/85/85/70 -> ranks 1,2,2,4 across the class.
+    const { examId, studentIds } = await makeRankedExam(schoolId, adminToken, sectionId, [95, 85, 85, 70]);
+    // A login for the lowest scorer (70): pins resolve via studentScope.
+    const lowEmail = `rank-low-${uid()}@example.com`;
+    const lowPassword = "student-pass-123";
+    const studentRole = await prisma.role.findUniqueOrThrow({ where: { name: "STUDENT" } });
+    const lowUser = await prisma.user.create({
+      data: { schoolId, roleId: studentRole.id, email: lowEmail, passwordHash: await bcrypt.hash(lowPassword, 4), name: "Low Scorer" },
+    });
+    await prisma.student.update({ where: { id: studentIds[3] }, data: { userId: lowUser.id } });
+    const lowLogin = await request(app)
+      .post("/api/v1/auth/login")
+      .send({
+        email: lowEmail,
+        password: lowPassword,
+        schoolSlug: (await prisma.school.findUnique({ where: { id: schoolId } }))?.slug,
+      })
+      .expect(200);
+
+    const own = await request(app)
+      .get(`/api/v1/schools/${schoolId}/exams/${examId}/results`)
+      .set("Authorization", `Bearer ${lowLogin.body.data.accessToken as string}`)
+      .expect(200);
+    const rows = own.body.data.results as { studentId: string; rank: number; total: number }[];
+    // Only their own row is visible — but ranked 4th of the class, not 1st.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ studentId: studentIds[3], total: 70, rank: 4 });
+  });
 });
 
 describe("GET /api/v1/schools/:schoolId/exams/:examId/marks (saved-marks prefill)", () => {

@@ -289,6 +289,27 @@ npm audit --audit-level=high
     submitted as 0 until seeded into state, and missing Content-Type on
     the new generate/slot POSTs 400'd until added. Verified: API 205/205,
     e2e 51/51, 18-check human pass, screenshots reviewed.
+34. **Founder follow-up round: unopenable homework PDF, false #1 ranks,
+    sticky graded rows, uncapped uploads (2026-10-02).** Four asks: (1) a
+    small homework PDF would not open ("Failed to load PDF document") —
+    the upload path stores whatever bytes arrive, so a renamed/corrupt
+    file becomes a permanently broken link; submissions now require true
+    magic bytes (%PDF-, JPEG/PNG/WebP signatures) with a 415 that names
+    the real problem, plus a Download fallback beside Open; the exact
+    failing URL was already graded off every board (no pending fileUrl
+    exists on prod), so if the founder's file still fails, its link is
+    needed to check the Cloudinary side. (2) A parent saw his son ranked
+    #1 falsely — the results query filtered takers by self-scope pins
+    BEFORE ranking (against its own "whole-class ranks" docstring);
+    ranks now compute over every taker and pins only filter display
+    (human proof: scoped rank 8 = admin rank 8); report cards already
+    ranked full-set and dashboards show no ranks, so the board was the
+    only offender. (3) Graded homework "showed a second time" — the row
+    now vanishes optimistically the instant Mark graded is clicked, the
+    server reload confirms, a failed grade restores it with the error.
+    (4) Uploads capped at 2 MB + one file (founder's DB-load ask), hint
+    text on the submit box. Pinned by API tests (magic/size gates, true
+    pinned rank) — API 207/207, e2e 51/51.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

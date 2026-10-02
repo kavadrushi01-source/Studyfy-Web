@@ -214,13 +214,15 @@ export async function examResults(
   if (options.studentId && allowedIds && !allowedIds.includes(options.studentId)) {
     throw new AuthError(403, "FORBIDDEN", "Not your record.");
   }
-  const eligible =
-    options.studentId ?? (allowedIds ? { in: allowedIds } : undefined);
+  // Ranks come from EVERY taker's marks — self-scope pins only choose WHICH
+  // rows are returned, never the pool ranks are computed from. Filtering
+  // the query by pins first made a pinned pupil "#1 of 1" (a parent shown
+  // a false #1); the subtitle promises whole-class ranks, so the filter
+  // happens after ranking, below.
   const marks = await db.mark.findMany({
     where: {
       examSubjectId: { in: exam.examSubjects.map((s) => s.id) },
       marksObtained: { not: null },
-      ...(eligible === undefined ? {} : { studentId: typeof eligible === "string" ? eligible : eligible }),
     },
     select: {
       studentId: true,
@@ -239,12 +241,20 @@ export async function examResults(
   const entries = [...totals].map(([studentId, entry]) => ({ studentId, total: entry.total }));
   const ranks = rankAll(entries);
 
-  let shown = entries.map((e) => e.studentId);
+  const visibleIds = options.studentId
+    ? [options.studentId]
+    : allowedIds
+      ? entries.map((e) => e.studentId).filter((id) => allowedIds.includes(id))
+      : entries.map((e) => e.studentId);
+  let shown = visibleIds;
   if (options.top !== undefined) {
     if (options.top <= 0) {
       throw new AuthError(400, "VALIDATION_ERROR", "top must be a positive integer.");
     }
-    shown = topK(entries, options.top);
+    shown = topK(
+      entries.filter((e) => visibleIds.includes(e.studentId)),
+      options.top,
+    );
   }
   const shownSet = new Set(shown);
   const results: RankedResult[] = [];

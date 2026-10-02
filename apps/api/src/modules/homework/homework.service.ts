@@ -95,7 +95,38 @@ export const SUBMISSION_ALLOWED: Record<string, string[]> = {
   "application/pdf": [".pdf"],
 };
 
-export const SUBMISSION_MAX_BYTES = 5 * 1024 * 1024;
+// Small files only (founder decision — keeps storage/DB light for a free
+// tier): 2 MB per submission file, one file per submission (the model
+// holds a single fileUrl). Size is checked before anything is stored.
+export const SUBMISSION_MAX_BYTES = 2 * 1024 * 1024;
+
+// Magic-byte check: a renamed .exe/.html saved as .pdf uploads "fine" and
+// then dies in every viewer with "Failed to load PDF document". Reject
+// impostors at submit time with a message that names the actual problem.
+function fileSignatureOk(mimetype: string, buffer: Buffer): boolean {
+  if (buffer.length < 8) {
+    return false;
+  }
+  if (mimetype === "application/pdf") {
+    return buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46 && buffer[4] === 0x2d;
+  }
+  if (mimetype === "image/jpeg") {
+    return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (mimetype === "image/png") {
+    return (
+      buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47 &&
+      buffer[4] === 0x0d && buffer[5] === 0x0a && buffer[6] === 0x1a && buffer[7] === 0x0a
+    );
+  }
+  if (mimetype === "image/webp") {
+    return (
+      buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+      buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
+    );
+  }
+  return false;
+}
 
 export interface SubmissionFile {
   buffer: Buffer;
@@ -112,8 +143,8 @@ function extOf(filename: string): string {
 // Student submission (§7 Phase 1 #6): text and/or file. Own section's
 // homework only — submitting to another section's assignment is 403, same
 // fail-closed shape as self-scope. File rules mirror admission documents
-// (§13.5): whitelist + 5 MB + schools/{schoolId}/ folder. Re-submitting
-// overwrites and reopens (back to SUBMITTED).
+// (§13.5): whitelist + magic-byte check + 2 MB + schools/{schoolId}/
+// folder. Re-submitting overwrites and reopens (back to SUBMITTED).
 export async function submitHomework(
   db: PrismaClient,
   callerUserId: string,
@@ -139,7 +170,14 @@ export async function submitHomework(
       throw new AuthError(415, "UNSUPPORTED_FILE_TYPE", "Only JPEG, PNG, WebP images and PDF files are accepted.");
     }
     if (file.size > SUBMISSION_MAX_BYTES) {
-      throw new AuthError(413, "FILE_TOO_LARGE", "Files must be 5 MB or smaller.");
+      throw new AuthError(413, "FILE_TOO_LARGE", "Files must be 2 MB or smaller — small PDFs and photos keep the site fast for everyone.");
+    }
+    if (!fileSignatureOk(file.mimetype, file.buffer)) {
+      throw new AuthError(
+        415,
+        "FILE_CONTENT_MISMATCH",
+        "That file is not actually a PDF/image — renamed files cannot be opened later. Please attach the real file.",
+      );
     }
     try {
       const stored = await documentStorage().upload({
