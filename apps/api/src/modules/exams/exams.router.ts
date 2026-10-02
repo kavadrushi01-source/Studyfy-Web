@@ -6,8 +6,8 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { createExamSchema, enterMarksSchema } from "./exams.schemas.js";
-import { createExam, enterMarks, examResults, reportCard } from "./exams.service.js";
+import { createExamSchema, enterMarksSchema, savedMarksQuerySchema } from "./exams.schemas.js";
+import { createExam, enterMarks, examResults, reportCard, savedMarks } from "./exams.service.js";
 import { generateReportCard } from "../../lib/report-card.js";
 
 export const examsRouter = Router();
@@ -172,6 +172,48 @@ examsRouter.post(
         parsed.data,
       );
       res.status(200).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendExamsError(res, err);
+    }
+  }),
+);
+
+// Saved marks for one exam subject + section (entry-form prefill —
+// boxes open filled with what's already saved instead of blank).
+// Same class-teacher-or-admin gate as bulk entry.
+examsRouter.get(
+  "/schools/:schoolId/exams/:examId/marks",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("exams.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = savedMarksQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await savedMarks(
+        req.prisma,
+        req.params.examId ?? "",
+        { userId: req.user.userId, role: req.user.role },
+        parsed.data,
+      );
+      res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendExamsError(res, err);
     }

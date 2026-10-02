@@ -164,3 +164,84 @@ describe("GET /api/v1/schools/:schoolId/exams/:examId/results (§11)", () => {
     expect(foreign.body.error.code).toBe("EXAM_NOT_FOUND");
   });
 });
+
+describe("GET /api/v1/schools/:schoolId/exams/:examId/marks (saved-marks prefill)", () => {
+  async function makeClassTeacher(
+    schoolId: string,
+    slug: string,
+    sectionId: string,
+  ): Promise<string> {
+    const email = `marks-teacher-${uid()}@example.com`;
+    const password = "teacher-pass-123";
+    const role = await prisma.role.findUniqueOrThrow({ where: { name: "TEACHER" } });
+    const user = await prisma.user.create({
+      data: { schoolId, roleId: role.id, email, passwordHash: await bcrypt.hash(password, 4), name: "Marks Teacher" },
+    });
+    const staff = await prisma.staff.create({ data: { schoolId, userId: user.id, designation: "Teacher" } });
+    await prisma.section.update({ where: { id: sectionId }, data: { classTeacherId: staff.id } });
+    const login = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email, password, schoolSlug: slug })
+      .expect(200);
+    return login.body.data.accessToken as string;
+  }
+
+  it("returns the roster with saved marks for the class teacher and admin; refuses everyone else", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const sectionId = await makeSection(schoolId);
+    const { examId, studentIds } = await makeRankedExam(schoolId, adminToken, sectionId, [80]);
+    const subject = await prisma.examSubject.findFirstOrThrow({ where: { examId } });
+    const teacherToken = await makeClassTeacher(schoolId, slug, sectionId);
+    // One more pupil with NO saved marks: prefill fills the saved row,
+    // leaves the unsaved one blank.
+    const pupil = await makeStudent(schoolId, sectionId);
+
+    const teacher = await request(app)
+      .get(`/api/v1/schools/${schoolId}/exams/${examId}/marks?examSubjectId=${subject.id}&sectionId=${sectionId}`)
+      .set("Authorization", `Bearer ${teacherToken}`)
+      .expect(200);
+    const rows = teacher.body.data.marks as { studentId: string; name: string; marksObtained: number | null }[];
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.studentId === studentIds[0])).toMatchObject({
+      name: "Ranked Student",
+      marksObtained: 80,
+    });
+    expect(rows.find((r) => r.studentId === pupil.studentId)).toMatchObject({ marksObtained: null });
+
+    const admin = await request(app)
+      .get(`/api/v1/schools/${schoolId}/exams/${examId}/marks?examSubjectId=${subject.id}&sectionId=${sectionId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    expect((admin.body.data.marks as unknown[])).toHaveLength(2);
+
+    // A pupil may not read the section's marks (permission gate first).
+    const denied = await request(app)
+      .get(`/api/v1/schools/${schoolId}/exams/${examId}/marks?examSubjectId=${subject.id}&sectionId=${sectionId}`)
+      .set("Authorization", `Bearer ${pupil.token}`)
+      .expect(403);
+    expect(denied.body.error.code).toBe("PERMISSION_DENIED");
+
+    // A teacher who is NOT this section's class teacher is refused too.
+    const outsiderEmail = `marks-outsider-${schoolId.slice(0, 8)}@example.com`;
+    const teacherRole = await prisma.role.findUniqueOrThrow({ where: { name: "TEACHER" } });
+    const outsiderUser = await prisma.user.create({
+      data: { schoolId, roleId: teacherRole.id, email: outsiderEmail, passwordHash: await bcrypt.hash("t-pass-123", 4), name: "Outsider" },
+    });
+    await prisma.staff.create({ data: { schoolId, userId: outsiderUser.id, designation: "Teacher" } });
+    const outsiderLogin = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: outsiderEmail, password: "t-pass-123", schoolSlug: slug })
+      .expect(200);
+    const outsider = await request(app)
+      .get(`/api/v1/schools/${schoolId}/exams/${examId}/marks?examSubjectId=${subject.id}&sectionId=${sectionId}`)
+      .set("Authorization", `Bearer ${outsiderLogin.body.data.accessToken as string}`)
+      .expect(403);
+    expect(outsider.body.error.code).toBe("NOT_SECTION_TEACHER");
+
+    // Missing query pair is a 400, not a silent empty board.
+    await request(app)
+      .get(`/api/v1/schools/${schoolId}/exams/${examId}/marks?sectionId=${sectionId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(400);
+  });
+});

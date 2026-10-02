@@ -56,3 +56,13 @@ export const enterMarksSchema = z.object({
 });
 
 export type EnterMarksInput = z.infer<typeof enterMarksSchema>;
+
+// Saved-marks read (prefill for the entry form): one subject, one section.
+// Same class-teacher-or-admin gate as entry — pupils/parents never see
+// another pupil's marks through here.
+export const savedMarksQuerySchema = z.object({
+  examSubjectId: z.string().trim().min(1).max(40),
+  sectionId: z.string().trim().min(1).max(40),
+});
+
+export type SavedMarksQuery = z.infer<typeof savedMarksQuerySchema>;

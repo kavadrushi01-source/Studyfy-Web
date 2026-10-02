@@ -146,6 +146,7 @@ export default function ExamResultsPage() {
   // form only renders for staff roles so pupils never see a dead form).
   const entryExam = exams.find((e) => e.id === entryExamId);
   const entrySubjects = entryExam?.examSubjects ?? [];
+  const entryMax = entrySubjects.find((s) => s.id === entrySubjectId)?.maxMarks;
 
   async function loadEntryRoster(sectionId: string): Promise<void> {
     if (!schoolId) {
@@ -155,14 +156,49 @@ export default function ExamResultsPage() {
     try {
       const params = new URLSearchParams({ sectionId, pageSize: "100", sort: "name", order: "asc" });
       const response = await apiFetch(`/api/v1/schools/${schoolId}/students?${params}`);
-      const body = (await response.json()) as { data: { students: { id: string; name: string }[] } } | ApiError;
+      const body = (await response.json()) as {
+        data: { students: { id: string; user?: { name?: string }; name?: string }[] };
+      } | ApiError;
       if (isFailure(response, body)) {
         throw new Error(body.error?.message ?? "Failed to load roster.");
       }
-      setRoster(body.data.students);
+      // The students list nests the name at user.name — flatten here so
+      // every row below renders its pupil (a missing name once shipped
+      // nameless mark boxes to production).
+      setRoster(body.data.students.map((s) => ({ id: s.id, name: s.name ?? s.user?.name ?? "—" })));
       setMarks({});
+      // Boxes open pre-filled with whatever is already saved (when the
+      // exam + subject are already picked) — changing a number and saving
+      // overwrites just that pupil; blanks stay untouched.
+      if (entryExamId && entrySubjectId) {
+        await prefillSaved(entryExamId, entrySubjectId, sectionId);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
+    }
+  }
+
+  async function prefillSaved(examId: string, examSubjectId: string, sectionId: string): Promise<void> {
+    if (!schoolId) {
+      return;
+    }
+    try {
+      const params = new URLSearchParams({ examSubjectId, sectionId });
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/exams/${examId}/marks?${params}`);
+      const body = (await response.json()) as {
+        data: { marks: { studentId: string; marksObtained: number | null }[] };
+      } | ApiError;
+      if (!isFailure(response, body)) {
+        const filled: Record<string, string> = {};
+        for (const m of body.data.marks) {
+          if (m.marksObtained !== null && m.marksObtained !== undefined) {
+            filled[m.studentId] = String(m.marksObtained);
+          }
+        }
+        setMarks(filled);
+      }
+    } catch {
+      // Prefill is a convenience — the form still works empty.
     }
   }
 
@@ -286,6 +322,11 @@ export default function ExamResultsPage() {
       {canEnter ? (
         <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
           <h2 style={h2Style}>Enter marks (class teacher)</h2>
+          <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 4px" }}>
+            Type each pupil&apos;s marks out of the subject maximum, then Save — the ranked board below
+            recalculates. Boxes open filled with whatever is already saved; changing a number overwrites
+            just that pupil, blanks leave saved marks untouched.
+          </p>
           <form onSubmit={saveMarks} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div className="sf-row-wrap">
               <label style={{ ...labelStyle, flex: 1, minWidth: 200 }}>
@@ -313,7 +354,12 @@ export default function ExamResultsPage() {
                 <select
                   className="sf-select"
                   value={entrySubjectId}
-                  onChange={(e) => setEntrySubjectId(e.target.value)}
+                  onChange={(e) => {
+                    setEntrySubjectId(e.target.value);
+                    if (e.target.value && entryExamId && entrySectionId && roster.length > 0) {
+                      void prefillSaved(entryExamId, e.target.value, entrySectionId);
+                    }
+                  }}
                   required
                   aria-label="Entry subject"
                 >
@@ -360,9 +406,9 @@ export default function ExamResultsPage() {
                       style={{ width: 110, padding: "8px 10px" }}
                       value={marks[s.id] ?? ""}
                       onChange={(e) => setMarks((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                      placeholder="Marks"
+                      placeholder={entryMax !== undefined ? `0–${entryMax}` : "Marks"}
                       inputMode="decimal"
-                      aria-label={`Marks for ${s.name}`}
+                      aria-label={`Marks for ${s.name}${entryMax !== undefined ? ` out of ${entryMax}` : ""}`}
                     />
                   </li>
                 ))}

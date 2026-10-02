@@ -4,7 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { loginAccountLimiter, registerLimiter } from "../../middleware/security.js";
 import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema } from "./auth.schemas.js";
-import { AuthError, login, logout, register, requestPasswordReset, resetPassword, rotateRefreshToken } from "./auth.service.js";
+import { AuthError, identityExtras, login, logout, register, requestPasswordReset, resetPassword, rotateRefreshToken } from "./auth.service.js";
 
 export const REFRESH_COOKIE = "studyfy_refresh";
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -53,7 +53,10 @@ authRouter.get(
     }
     res.json({
       success: true,
-      data: { user: { id: user.id, name: user.name, email: user.email, schoolId: user.schoolId, role: user.role.name } },
+      data: {
+        user: { id: user.id, name: user.name, email: user.email, schoolId: user.schoolId, role: user.role.name },
+        identity: await identityExtras(user.id, user.role.name),
+      },
       error: null,
       meta: null,
     });

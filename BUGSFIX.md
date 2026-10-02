@@ -264,6 +264,31 @@ npm audit --audit-level=high
     the old UI through a rebuild here), and when a checkout iframe has two
     same-named buttons, force-clicks land on the hidden one — click the
     dialog's own button with a real mouse click.
+33. **Founder screenshot round: blind grading, paste-ID timetable, missing
+    own IDs, bare names, nameless mark boxes (2026-10-02).** Six asks, five
+    real defects: (1) the grade queue showed only names + Mark graded —
+    the board API never sent the work, so teachers graded blind; pending
+    rows now carry answer text + file link + submitted time (staff-only
+    branch), rendered in the queue; (2) "My timetable" needed a pasted
+    staff ID — `mine=true` resolves the teacher from the session,
+    pupils/parents lost the dead lens, admins got a staff picker, plus an
+    admin Build block (auto-generate per section with per-subject periods,
+    manual slot, per-cell remove); (3) profile showed only the school's ID
+    — `/auth/me` now returns role identity (admission no. + class, staff
+    ID + designation, parent's children) with a My ID row for everyone;
+    (4) threads showed bare names — rows now carry relationship labels
+    ("Suresh Sharma · Aditya Sharma's father", teacher subjects, pupil
+    section), batched, picker-consistent; (5) marks entry confused because
+    boxes opened blank AND names never rendered — the roster nests names
+    at `user.name` while the form read flat `s.name`, so production showed
+    nameless boxes ("Marks for undefined"); fixed with flattening +
+    prefill of saved marks via a new class-teacher-gated endpoint,
+    explainer text, and 0–max placeholders. Caught-by-test honors: the
+    prefill placeholder broke the old `getByPlaceholder("Marks")` lookup
+    (now by accessible label), displayed-but-untyped generate defaults
+    submitted as 0 until seeded into state, and missing Content-Type on
+    the new generate/slot POSTs 400'd until added. Verified: API 205/205,
+    e2e 51/51, 18-check human pass, screenshots reviewed.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

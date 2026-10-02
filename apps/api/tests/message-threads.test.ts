@@ -82,6 +82,7 @@ async function makeStudent(
 
 interface ThreadRow {
   user: { id: string; name: string };
+  context: string | null;
   lastMessage: { body: string; fromMe: boolean };
   unread: number;
 }
@@ -123,6 +124,45 @@ describe("GET /api/v1/schools/:schoolId/messages/threads", () => {
       .set("Authorization", `Bearer ${teacher.token}`)
       .expect(200);
     expect((teacherRows.body.data.threads as ThreadRow[])).toHaveLength(2);
+  });
+
+  it("labels each thread partner: parent reads as <child>'s <relation>, teacher as subjects", async () => {
+    const { schoolId, slug } = await registerSchool();
+    const sectionId = await makeSection(schoolId);
+    const subject = await prisma.subject.create({ data: { schoolId, name: `Math ${uid()}`, group: "Core" } });
+    const teacher = await makeTeacher(schoolId, slug, [subject.id], sectionId);
+    const pupil = await makeStudent(schoolId, slug, sectionId);
+    const parent = await makeUser(schoolId, slug, "PARENT");
+    const pupilRow = await prisma.student.findFirstOrThrow({ where: { userId: pupil.userId } });
+    await prisma.studentGuardian.create({
+      data: { schoolId, studentId: pupilRow.id, parentId: parent.userId, relationship: "Father" },
+    });
+
+    // Parent writes to the teacher: teacher's thread labels the dad.
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/messages`)
+      .set("Authorization", `Bearer ${parent.token}`)
+      .send({ receiverId: teacher.userId, body: "How is my child doing?" })
+      .expect(201);
+    const teacherThreads = await request(app)
+      .get(`/api/v1/schools/${schoolId}/messages/threads`)
+      .set("Authorization", `Bearer ${teacher.token}`)
+      .expect(200);
+    const dadRow = (teacherThreads.body.data.threads as ThreadRow[]).find((t) => t.user.id === parent.userId);
+    expect(dadRow?.context).toContain("'s father");
+
+    // Pupil's thread labels the teacher by subject.
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/messages`)
+      .set("Authorization", `Bearer ${teacher.token}`)
+      .send({ receiverId: pupil.userId, body: "Revise chapter 3." })
+      .expect(201);
+    const pupilThreads = await request(app)
+      .get(`/api/v1/schools/${schoolId}/messages/threads`)
+      .set("Authorization", `Bearer ${pupil.token}`)
+      .expect(200);
+    const teacherRow = (pupilThreads.body.data.threads as ThreadRow[]).find((t) => t.user.id === teacher.userId);
+    expect(teacherRow?.context).toContain(`Math `);
   });
 
   it("shows the admin every thread and 401s strangers", async () => {

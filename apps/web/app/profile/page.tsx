@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { colors, dangerBtn, gradients, h1Style, mutedStyle, primaryBtn } from "@/lib/theme";
@@ -39,7 +40,33 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 // useAuth — skeleton while restoring, sign-in gate when signed out — then a
 // neutral card with the account rows, board link, and logout.
 export default function ProfilePage(): React.ReactNode {
-  const { ready, token, user, logout } = useAuth();
+  const { ready, token, user, apiFetch, logout } = useAuth();
+  const [identity, setIdentity] = useState<{
+    admissionNo: string | null;
+    section: string | null;
+    staffId: string | null;
+    designation: string | null;
+    children: { name: string; section: string }[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!ready || !token) {
+      return;
+    }
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/v1/auth/me");
+        const body = (await response.json()) as {
+          data?: { identity?: NonNullable<typeof identity> };
+        };
+        if (response.ok && body.data?.identity) {
+          setIdentity(body.data.identity);
+        }
+      } catch {
+        // Non-fatal: the core rows render from the session regardless.
+      }
+    })();
+  }, [ready, token, apiFetch]);
 
   async function handleLogout(): Promise<void> {
     await logout();
@@ -113,6 +140,17 @@ export default function ProfilePage(): React.ReactNode {
             <Row label="Name" value={user.name} />
             <Row label="Email" value={user.email} />
             <Row label="Role" value={user.role.toLowerCase().replace(/_/g, " ")} />
+            <Row label="My ID" value={user.id} mono />
+            {identity?.admissionNo ? <Row label="Admission no." value={identity.admissionNo} mono /> : null}
+            {identity?.section ? <Row label="Class" value={identity.section} /> : null}
+            {identity?.designation ? <Row label="Designation" value={identity.designation} /> : null}
+            {identity?.staffId ? <Row label="Staff ID" value={identity.staffId} mono /> : null}
+            {identity && identity.children.length > 0 ? (
+              <Row
+                label={identity.children.length === 1 ? "Child" : "Children"}
+                value={identity.children.map((c) => `${c.name} (${c.section})`).join(", ")}
+              />
+            ) : null}
             <Row label="School ID" value={user.schoolId ?? "—"} mono />
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>

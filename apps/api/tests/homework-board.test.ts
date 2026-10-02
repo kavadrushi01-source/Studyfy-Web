@@ -104,7 +104,9 @@ interface BoardItem {
   title: string;
   mySubmissions: { studentId: string; status: string }[];
   counts: { total: number; submitted: number; graded: number } | null;
-  pending: { id: string; studentName: string }[] | null;
+  pending:
+    | { id: string; studentName: string; content: string | null; fileUrl: string | null; submittedAt: string }[]
+    | null;
 }
 
 describe("GET /api/v1/schools/:schoolId/homework (boards)", () => {
@@ -155,6 +157,10 @@ describe("GET /api/v1/schools/:schoolId/homework (boards)", () => {
     // Pending carries gradeable ids + names (no ID hunting in the UI)...
     expect(hwARow?.pending).toHaveLength(1);
     expect(hwARow?.pending?.[0]?.studentName).toBe("Board Student");
+    // ...AND the work itself, so the teacher reads before grading.
+    expect(hwARow?.pending?.[0]?.content).toBe("My answers.");
+    expect(hwARow?.pending?.[0]?.fileUrl).toBeNull();
+    expect(typeof hwARow?.pending?.[0]?.submittedAt).toBe("string");
 
     // ...while pupils see none of it (no other pupil's submission ids leak).
     const pupilRow = (after.body.data.homework as BoardItem[])[0];

@@ -9,13 +9,14 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** DONE — founder role-scope round (4 fixes, all implemented + verified, committed `63a9c3d` + pushed). Awaiting founder's own test on the live site.
-**Phase / Module:** Phase 1/2 hardening (Pay parents-only, homework teacher-only, admin message composer removed, login lockout per-account-only)
-**Last updated:** 2026-10-01
+**Status:** DONE — founder screenshot round (6 asks, 5 real defects fixed + verified, committed + pushed). Awaiting founder's live test.
+**Phase / Module:** Phase 1 hardening (homework visible grading, timetable auto-identity + admin build, profile own IDs, thread relationship labels, marks prefill + naming fix)
+**Last updated:** 2026-10-02
 
 ## What's done in this task so far
-- All 4 founder items DONE + verified (details BUGSFIX 32): (1) Pay Online parents-only (UI + API 403 "Only parents can pay online."); (2) homework post/grade TEACHER-only, admin read-only; (3) admin message composer replaced by oversight note (parent→teacher messaging verified working — never broken); (4) per-IP login limiter removed, per-account only. Verified: API 201/201, e2e 51/51, typecheck+lint 0, 14-check human UI pass all roles, limiter proven (locked account 429, bystander 401, good logins unlimited).
-- Chunk 1 of 5 DONE earlier: Razorpay TEST MODE online fee payment (pay-order + webhook + checkout UI + human verification, zero product bugs). Full record in `STATUS.md` Phase 2 row; detail in History below.
+- Screenshot round DONE + verified (details BUGSFIX 33): (1) teachers now SEE submitted homework (answer + file + time) before Mark graded; (2) timetable paste-ID gone — `mine=true` auto identity, role lenses, admin staff picker + Build block (generate/manual/remove all human-proven); (3) profile My ID + admission/staff/children rows per role; (4) threads labeled ("Aditya Sharma's father", subjects, sections); (5) marks entry prefill + explainer + 0–max + the real nameless-boxes root cause fixed (roster `user.name` flattening). Verified: API 205/205, e2e 51/51, typecheck+lint 0, 18-check human pass, screenshots reviewed.
+- Previous: founder role-scope round DONE (BUGSFIX 32, committed `63a9c3d`).
+- Chunk 1 of 5 DONE earlier: Razorpay TEST MODE online fee payment. Full record in `STATUS.md` Phase 2 row; detail in History below.
 
 ## What's left in this task
 - Chunk 2 — Admission/Enquiry CRM + Certificate Generator: not started. Start from `AGENT_START_HERE.md` (read `STATUS.md` first, per RULES.md §6.1).

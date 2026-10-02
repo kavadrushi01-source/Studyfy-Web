@@ -235,10 +235,14 @@ export interface BoardItem {
   mySubmissions: { studentId: string; status: string }[];
   // Present for staff: grading workload per assignment.
   counts: { total: number; submitted: number; graded: number } | null;
-  // Staff only: ungraded submissions with author names, so grading needs
-  // no ID hunting (null for students/parents — submission ids of other
-  // pupils must never leak to them).
-  pending: { id: string; studentName: string }[] | null;
+  // Staff only: ungraded submissions with author names AND the work
+  // itself (answer text + file link + submitted time), so the teacher
+  // reads the homework right here before marking it graded — no ID
+  // hunting, no blind grading (null for students/parents — submission
+  // ids AND contents of other pupils must never leak to them).
+  pending:
+    | { id: string; studentName: string; content: string | null; fileUrl: string | null; submittedAt: string }[]
+    | null;
 }
 
 // Homework board (§7 Phase 1 #6): one endpoint, role-shaped rows.
@@ -304,7 +308,14 @@ export async function homeworkBoard(
       section: { select: { id: true, name: true, class: { select: { name: true } } } },
       teacher: { select: { user: { select: { name: true } } } },
       submissions: {
-        select: { id: true, status: true, student: { select: { user: { select: { name: true } } } } },
+        select: {
+          id: true,
+          status: true,
+          content: true,
+          fileUrl: true,
+          submittedAt: true,
+          student: { select: { user: { select: { name: true } } } },
+        },
         orderBy: { submittedAt: "asc" },
         take: 100,
       },
@@ -330,7 +341,13 @@ export async function homeworkBoard(
         pending: row.submissions
           .filter((s) => s.status === "SUBMITTED")
           .slice(0, 20)
-          .map((s) => ({ id: s.id, studentName: s.student.user.name })),
+          .map((s) => ({
+            id: s.id,
+            studentName: s.student.user.name,
+            content: s.content,
+            fileUrl: s.fileUrl,
+            submittedAt: s.submittedAt.toISOString(),
+          })),
       };
     }),
   };

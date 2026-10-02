@@ -9,11 +9,12 @@ import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, labelStyle, mutedStyle, pageFrame, primaryBtn, secondaryBtn } from "@/lib/theme";
 
 interface BoardSlot {
+  id: string;
   dayOfWeek: number;
   period: number;
-  subject: { name: string };
-  teacher: { name: string };
-  section: { name: string; className: string };
+  subject: { id: string; name: string };
+  teacher: { id: string; name: string };
+  section: { id: string; name: string; className: string };
 }
 
 interface SectionOption {
@@ -22,28 +23,56 @@ interface SectionOption {
   class: { name: string };
 }
 
+interface StaffOption {
+  id: string;
+  designation: string | null;
+  user: { id: string; name: string; email: string; role: { name: string } };
+}
+
+interface SubjectOption {
+  id: string;
+  name: string;
+}
+
 interface ApiError {
   error: { code: string; message: string };
 }
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// Timetable board (§7 Phase 1 #5). Two lenses, one screen: a SECTION board
-// (what students/parents see — pinned API-side to their own) and MY
-// TIMETABLE (a teacher's own slots — pass your staff ID; the API rejects
-// any other teacher's id with a 403, see readBoard). Grid cells show
-// subject + teacher; empty cells stay blank, unresolved demand from
-// generation simply has no cell (never a crash).
+// Timetable board (§7 Phase 1 #5) + admin build tools. Lenses per role:
+// pupils/parents/accountants see the SECTION board pinned to their scope;
+// teachers get section + MY TIMETABLE (resolved from the login, no pasting);
+// admins additionally open any teacher's board via the staff picker and get
+// the build block below (auto-generate per section, manual slot, per-cell
+// remove). Grid cells show subject + teacher; empty cells stay blank.
 // Identity comes from the shared session (useAuth).
 export default function TimetablePage() {
   const { token, schoolId, ready, apiFetch, user } = useAuth();
+  const isAdmin = user?.role === "SCHOOL_ADMIN";
+  const isTeacher = user?.role === "TEACHER";
   const [mode, setMode] = useState<"section" | "teacher">("section");
   const [sections, setSections] = useState<SectionOption[]>([]);
   const [sectionId, setSectionId] = useState("");
+  const [staffList, setStaffList] = useState<StaffOption[]>([]);
   const [teacherId, setTeacherId] = useState("");
   const [slots, setSlots] = useState<BoardSlot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [lastQuery, setLastQuery] = useState("");
+  // Admin build state.
+  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [genSection, setGenSection] = useState("");
+  const [genPeriods, setGenPeriods] = useState<Record<string, string>>({});
+  const [generating, setGenerating] = useState(false);
+  const [genResult, setGenResult] = useState("");
+  const [slotSection, setSlotSection] = useState("");
+  const [slotSubject, setSlotSubject] = useState("");
+  const [slotTeacher, setSlotTeacher] = useState("");
+  const [slotDay, setSlotDay] = useState("1");
+  const [slotPeriod, setSlotPeriod] = useState("1");
+  const [adding, setAdding] = useState(false);
 
   const loadSections = useCallback(async () => {
     if (!schoolId) {
@@ -98,23 +127,173 @@ export default function TimetablePage() {
       setError("");
       try {
         setSections(await loadSections());
+        if (isAdmin) {
+          const [staffRes, subjRes] = await Promise.all([
+            apiFetch(`/api/v1/schools/${schoolId}/staff`),
+            apiFetch(`/api/v1/schools/${schoolId}/subjects`),
+          ]);
+          const staffBody = (await staffRes.json()) as { data: { staff: StaffOption[] } } | ApiError;
+          if (!isFailure(staffRes, staffBody)) {
+            setStaffList(staffBody.data.staff.filter((s) => s.user.role.name === "TEACHER"));
+          }
+          const subjBody = (await subjRes.json()) as { data: { subjects: SubjectOption[] } } | ApiError;
+          if (!isFailure(subjRes, subjBody)) {
+            setSubjects(subjBody.data.subjects);
+            // Seed the per-subject defaults INTO state: the inputs display
+            // 5 when untouched, and submit must see the same 5 (a displayed
+            // default that submits as 0 once generated empty weeks).
+            setGenPeriods((prev) => {
+              const next = { ...prev };
+              for (const s of subjBody.data.subjects) {
+                if (next[s.id] === undefined) {
+                  next[s.id] = "5";
+                }
+              }
+              return next;
+            });
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Network error.");
       }
     })();
-  }, [ready, token, schoolId, loadSections]);
+  }, [ready, token, schoolId, loadSections, apiFetch, isAdmin]);
 
   function showSection(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     if (sectionId) {
+      const q = new URLSearchParams({ sectionId }).toString();
+      setLastQuery(q);
       void loadBoard(new URLSearchParams({ sectionId }));
     }
   }
 
+  // Teacher's own week — identity comes from the login, nothing to paste.
   function showMine(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    const q = new URLSearchParams({ mine: "true" }).toString();
+    setLastQuery(q);
+    void loadBoard(new URLSearchParams({ mine: "true" }));
+  }
+
+  // Admin oversight: any teacher's week via the staff picker.
+  function showTeacher(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
     if (teacherId) {
+      const q = new URLSearchParams({ teacherId }).toString();
+      setLastQuery(q);
       void loadBoard(new URLSearchParams({ teacherId }));
+    }
+  }
+
+  async function reloadBoard(): Promise<void> {
+    if (lastQuery) {
+      await loadBoard(new URLSearchParams(lastQuery));
+    }
+  }
+
+  // Admin: auto-generate a section's week from per-subject periods.
+  async function generateBoard(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!schoolId || !genSection) {
+      return;
+    }
+    const demands = subjects
+      .map((s) => ({ sectionId: genSection, subjectId: s.id, periodsPerWeek: Number(genPeriods[s.id] ?? 0) }))
+      .filter((d) => Number.isInteger(d.periodsPerWeek) && d.periodsPerWeek > 0);
+    if (demands.length === 0) {
+      setError("Set at least one subject's periods per week above zero.");
+      return;
+    }
+    setGenerating(true);
+    setError("");
+    setGenResult("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/timetable/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ demands, days: [1, 2, 3, 4, 5], periodsPerDay: 6 }),
+      });
+      const body = (await response.json()) as {
+        data: { placed: unknown[]; unresolved: { subjectName?: string; reason?: string }[] };
+      } | ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Generation failed.");
+      }
+      const placed = body.data.placed.length;
+      const missing = body.data.unresolved;
+      setGenResult(
+        missing.length === 0
+          ? `Placed ${placed} lessons — full week built.`
+          : `Placed ${placed} lessons — ${missing.length} period(s) unplaced: ${missing
+              .map((u) => u.subjectName ?? u.reason ?? "unknown")
+              .slice(0, 4)
+              .join(", ")}${missing.length > 4 ? "…" : ""}`,
+      );
+      setSectionId(genSection);
+      const q = new URLSearchParams({ sectionId: genSection }).toString();
+      setLastQuery(q);
+      await loadBoard(new URLSearchParams({ sectionId: genSection }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // Admin: place one manual slot (qualification + conflicts checked API-side).
+  async function addSlot(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!schoolId || !slotSection || !slotSubject || !slotTeacher) {
+      return;
+    }
+    setAdding(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/timetable/slots`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sectionId: slotSection,
+          subjectId: slotSubject,
+          teacherId: slotTeacher,
+          dayOfWeek: Number(slotDay),
+          period: Number(slotPeriod),
+        }),
+      });
+      const body = (await response.json()) as unknown as ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not place the slot.");
+      }
+      setNotice("Slot placed.");
+      await reloadBoard();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  // Admin: remove one slot, then refresh the same board.
+  async function removeSlot(slotId: string): Promise<void> {
+    if (!schoolId) {
+      return;
+    }
+    setError("");
+    setNotice("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/timetable/slots/${slotId}`, {
+        method: "DELETE",
+      });
+      const body = (await response.json()) as unknown as ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not remove the slot.");
+      }
+      setNotice("Slot removed.");
+      await reloadBoard();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
     }
   }
 
@@ -204,17 +383,21 @@ export default function TimetablePage() {
         <CalendarDays size={22} aria-hidden="true" color={colors.primary} /> Timetable
       </h1>
       <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
-        Section board first — flip the lens for your own teaching week.
+        {isTeacher
+          ? "Section board for your classes — flip the lens for your own teaching week."
+          : "Pick a section to see its week."}
       </p>
-      <div className="sf-row-wrap" style={{ marginBottom: 12 }} role="group" aria-label="Board lens">
-        <button type="button" onClick={() => setMode("section")} style={lensBtn(mode === "section")}>
-          Section board
-        </button>
-        <button type="button" onClick={() => setMode("teacher")} style={lensBtn(mode === "teacher")}>
-          My timetable
-        </button>
-      </div>
-      {mode === "section" ? (
+      {(isTeacher || isAdmin) && (
+        <div className="sf-row-wrap" style={{ marginBottom: 12 }} role="group" aria-label="Board lens">
+          <button type="button" onClick={() => setMode("section")} style={lensBtn(mode === "section")}>
+            Section board
+          </button>
+          <button type="button" onClick={() => setMode("teacher")} style={lensBtn(mode === "teacher")}>
+            {isTeacher ? "My timetable" : "Teacher board"}
+          </button>
+        </div>
+      )}
+      {mode === "section" || (!isTeacher && !isAdmin) ? (
         <form onSubmit={showSection} className="sf-row-wrap" style={{ marginBottom: 12 }}>
           <select
             className="sf-select"
@@ -234,26 +417,34 @@ export default function TimetablePage() {
             Show
           </button>
         </form>
+      ) : isTeacher ? (
+        <form onSubmit={showMine} className="sf-row-wrap" style={{ marginBottom: 12 }}>
+          <p style={{ ...mutedStyle, margin: 0, flex: 1, minWidth: 220 }}>
+            Signed in as {user?.name ?? "teacher"} — loads your own teaching week.
+          </p>
+          <button type="submit" style={primaryBtn}>
+            Show my timetable
+          </button>
+        </form>
       ) : (
-        <form onSubmit={showMine} style={{ marginBottom: 12 }}>
-          <div className="sf-row-wrap">
-            <label style={{ ...labelStyle, flex: 1, minWidth: 220 }}>
-              My staff ID (dev-only)
-              <input
-                className="sf-input"
-                placeholder="Paste staff ID for now"
-                value={teacherId}
-                onChange={(e) => setTeacherId(e.target.value)}
-                aria-label="My staff ID"
-              />
-            </label>
-            <button type="submit" style={{ ...secondaryBtn, alignSelf: "flex-end" }}>
-              Show mine
-            </button>
-          </div>
-          <small style={{ color: colors.muted, fontSize: 12, display: "block", marginTop: 8 }}>
-            Login will resolve your identity automatically later — pasting an ID is a dev stopgap only.
-          </small>
+        <form onSubmit={showTeacher} className="sf-row-wrap" style={{ marginBottom: 12 }}>
+          <select
+            className="sf-select"
+            style={{ flex: 1, minWidth: 220 }}
+            value={teacherId}
+            onChange={(e) => setTeacherId(e.target.value)}
+            aria-label="Teacher"
+          >
+            <option value="">— pick a teacher —</option>
+            {staffList.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.user.name}
+              </option>
+            ))}
+          </select>
+          <button type="submit" style={primaryBtn}>
+            Show
+          </button>
         </form>
       )}
       {loading ? (
@@ -310,6 +501,25 @@ export default function TimetablePage() {
                               <div style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
                                 {slot.teacher.name} · {slot.section.className} {slot.section.name}
                               </div>
+                              {isAdmin ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void removeSlot(slot.id)}
+                                  aria-label={`Remove ${slot.subject.name} period ${p}`}
+                                  style={{
+                                    marginTop: 6,
+                                    padding: "3px 10px",
+                                    fontSize: 12,
+                                    borderRadius: 8,
+                                    border: `1px solid ${colors.line}`,
+                                    background: "#fff",
+                                    color: colors.danger,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              ) : null}
                             </>
                           ) : (
                             <span style={{ color: "#CBD5E1" }}>—</span>
@@ -334,6 +544,150 @@ export default function TimetablePage() {
         <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "12px 0 0" }}>
           {error}
         </p>
+      ) : null}
+      {notice ? (
+        <p style={{ color: colors.success, fontSize: 14, margin: "12px 0 0" }}>{notice}</p>
+      ) : null}
+      {isAdmin ? (
+        <section className="sf-card" style={{ marginTop: 20, padding: 20 }}>
+          <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 4px" }}>Build timetable (admin)</h2>
+          <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 16px" }}>
+            Auto-generate a section&apos;s week, or place one period by hand. Conflicts and unqualified
+            teachers are refused by the server.
+          </p>
+          <form onSubmit={generateBoard} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <label style={{ ...labelStyle, maxWidth: 320 }}>
+              Section to build
+              <select
+                className="sf-select"
+                value={genSection}
+                onChange={(e) => setGenSection(e.target.value)}
+                aria-label="Section to build"
+              >
+                <option value="">— pick a section —</option>
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.class.name} · {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div style={{ display: "grid", gap: 8 }}>
+              {subjects.map((s) => (
+                <label
+                  key={s.id}
+                  style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: colors.inkSoft }}
+                >
+                  <span style={{ flex: 1 }}>{s.name} — periods per week</span>
+                  <input
+                    className="sf-input"
+                    style={{ width: 90 }}
+                    inputMode="numeric"
+                    value={genPeriods[s.id] ?? "5"}
+                    onChange={(e) => setGenPeriods((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                    aria-label={`${s.name} periods per week`}
+                  />
+                </label>
+              ))}
+            </div>
+            <div>
+              <button type="submit" disabled={generating || !genSection} style={{ ...primaryBtn, opacity: generating ? 0.6 : 1 }}>
+                {generating ? "Building…" : "Auto-build week (Mon–Fri, 6 periods)"}
+              </button>
+            </div>
+            {genResult ? (
+              <p style={{ color: colors.success, fontSize: 13, margin: 0 }}>{genResult}</p>
+            ) : null}
+          </form>
+          <form onSubmit={addSlot} style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 20 }}>
+            <h3 style={{ ...h1Style, fontSize: 15, margin: 0 }}>Place one period by hand</h3>
+            <div className="sf-row-wrap">
+              <label style={{ ...labelStyle, flex: 1, minWidth: 150 }}>
+                Section
+                <select
+                  className="sf-select"
+                  value={slotSection}
+                  onChange={(e) => setSlotSection(e.target.value)}
+                  aria-label="Slot section"
+                >
+                  <option value="">—</option>
+                  {sections.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.class.name} · {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ ...labelStyle, flex: 1, minWidth: 150 }}>
+                Subject
+                <select
+                  className="sf-select"
+                  value={slotSubject}
+                  onChange={(e) => setSlotSubject(e.target.value)}
+                  aria-label="Slot subject"
+                >
+                  <option value="">—</option>
+                  {subjects.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ ...labelStyle, flex: 1, minWidth: 150 }}>
+                Teacher
+                <select
+                  className="sf-select"
+                  value={slotTeacher}
+                  onChange={(e) => setSlotTeacher(e.target.value)}
+                  aria-label="Slot teacher"
+                >
+                  <option value="">—</option>
+                  {staffList.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.user.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ ...labelStyle, minWidth: 90 }}>
+                Day
+                <select
+                  className="sf-select"
+                  value={slotDay}
+                  onChange={(e) => setSlotDay(e.target.value)}
+                  aria-label="Slot day"
+                >
+                  {DAY_NAMES.map((d, i) => (
+                    <option key={d} value={String(i + 1)}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ ...labelStyle, minWidth: 90 }}>
+                Period
+                <select
+                  className="sf-select"
+                  value={slotPeriod}
+                  onChange={(e) => setSlotPeriod(e.target.value)}
+                  aria-label="Slot period"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                    <option key={n} value={String(n)}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div>
+              <button type="submit" disabled={adding} style={{ ...secondaryBtn, opacity: adding ? 0.6 : 1 }}>
+                {adding ? "Placing…" : "Place slot"}
+              </button>
+            </div>
+          </form>
+        </section>
       ) : null}
     </main>
   );

@@ -163,6 +163,45 @@ describe("GET /api/v1/schools/:schoolId/timetable (boards)", () => {
     expect(studentLens.body.error.code).toBe("FORBIDDEN");
   });
 
+  it("mine=true resolves the teacher from the session; anyone else is refused", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const sectionA = await makeSection(schoolId, "A");
+    const math = await makeSubject(schoolId);
+    const teacherA = await makeTeacher(schoolId, slug, sectionA, [math]);
+    await generate(schoolId, adminToken, sectionA, math);
+
+    // Teacher: own week, no ID needed — every slot is theirs.
+    const mine = await request(app)
+      .get(`/api/v1/schools/${schoolId}/timetable?mine=true`)
+      .set("Authorization", `Bearer ${teacherA.token}`)
+      .expect(200);
+    expect((mine.body.data.slots as unknown[]).length).toBeGreaterThan(0);
+    for (const slot of mine.body.data.slots as { teacher: { id: string }; id: string }[]) {
+      expect(slot.teacher.id).toBe(teacherA.staffId);
+      expect(typeof slot.id).toBe("string");
+    }
+
+    // Non-teachers have no personal timetable.
+    const pupil = await makeStudent(schoolId, slug, sectionA);
+    const studentMine = await request(app)
+      .get(`/api/v1/schools/${schoolId}/timetable?mine=true`)
+      .set("Authorization", `Bearer ${pupil.token}`)
+      .expect(403);
+    expect(studentMine.body.error.code).toBe("FORBIDDEN");
+
+    const adminMine = await request(app)
+      .get(`/api/v1/schools/${schoolId}/timetable?mine=true`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(403);
+    expect(adminMine.body.error.code).toBe("FORBIDDEN");
+
+    // mine combined with another lens is still exactly-one-lens.
+    await request(app)
+      .get(`/api/v1/schools/${schoolId}/timetable?mine=true&sectionId=${sectionA}`)
+      .set("Authorization", `Bearer ${teacherA.token}`)
+      .expect(400);
+  });
+
   it("validates lens choice and rejects strangers", async () => {
     const { schoolId, adminToken } = await registerSchool();
 

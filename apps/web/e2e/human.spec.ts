@@ -185,8 +185,14 @@ test.describe("role journeys", () => {
     const entrySection = page.getByLabel(/entry section/i);
     await expect(entrySection).toBeAttached({ timeout: 20000 });
     await entrySection.selectOption({ index: 1 });
-    await expect(page.getByPlaceholder("Marks").first()).toBeVisible({ timeout: 20000 });
-    await page.getByPlaceholder("Marks").first().fill("9999");
+    // Boxes carry 0–max placeholders now (prefilled when marks were saved
+    // before), so locate by the accessible name, not the placeholder.
+    const firstBox = page.getByLabel(/marks for /i).first();
+    await expect(firstBox).toBeVisible({ timeout: 20000 });
+    // Regression: the roster nests names at user.name — a flat read once
+    // shipped nameless boxes ("Marks for undefined") to production.
+    expect(await firstBox.getAttribute("aria-label")).not.toContain("undefined");
+    await firstBox.fill("9999");
     await page.getByRole("button", { name: /save marks/i }).click();
     await expect(page.getByText(/cannot exceed the maximum/i)).toBeVisible({ timeout: 20000 });
   });

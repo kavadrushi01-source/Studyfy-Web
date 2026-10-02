@@ -140,7 +140,56 @@ describe("GET /api/v1/auth/me", () => {
     expect(me.body.data.user.name).toBe("Dashboard Admin");
     expect(me.body.data.user.role).toBe("SCHOOL_ADMIN");
     expect(typeof me.body.data.user.schoolId).toBe("string");
+    // Admin: no role extras.
+    expect(me.body.data.identity).toEqual({ admissionNo: null, section: null, staffId: null, designation: null, children: [] });
 
     await request(app).get("/api/v1/auth/me").expect(401);
+  });
+
+  it("carries role identity: staff record for teachers, admission + children for families", async () => {
+    const { schoolId, slug } = await registerSchool();
+    const teacherToken = await makeTeacher(schoolId, slug);
+    const teacherMe = await request(app).get("/api/v1/auth/me").set("Authorization", `Bearer ${teacherToken}`).expect(200);
+    expect(teacherMe.body.data.user.role).toBe("TEACHER");
+    expect(typeof teacherMe.body.data.identity.staffId).toBe("string");
+    expect(teacherMe.body.data.identity.designation).toBe("Teacher");
+
+    // Pupil + linked parent.
+    const cls = await prisma.class.create({ data: { schoolId, name: `Class ${uid()}` } });
+    const section = await prisma.section.create({ data: { schoolId, classId: cls.id, name: "A" } });
+    const studentRole = await prisma.role.findUniqueOrThrow({ where: { name: "STUDENT" } });
+    const parentRole = await prisma.role.findUniqueOrThrow({ where: { name: "PARENT" } });
+    const pupilEmail = `me-pupil-${uid()}@example.com`;
+    const pupilUser = await prisma.user.create({
+      data: { schoolId, roleId: studentRole.id, email: pupilEmail, passwordHash: await bcrypt.hash("pupil-pass-123", 4), name: "Me Pupil" },
+    });
+    const pupil = await prisma.student.create({
+      data: { schoolId, userId: pupilUser.id, sectionId: section.id, admissionNo: `ADM-${uid()}` },
+    });
+    const parentEmail = `me-parent-${uid()}@example.com`;
+    const parentUser = await prisma.user.create({
+      data: { schoolId, roleId: parentRole.id, email: parentEmail, passwordHash: await bcrypt.hash("parent-pass-123", 4), name: "Me Parent" },
+    });
+    await prisma.studentGuardian.create({ data: { schoolId, studentId: pupil.id, parentId: parentUser.id, relationship: "Mother" } });
+    const pupilLogin = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: pupilEmail, password: "pupil-pass-123", schoolSlug: slug })
+      .expect(200);
+    const pupilMe = await request(app)
+      .get("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${pupilLogin.body.data.accessToken as string}`)
+      .expect(200);
+    expect(pupilMe.body.data.identity.admissionNo).toBe(pupil.admissionNo);
+    expect(pupilMe.body.data.identity.section).toContain("A");
+
+    const parentLogin = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: parentEmail, password: "parent-pass-123", schoolSlug: slug })
+      .expect(200);
+    const parentMe = await request(app)
+      .get("/api/v1/auth/me")
+      .set("Authorization", `Bearer ${parentLogin.body.data.accessToken as string}`)
+      .expect(200);
+    expect(parentMe.body.data.identity.children).toEqual([{ name: "Me Pupil", section: expect.stringContaining("A") }]);
   });
 });

@@ -37,6 +37,62 @@ interface UserWithRole {
   role: { name: string };
 }
 
+export interface IdentityExtras {
+  // STUDENT: admission identity. STAFF (teacher/accountant): staff record.
+  // PARENT: linked children. ADMIN/OWNER: nothing extra.
+  admissionNo: string | null;
+  section: string | null;
+  staffId: string | null;
+  designation: string | null;
+  children: { name: string; section: string }[];
+}
+
+// "My ID" backing for the profile page: everyone sees their own account id
+// (already in PublicUser); this adds the role-meaningful identity beside
+// it — a pupil's admission number, a staffer's staff record, a parent's
+// linked children. Roots in the same tables as every scoped read, so the
+// values shown here always agree with what each board shows.
+export async function identityExtras(userId: string, role: string): Promise<IdentityExtras> {
+  const empty: IdentityExtras = { admissionNo: null, section: null, staffId: null, designation: null, children: [] };
+  if (role === "STUDENT") {
+    const pupil = await prisma.student.findFirst({
+      where: { userId },
+      select: {
+        admissionNo: true,
+        rollNumber: true,
+        section: { select: { name: true, class: { select: { name: true } } } },
+      },
+    });
+    if (!pupil) {
+      return empty;
+    }
+    return {
+      ...empty,
+      admissionNo: pupil.admissionNo,
+      section: `${pupil.section.class.name} ${pupil.section.name}`,
+    };
+  }
+  if (role === "TEACHER" || role === "ACCOUNTANT") {
+    const staff = await prisma.staff.findFirst({ where: { userId }, select: { id: true, designation: true } });
+    if (!staff) {
+      return empty;
+    }
+    return { ...empty, staffId: staff.id, designation: staff.designation };
+  }
+  if (role === "PARENT") {
+    const links = await prisma.studentGuardian.findMany({
+      where: { parentId: userId },
+      select: { student: { select: { user: { select: { name: true } }, section: { select: { name: true, class: { select: { name: true } } } } } } },
+      orderBy: { student: { user: { name: "asc" } } },
+    });
+    return {
+      ...empty,
+      children: links.map((l) => ({ name: l.student.user.name, section: `${l.student.section.class.name} ${l.student.section.name}` })),
+    };
+  }
+  return empty;
+}
+
 export class AuthError extends Error {
   readonly status: number;
   readonly code: string;

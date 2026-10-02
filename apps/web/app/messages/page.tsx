@@ -11,6 +11,7 @@ import { colors, gradients, h1Style, h2Style, labelStyle, mutedStyle, pageFrame,
 
 interface ThreadRow {
   user: { id: string; name: string };
+  context: string | null;
   lastMessage: { body: string; fromMe: boolean };
   unread: number;
 }
@@ -422,6 +423,9 @@ export default function MessagesPage() {
                     >
                       <div style={{ fontWeight: 600, fontSize: 14, color: colors.ink }}>
                         {t.user.name}
+                        {t.context ? (
+                          <span style={{ fontWeight: 400, color: colors.muted }}> · {t.context}</span>
+                        ) : null}
                         {t.unread > 0 ? (
                           <span
                             style={{

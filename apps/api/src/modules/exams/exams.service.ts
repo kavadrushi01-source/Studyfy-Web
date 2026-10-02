@@ -141,6 +141,57 @@ export interface RankedResult {
   rank: number;
 }
 
+// Saved marks for one exam subject + section (entry-form prefill): every
+// pupil of the section with their saved mark or null. Same gate as entry
+// (class teacher or admin) so no pupil ever reads another's marks here.
+export async function savedMarks(
+  db: PrismaClient,
+  examId: string,
+  caller: MarksCaller,
+  input: { examSubjectId: string; sectionId: string },
+): Promise<{ marks: { studentId: string; name: string; marksObtained: number | null }[] }> {
+  const exam = await db.exam.findFirst({ where: { id: examId } });
+  if (!exam) {
+    throw new AuthError(404, "EXAM_NOT_FOUND", "Exam not found in this school.");
+  }
+  const examSubject = await db.examSubject.findFirst({
+    where: { id: input.examSubjectId, examId: exam.id },
+  });
+  if (!examSubject) {
+    throw new AuthError(404, "EXAM_SUBJECT_NOT_FOUND", "Subject is not part of this exam.");
+  }
+  const section = await db.section.findFirst({ where: { id: input.sectionId } });
+  if (!section) {
+    throw new AuthError(404, "SECTION_NOT_FOUND", "Section not found in this school.");
+  }
+  if (caller.role !== "SCHOOL_ADMIN") {
+    const staff = await db.staff.findFirst({ where: { userId: caller.userId } });
+    if (!staff || section.classTeacherId !== staff.id) {
+      throw new AuthError(
+        403,
+        "NOT_SECTION_TEACHER",
+        "Only the section's class teacher or a School Admin may read its marks.",
+      );
+    }
+  }
+  const pupils = await db.student.findMany({
+    where: { sectionId: section.id },
+    select: {
+      id: true,
+      user: { select: { name: true } },
+      marks: { where: { examSubjectId: examSubject.id }, select: { marksObtained: true } },
+    },
+    orderBy: { user: { name: "asc" } },
+  });
+  return {
+    marks: pupils.map((p) => ({
+      studentId: p.id,
+      name: p.user.name,
+      marksObtained: p.marks.length > 0 ? Number(p.marks[0]?.marksObtained ?? null) : null,
+    })),
+  };
+}
+
 // Ranked results (spec §10): per-student totals across the exam's subjects,
 // rounded percent + grade letter, competition ranks. `topK` slices the
 // board through the heap WITHOUT a full sort — but ranks are always

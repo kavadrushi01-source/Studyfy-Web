@@ -226,6 +226,7 @@ interface BoardCaller {
 }
 
 export interface BoardSlot {
+  id: string;
   dayOfWeek: number;
   period: number;
   subject: { id: string; name: string };
@@ -233,18 +234,30 @@ export interface BoardSlot {
   section: { id: string; name: string; className: string };
 }
 
-// Board read (§7 Phase 1 #5): section lens or teacher lens, exactly one.
+// Board read (§7 Phase 1 #5): section lens, teacher lens by id, or
+// mine=true (teacher's own week from the session).
 // - STUDENT/PARENT: section lens pinned to own/linked sections (resolved
-//   from studentScope pins); teacher lens always 403 (no teaching role).
+//   from studentScope pins); teacher lens and mine always 403.
 // - TEACHER: section lens pinned to own class-teacher sections; teacher
-//   lens forced to self (another teacher's id => 403).
-// - ADMIN/ACCOUNTANT: either lens, any in-school id (scoped 404s foreign).
+//   lens forced to self (another teacher's id => 403); mine resolves self.
+// - ADMIN/ACCOUNTANT: either lens, any in-school id (scoped 404s foreign);
+//   mine is meaningless without a teaching role => 403.
 export async function readBoard(
   db: PrismaClient,
   caller: BoardCaller,
   studentScopeIds: string[] | null,
   input: BoardQueryInput,
 ): Promise<{ slots: BoardSlot[] }> {
+  if (input.mine) {
+    if (caller.role !== "TEACHER") {
+      throw new AuthError(403, "FORBIDDEN", "Only teachers have a personal timetable.");
+    }
+    const self = await db.staff.findFirst({ where: { userId: caller.userId } });
+    if (!self) {
+      throw new AuthError(403, "FORBIDDEN", "No staff profile is linked to this account.");
+    }
+    return slotsFor(db, { teacherId: self.id });
+  }
   if (caller.role === "STUDENT" || caller.role === "PARENT") {
     if (input.teacherId) {
       throw new AuthError(403, "FORBIDDEN", "Students and parents read section boards, not teacher boards.");
@@ -308,6 +321,7 @@ async function slotsFor(
   });
   return {
     slots: slots.map((s) => ({
+      id: s.id,
       dayOfWeek: s.dayOfWeek,
       period: s.period,
       subject: { id: s.subject.id, name: s.subject.name },

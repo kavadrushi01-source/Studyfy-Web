@@ -264,6 +264,10 @@ export interface ThreadViewer {
 
 export interface ThreadSummary {
   user: { id: string; name: string };
+  // Relationship label so a name is never bare: "Aditya's father" for a
+  // parent, subject list for a teacher, section for a pupil. Null when
+  // nothing is known (e.g. admin oversight of a deleted account).
+  context: string | null;
   lastMessage: { body: string; createdAt: Date; fromMe: boolean };
   unread: number;
 }
@@ -277,13 +281,16 @@ export async function listThreads(db: PrismaClient, viewer: ThreadViewer): Promi
   const messages = await db.message.findMany({
     where: admin ? {} : { OR: [{ senderId: viewer.userId }, { receiverId: viewer.userId }] },
     include: {
-      sender: { select: { id: true, name: true } },
-      receiver: { select: { id: true, name: true } },
+      sender: { select: { id: true, name: true, role: { select: { name: true } } } },
+      receiver: { select: { id: true, name: true, role: { select: { name: true } } } },
     },
     orderBy: { createdAt: "desc" },
     take: 200,
   });
-  const byThread = new Map<string, { other: { id: string; name: string }; last: (typeof messages)[number]; unread: number }>();
+  const byThread = new Map<
+    string,
+    { other: { id: string; name: string; role: string }; last: (typeof messages)[number]; unread: number }
+  >();
   for (const message of messages) {
     // threadId is the sorted pair key — identical in both directions, so
     // one entry per conversation for participants and admin alike. The
@@ -294,7 +301,7 @@ export async function listThreads(db: PrismaClient, viewer: ThreadViewer): Promi
     const existing = byThread.get(message.threadId);
     if (!existing) {
       byThread.set(message.threadId, {
-        other: { id: other.id, name: other.name },
+        other: { id: other.id, name: other.name, role: other.role.name },
         last: message,
         unread: !admin && message.receiverId === viewer.userId && !message.readAt ? 1 : 0,
       });
@@ -302,13 +309,81 @@ export async function listThreads(db: PrismaClient, viewer: ThreadViewer): Promi
       existing.unread += 1;
     }
   }
+  const contexts = await threadContexts(
+    db,
+    [...byThread.values()].map((t) => t.other),
+  );
   return {
     threads: [...byThread.values()].map((t) => ({
-      user: t.other,
+      user: { id: t.other.id, name: t.other.name },
+      context: contexts.get(t.other.id) ?? null,
       lastMessage: { body: t.last.body, createdAt: t.last.createdAt, fromMe: t.last.senderId === viewer.userId },
       unread: t.unread,
     })),
   };
+}
+
+// One batched relationship label per conversation partner: parents read
+// as "<child>'s <relationship>", teachers as their subjects, pupils as
+// their section. Same sources as the messageable-contacts picker, so the
+// two can never disagree about who someone is.
+async function threadContexts(
+  db: PrismaClient,
+  partners: { id: string; name: string; role: string }[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const teacherIds = partners.filter((p) => p.role === "TEACHER").map((p) => p.id);
+  const parentIds = partners.filter((p) => p.role === "PARENT").map((p) => p.id);
+  const studentIds = partners.filter((p) => p.role === "STUDENT").map((p) => p.id);
+  const [staffRows, guardianRows, pupilRows] = await Promise.all([
+    teacherIds.length > 0
+      ? db.staff.findMany({
+        where: { userId: { in: teacherIds } },
+        select: { userId: true, teacherSubjects: { select: { subject: { select: { name: true } } } } },
+      })
+      : Promise.resolve([]),
+    parentIds.length > 0
+      ? db.studentGuardian.findMany({
+        where: { parentId: { in: parentIds } },
+        select: {
+          parentId: true,
+          relationship: true,
+          student: { select: { user: { select: { name: true } } } },
+        },
+        orderBy: { student: { user: { name: "asc" } } },
+      })
+      : Promise.resolve([]),
+    studentIds.length > 0
+      ? db.student.findMany({
+        where: { userId: { in: studentIds } },
+        select: { userId: true, section: { select: { name: true, class: { select: { name: true } } } } },
+      })
+      : Promise.resolve([]),
+  ]);
+  for (const row of staffRows) {
+    const subjects = row.teacherSubjects.map((t) => t.subject.name);
+    if (subjects.length > 0) {
+      out.set(row.userId, subjects.join(", "));
+    }
+  }
+  const kids = new Map<string, { name: string; relationship: string }[]>();
+  for (const row of guardianRows) {
+    const list = kids.get(row.parentId) ?? [];
+    list.push({ name: row.student.user.name, relationship: row.relationship });
+    kids.set(row.parentId, list);
+  }
+  for (const [parentId, list] of kids) {
+    if (list.length === 1) {
+      const only = list[0] as { name: string; relationship: string };
+      out.set(parentId, `${only.name}'s ${only.relationship.toLowerCase()}`);
+    } else {
+      out.set(parentId, `${list.length} children (${list.map((l) => l.name).join(", ")})`);
+    }
+  }
+  for (const row of pupilRows) {
+    out.set(row.userId, `${row.section.class.name} ${row.section.name}`);
+  }
+  return out;
 }
 
 // Thread read: ADMIN sees any conversation in their school (oversight, not

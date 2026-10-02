@@ -18,7 +18,9 @@ interface BoardItem {
   teacher: { name: string };
   mySubmissions: { studentId: string; status: string }[];
   counts: { total: number; submitted: number; graded: number } | null;
-  pending: { id: string; studentName: string }[] | null;
+  pending:
+    | { id: string; studentName: string; content: string | null; fileUrl: string | null; submittedAt: string }[]
+    | null;
 }
 
 interface ApiError {
@@ -409,24 +411,59 @@ export default function HomeworkPage() {
                   key={sub.id}
                   style={{
                     display: "flex",
-                    gap: 10,
-                    alignItems: "center",
-                    padding: "10px 0",
+                    flexDirection: "column",
+                    gap: 8,
+                    padding: "12px 0",
                     borderTop: `1px solid ${colors.lineSoft}`,
                     fontSize: 14,
                   }}
                 >
-                  <span style={{ flex: 1, color: colors.ink, fontWeight: 500 }}>
-                    {sub.studentName} <span style={{ color: colors.muted, fontWeight: 400 }}>· {item.title}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => void gradeOne(sub.id)}
-                    disabled={gradingId === sub.id}
-                    style={{ ...secondaryBtn, opacity: gradingId === sub.id ? 0.6 : 1 }}
-                  >
-                    <CheckCircle2 size={14} aria-hidden="true" /> {gradingId === sub.id ? "Grading…" : "Mark graded"}
-                  </button>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <span style={{ flex: 1, color: colors.ink, fontWeight: 600 }}>
+                      {sub.studentName} <span style={{ color: colors.muted, fontWeight: 400 }}>· {item.title}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void gradeOne(sub.id)}
+                      disabled={gradingId === sub.id}
+                      style={{ ...secondaryBtn, opacity: gradingId === sub.id ? 0.6 : 1 }}
+                    >
+                      <CheckCircle2 size={14} aria-hidden="true" /> {gradingId === sub.id ? "Grading…" : "Mark graded"}
+                    </button>
+                  </div>
+                  {sub.content ? (
+                    <p
+                      style={{
+                        margin: 0,
+                        padding: "10px 12px",
+                        borderRadius: 10,
+                        background: "#F8FAFD",
+                        border: `1px solid ${colors.lineSoft}`,
+                        color: colors.inkSoft,
+                        fontSize: 13,
+                        lineHeight: 1.55,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {sub.content}
+                    </p>
+                  ) : null}
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 12, color: colors.muted }}>
+                    <span>Submitted {new Date(sub.submittedAt).toLocaleString("en-GB")}</span>
+                    {sub.fileUrl ? (
+                      <a
+                        href={sub.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: colors.primary, fontWeight: 600, textDecoration: "none" }}
+                      >
+                        Open attached file
+                      </a>
+                    ) : (
+                      <span>No file attached</span>
+                    )}
+                  </div>
                 </li>
               )),
             )}

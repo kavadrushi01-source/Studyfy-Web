@@ -21,14 +21,17 @@ export const generateTimetableSchema = z.object({
 export type GenerateTimetableInput = z.infer<typeof generateTimetableSchema>;
 
 // Board read: exactly ONE lens — a section board (what students/parents
-// see) or a teacher board ("my timetable"). Scoping enforced in service.
+// see), a teacher board by id (admin oversight), or mine=true (a teacher's
+// own week, resolved from the session — no ID pasting). Scoping enforced
+// in service.
 export const boardQuerySchema = z
   .object({
     sectionId: z.string().trim().max(40).optional(),
     teacherId: z.string().trim().max(40).optional(),
+    mine: z.literal("true").optional(),
   })
-  .refine((v) => [v.sectionId, v.teacherId].filter((x) => x !== undefined).length === 1, {
-    message: "Provide exactly one of sectionId or teacherId.",
+  .refine((v) => [v.sectionId, v.teacherId, v.mine].filter((x) => x !== undefined).length === 1, {
+    message: "Provide exactly one of sectionId, teacherId or mine.",
   });
 
 export type BoardQueryInput = z.infer<typeof boardQuerySchema>;
