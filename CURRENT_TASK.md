@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS — founder role-scope round (4 fixes, all implemented + verified, UNCOMMITTED). Awaiting founder's own test + commit/push word.
+**Status:** DONE — founder role-scope round (4 fixes, all implemented + verified, committed `63a9c3d` + pushed). Awaiting founder's own test on the live site.
 **Phase / Module:** Phase 1/2 hardening (Pay parents-only, homework teacher-only, admin message composer removed, login lockout per-account-only)
 **Last updated:** 2026-10-01
 
