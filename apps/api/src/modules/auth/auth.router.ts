@@ -2,7 +2,7 @@ import { Router, type CookieOptions, type Request, type Response } from "express
 import { catchAsync } from "../../lib/async.js";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
-import { loginAccountLimiter, loginLimiter, registerLimiter } from "../../middleware/security.js";
+import { loginAccountLimiter, registerLimiter } from "../../middleware/security.js";
 import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema } from "./auth.schemas.js";
 import { AuthError, login, logout, register, requestPasswordReset, resetPassword, rotateRefreshToken } from "./auth.service.js";
 
@@ -93,7 +93,12 @@ authRouter.post(
 
 authRouter.post(
   "/login",
-  loginLimiter(),
+  // Per-account ONLY (founder decision): 5 failed attempts lock THAT email
+  // for 15 minutes; every other account is unaffected. The old per-IP
+  // limiter is gone — behind shared IPs/proxies one person's failures
+  // locked out innocent accounts. Successful logins never consume budget
+  // and logout is a separate, unlimited endpoint, so normal
+  // login/logout cycles can never trigger this.
   loginAccountLimiter(),
   catchAsync(async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);

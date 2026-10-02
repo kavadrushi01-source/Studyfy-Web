@@ -535,19 +535,25 @@ export default function MessagesPage() {
                   })
                 )}
               </div>
-              <form onSubmit={send} className="sf-row-wrap">
-                <input
-                  className="sf-input"
-                  style={{ flex: 1, minWidth: 180 }}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder="Write a message…"
-                  aria-label="Message"
-                />
-                <button type="submit" style={primaryBtn}>
-                  <Send size={14} aria-hidden="true" /> Send
-                </button>
-              </form>
+              {user?.role === "SCHOOL_ADMIN" ? (
+                <p style={{ ...mutedStyle, fontSize: 13, margin: "4px 0 0" }}>
+                  Oversight view — admins read conversations here but never send messages.
+                </p>
+              ) : (
+                <form onSubmit={send} className="sf-row-wrap">
+                  <input
+                    className="sf-input"
+                    style={{ flex: 1, minWidth: 180 }}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="Write a message…"
+                    aria-label="Message"
+                  />
+                  <button type="submit" style={primaryBtn}>
+                    <Send size={14} aria-hidden="true" /> Send
+                  </button>
+                </form>
+              )}
             </>
           )}
         </section>

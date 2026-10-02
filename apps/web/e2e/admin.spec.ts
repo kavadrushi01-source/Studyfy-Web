@@ -72,7 +72,7 @@ test.describe("SOS admin full circuit", () => {
     await page.screenshot({ path: "e2e/shots/fee-paid.png" });
   });
 
-  test("marks entry, homework post, notice publish, message send", async ({ page }) => {
+  test("marks entry, homework read-only, notice publish, message oversight", async ({ page }) => {
     // Three roles, two logouts, six boards: the longest flow in the suite.
     // Its own per-step asserts carry the real budgets; the total cap just
     // needs headroom for a loaded machine.
@@ -83,19 +83,13 @@ test.describe("SOS admin full circuit", () => {
     await expect(page.getByText(/rank/i).first()).toBeVisible({ timeout: 20000 });
 
     await page.goto("/homework");
-    // Sections/subjects load async; the form falls back to raw-ID inputs
-    // until they arrive, so wait for the real dropdowns before choosing.
-    await expect(page.locator('select[aria-label="Section ID"]')).toBeAttached({ timeout: 20000 });
-    await page.getByLabel(/section/i).selectOption({ index: 1 });
-    await expect(page.locator('select[aria-label="Subject"]')).toBeAttached({ timeout: 20000 });
-    await page.getByLabel(/subject/i).selectOption({ index: 1 });
-    const hwStamp = Date.now().toString(36);
-    await page.getByLabel(/title/i).fill(`E2E Worksheet ${hwStamp}`);
-    await page.getByLabel(/description/i).fill("End to end verification problems for the class.");
-    await page.getByLabel(/due date/i).fill("2026-12-01");
-    await page.getByRole("button", { name: /post homework/i }).click();
-    await expect(page.getByText(`E2E Worksheet ${hwStamp}`).first()).toBeVisible({ timeout: 20000 });
+    // Admins read the homework board (oversight) but never post: no post
+    // form, no grade queue — giving/taking homework is teachers' work.
+    await expect(page.getByText(/homework/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole("button", { name: /post homework/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /mark graded/i })).toHaveCount(0);
 
+    const hwStamp = Date.now().toString(36);
     await page.goto("/notices");
     await page.getByLabel(/title/i).fill(`E2E Notice ${hwStamp}`);
     await page.getByLabel(/^message/i).fill("End to end verification notice for the whole school today.");

@@ -5,13 +5,12 @@ import request from "supertest";
 // Account-keyed login limiter tests (§11). This file exercises REAL
 // limiter behavior, so it opts out of the NODE_ENV=test bypass BEFORE
 // createApp() wires middleware (maybeLimit reads env once, at route
-// setup - flipping it per-test would do nothing). The IP limiter is
-// quieted to 1000 so only the account limiter under test can trip; the
+// setup - flipping it per-test would do nothing). Login is guarded by
+// the account limiter only (the per-IP login limiter was removed —
+// founder decision, 2026-10-01), so no other limiter can trip here; the
 // account knob stays at its default 5. Everything is restored after.
 const SAVED_NODE_ENV = process.env.NODE_ENV;
 process.env.NODE_ENV = "production";
-const SAVED_IP_LIMIT = process.env.LOGIN_RATE_LIMIT_MAX;
-process.env.LOGIN_RATE_LIMIT_MAX = "1000";
 const SAVED_ACCOUNT_LIMIT = process.env.LOGIN_ACCOUNT_LIMIT_MAX;
 delete process.env.LOGIN_ACCOUNT_LIMIT_MAX;
 afterAll(() => {
@@ -19,11 +18,6 @@ afterAll(() => {
     delete process.env.NODE_ENV;
   } else {
     process.env.NODE_ENV = SAVED_NODE_ENV;
-  }
-  if (SAVED_IP_LIMIT === undefined) {
-    delete process.env.LOGIN_RATE_LIMIT_MAX;
-  } else {
-    process.env.LOGIN_RATE_LIMIT_MAX = SAVED_IP_LIMIT;
   }
   if (SAVED_ACCOUNT_LIMIT === undefined) {
     delete process.env.LOGIN_ACCOUNT_LIMIT_MAX;

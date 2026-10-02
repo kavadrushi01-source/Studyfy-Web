@@ -500,24 +500,29 @@ export interface OnlinePaymentInit {
 // recomputes the outstanding balance itself, and creates the Razorpay order
 // for that exact number, so a tampered client request is structurally
 // incapable of paying less than owed. Amounts cross to Razorpay in paise
-// (integer) under §13.6 Decimal discipline. Self-scope (§5): with pins
-// (STUDENT/PARENT) the invoice's student must be one of them; staff (null
-// pins) may initiate for any invoice in the school. The created
-// fee_payments row is PENDING (order created, money not moved) — only the
-// webhook flips it to CAPTURED. Always creates a fresh order, never reuses
-// an old one (amounts may have changed since, checkouts expire).
+// (integer) under §13.6 Decimal discipline. PARENTS ONLY: school fees are
+// paid by guardians, never by pupils themselves and never by staff through
+// this online path (staff record counter payments via recordPayment
+// instead). Self-scope (§5): the invoice's student must be one of the
+// parent's linked children. The created fee_payments row is PENDING (order
+// created, money not moved) — only the webhook flips it to CAPTURED. Always
+// creates a fresh order, never reuses an old one (amounts may have changed
+// since, checkouts expire).
 export async function initiateOnlinePayment(
   db: PrismaClient,
   caller: { userId: string; role: string },
   allowedIds: string[] | null,
   invoiceId: string,
 ): Promise<OnlinePaymentInit> {
+  if (caller.role !== "PARENT") {
+    throw new AuthError(403, "FORBIDDEN", "Only parents can pay online.");
+  }
   const invoice = await db.feeInvoice.findFirst({ where: { id: invoiceId } });
   if (!invoice) {
     throw new AuthError(404, "INVOICE_NOT_FOUND", "Invoice not found in this school.");
   }
   if (allowedIds && !allowedIds.includes(invoice.studentId)) {
-    throw new AuthError(403, "FORBIDDEN", caller.role === "PARENT" ? "Not your child." : "Not your record.");
+    throw new AuthError(403, "FORBIDDEN", "Not your child.");
   }
   if (invoice.status === "PAID" || invoice.status === "REFUNDED") {
     throw new AuthError(409, "INVOICE_SETTLED", `Invoice is already ${invoice.status.toLowerCase()}.`);

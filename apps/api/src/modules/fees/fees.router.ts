@@ -216,9 +216,10 @@ feesRouter.post(
 
 // Online payment initiation (§13.8, Phase 2 TEST MODE). The frontend sends
 // ONLY the invoice id in the path — any amount in the body is ignored by
-// design (the server recomputes from the invoice). STUDENT/PARENT are
-// pinned to own/linked invoices via studentSelfScope + the service check;
-// staff (fees.read, no pins) may initiate for any invoice in the school.
+// design (the server recomputes from the invoice). PARENTS ONLY: pupils
+// never pay online and staff never initiate online payments (they record
+// counter payments instead) — the service enforces the PARENT role plus
+// the linked-children pin from studentSelfScope.
 feesRouter.post(
   "/schools/:schoolId/fees/invoices/:invoiceId/pay-order",
   authMiddleware,

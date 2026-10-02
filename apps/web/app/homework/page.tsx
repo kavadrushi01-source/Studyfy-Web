@@ -34,10 +34,11 @@ interface ApiError {
 // (useAuth).
 export default function HomeworkPage() {
   const { token, schoolId, ready, apiFetch, user } = useAuth();
-  // Staff-only surfaces: posting/grading are admin+teacher API-side, and
-  // pupils/parents lack subjects.read (403) - so the post form and its
-  // subjects fetch only exist for the roles that can actually use them.
-  const canManage = user?.role === "TEACHER" || user?.role === "SCHOOL_ADMIN";
+  // Post form + grading queue are TEACHER-only: homework is given by
+  // teachers, done by pupils, graded by teachers. Admins keep the
+  // read-only board below (oversight) but never post or grade — the API
+  // still gates by permission, this just keeps the options out of sight.
+  const canManage = user?.role === "TEACHER";
   const [items, setItems] = useState<BoardItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

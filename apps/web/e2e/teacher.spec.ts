@@ -23,6 +23,26 @@ test.describe("SOS teacher circuit", () => {
     await expect(page.getByText(/saved attendance for/i)).toBeVisible({ timeout: 20000 });
   });
 
+  test("teacher posts homework; admin sees it read-only", async ({ page }) => {
+    await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
+    await page.goto("/homework");
+    // Arjun only passes the teaching gate for his own section+subject —
+    // pick them by name, never by index.
+    await expect(page.locator('select[aria-label="Section ID"]')).toBeAttached({ timeout: 20000 });
+    const secTexts = await page.locator('select[aria-label="Section ID"] option').allTextContents();
+    const secIdx = secTexts.findIndex((t) => /9/.test(t) && /\bA\b/.test(t));
+    expect(secIdx).toBeGreaterThan(0);
+    await page.getByLabel(/section/i).selectOption({ index: secIdx });
+    await expect(page.locator('select[aria-label="Subject"]')).toBeAttached({ timeout: 20000 });
+    await page.getByLabel(/subject/i).selectOption({ label: "Mathematics" });
+    const hwStamp = Date.now().toString(36);
+    await page.getByLabel(/title/i).fill(`E2E Worksheet ${hwStamp}`);
+    await page.getByLabel(/description/i).fill("End to end verification problems for the class.");
+    await page.getByLabel(/due date/i).fill("2026-12-01");
+    await page.getByRole("button", { name: /post homework/i }).click();
+    await expect(page.getByText(`E2E Worksheet ${hwStamp}`).first()).toBeVisible({ timeout: 20000 });
+  });
+
   test("unlinked student message is refused with the server message", async ({ page }) => {
     await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
     await page.goto("/messages");

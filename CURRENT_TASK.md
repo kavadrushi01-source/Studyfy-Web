@@ -9,12 +9,13 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Chunk 1 of 5 complete (Razorpay/online fee payment → DONE in `STATUS.md` per Definition of Done, committed). Next is Chunk 2 — Admission/Enquiry CRM + Certificate Generator (not started).
-**Phase / Module:** Phase 2, Chunk 2 (Admission/Enquiry CRM + Certificate Generator) — awaiting start
+**Status:** IN PROGRESS — founder role-scope round (4 fixes, all implemented + verified, UNCOMMITTED). Awaiting founder's own test + commit/push word.
+**Phase / Module:** Phase 1/2 hardening (Pay parents-only, homework teacher-only, admin message composer removed, login lockout per-account-only)
 **Last updated:** 2026-10-01
 
 ## What's done in this task so far
-- Chunk 1 of 5 DONE: Razorpay TEST MODE online fee payment (pay-order + webhook + checkout UI + human verification, zero product bugs). Full record in `STATUS.md` Phase 2 row; detail in this file's history below.
+- All 4 founder items DONE + verified (details BUGSFIX 32): (1) Pay Online parents-only (UI + API 403 "Only parents can pay online."); (2) homework post/grade TEACHER-only, admin read-only; (3) admin message composer replaced by oversight note (parent→teacher messaging verified working — never broken); (4) per-IP login limiter removed, per-account only. Verified: API 201/201, e2e 51/51, typecheck+lint 0, 14-check human UI pass all roles, limiter proven (locked account 429, bystander 401, good logins unlimited).
+- Chunk 1 of 5 DONE earlier: Razorpay TEST MODE online fee payment (pay-order + webhook + checkout UI + human verification, zero product bugs). Full record in `STATUS.md` Phase 2 row; detail in History below.
 
 ## What's left in this task
 - Chunk 2 — Admission/Enquiry CRM + Certificate Generator: not started. Start from `AGENT_START_HERE.md` (read `STATUS.md` first, per RULES.md §6.1).
@@ -55,13 +56,13 @@
 - Follow-up (not blocking DONE): `npm audit` 2026-10-01 flags 1 critical — next 16.2.0–16.3.5 `next/og` ImageResponse RCE, module never imported here; fix = bump to next 16.3.8 + rebuild + full re-verify. Deliberate upgrade task for a future session.
 
 ## Exact next action
-- IDLE. Chunk 2 (Admission/Enquiry CRM + Certificate Generator) starts whenever the founder says go.
+- Founder tests the 4 fixes on the live site after deploy (needs commit+push first — ASK before pushing). Then Chunk 2 (Admission/Enquiry CRM + Certificate Generator) whenever the founder says go.
 
 ## Repo state right now
 - Clean after this commit. Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Local `.env` has `RAZORPAY_WEBHOOK_SECRET=wh-local-human-pass` (gitignored). Demo login: slug `school-of-science`, password `Demo@1234`.
 
 ## Notes / decisions made mid-task (carry-over operational knowledge — keep)
-- Local API start command (4 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_RATE_LIMIT_MAX=200&& set LOGIN_ACCOUNT_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.
+- Local API start command (3 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_ACCOUNT_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.
 - Background processes: shell jobs die with the shell — use `Start-Process -WindowStyle Hidden`; kill by CommandLine `*server.js*` (API) vs `*next*` (web). Never run tsc/eslint/vitest IN PARALLEL with the e2e suite (contention → failures).
 - Local suite reality: green duration ~1-2m warm (49 tests; first cold run up to ~4m); `retries: 1` absorbs machine stalls (a genuine regression fails both attempts — trace showed one 38s server-side stall once).
 - MySQL sandbox (3307) can silently die mid-session; recovery: kill the stale `mysqld`, then `Start-Process -FilePath "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe" -ArgumentList "--datadir=C:\Users\kavad\studyfy-mysql-data","--port=3307","--bind-address=127.0.0.1","--mysqlx=OFF"` (mysqld is NOT on PATH). Datadir persists — no re-seed needed. The MySQL80 service on 3306 is unrelated — never touch it. Symptom: API tests fail suite-wide with "Can't reach database server at 127.0.0.1:3307".

@@ -400,7 +400,10 @@ export default function FeesPage() {
             key: "online",
             label: "Pay online",
             render: (r) =>
-              Number(r.outstanding) > 0 ? (
+              // Parents only: pupils never pay online and staff record
+              // counter payments instead (the pay-order API enforces the
+              // same rule — this just keeps the button out of sight).
+              user?.role === "PARENT" && Number(r.outstanding) > 0 ? (
                 <button
                   type="button"
                   onClick={() => void payOnline(r.id)}

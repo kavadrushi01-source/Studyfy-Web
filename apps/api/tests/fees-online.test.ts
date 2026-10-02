@@ -146,47 +146,55 @@ describe("POST pay-order (online initiation, §13.8)", () => {
     expect(denied.body.error.code).toBe("FORBIDDEN");
   });
 
-  it("student initiates for self but not for a stranger; admin may initiate for anyone", async () => {
+  it("only parents may initiate: pupils and staff are refused even for own/linked invoices", async () => {
     const { schoolId, slug, adminToken } = await registerSchool();
     const own = await makeInvoice(schoolId, "Self Pupil");
     const stranger = await makeInvoice(schoolId, "Other Pupil");
+    const parentToken = await linkGuardian(schoolId, slug, own.studentId);
     const pupilToken = await loginAs(own.pupilEmail, "pupil-pass-123", slug);
 
+    // Parent pays for own child.
     await request(app)
+      .post(`/api/v1/schools/${schoolId}/fees/invoices/${own.invoiceId}/pay-order`)
+      .set("Authorization", `Bearer ${parentToken}`)
+      .send({})
+      .expect(201);
+
+    // Pupil may not pay online, not even for self.
+    const pupil = await request(app)
       .post(`/api/v1/schools/${schoolId}/fees/invoices/${own.invoiceId}/pay-order`)
       .set("Authorization", `Bearer ${pupilToken}`)
       .send({})
-      .expect(201);
-
-    const refused = await request(app)
-      .post(`/api/v1/schools/${schoolId}/fees/invoices/${stranger.invoiceId}/pay-order`)
-      .set("Authorization", `Bearer ${pupilToken}`)
-      .send({})
       .expect(403);
-    expect(refused.body.error.code).toBe("FORBIDDEN");
+    expect(pupil.body.error.code).toBe("FORBIDDEN");
+    expect(pupil.body.error.message).toBe("Only parents can pay online.");
 
-    await request(app)
+    // Staff may not initiate online payments either (counter instead).
+    const staff = await request(app)
       .post(`/api/v1/schools/${schoolId}/fees/invoices/${stranger.invoiceId}/pay-order`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({})
-      .expect(201);
+      .expect(403);
+    expect(staff.body.error.code).toBe("FORBIDDEN");
+    expect(staff.body.error.message).toBe("Only parents can pay online.");
   });
 
   it("settled and unknown invoices are rejected", async () => {
-    const { schoolId, adminToken } = await registerSchool();
-    const { invoiceId } = await makeInvoice(schoolId, "Settled Pupil");
+    const { schoolId, slug } = await registerSchool();
+    const { invoiceId, studentId } = await makeInvoice(schoolId, "Settled Pupil");
+    const parentToken = await linkGuardian(schoolId, slug, studentId);
     await prisma.feeInvoice.update({ where: { id: invoiceId }, data: { status: "PAID", amountPaid: "15000.00" } });
 
     const settled = await request(app)
       .post(`/api/v1/schools/${schoolId}/fees/invoices/${invoiceId}/pay-order`)
-      .set("Authorization", `Bearer ${adminToken}`)
+      .set("Authorization", `Bearer ${parentToken}`)
       .send({})
       .expect(409);
     expect(settled.body.error.code).toBe("INVOICE_SETTLED");
 
     const missing = await request(app)
       .post(`/api/v1/schools/${schoolId}/fees/invoices/does-not-exist/pay-order`)
-      .set("Authorization", `Bearer ${adminToken}`)
+      .set("Authorization", `Bearer ${parentToken}`)
       .send({})
       .expect(404);
     expect(missing.body.error.code).toBe("INVOICE_NOT_FOUND");

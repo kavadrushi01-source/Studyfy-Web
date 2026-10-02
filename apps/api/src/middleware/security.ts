@@ -57,46 +57,23 @@ function maybeLimit(...args: Parameters<typeof rateLimit>) {
   return rateLimit(...args);
 }
 
-// Login brute-force guard (§11 sliding window): 5 attempts / 15 min / IP.
-// Restored before the production pilot (RATE_LIMITING.md) — leave
-// LOGIN_RATE_LIMIT_MAX unset in production/CI so the default 5 applies;
-// it exists only as a local-testing override.
-function loginLimit(): number {
-  const raw = Number(process.env.LOGIN_RATE_LIMIT_MAX);
-  if (Number.isInteger(raw) && raw > 0) {
-    return raw;
-  }
-  return 5;
-}
-export const loginLimiter = () =>
-  maybeLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: loginLimit(),
-    standardHeaders: true,
-    legacyHeaders: false,
-    handler: (_req, res) => {
-      const body = limited("Too many login attempts. Try again in 15 minutes.");
-      res.status(body.statusCode).type("application/json").send(body.message);
-    },
-  });
-
-// Account-keyed login guard (same §11 rule, different key): 5 attempts /
-// 15 min / ACCOUNT. Per-IP limiting alone is unreliable behind Render's
-// proxy chain — one client can land in different IP buckets per request
-// (proven live: RateLimit-Remaining jumped 3→1→2 across back-to-back
-// requests), so an attacker gets ~5 tries per bucket instead of 5 total.
-// Keying on the normalized email makes brute force deterministic: hammer
-// one account and the 6th attempt is refused no matter which IPs the
-// attempts arrive from. Combined with enumeration-safe 401s (no account
-// oracle), spraying across accounts gains nothing either. Successful
-// logins don't consume budget, so legitimate users with many devices are
-// never locked out by their own logins. Runs IN ADDITION TO the IP
-// limiter (defense in depth) — and deliberately does NOT touch
-// `trust proxy` (trusting more hops would let attackers spoof IPs and
-// evade entirely, worse than today).
-// Own knob LOGIN_ACCOUNT_LIMIT_MAX (default 5, local-only override like
-// the IP one); headers off so the IP limiter's RateLimit-* headers stay
-// canonical — the two limiters are told apart by their 429 messages.
+// Login brute-force guard (§11 sliding window): 5 FAILED attempts /
+// 15 min / ACCOUNT, keyed on the normalized email. Per-IP limiting was
+// removed (founder decision): behind Render's proxy chain one client lands
+// in different IP buckets per request (proven live: RateLimit-Remaining
+// jumped 3→1→2 across back-to-back requests), AND behind shared IPs one
+// person's failures locked out innocent accounts. Keying on the email makes
+// brute force deterministic: hammer one account and the 6th attempt is
+// refused no matter which IP it arrives from — while every other account
+// stays usable. Combined with enumeration-safe 401s (no account oracle),
+// spraying across accounts gains little. Successful logins don't consume
+// budget, so legitimate users with many devices are never locked out by
+// their own logins. Logout is a separate, unlimited endpoint. Tradeoff on
+// record: without an IP bucket, many-account guessing from one IP is
+// throttled only per-account (5 tries each) — accepted deliberately.
+// `trust proxy` stays untouched (trusting more hops would let attackers
+// spoof IPs and evade entirely, worse than today).
+// Own knob LOGIN_ACCOUNT_LIMIT_MAX (default 5, local-only override).
 function loginAccountLimit(): number {
   const raw = Number(process.env.LOGIN_ACCOUNT_LIMIT_MAX);
   if (Number.isInteger(raw) && raw > 0) {
@@ -121,8 +98,8 @@ export const loginAccountLimiter = () =>
     },
   });
 
-// Register/forgot/reset share this bucket: 10/hour/IP per spec. Like
-// LOGIN_RATE_LIMIT_MAX, REGISTER_RATE_LIMIT_MAX is a LOCAL-ONLY override -
+// Register/forgot/reset share this bucket: 10/hour/IP per spec.
+// REGISTER_RATE_LIMIT_MAX is a LOCAL-ONLY override -
 // the e2e suite legitimately consumes 3 slots per run (2 garbage-token
 // probes + 1 forgot-password), so back-to-back runs need headroom.
 // CI/production must leave it unset so the default of 10 applies.

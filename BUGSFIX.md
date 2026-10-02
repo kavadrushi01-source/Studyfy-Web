@@ -240,6 +240,30 @@ npm audit --audit-level=high
     `!important` cure, now a standing rule (visibility always lives in
     classes, never inline). Pinned by e2e (collapsed-by-default,
     open-close, navigate).
+32. **Pay Online offered to every role; homework post/grade offered to
+    admins; message composer offered to admins; login lockout hit every
+    account (2026-10-01, founder-found round).** Four role-scope complaints
+    in one pass, all real: (1) the fees Pay button rendered for admins,
+    accountants, teachers and pupils, and pay-order accepted staff/pupil
+    calls — now PARENT-only in UI and API ("Only parents can pay online."),
+    staff keep counter recording; (2) the homework post form + grade queue
+    rendered for admins (`canManage` was TEACHER-or-ADMIN) — now
+    TEACHER-only, admins keep the read-only board, e2e homework-post moved
+    to the teacher circuit; (3) the messages composer rendered for admins
+    whose sends can never succeed (oversight is read-only by §13.7) — now
+    an oversight note replaces it; parent→child's-teacher messaging was
+    verified working end to end (it was never broken — the denial in the
+    screenshot was an admin send); (4) the per-IP login limiter burned one
+    shared budget, so one browser's failures locked out innocent accounts
+    — removed, the per-account limiter (5 failures/15min/email, successes
+    never consume budget, logout unlimited) is now the only login guard.
+    Pinned by updated API tests (parents-only pay-order, account limiter)
+    plus e2e (admin read-only asserts, teacher post) — API 201/201, e2e
+    51/51. Lesson earned twice this session: when a fix "doesn't take",
+    check which server build is actually serving (a stale next-server held
+    the old UI through a rebuild here), and when a checkout iframe has two
+    same-named buttons, force-clicks land on the hidden one — click the
+    dialog's own button with a real mouse click.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.
