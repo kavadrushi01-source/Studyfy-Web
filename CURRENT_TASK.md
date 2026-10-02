@@ -9,8 +9,8 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** DONE — founder follow-up round (PDF validation + true ranks + grading refresh + 2MB cap, verified, committed + pushed). Awaiting founder's live test.
-**Phase / Module:** Phase 1 hardening follow-up (homework file integrity, whole-class ranks, optimistic grading, upload cap)
+**Status:** IDLE — founder confirmed homework PDFs open (Cloudinary "PDF and ZIP files delivery" set to Allow; the 401 is gone). Next: Chunk 2 (Admission/Enquiry CRM + Certificate Generator) whenever the founder returns.
+**Phase / Module:** Between chunks — all prior work committed + pushed (`c9962d9` clean)
 **Last updated:** 2026-10-02
 
 ## What's done in this task so far
