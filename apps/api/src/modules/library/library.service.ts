@@ -7,14 +7,31 @@ export const DEFAULT_TIMEZONE = "Asia/Kolkata";
 
 // School-local calendar day (§12.7): "2026-10-03" in the school's own
 // timezone, immune to DST (a 23-hour day still changes the date once).
+// An unparseable timezone falls back to the default — a corrupt school
+// row must never turn every fine into NaN.
 function schoolDay(date: Date, timeZone: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? "";
+    const day = `${get("year")}-${get("month")}-${get("day")}`;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      return day;
+    }
+  } catch {
+    // Fall through to the default below.
+  }
+  const fallback = new Intl.DateTimeFormat("en-CA", {
+    timeZone: DEFAULT_TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).formatToParts(date);
-  const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? "";
+  const get = (type: string): string => fallback.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
@@ -126,31 +143,38 @@ export async function createBook(db: PrismaClient, callerUserId: string, input: 
 }
 
 export async function updateBook(db: PrismaClient, bookId: string, input: UpdateBookInput) {
-  const book = await db.book.findFirst({ where: { id: bookId }, select: { id: true, totalCopies: true, availableCopies: true } });
+  const book = await db.book.findFirst({ where: { id: bookId }, select: { id: true } });
   if (!book) {
     throw new AuthError(404, "BOOK_NOT_FOUND", "Book not found in this school.");
   }
-  // Shrinking the shelf below what's already out would corrupt the count.
-  if (input.totalCopies !== undefined) {
-    const issued = book.totalCopies - book.availableCopies;
-    if (input.totalCopies < issued) {
-      throw new AuthError(409, "COPIES_ISSUED", `Cannot shrink below the ${issued} cop${issued === 1 ? "y" : "ies"} currently issued.`);
+  // The shrink guard re-reads inside the transaction: two admins editing
+  // at once must serialize on the row, or both could pass the check
+  // against the same stale count.
+  const updated = await db.$transaction(async (tx) => {
+    const fresh = await tx.book.findFirstOrThrow({
+      where: { id: book.id },
+      select: { id: true, totalCopies: true, availableCopies: true },
+    });
+    if (input.totalCopies !== undefined) {
+      const issued = fresh.totalCopies - fresh.availableCopies;
+      if (input.totalCopies < issued) {
+        throw new AuthError(409, "COPIES_ISSUED", `Cannot shrink below the ${issued} cop${issued === 1 ? "y" : "ies"} currently issued.`);
+      }
+      const delta = input.totalCopies - fresh.totalCopies;
+      return tx.book.update({
+        where: { id: fresh.id },
+        data: {
+          ...(input.title !== undefined ? { title: input.title } : {}),
+          ...(input.author !== undefined ? { author: input.author } : {}),
+          ...(input.isbn !== undefined ? { isbn: input.isbn } : {}),
+          ...(input.category !== undefined ? { category: input.category } : {}),
+          totalCopies: input.totalCopies,
+          availableCopies: fresh.availableCopies + delta,
+        },
+      });
     }
-    const delta = input.totalCopies - book.totalCopies;
-    await db.book.update({
-      where: { id: book.id },
-      data: {
-        ...(input.title !== undefined ? { title: input.title } : {}),
-        ...(input.author !== undefined ? { author: input.author } : {}),
-        ...(input.isbn !== undefined ? { isbn: input.isbn } : {}),
-        ...(input.category !== undefined ? { category: input.category } : {}),
-        totalCopies: input.totalCopies,
-        availableCopies: book.availableCopies + delta,
-      },
-    });
-  } else {
-    await db.book.update({
-      where: { id: book.id },
+    return tx.book.update({
+      where: { id: fresh.id },
       data: {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.author !== undefined ? { author: input.author } : {}),
@@ -158,8 +182,7 @@ export async function updateBook(db: PrismaClient, bookId: string, input: Update
         ...(input.category !== undefined ? { category: input.category } : {}),
       },
     });
-  }
-  const updated = await db.book.findFirstOrThrow({ where: { id: book.id } });
+  });
   return { book: updated };
 }
 
@@ -200,12 +223,20 @@ export async function issueBook(
   if (!student) {
     throw new AuthError(404, "STUDENT_NOT_FOUND", "Student not found in this school.");
   }
-  if (book.availableCopies <= 0) {
-    throw new AuthError(409, "NO_COPIES_AVAILABLE", `All ${book.totalCopies} cop${book.totalCopies === 1 ? "y" : "ies"} of "${book.title}" are currently issued.`);
-  }
   const dueAt = new Date(Date.now() + input.dueDays * 86400000);
-  const [loan] = await db.$transaction([
-    db.bookLoan.create({
+  // The availability guard MUST live inside the transaction: two desks
+  // issuing the last copy concurrently would otherwise both pass a check
+  // outside and drive the count negative. The conditional decrement is
+  // the atomic gate — zero affected rows means the shelf just emptied.
+  const loan = await db.$transaction(async (tx) => {
+    const claimed = await tx.book.updateMany({
+      where: { id: book.id, availableCopies: { gt: 0 } },
+      data: { availableCopies: { decrement: 1 } },
+    });
+    if (claimed.count === 0) {
+      throw new AuthError(409, "NO_COPIES_AVAILABLE", `All ${book.totalCopies} cop${book.totalCopies === 1 ? "y" : "ies"} of "${book.title}" are currently issued.`);
+    }
+    return tx.bookLoan.create({
       data: {
         schoolId: book.schoolId,
         bookId: book.id,
@@ -220,9 +251,8 @@ export async function issueBook(
         book: { select: { id: true, title: true } },
         student: { select: { id: true, user: { select: { name: true } } } },
       },
-    }),
-    db.book.update({ where: { id: book.id }, data: { availableCopies: { decrement: 1 } } }),
-  ]);
+    });
+  });
   return { loan };
 }
 
@@ -242,10 +272,19 @@ export async function returnBook(db: PrismaClient, loanId: string) {
   const now = new Date();
   const school = await db.school.findFirst({ where: { id: loan.schoolId }, select: { libraryFinePerDay: true, timezone: true } });
   const fine = fineRupees(loan.dueAt, now, school?.libraryFinePerDay ?? DEFAULT_FINE_PER_DAY, school?.timezone ?? DEFAULT_TIMEZONE);
-  const [updated] = await db.$transaction([
-    db.bookLoan.update({
-      where: { id: loan.id },
+  // Guarded update: two desks returning the same loan concurrently must
+  // not increment the shelf twice — zero affected rows means someone
+  // else just returned it.
+  const updated = await db.$transaction(async (tx) => {
+    const claimed = await tx.bookLoan.updateMany({
+      where: { id: loan.id, returnedAt: null },
       data: { returnedAt: now, fineAmount: new Prisma.Decimal(fine) },
+    });
+    if (claimed.count === 0) {
+      throw new AuthError(409, "ALREADY_RETURNED", "This loan was already returned.");
+    }
+    const row = await tx.bookLoan.findFirstOrThrow({
+      where: { id: loan.id },
       select: {
         id: true,
         issuedAt: true,
@@ -255,9 +294,10 @@ export async function returnBook(db: PrismaClient, loanId: string) {
         book: { select: { id: true, title: true } },
         student: { select: { id: true, user: { select: { name: true } } } },
       },
-    }),
-    db.book.update({ where: { id: loan.bookId }, data: { availableCopies: { increment: 1 } } }),
-  ]);
+    });
+    await tx.book.update({ where: { id: loan.bookId }, data: { availableCopies: { increment: 1 } } });
+    return row;
+  });
   return {
     loan: {
       ...updated,

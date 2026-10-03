@@ -36,6 +36,12 @@ interface PupilOption {
   name: string;
 }
 
+interface DeskBookOption {
+  id: string;
+  title: string;
+  availableCopies: number;
+}
+
 interface ApiError {
   error: { code: string; message: string };
 }
@@ -76,6 +82,8 @@ export default function LibraryPage() {
   const [saving, setSaving] = useState(false);
   // Issue desk.
   const [issueBookId, setIssueBookId] = useState("");
+  const [bookQuery, setBookQuery] = useState("");
+  const [bookOptions, setBookOptions] = useState<DeskBookOption[]>([]);
   const [pupilQuery, setPupilQuery] = useState("");
   const [pupilOptions, setPupilOptions] = useState<PupilOption[]>([]);
   const [pupilId, setPupilId] = useState("");
@@ -84,6 +92,9 @@ export default function LibraryPage() {
   // Loans board.
   const [loans, setLoans] = useState<LoanRow[]>([]);
   const [loanStatus, setLoanStatus] = useState("");
+  const [loanPage, setLoanPage] = useState(1);
+  const [loanPages, setLoanPages] = useState(1);
+  const [loanTotal, setLoanTotal] = useState(0);
   const [loansLoading, setLoansLoading] = useState(false);
   const [finePerDay, setFinePerDay] = useState(5);
   const [rateInput, setRateInput] = useState("5");
@@ -129,20 +140,24 @@ export default function LibraryPage() {
   );
 
   const loadLoans = useCallback(
-    async (status: string) => {
+    async (status: string, loanPageNo: number) => {
       if (!schoolId) {
         return;
       }
       setLoansLoading(true);
       try {
-        const params = new URLSearchParams({ pageSize: "50" });
+        const params = new URLSearchParams({ page: String(loanPageNo), pageSize: "20" });
         if (status) {
           params.set("status", status);
         }
         const response = await apiFetch(`/api/v1/schools/${schoolId}/library/loans?${params}`);
-        const body = (await response.json()) as { data: { loans: LoanRow[]; finePerDay: number } } | ApiError;
+        const body = (await response.json()) as {
+          data: { loans: LoanRow[]; finePerDay: number; total: number; totalPages: number };
+        } | ApiError;
         if (!isFailure(response, body)) {
           setLoans(body.data.loans);
+          setLoanTotal(body.data.total);
+          setLoanPages(body.data.totalPages);
           setFinePerDay(body.data.finePerDay);
           // Seed the editor once from the server; afterwards the field is
           // the admin's until they save (reloads must not clobber typing).
@@ -166,7 +181,7 @@ export default function LibraryPage() {
     }
     void loadBooks({ search: "", category: "", availableOnly: false, page: 1 });
     if (seesLoans) {
-      void loadLoans("");
+      setLoanPage(1); void loadLoans("", 1);
     }
   }, [ready, token, schoolId, apiFetch, loadBooks, loadLoans, seesLoans]);
 
@@ -206,12 +221,41 @@ export default function LibraryPage() {
       setBookCategory("");
       setCopies("3");
       setNotice("Book added to the catalog.");
+      // The reload below is unfiltered — reset the filter inputs to match
+      // what the table actually shows.
+      setSearch("");
+      setCategory("");
+      setAvailableOnly(false);
       setBookPage(1);
       await loadBooks({ search: "", category: "", availableOnly: false, page: 1 });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function searchBooks(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!schoolId || !bookQuery.trim()) {
+      return;
+    }
+    setError("");
+    try {
+      const params = new URLSearchParams({
+        search: bookQuery.trim(),
+        available: "true",
+        pageSize: "10",
+      });
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/library/books?${params}`);
+      const body = (await response.json()) as {
+        data: { books: { id: string; title: string; availableCopies: number }[] };
+      } | ApiError;
+      if (!isFailure(response, body)) {
+        setBookOptions(body.data.books);
+      }
+    } catch {
+      // Picker stays as-is.
     }
   }
 
@@ -256,7 +300,7 @@ export default function LibraryPage() {
       setPupilId("");
       setIssueBookId("");
       await loadBooks({ search, category, availableOnly, page: bookPage });
-      await loadLoans(loanStatus);
+      await loadLoans(loanStatus, loanPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
@@ -313,6 +357,13 @@ export default function LibraryPage() {
     if (!schoolId) {
       return;
     }
+    // Destructive and history-deleting: one explicit confirmation.
+    if (!window.confirm(`Remove "${title}" from the catalog? Its loan history goes with it.`)) {
+      return;
+    }
+    if (!schoolId) {
+      return;
+    }
     setError("");
     setNotice("");
     try {
@@ -350,7 +401,7 @@ export default function LibraryPage() {
         throw new Error(body.error?.message ?? "Could not save the rate.");
       }
       setNotice(`Fine rate saved — ₹${rateInput} per overdue day from now on.`);
-      await loadLoans(loanStatus);
+      await loadLoans(loanStatus, loanPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
@@ -374,7 +425,7 @@ export default function LibraryPage() {
       }
       setNotice("Returned — back on the shelf.");
       await loadBooks({ search, category, availableOnly, page: bookPage });
-      await loadLoans(loanStatus);
+      await loadLoans(loanStatus, loanPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     }
@@ -620,6 +671,19 @@ export default function LibraryPage() {
           ) : null}
           <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
             <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Issue desk</h2>
+            <form onSubmit={searchBooks} className="sf-row-wrap" style={{ marginBottom: 12 }}>
+              <input
+                className="sf-input"
+                style={{ flex: 1, minWidth: 200 }}
+                value={bookQuery}
+                onChange={(e) => setBookQuery(e.target.value)}
+                placeholder="Find an available book — e.g. Malgudi Days"
+                aria-label="Find book"
+              />
+              <button type="submit" style={secondaryBtn}>
+                Find book
+              </button>
+            </form>
             <form onSubmit={searchPupils} className="sf-row-wrap" style={{ marginBottom: 12 }}>
               <input
                 className="sf-input"
@@ -630,7 +694,7 @@ export default function LibraryPage() {
                 aria-label="Find pupil"
               />
               <button type="submit" style={secondaryBtn}>
-                Find
+                Find pupil
               </button>
             </form>
             <form onSubmit={issue} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -647,7 +711,7 @@ export default function LibraryPage() {
                   </select>
                 </label>
                 <label style={{ ...labelStyle, flex: 2, minWidth: 200 }}>
-                  Book (from the catalog above)
+                  Book (available copies)
                   <select
                     className="sf-select"
                     value={issueBookId}
@@ -656,13 +720,11 @@ export default function LibraryPage() {
                     aria-label="Pick book to issue"
                   >
                     <option value="">— pick a book —</option>
-                    {books
-                      .filter((b) => b.availableCopies > 0)
-                      .map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.title} — {b.availableCopies} left
-                        </option>
-                      ))}
+                    {bookOptions.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.title} — {b.availableCopies} left
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label style={{ ...labelStyle, minWidth: 110 }}>
@@ -698,7 +760,7 @@ export default function LibraryPage() {
               value={loanStatus}
               onChange={(e) => {
                 setLoanStatus(e.target.value);
-                void loadLoans(e.target.value);
+                setLoanPage(1); void loadLoans(e.target.value, 1);
               }}
               aria-label="Filter loans by status"
             >
@@ -745,6 +807,37 @@ export default function LibraryPage() {
               ))}
             </ul>
           )}
+          {loanTotal > 20 ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 14, fontSize: 13, color: "#64748B" }}>
+              <button
+                type="button"
+                disabled={loanPage <= 1 || loansLoading}
+                onClick={() => {
+                  setLoanPage(loanPage - 1);
+                  void loadLoans(loanStatus, loanPage - 1);
+                }}
+                className="sf-btn sf-btn-secondary"
+                style={{ padding: "7px 12px", fontSize: 13 }}
+              >
+                Prev
+              </button>
+              <span style={{ fontWeight: 600, color: "#1E293B" }}>
+                Page {loanPage} of {loanPages} · {loanTotal} total
+              </span>
+              <button
+                type="button"
+                disabled={loanPage >= loanPages || loansLoading}
+                onClick={() => {
+                  setLoanPage(loanPage + 1);
+                  void loadLoans(loanStatus, loanPage + 1);
+                }}
+                className="sf-btn sf-btn-secondary"
+                style={{ padding: "7px 12px", fontSize: 13 }}
+              >
+                Next
+              </button>
+            </div>
+          ) : null}
         </section>
       ) : null}
       {notice ? <p style={{ color: colors.success, fontSize: 14, margin: "12px 0 0" }}>{notice}</p> : null}

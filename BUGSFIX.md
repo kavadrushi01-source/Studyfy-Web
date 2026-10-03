@@ -357,6 +357,21 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+42. **Senior review of Chunk 3 (2026-10-03, founder-ordered).** Read
+    every line fresh; found and fixed: (1) REAL issue/return race —
+    check-then-act outside the transaction let two desks issue the last
+    copy twice (count to -1) and double-return increment twice; both
+    paths now use conditional guarded updates inside transactions,
+    pinned by concurrent-desk tests (5× issue → exactly one 201,
+    5× return → exactly one 200); (2) updateBook read-modify-write moved
+    into a re-checking transaction; (3) corrupt school timezone strings
+    could NaN every fine — schoolDay falls back safely; (4) UX: desk book
+    search (catalog pagination hid titles), remove confirmation (history
+    deletes with the title), loans pager (>50 hidden before), edit panel
+    auto-close, add-book filter reset. Test-script honors, not app bugs:
+    anchored regexes matching zero elements, self-matching success text,
+    dialog deadlocks from awaiting clicks before handlers. Verified:
+    API 220/220, e2e 61/61, typecheck+lint 0, human passes + screenshots.
 42. **School-timezone fines (2026-10-03, founder cites §12.7).** Overdue
     math ran on UTC day boundaries — a book due 23:30 UTC is due 05:00
     IST next morning, and UTC counted a day IST never saw. Now

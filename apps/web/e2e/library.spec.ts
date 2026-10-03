@@ -21,7 +21,7 @@ test.describe("library circuit", () => {
 
     // Issue desk: find the pupil, pick the book, issue.
     await page.getByLabel(/find pupil/i).fill("Aditya Sharma");
-    await page.getByRole("button", { name: /^find$/i }).click();
+    await page.getByRole("button", { name: /find pupil/i }).click();
     await expect(page.getByLabel(/issue to pupil/i).locator("option", { hasText: "Aditya Sharma" })).toBeAttached({
       timeout: 20000,
     });
@@ -32,6 +32,11 @@ test.describe("library circuit", () => {
         .first()
         .getAttribute("value")) ?? "";
     await page.getByLabel(/issue to pupil/i).selectOption(pupilValue);
+    await page.getByLabel(/find book/i).fill(title);
+    await page.getByRole("button", { name: /find book/i }).click();
+    await expect(
+      page.getByLabel(/pick book to issue/i).locator("option", { hasText: title }),
+    ).toBeAttached({ timeout: 20000 });
     const bookValue =
       (await page
         .getByLabel(/pick book to issue/i)
@@ -83,13 +88,16 @@ test.describe("library circuit", () => {
     await page.getByRole("button", { name: /add to catalog/i }).click();
     await expect(page.getByText(`E2E Edit ${stamp}`).first()).toBeVisible({ timeout: 20000 });
     await page.getByLabel(/find pupil/i).fill("Aditya Sharma");
-    await page.getByRole("button", { name: /^find$/i }).click();
+    await page.getByRole("button", { name: /find pupil/i }).click();
     const pupilSel = page.getByLabel(/issue to pupil/i);
     await expect(pupilSel.locator("option", { hasText: "Aditya Sharma" })).toBeAttached({ timeout: 20000 });
     await pupilSel.selectOption(
       (await pupilSel.locator("option", { hasText: "Aditya Sharma" }).first().getAttribute("value")) ?? "",
     );
     const bookSel = page.getByLabel(/pick book to issue/i);
+    await page.getByLabel(/find book/i).fill(`E2E Edit ${stamp}`);
+    await page.getByRole("button", { name: /find book/i }).click();
+    await expect(bookSel.locator("option", { hasText: `E2E Edit ${stamp}` })).toBeAttached({ timeout: 20000 });
     await bookSel.selectOption(
       (await bookSel.locator("option", { hasText: `E2E Edit ${stamp}` }).first().getAttribute("value")) ?? "",
     );

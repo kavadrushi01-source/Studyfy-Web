@@ -346,4 +346,44 @@ describe("Library catalog (§7 Phase 2 #13)", () => {
       .expect(200);
     expect(shelf.body.data.total).toBe(1);
   });
+
+  it("survives concurrent desks: one last copy issues once, one return counts once", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const auth = { Authorization: `Bearer ${adminToken}` };
+    const bookId = await makeBook(schoolId, adminToken, 1);
+    const pupils = await Promise.all(
+      Array.from({ length: 5 }, () => makePupil(schoolId, slug)),
+    );
+
+    // Five desks, one copy: exactly one 201, four 409s, shelf ends at 0 —
+    // never negative, never two loans.
+    const attempts = await Promise.all(
+      pupils.map((p) =>
+        request(app)
+          .post(`/api/v1/schools/${schoolId}/library/books/${bookId}/issue`)
+          .set(auth)
+          .send({ studentId: p.studentId }),
+      ),
+    );
+    expect(attempts.filter((r) => r.status === 201)).toHaveLength(1);
+    expect(attempts.filter((r) => r.status === 409)).toHaveLength(4);
+    const shelf = await prisma.book.findFirstOrThrow({ where: { id: bookId } });
+    expect(shelf.availableCopies).toBe(0);
+    expect(await prisma.bookLoan.count({ where: { bookId } })).toBe(1);
+
+    // Five desks returning the same loan: one 200, four 409s, shelf back
+    // to exactly 1 — never double-incremented.
+    const loanId = (attempts.find((r) => r.status === 201)?.body as { data: { loan: { id: string } } }).data.loan.id;
+    const returns = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        request(app)
+          .post(`/api/v1/schools/${schoolId}/library/loans/${loanId}/return`)
+          .set(auth),
+      ),
+    );
+    expect(returns.filter((r) => r.status === 200)).toHaveLength(1);
+    expect(returns.filter((r) => r.status === 409)).toHaveLength(4);
+    const shelved = await prisma.book.findFirstOrThrow({ where: { id: bookId } });
+    expect(shelved.availableCopies).toBe(1);
+  });
 });
