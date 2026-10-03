@@ -9,12 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Chunk 3 senior-reviewed (issue/return race guards, desk search, remove confirm, loans pager; verified, committed + pushed). Next is Chunk 4 — Transport (founder picks otherwise).
-**Phase / Module:** Phase 2, Chunk 4 (Transport) — awaiting start
+**Status:** IDLE — Chunk 3 of 5 complete (Library DONE in STATUS.md per Definition of Done: 220/220, 61/61, senior-reviewed). Next is Chunk 4 — Transport + HR/Payroll.
+**Phase / Module:** Phase 2, Chunk 4 (Transport + HR/Payroll) — awaiting start
 **Last updated:** 2026-10-03
 
 ## What's done in this task so far
-- Chunk 3 of 5 DONE: Library (§7 #13) — catalog + issue/return desk + loans board + my-loans; books/book_loans tables via migration; library.read/manage keys (+ LIBRARIAN role mapped) via seed + idempotent data migration. Verified: API 216/216 (58 files), e2e 59/59 zero flakes, typecheck+lint 0, human desk journey + screenshot. Full record in `STATUS.md` Phase 2 row; detail in BUGSFIX 39.
+- Chunk 3 of 5 DONE: Library (§7 #13) incl. fines, timezone math, race guards, desk UX. Full record in `STATUS.md` Phase 2 row; detail in BUGSFIX 39–42 + History below.
 - Chunk 2 DONE + verified (details BUGSFIX 35): CRM pipeline (public intake → stages + assignee + notes timeline, office-only; /crm UI) + certificates (Bonafide/Transfer/Character PDFs, CERT/year/sequence serials, frozen snapshots, re-download; /certificates UI). New tables via migration + idempotent permission-keys data migration (prod gets keys via `migrate deploy`). Verified: API 212/212 (57 files), e2e 56/56, typecheck+lint 0, 10-check human pass (public→CONTACTED, TRANSFER CERT/2026/0003, 2073 PDF bytes, nav).
 - Previous: follow-up round DONE (BUGSFIX 34).
 - Chunk 1 of 5 DONE earlier: Razorpay TEST MODE online fee payment. Full record in `STATUS.md` Phase 2 row; detail in History below.
