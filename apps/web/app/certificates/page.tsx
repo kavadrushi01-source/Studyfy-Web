@@ -48,6 +48,7 @@ export default function CertificatesPage() {
   const [issuing, setIssuing] = useState(false);
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<PupilOption[]>([]);
+  const [searched, setSearched] = useState(false);
   const [studentId, setStudentId] = useState("");
   const [certType, setCertType] = useState<string>("BONAFIDE");
   const [confirming, setConfirming] = useState(false);
@@ -105,6 +106,7 @@ export default function CertificatesPage() {
       if (isFailure(response, body)) {
         throw new Error(body.error?.message ?? "Search failed.");
       }
+      setSearched(true);
       setOptions(
         body.data.students.map((s) => ({
           id: s.id,
@@ -215,14 +217,23 @@ export default function CertificatesPage() {
               className="sf-input"
               style={{ flex: 1, minWidth: 200 }}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search pupil by name…"
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSearched(false);
+              }}
+              placeholder="Type the pupil's name, then Search — e.g. Aditya Sharma"
               aria-label="Search pupil"
             />
             <button type="submit" style={secondaryBtn}>
               Search
             </button>
           </form>
+          {searched && options.length === 0 ? (
+            <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 12px" }}>
+              No pupils match “{query}” — search by the pupil&apos;s name (who the certificate is for),
+              not the certificate type.
+            </p>
+          ) : null}
           <form onSubmit={issue} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div className="sf-row-wrap">
               <label style={{ ...labelStyle, flex: 2, minWidth: 200 }}>
