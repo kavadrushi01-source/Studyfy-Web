@@ -322,6 +322,13 @@ npm audit --audit-level=high
     on hand-written POSTs were the two UI traps, same as the timetable
     build. Verified: API 212/212, e2e 56/56, human pass (public→CONTACTED
     journey, TRANSFER CERT/2026/0003 with 2073 real PDF bytes).
+36. **Convert to Admission (2026-10-02, founder ask, new micro-feature).**
+    ADMITTED enquiries grow a "Convert to Admission" link into
+    /students/new with the contact pre-filled as guardian (never as the
+    pupil — the enquiry names the contact, not the child) plus a banner;
+    successful admission writes "Admitted as X." back onto the enquiry
+    timeline, closing the loop. Human-proven end to end; e2e pins guardian
+    prefill + blank pupil.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.

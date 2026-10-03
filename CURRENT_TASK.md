@@ -9,11 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** DONE — Chunk 2 live incl. production DB (founder supplied Aiven URL; `migrate deploy` applied both migrations; tables + 4 keys + 7 mappings verified in prod; live /enquiries + /certificates 200 OK, empty as expected). Awaiting founder's live test.
-**Phase / Module:** Phase 2, Chunk 2 complete; next queued: Chunk 3 (founder picks: SMS/WhatsApp stub, library, transport, payroll)
+**Status:** DONE — Convert to Admission micro-feature (ADMITTED → pre-filled admission → timeline close-out, verified, committed + pushed). Awaiting founder's live test.
+**Phase / Module:** Phase 2 Chunk 2 extras (CRM conversion loop)
 **Last updated:** 2026-10-02
 
 ## What's done in this task so far
+- Convert to Admission DONE + verified (details BUGSFIX 36): ADMITTED enquiries show the convert link → /students/new with contact as guardian + banner → successful admit writes "Admitted as X." to the timeline. Human-proven end to end; e2e pins prefill + blank pupil.
 - Chunk 2 DONE + verified (details BUGSFIX 35): CRM pipeline (public intake → stages + assignee + notes timeline, office-only; /crm UI) + certificates (Bonafide/Transfer/Character PDFs, CERT/year/sequence serials, frozen snapshots, re-download; /certificates UI). New tables via migration + idempotent permission-keys data migration (prod gets keys via `migrate deploy`). Verified: API 212/212 (57 files), e2e 56/56, typecheck+lint 0, 10-check human pass (public→CONTACTED, TRANSFER CERT/2026/0003, 2073 PDF bytes, nav).
 - Previous: follow-up round DONE (BUGSFIX 34).
 - Chunk 1 of 5 DONE earlier: Razorpay TEST MODE online fee payment. Full record in `STATUS.md` Phase 2 row; detail in History below.

@@ -48,6 +48,32 @@ test.describe("admissions CRM", () => {
     await expect(page.getByRole("button", { name: /contacted/i })).toHaveCount(0);
   });
 
+  test("ADMITTED enquiry converts: admission form opens with the contact pre-filled", async ({ page, request }) => {
+    const stamp = Date.now().toString(36);
+    const name = `E2E Convert ${stamp}`;
+    await request.post(`${process.env.E2E_API_URL}/api/v1/public/enquiries`, {
+      data: { schoolSlug: SOS_SLUG, name, phone: "9111111111", message: "Convert me to admission please." },
+    });
+
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/crm");
+    await page.getByLabel(/search enquiries/i).fill(name);
+    await page.getByRole("button", { name: /^filter$/i }).click();
+    await expect(page.getByText(name).first()).toBeVisible({ timeout: 20000 });
+    await page.getByRole("button", { name: /^open$/i }).first().click();
+    await expect(page.getByText("Convert me to admission").first()).toBeVisible({ timeout: 20000 });
+    // Convert appears only at ADMITTED — move there first.
+    await expect(page.getByRole("link", { name: /convert to admission/i })).toHaveCount(0);
+    await page.getByRole("button", { name: /admitted/i }).click();
+    await expect(page.getByText(/moved to admitted/i).first()).toBeVisible({ timeout: 20000 });
+    await page.getByRole("link", { name: /convert to admission/i }).click();
+    await expect(page).toHaveURL(/\/students\/new\?/, { timeout: 20000 });
+    // The contact carried over as guardian; the pupil stays blank.
+    await expect(page.getByText(/converting enquiry/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByLabel(/guardian name/i)).toHaveValue(name);
+    await expect(page.getByLabel(/full name/i)).toHaveValue("");
+  });
+
   test("teacher has no CRM access at all", async ({ page }) => {
     await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
     await page.goto("/crm");

@@ -45,6 +45,26 @@ export default function AdmitStudentPage() {
   const [result, setResult] = useState<AdmitSuccess | null>(null);
   const [error, setError] = useState("");
   const [sectionOptions, setSectionOptions] = useState<{ id: string; name: string; className: string }[]>([]);
+  // Convert-to-Admission (§7 #16): the CRM links here with the enquirer's
+  // details. The enquiry names the CONTACT (usually a parent), never the
+  // child — so it pre-fills the guardian fields, never the pupil's. Read
+  // from location.search in an effect (no Suspense boundary needed).
+  const [fromEnquiry, setFromEnquiry] = useState<{ id: string; name: string; phone: string } | null>(null);
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const gName = params.get("guardianName") ?? "";
+      const gEmail = params.get("guardianEmail") ?? "";
+      const eId = params.get("enquiry") ?? "";
+      if (gName || gEmail || eId) {
+        setGuardianName(gName);
+        setGuardianEmail(gEmail);
+        setFromEnquiry({ id: eId, name: params.get("enquiryName") ?? "", phone: params.get("phone") ?? "" });
+      }
+    } catch {
+      // No query — plain manual admission.
+    }
+  }, []);
 
   // Section dropdown (names, not IDs — a typed ID 404s with
   // "Section not found in this school").
@@ -99,6 +119,22 @@ export default function AdmitStudentPage() {
         return;
       }
       setResult(body.data);
+      // Convert-to-Admission close-out: record the new pupil on the
+      // enquiry timeline so the pipeline shows the outcome. Best-effort —
+      // the admission itself already succeeded.
+      if (fromEnquiry?.id && schoolId) {
+        void (async () => {
+          try {
+            await apiFetch(`/api/v1/schools/${schoolId}/enquiries/${fromEnquiry.id}/notes`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ body: `Admitted as ${body.data.student.user.name}.` }),
+            });
+          } catch {
+            // Timeline note is a nicety, never a failure.
+          }
+        })();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
@@ -155,6 +191,13 @@ export default function AdmitStudentPage() {
   return (
     <main style={pageFrame}>
       <h1 style={pageH1}>Admit Student</h1>
+      {fromEnquiry && (fromEnquiry.name || fromEnquiry.id) ? (
+        <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 12px", maxWidth: 640 }}>
+          Converting enquiry{fromEnquiry.name ? ` from ${fromEnquiry.name}` : ""}
+          {fromEnquiry.phone ? ` (${fromEnquiry.phone})` : ""} — the contact is filled in as guardian
+          below; add the pupil&apos;s own details to finish.
+        </p>
+      ) : null}
       <form
         onSubmit={onSubmit}
         className="sf-card"

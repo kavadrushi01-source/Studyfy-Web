@@ -362,12 +362,24 @@ export default function CrmPage() {
             · owner {detail.assignee?.name ?? "unassigned"}
           </p>
           <p style={{ fontSize: 14, color: colors.inkSoft, lineHeight: 1.6, margin: "0 0 12px" }}>{detail.message}</p>
-          <Link
-            href="/students/new"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none", marginBottom: 16 }}
-          >
-            <UserPlus size={14} aria-hidden="true" /> Admit — open admission form
-          </Link>
+          {detail.status === "ADMITTED" ? (
+            <Link
+              href={`/students/new?${new URLSearchParams({
+                ...(detail.name ? { guardianName: detail.name } : {}),
+                ...(detail.email ? { guardianEmail: detail.email } : {}),
+                enquiry: detail.id,
+                ...(detail.name ? { enquiryName: detail.name } : {}),
+                ...(detail.phone ? { phone: detail.phone } : {}),
+              }).toString()}`}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none", marginBottom: 16 }}
+            >
+              <UserPlus size={14} aria-hidden="true" /> Convert to Admission — contact pre-filled, add the pupil
+            </Link>
+          ) : (
+            <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 16px" }}>
+              Move this enquiry to Admitted to convert it — the contact carries over, no re-typing.
+            </p>
+          )}
           <h3 style={{ ...h1Style, fontSize: 15, margin: "0 0 8px" }}>Timeline</h3>
           {detail.notes.length === 0 ? (
             <p style={{ ...mutedStyle, fontSize: 13 }}>No follow-ups yet.</p>
