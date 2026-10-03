@@ -65,6 +65,15 @@ export default function LibraryPage() {
   const [bookCategory, setBookCategory] = useState("");
   const [copies, setCopies] = useState("3");
   const [adding, setAdding] = useState(false);
+  // Edit panel (prefilled from the row; Save PATCHes only changed fields
+  // server-side — shrinking below issued copies is refused with the count).
+  const [editingId, setEditingId] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editAuthor, setEditAuthor] = useState("");
+  const [editIsbn, setEditIsbn] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editCopies, setEditCopies] = useState("");
+  const [saving, setSaving] = useState(false);
   // Issue desk.
   const [issueBookId, setIssueBookId] = useState("");
   const [pupilQuery, setPupilQuery] = useState("");
@@ -255,6 +264,51 @@ export default function LibraryPage() {
     }
   }
 
+  function startEdit(row: BookRow): void {
+    setEditingId(row.id);
+    setEditTitle(row.title);
+    setEditAuthor(row.author);
+    setEditIsbn(row.isbn ?? "");
+    setEditCategory(row.category);
+    setEditCopies(String(row.totalCopies));
+    setError("");
+    setNotice("");
+  }
+
+  async function saveEdit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!schoolId || !editingId) {
+      return;
+    }
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/library/books/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          author: editAuthor.trim(),
+          isbn: editIsbn.trim() || null,
+          category: editCategory.trim() || "General",
+          totalCopies: Number(editCopies) || 1,
+        }),
+      });
+      const body = (await response.json()) as unknown as ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not save the book.");
+      }
+      setNotice("Book updated.");
+      setEditingId("");
+      await loadBooks({ search, category, availableOnly, page: bookPage });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function removeBook(bookId: string, title: string): Promise<void> {
     if (!schoolId) {
       return;
@@ -413,16 +467,25 @@ export default function LibraryPage() {
           ...(canManage
             ? [
                 {
-                  key: "remove",
-                  label: "Remove",
+                  key: "actions",
+                  label: "Manage",
                   render: (r: BookRow) => (
-                    <button
-                      type="button"
-                      onClick={() => void removeBook(r.id, r.title)}
-                      style={{ ...secondaryBtn, padding: "6px 14px", fontSize: 13 }}
-                    >
-                      Remove
-                    </button>
+                    <span style={{ display: "inline-flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => startEdit(r)}
+                        style={{ ...secondaryBtn, padding: "6px 14px", fontSize: 13 }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void removeBook(r.id, r.title)}
+                        style={{ ...secondaryBtn, padding: "6px 14px", fontSize: 13 }}
+                      >
+                        Remove
+                      </button>
+                    </span>
                   ),
                 },
               ]
@@ -516,6 +579,45 @@ export default function LibraryPage() {
               </div>
             </form>
           </section>
+          {editingId ? (
+            <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
+              <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Edit title</h2>
+              <form onSubmit={saveEdit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="sf-row-wrap">
+                  <label style={{ ...labelStyle, flex: 2, minWidth: 200 }}>
+                    Title
+                    <input className="sf-input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required aria-label="Edit title" />
+                  </label>
+                  <label style={{ ...labelStyle, flex: 1, minWidth: 160 }}>
+                    Author
+                    <input className="sf-input" value={editAuthor} onChange={(e) => setEditAuthor(e.target.value)} required aria-label="Edit author" />
+                  </label>
+                </div>
+                <div className="sf-row-wrap">
+                  <label style={{ ...labelStyle, flex: 1, minWidth: 140 }}>
+                    ISBN (optional)
+                    <input className="sf-input" value={editIsbn} onChange={(e) => setEditIsbn(e.target.value)} aria-label="Edit ISBN" />
+                  </label>
+                  <label style={{ ...labelStyle, flex: 1, minWidth: 140 }}>
+                    Category
+                    <input className="sf-input" value={editCategory} onChange={(e) => setEditCategory(e.target.value)} aria-label="Edit category" />
+                  </label>
+                  <label style={{ ...labelStyle, minWidth: 110 }}>
+                    Copies
+                    <input className="sf-input" inputMode="numeric" value={editCopies} onChange={(e) => setEditCopies(e.target.value)} aria-label="Edit total copies" />
+                  </label>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="submit" disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
+                    {saving ? "Saving…" : "Save changes"}
+                  </button>
+                  <button type="button" onClick={() => setEditingId("")} style={secondaryBtn}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </section>
+          ) : null}
           <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
             <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Issue desk</h2>
             <form onSubmit={searchPupils} className="sf-row-wrap" style={{ marginBottom: 12 }}>

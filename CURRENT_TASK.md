@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Chunk 3 fines live on prod too (migration applied, fine_amount column + ₹5 default verified, live settings/loans 200 with rate). Next is Chunk 4 — Transport (founder picks otherwise).
+**Status:** IDLE — Chunk 3 complete incl. catalog edit UI (add/edit/remove/counts all on screen; librarian desk API-proven). Next is Chunk 4 — Transport (founder picks otherwise).
 **Phase / Module:** Phase 2, Chunk 4 (Transport) — awaiting start
 **Last updated:** 2026-10-03
 

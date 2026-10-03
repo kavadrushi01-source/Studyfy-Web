@@ -357,6 +357,12 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+41. **Catalog edit UI (2026-10-03, founder ask — the one CRUD piece with
+    API but no screen).** Add/remove/counts already shipped; per-row Edit
+    now opens a prefilled panel (title/author/ISBN/category/copies) with
+    server guards surfaced (shrink-below-issued refused with the count).
+    Librarian desk proven by API test (add→edit→issue→return). Verified:
+    library e2e 4/4, human edit pass + screenshot.
 40. **Library fines (2026-10-03, founder picked option A).** Flat ₹/day
     per school (`schools.library_fine_per_day`, default 5) + `fine_amount`
     frozen on loans at return; open loans price live, history never

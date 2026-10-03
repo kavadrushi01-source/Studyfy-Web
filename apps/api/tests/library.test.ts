@@ -282,4 +282,50 @@ describe("Library catalog (§7 Phase 2 #13)", () => {
       .expect(403);
     expect(manage.body.error.code).toBe("PERMISSION_DENIED");
   });
+
+  it("lets the librarian run the full desk: add, edit, issue, return", async () => {
+    const { schoolId, slug } = await registerSchool();
+    const email = `desk-librarian-${uid()}@example.com`;
+    const password = "lib-pass-123";
+    const role = await prisma.role.findUniqueOrThrow({ where: { name: "LIBRARIAN" } });
+    await prisma.user.create({
+      data: { schoolId, roleId: role.id, email, passwordHash: await bcrypt.hash(password, 4), name: "Desk Librarian" },
+    });
+    const login = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email, password, schoolSlug: slug })
+      .expect(200);
+    const lib = { Authorization: `Bearer ${login.body.data.accessToken as string}` };
+
+    const added = await request(app)
+      .post(`/api/v1/schools/${schoolId}/library/books`)
+      .set(lib)
+      .send({ title: `Desk Book ${uid()}`, author: "Desk Author", totalCopies: 1 })
+      .expect(201);
+    const bookId = added.body.data.book.id as string;
+
+    await request(app)
+      .patch(`/api/v1/schools/${schoolId}/library/books/${bookId}`)
+      .set(lib)
+      .send({ author: "Desk Author Revised" })
+      .expect(200);
+
+    const pupil = await makePupil(schoolId, slug);
+    const issued = await request(app)
+      .post(`/api/v1/schools/${schoolId}/library/books/${bookId}/issue`)
+      .set(lib)
+      .send({ studentId: pupil.studentId })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/library/loans/${issued.body.data.loan.id as string}/return`)
+      .set(lib)
+      .expect(200);
+
+    const shelf = await request(app)
+      .get(`/api/v1/schools/${schoolId}/library/books?available=true`)
+      .set(lib)
+      .expect(200);
+    expect(shelf.body.data.total).toBe(1);
+  });
 });

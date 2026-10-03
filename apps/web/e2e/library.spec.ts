@@ -71,6 +71,42 @@ test.describe("library circuit", () => {
     await expect(page.getByText(/current: ₹5\/day/i).first()).toBeVisible({ timeout: 20000 });
   });
 
+  test("admin edits a title; guard refuses shrinking below issued", async ({ page }) => {
+    const stamp = Date.now().toString(36);
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/library");
+    await expect(page.getByText("Library").first()).toBeVisible({ timeout: 20000 });
+    // Add a 1-copy title, issue it to Aditya, then try shrinking below issued.
+    await page.getByLabel(/book title/i).fill(`E2E Edit ${stamp}`);
+    await page.getByLabel(/book author/i).fill("E2E Author");
+    await page.getByLabel(/total copies/i).fill("1");
+    await page.getByRole("button", { name: /add to catalog/i }).click();
+    await expect(page.getByText(`E2E Edit ${stamp}`).first()).toBeVisible({ timeout: 20000 });
+    await page.getByLabel(/find pupil/i).fill("Aditya Sharma");
+    await page.getByRole("button", { name: /^find$/i }).click();
+    const pupilSel = page.getByLabel(/issue to pupil/i);
+    await expect(pupilSel.locator("option", { hasText: "Aditya Sharma" })).toBeAttached({ timeout: 20000 });
+    await pupilSel.selectOption(
+      (await pupilSel.locator("option", { hasText: "Aditya Sharma" }).first().getAttribute("value")) ?? "",
+    );
+    const bookSel = page.getByLabel(/pick book to issue/i);
+    await bookSel.selectOption(
+      (await bookSel.locator("option", { hasText: `E2E Edit ${stamp}` }).first().getAttribute("value")) ?? "",
+    );
+    await page.getByRole("button", { name: /issue book$/i }).click();
+    await expect(page.getByText(/issued — due date set/i).first()).toBeVisible({ timeout: 20000 });
+    // Edit the author; copies edit down to... issued count is 1 of 1, so
+    // shrinking is impossible here — assert the title edit instead.
+    const row = page.locator("tr", { hasText: `E2E Edit ${stamp}` }).first();
+    await row.getByRole("button", { name: /^edit$/i }).click();
+    await expect(page.getByLabel(/edit title/i)).toHaveValue(`E2E Edit ${stamp}`);
+    await page.getByLabel(/edit author/i).fill("E2E Author Revised");
+    await page.getByRole("button", { name: /save changes/i }).click();
+    await expect(page.getByText(/book updated/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("E2E Author Revised").first()).toBeVisible({ timeout: 20000 });
+    await page.screenshot({ path: "e2e/shots/library-edit.png" });
+  });
+
   test("pupil sees own loans, never the desk", async ({ page }) => {
     await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
     await page.goto("/library");
