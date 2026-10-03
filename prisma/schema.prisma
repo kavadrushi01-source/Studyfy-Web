@@ -141,6 +141,8 @@ model School {
   enquiries           Enquiry[]
   enquiryNotes        EnquiryNote[]
   certificates        Certificate[]
+  books               Book[]
+  bookLoans           BookLoan[]
   documents           Document[]
   messages            Message[]
 
@@ -180,6 +182,7 @@ model User {
   assignedEnquiries Enquiry[]        @relation("EnquiryAssignee")
   enquiryNotes      EnquiryNote[]    @relation("EnquiryNoteAuthor")
   issuedCertificates Certificate[]   @relation("CertificateIssuer")
+  issuedLoans       BookLoan[]       @relation("LoanIssuer")
 
   @@unique([schoolId, email])
   @@index([schoolId])
@@ -324,6 +327,7 @@ model Student {
   marks         Mark[]
   submissions   HomeworkSubmission[]
   certificates  Certificate[]
+  bookLoans     BookLoan[]
 
   @@index([schoolId, sectionId])
   @@map("students")
@@ -721,6 +725,53 @@ model EnquiryNote {
 // human-meaningful serial (CERT/<year>/<per-school sequence>) and a
 // frozen payload snapshot, so re-downloads years later print exactly
 // what was issued even if the pupil's record changed since.
+// ---------------------------------------------------------------------------
+// Library (§7 Phase 2 #13): book catalog + issue/return loans. Copies are
+// tracked with an availableCopies counter maintained transactionally on
+// issue/return (never negative — the 409 path proves it). Overdue is
+// derived (dueAt passed + not returned), never stored, so it can't rot.
+// Tenant-scoped like any other school data (RULES.md §3).
+// ---------------------------------------------------------------------------
+
+model Book {
+  id              String     @id @default(cuid()) @map("id")
+  schoolId        String     @map("school_id")
+  school          School     @relation(fields: [schoolId], references: [id])
+  title           String     @map("title")
+  author          String     @map("author")
+  isbn            String?    @map("isbn")
+  category        String     @default("General") @map("category")
+  totalCopies     Int        @map("total_copies")
+  availableCopies Int        @map("available_copies")
+  loans           BookLoan[]
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  @@index([schoolId, title])
+  @@index([schoolId, category])
+  @@map("books")
+}
+
+model BookLoan {
+  id         String    @id @default(cuid()) @map("id")
+  schoolId   String    @map("school_id")
+  school     School    @relation(fields: [schoolId], references: [id])
+  bookId     String    @map("book_id")
+  book       Book      @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  studentId  String    @map("student_id")
+  student    Student   @relation(fields: [studentId], references: [id])
+  issuedBy   String    @map("issued_by")
+  issuer     User      @relation("LoanIssuer", fields: [issuedBy], references: [id])
+  issuedAt   DateTime  @default(now()) @map("issued_at")
+  dueAt      DateTime  @map("due_at")
+  returnedAt DateTime? @map("returned_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, studentId, returnedAt])
+  @@index([bookId, returnedAt])
+  @@map("book_loans")
+}
+
 model Certificate {
   id        String   @id @default(cuid()) @map("id")
   schoolId  String   @map("school_id")

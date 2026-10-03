@@ -344,6 +344,19 @@ npm audit --audit-level=high
     successful admission writes "Admitted as X." back onto the enquiry
     timeline, closing the loop. Human-proven end to end; e2e pins guardian
     prefill + blank pupil.
+39. **Chunk 3 build notes (2026-10-03, not bugs — first implementation).**
+    Library (§7 #13): books + book_loans tables, library.read/manage keys
+    (LIBRARIAN role mapped), issue/return transactions on availableCopies,
+    derived OVERDUE, guarded shrink/remove. Debugging honors: (1) a mangled
+    page file (duplicated function + swallowed handler header from stacked
+    edits) — read the actual file, don't trust the edit preview; (2) an
+    e2e anchored regex (`/^pupil$/i`) matched ZERO elements because the
+    accessible name is "Issue to pupil" — a zero-match locator times out
+    exactly like missing data, so count matches first when a lookup that
+    "should" work never resolves; (3) Prisma create needs explicit
+    schoolId despite the tenant extension stamping it at runtime, and
+    exactOptionalPropertyTypes rejects explicit undefined. Verified: API
+    216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.
