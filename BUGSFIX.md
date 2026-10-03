@@ -332,6 +332,11 @@ npm audit --audit-level=high
     Pinned by tests (stored-bytes identity via data-URL stub, fallback,
     detail gates). Verified: API 213/213, e2e 57/57, print page
     human-checked.
+38. **Confirm-before-generate on certificates (2026-10-03, founder ask).**
+    Issuing fired straight from the selects; now pick pupil + type →
+    Review details shows a confirm card (pupil, class, admission no.,
+    numbering note) → Confirm & generate PDF (Back cancels; changing
+    either select resets the step). E2E pins the card + generation.
 36. **Convert to Admission (2026-10-02, founder ask, new micro-feature).**
     ADMITTED enquiries grow a "Convert to Admission" link into
     /students/new with the contact pre-filled as guardian (never as the

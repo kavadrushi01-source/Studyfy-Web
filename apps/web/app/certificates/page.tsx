@@ -23,6 +23,8 @@ interface CertRow {
 interface PupilOption {
   id: string;
   name: string;
+  admissionNo: string | null;
+  section: string;
 }
 
 interface ApiError {
@@ -48,6 +50,8 @@ export default function CertificatesPage() {
   const [options, setOptions] = useState<PupilOption[]>([]);
   const [studentId, setStudentId] = useState("");
   const [certType, setCertType] = useState<string>("BONAFIDE");
+  const [confirming, setConfirming] = useState(false);
+  const picked = options.find((o) => o.id === studentId) ?? null;
 
   const load = useCallback(
     async (nextPage: number) => {
@@ -94,12 +98,21 @@ export default function CertificatesPage() {
       const params = new URLSearchParams({ search: query.trim(), pageSize: "10", sort: "name", order: "asc" });
       const response = await apiFetch(`/api/v1/schools/${schoolId}/students?${params}`);
       const body = (await response.json()) as {
-        data: { students: { id: string; user: { name: string } }[] };
+        data: {
+          students: { id: string; admissionNo: string | null; user: { name: string }; section: { name: string; class: { name: string } } }[];
+        };
       } | ApiError;
       if (isFailure(response, body)) {
         throw new Error(body.error?.message ?? "Search failed.");
       }
-      setOptions(body.data.students.map((s) => ({ id: s.id, name: s.user.name })));
+      setOptions(
+        body.data.students.map((s) => ({
+          id: s.id,
+          name: s.user.name,
+          admissionNo: s.admissionNo,
+          section: `${s.section.class.name} ${s.section.name}`,
+        })),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     }
@@ -124,6 +137,7 @@ export default function CertificatesPage() {
         throw new Error(body.error?.message ?? "Issue failed.");
       }
       setNotice(`Issued ${body.data.certificate.serial} — opening the PDF…`);
+      setConfirming(false);
       await openPdf(body.data.certificate.id);
       setPage(1);
       await load(1);
@@ -216,7 +230,10 @@ export default function CertificatesPage() {
                 <select
                   className="sf-select"
                   value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
+                  onChange={(e) => {
+                    setStudentId(e.target.value);
+                    setConfirming(false);
+                  }}
                   required
                   aria-label="Pupil"
                 >
@@ -233,7 +250,10 @@ export default function CertificatesPage() {
                 <select
                   className="sf-select"
                   value={certType}
-                  onChange={(e) => setCertType(e.target.value)}
+                  onChange={(e) => {
+                    setCertType(e.target.value);
+                    setConfirming(false);
+                  }}
                   aria-label="Certificate type"
                 >
                   {TYPES.map((t) => (
@@ -244,11 +264,53 @@ export default function CertificatesPage() {
                 </select>
               </label>
             </div>
-            <div>
-              <button type="submit" disabled={issuing || !studentId} style={{ ...primaryBtn, opacity: issuing ? 0.6 : 1 }}>
-                {issuing ? "Issuing…" : "Issue & open PDF"}
-              </button>
-            </div>
+            {confirming && picked ? (
+              <div
+                style={{
+                  padding: "14px 16px",
+                  borderRadius: 12,
+                  background: "#F8FAFD",
+                  border: `1px solid ${colors.lineSoft}`,
+                  fontSize: 14,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  Confirm {certType.charAt(0) + certType.slice(1).toLowerCase()} certificate
+                </div>
+                <div style={{ color: colors.inkSoft, lineHeight: 1.7 }}>
+                  Pupil: <strong>{picked.name}</strong>
+                  <br />
+                  Class: {picked.section}
+                  {picked.admissionNo ? (
+                    <>
+                      <br />
+                      Admission no.: {picked.admissionNo}
+                    </>
+                  ) : null}
+                  <br />
+                  Numbering: next CERT/year/sequence for this school.
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button type="submit" disabled={issuing} style={{ ...primaryBtn, opacity: issuing ? 0.6 : 1 }}>
+                    {issuing ? "Generating…" : "Confirm & generate PDF"}
+                  </button>
+                  <button type="button" onClick={() => setConfirming(false)} style={secondaryBtn}>
+                    Back
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setConfirming(true)}
+                  disabled={!studentId}
+                  style={{ ...primaryBtn, opacity: !studentId ? 0.6 : 1 }}
+                >
+                  Review details
+                </button>
+              </div>
+            )}
           </form>
         </section>
       ) : null}

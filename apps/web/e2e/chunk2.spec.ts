@@ -96,9 +96,14 @@ test.describe("certificates", () => {
       .getAttribute("value");
     await page.getByLabel(/^pupil$/i).selectOption(value ?? "");
     await page.getByLabel(/certificate type/i).selectOption("BONAFIDE");
+    // Confirm step: details shown before anything is generated.
+    await page.getByRole("button", { name: /review details/i }).click();
+    await expect(page.getByText(/confirm bonafide certificate/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/class: grade/i).first()).toBeVisible();
+    await expect(page.getByText(/numbering: next cert/i).first()).toBeVisible();
     const [popup] = await Promise.all([
       page.context().waitForEvent("page", { timeout: 20000 }).catch(() => null),
-      page.getByRole("button", { name: /issue & open pdf/i }).click(),
+      page.getByRole("button", { name: /confirm & generate pdf/i }).click(),
     ]);
     await expect(page.getByText(/issued cert\//i).first()).toBeVisible({ timeout: 20000 });
     // The PDF opens in a new tab (blob URL, like fee receipts); headless

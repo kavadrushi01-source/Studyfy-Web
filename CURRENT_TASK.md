@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** DONE — prod migration for stored certificates applied + verified (document_id column live, /enquiries + /certificates 200 OK on production). Awaiting founder's live test.
+**Status:** DONE — certificate confirm step (pick → review → generate, verified, committed + pushed). Awaiting founder's live test.
 **Phase / Module:** Phase 2 Chunk 2 extras (CRM conversion loop)
 **Last updated:** 2026-10-02
 
