@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** DONE — Convert to Admission micro-feature (ADMITTED → pre-filled admission → timeline close-out, verified, committed + pushed). Awaiting founder's live test.
+**Status:** DONE — Convert to Admission proven LIVE end to end (public enquiry → pipeline → ADMITTED → convert → real pupil + guardian link verified on prod). Guardian needs name+email to link (hint added to admit form; phone-only contacts can't link by design). Committed + pushed. Awaiting founder.
 **Phase / Module:** Phase 2 Chunk 2 extras (CRM conversion loop)
 **Last updated:** 2026-10-02
 

@@ -281,6 +281,11 @@ export default function AdmitStudentPage() {
             />
           </label>
         </div>
+        <p style={{ ...mutedStyle, fontSize: 12, margin: 0 }}>
+          The guardian links to a parent login only when both name and email are filled —
+          a name alone is not saved. Phone-only contacts (like most enquiries) need the
+          email asked for at admission.
+        </p>
         <button
           type="submit"
           disabled={submitting}
