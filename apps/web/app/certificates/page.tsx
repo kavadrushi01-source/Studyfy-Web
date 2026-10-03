@@ -262,9 +262,17 @@ export default function CertificatesPage() {
             key: "pdf",
             label: "PDF",
             render: (r) => (
-              <button type="button" onClick={() => void openPdf(r.id)} style={{ ...secondaryBtn, padding: "6px 14px", fontSize: 13 }}>
-                Open
-              </button>
+              <span style={{ display: "inline-flex", gap: 8 }}>
+                <button type="button" onClick={() => void openPdf(r.id)} style={{ ...secondaryBtn, padding: "6px 14px", fontSize: 13 }}>
+                  Open
+                </button>
+                <Link
+                  href={`/certificates/${r.id}/print`}
+                  style={{ ...secondaryBtn, padding: "6px 14px", fontSize: 13, textDecoration: "none" }}
+                >
+                  Print
+                </Link>
+              </span>
             ),
           },
         ]}

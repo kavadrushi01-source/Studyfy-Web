@@ -9,12 +9,13 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** DONE — Convert to Admission proven LIVE end to end (public enquiry → pipeline → ADMITTED → convert → real pupil + guardian link verified on prod). Guardian needs name+email to link (hint added to admit form; phone-only contacts can't link by design). Committed + pushed. Awaiting founder.
+**Status:** DONE — certificates store PDFs as documents rows + print pages (verified 213/207 suites, committed + pushed). Awaiting founder's live test.
 **Phase / Module:** Phase 2 Chunk 2 extras (CRM conversion loop)
 **Last updated:** 2026-10-02
 
 ## What's done in this task so far
-- Convert to Admission DONE + verified (details BUGSFIX 36): ADMITTED enquiries show the convert link → /students/new with contact as guardian + banner → successful admit writes "Admitted as X." to the timeline. Human-proven end to end; e2e pins prefill + blank pupil.
+- Stored certificates + print pages DONE + verified (details BUGSFIX 37): issue uploads the PDF and keeps a documents row (CERTIFICATE, pupil-owned); downloads serve stored bytes (%PDF- checked) with snapshot fallback; GET detail backs /certificates/[id]/print (no-print chrome + Print button, linked from the log). Verified: API 213/213, e2e 57/57, print page human-checked.
+- Convert to Admission DONE + verified live (details BUGSFIX 36).
 - Chunk 2 DONE + verified (details BUGSFIX 35): CRM pipeline (public intake → stages + assignee + notes timeline, office-only; /crm UI) + certificates (Bonafide/Transfer/Character PDFs, CERT/year/sequence serials, frozen snapshots, re-download; /certificates UI). New tables via migration + idempotent permission-keys data migration (prod gets keys via `migrate deploy`). Verified: API 212/212 (57 files), e2e 56/56, typecheck+lint 0, 10-check human pass (public→CONTACTED, TRANSFER CERT/2026/0003, 2073 PDF bytes, nav).
 - Previous: follow-up round DONE (BUGSFIX 34).
 - Chunk 1 of 5 DONE earlier: Razorpay TEST MODE online fee payment. Full record in `STATUS.md` Phase 2 row; detail in History below.

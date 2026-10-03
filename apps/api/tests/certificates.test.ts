@@ -1,15 +1,31 @@
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
+import { setDocumentStorage } from "../src/lib/storage.js";
 
 const app = createApp();
 
 function uid(): string {
   return randomUUID().slice(0, 8);
 }
+
+const STORED_PDF = Buffer.from("%PDF-1.4 stored-artifact-bytes");
+const STORED_URL = `data:application/pdf;base64,${STORED_PDF.toString("base64")}`;
+
+beforeAll(() => {
+  // Every issue in this file stores through the stub: the download must
+  // then serve THESE bytes (proving stored-serving, not regeneration).
+  setDocumentStorage({
+    upload: async () => ({ url: STORED_URL, publicId: `fake-${uid()}` }),
+  });
+});
+
+afterAll(() => {
+  setDocumentStorage(null);
+});
 
 async function registerSchool(): Promise<{ schoolId: string; slug: string; adminToken: string }> {
   const res = await request(app)
@@ -80,15 +96,31 @@ describe("Certificates (§7 Phase 2 #17)", () => {
     expect(pdfA.headers["content-type"]).toContain("application/pdf");
     expect((pdfA.body as Buffer).slice(0, 5).toString()).toBe("%PDF-");
 
-    // Re-download prints the same certificate again (PDFKit embeds
-    // per-generation timestamps/IDs, so bytes differ — validity + size
-    // equality is the honest determinism check).
+    // Re-download serves the STORED artifact bytes (not a regeneration):
+    // byte-identical to what the stub "uploaded".
     const pdfB = await request(app)
       .get(`/api/v1/schools/${schoolId}/certificates/${first.body.data.certificate.id as string}/pdf`)
       .set("Authorization", `Bearer ${adminToken}`)
       .expect(200);
-    expect((pdfB.body as Buffer).slice(0, 5).toString()).toBe("%PDF-");
-    expect((pdfB.body as Buffer).length).toBe((pdfA.body as Buffer).length);
+    expect(Buffer.compare(pdfB.body as Buffer, STORED_PDF)).toBe(0);
+
+    // And the issue left a documents row (type CERTIFICATE, owned by the
+    // pupil) behind the certificate record.
+    const doc = await prisma.document.findFirst({
+      where: { schoolId, type: "CERTIFICATE" },
+      select: { url: true, ownerId: true },
+    });
+    expect(doc?.url).toBe(STORED_URL);
+    const pupilUser = await prisma.student.findFirstOrThrow({ where: { id: studentId }, select: { userId: true } });
+    expect(doc?.ownerId).toBe(pupilUser.userId);
+
+    // Detail backs the print page: record + frozen snapshot.
+    const detail = await request(app)
+      .get(`/api/v1/schools/${schoolId}/certificates/${first.body.data.certificate.id as string}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    expect(detail.body.data.certificate.serial).toMatch(/^CERT\/\d{4}\/0001$/);
+    expect(detail.body.data.certificate.payload.studentName).toBe("Cert Pupil");
   });
 
   it("refuses strangers, bad types, and keyless roles", async () => {
@@ -141,5 +173,25 @@ describe("Certificates (§7 Phase 2 #17)", () => {
       .set("Authorization", `Bearer ${teacherLogin.body.data.accessToken as string}`)
       .expect(403);
     expect(denied.body.error.code).toBe("PERMISSION_DENIED");
+  });
+
+  it("falls back to snapshot regeneration when storage is unconfigured (local dev)", async () => {
+    setDocumentStorage(null);
+    try {
+      const { schoolId, adminToken } = await registerSchool();
+      const studentId = await makePupil(schoolId);
+      const issued = await request(app)
+        .post(`/api/v1/schools/${schoolId}/certificates`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ studentId, type: "CHARACTER" })
+        .expect(201);
+      const pdf = await request(app)
+        .get(`/api/v1/schools/${schoolId}/certificates/${issued.body.data.certificate.id as string}/pdf`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+      expect((pdf.body as Buffer).slice(0, 5).toString()).toBe("%PDF-");
+    } finally {
+      setDocumentStorage({ upload: async () => ({ url: STORED_URL, publicId: `fake-${uid()}` }) });
+    }
   });
 });

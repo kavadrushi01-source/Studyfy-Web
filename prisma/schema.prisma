@@ -732,6 +732,13 @@ model Certificate {
   payload   Json     @map("payload")
   issuedBy  String   @map("issued_by")
   issuer    User     @relation("CertificateIssuer", fields: [issuedBy], references: [id])
+  // Stored artifact (founder direction): the issued PDF is uploaded once
+  // and kept as a documents row (type CERTIFICATE); downloads serve the
+  // stored bytes, never a regeneration. Null for rows issued before this
+  // existed (or where storage was unconfigured, e.g. local dev) — those
+  // fall back to regenerating from the snapshot.
+  documentId String?  @map("document_id")
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now()) @map("created_at")
 
   @@unique([schoolId, serial])
@@ -757,6 +764,7 @@ model Document {
   url       String   @map("cloudinary_url") @db.Text
   type      String   @map("type")
   createdAt DateTime @default(now()) @map("created_at")
+  certificates Certificate[]
 
   @@index([schoolId, ownerId])
   @@map("documents")

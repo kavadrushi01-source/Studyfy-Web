@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { AuthError } from "../auth/auth.service.js";
+import { documentStorage, StorageUnconfiguredError } from "../../lib/storage.js";
 import { generateCertificate, type CertificatePayload, type CertificateType } from "../../lib/certificates.js";
 import type { IssueCertificateInput, ListCertificatesInput } from "./certificates.schemas.js";
 
@@ -95,6 +96,7 @@ export async function issueCertificate(
       id: true,
       admissionNo: true,
       schoolId: true,
+      userId: true,
       user: { select: { name: true } },
       section: { select: { name: true, class: { select: { name: true } } } },
     },
@@ -121,6 +123,35 @@ export async function issueCertificate(
     issuedDate: new Date().toISOString().slice(0, 10),
     issuerName: issuer.name,
   };
+  // Store-once (founder direction): the issued PDF is uploaded immediately
+  // and kept as a documents row (type CERTIFICATE, owned by the pupil);
+  // downloads serve those stored bytes, never a regeneration. Where
+  // storage is unconfigured (local dev by design) the record is still
+  // created and downloads fall back to the snapshot below.
+  const pdf = await generateCertificate(input.type, payload);
+  let documentId: string | null = null;
+  try {
+    const stored = await documentStorage().upload({
+      buffer: pdf,
+      schoolId: student.schoolId,
+      mimeType: "application/pdf",
+      originalName: `${serial.replaceAll("/", "-")}.pdf`,
+    });
+    const document = await db.document.create({
+      data: {
+        schoolId: student.schoolId,
+        ownerId: student.userId,
+        url: stored.url,
+        type: "CERTIFICATE",
+      },
+      select: { id: true },
+    });
+    documentId = document.id;
+  } catch (err) {
+    if (!(err instanceof StorageUnconfiguredError)) {
+      throw err;
+    }
+  }
   const record = await db.certificate.create({
     data: {
       schoolId: student.schoolId,
@@ -129,6 +160,7 @@ export async function issueCertificate(
       serial,
       payload: payload as unknown as Prisma.InputJsonValue,
       issuedBy: callerUserId,
+      documentId,
     },
     select: {
       id: true,
@@ -149,14 +181,64 @@ export async function issueCertificate(
   };
 }
 
-export async function certificatePdf(db: PrismaClient, certificateId: string): Promise<{ pdf: Buffer; serial: string }> {
+export async function certificateDetail(db: PrismaClient, certificateId: string) {
   const row = await db.certificate.findFirst({
     where: { id: certificateId },
-    select: { type: true, serial: true, payload: true },
+    select: {
+      id: true,
+      type: true,
+      serial: true,
+      payload: true,
+      createdAt: true,
+      student: { select: { id: true, user: { select: { name: true } } } },
+      issuer: { select: { name: true } },
+    },
   });
   if (!row) {
     throw new AuthError(404, "CERTIFICATE_NOT_FOUND", "Certificate not found in this school.");
   }
+  return {
+    certificate: {
+      id: row.id,
+      type: row.type,
+      serial: row.serial,
+      payload: row.payload as unknown as CertificatePayload,
+      student: { id: row.student.id, name: row.student.user.name },
+      issuer: { name: row.issuer.name },
+      createdAt: row.createdAt,
+    },
+  };
+}
+
+function looksLikePdf(bytes: Buffer): boolean {
+  return bytes.length > 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 && bytes[4] === 0x2d;
+}
+
+export async function certificatePdf(db: PrismaClient, certificateId: string): Promise<{ pdf: Buffer; serial: string }> {
+  const row = await db.certificate.findFirst({
+    where: { id: certificateId },
+    select: { type: true, serial: true, payload: true, document: { select: { url: true } } },
+  });
+  if (!row) {
+    throw new AuthError(404, "CERTIFICATE_NOT_FOUND", "Certificate not found in this school.");
+  }
+  // Stored bytes first (founder direction): the exact file issued.
+  if (row.document?.url) {
+    try {
+      const response = await fetch(row.document.url);
+      if (response.ok) {
+        const bytes = Buffer.from(await response.arrayBuffer());
+        if (looksLikePdf(bytes)) {
+          return { pdf: bytes, serial: row.serial };
+        }
+      }
+    } catch {
+      // Fall through to the snapshot regeneration below.
+    }
+  }
+  // Fallback: rows issued before stored artifacts existed (or where
+  // storage was unconfigured) regenerate byte-equivalent content from
+  // the frozen snapshot.
   const payload = row.payload as unknown as CertificatePayload;
   const pdf = await generateCertificate(row.type as CertificateType, payload);
   return { pdf, serial: row.serial };

@@ -322,6 +322,16 @@ npm audit --audit-level=high
     on hand-written POSTs were the two UI traps, same as the timetable
     build. Verified: API 212/212, e2e 56/56, human pass (public→CONTACTED
     journey, TRANSFER CERT/2026/0003 with 2073 real PDF bytes).
+37. **Stored certificate artifacts + print pages (2026-10-03, founder
+    direction).** Certificates now persist: at issue the PDF uploads to
+    storage and a documents row (type CERTIFICATE, pupil-owned) backs the
+    record; downloads serve the stored bytes after a %PDF- check, falling
+    back to snapshot regeneration (which also covers local dev without
+    Cloudinary). Added GET detail for a new print page mirroring the
+    ID-card pattern (no-print chrome + window.print), linked from the log.
+    Pinned by tests (stored-bytes identity via data-URL stub, fallback,
+    detail gates). Verified: API 213/213, e2e 57/57, print page
+    human-checked.
 36. **Convert to Admission (2026-10-02, founder ask, new micro-feature).**
     ADMITTED enquiries grow a "Convert to Admission" link into
     /students/new with the contact pre-filled as guardian (never as the

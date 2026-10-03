@@ -5,7 +5,7 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { issueCertificateSchema, listCertificatesSchema } from "./certificates.schemas.js";
-import { certificatePdf, issueCertificate, listCertificates } from "./certificates.service.js";
+import { certificateDetail, certificatePdf, issueCertificate, listCertificates } from "./certificates.service.js";
 
 export const certificatesRouter = Router();
 
@@ -90,8 +90,34 @@ certificatesRouter.get(
   }),
 );
 
-// Re-download (office only): regenerated from the frozen snapshot, so it
-// prints exactly what was issued even years later.
+// Detail (office only — certificates.read): the record plus its frozen
+// snapshot. Backs the print page.
+certificatesRouter.get(
+  "/schools/:schoolId/certificates/:certificateId",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("certificates.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await certificateDetail(req.prisma, req.params.certificateId ?? "");
+      res.json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendCertificatesError(res, err);
+    }
+  }),
+);
+
+// Re-download (office only): the stored file when one exists, else a
+// regeneration from the frozen snapshot — always a valid PDF either way.
 certificatesRouter.get(
   "/schools/:schoolId/certificates/:certificateId/pdf",
   authMiddleware,
