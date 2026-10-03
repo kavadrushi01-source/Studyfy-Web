@@ -3,17 +3,33 @@ import { AuthError } from "../auth/auth.service.js";
 import type { CreateBookInput, IssueBookInput, ListBooksInput, ListLoansInput, UpdateBookInput } from "./library.schemas.js";
 
 export const DEFAULT_FINE_PER_DAY = 5;
+export const DEFAULT_TIMEZONE = "Asia/Kolkata";
 
-// Whole-day overdue math on UTC day boundaries: any part of a day past
-// the due date counts as a day (a book due Monday returned Tuesday owes
-// one day, same as Monday-evening vs Tuesday-morning). Never negative.
-export function overdueDays(dueAt: Date, end: Date): number {
-  const ms = end.getTime() - dueAt.getTime();
-  return ms <= 0 ? 0 : Math.ceil(ms / 86400000);
+// School-local calendar day (§12.7): "2026-10-03" in the school's own
+// timezone, immune to DST (a 23-hour day still changes the date once).
+function schoolDay(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
-export function fineRupees(dueAt: Date, end: Date, ratePerDay: number): number {
-  return overdueDays(dueAt, end) * ratePerDay;
+// Whole-day overdue math on SCHOOL calendar days (§12.7): any part of a
+// day past the due date counts as a day (due Monday, back Tuesday = one
+// day), and UTC midnight never decides it — a book due 23:30 UTC is due
+// 05:00 IST the next morning, and only IST dates count. Never negative.
+export function overdueDays(dueAt: Date, end: Date, timeZone: string = DEFAULT_TIMEZONE): number {
+  const start = Date.parse(`${schoolDay(dueAt, timeZone)}T00:00:00Z`);
+  const finish = Date.parse(`${schoolDay(end, timeZone)}T00:00:00Z`);
+  return Math.max(0, Math.round((finish - start) / 86400000));
+}
+
+export function fineRupees(dueAt: Date, end: Date, ratePerDay: number, timeZone: string = DEFAULT_TIMEZONE): number {
+  return overdueDays(dueAt, end, timeZone) * ratePerDay;
 }
 
 export async function getLibrarySettings(db: PrismaClient, schoolId: string): Promise<{ finePerDay: number }> {
@@ -224,8 +240,8 @@ export async function returnBook(db: PrismaClient, loanId: string) {
   // The fine freezes at return time (days overdue × the school's rate then
   // in force) — later rate changes never rewrite history.
   const now = new Date();
-  const school = await db.school.findFirst({ where: { id: loan.schoolId }, select: { libraryFinePerDay: true } });
-  const fine = fineRupees(loan.dueAt, now, school?.libraryFinePerDay ?? DEFAULT_FINE_PER_DAY);
+  const school = await db.school.findFirst({ where: { id: loan.schoolId }, select: { libraryFinePerDay: true, timezone: true } });
+  const fine = fineRupees(loan.dueAt, now, school?.libraryFinePerDay ?? DEFAULT_FINE_PER_DAY, school?.timezone ?? DEFAULT_TIMEZONE);
   const [updated] = await db.$transaction([
     db.bookLoan.update({
       where: { id: loan.id },
@@ -292,47 +308,64 @@ export async function listLoans(
   } else if (input.status === "ISSUED") {
     where.returnedAt = null;
   } else if (input.status === "OVERDUE") {
+    // Calendar math can't run in SQL: pull the open set (bounded — a
+    // school's open loans number in the hundreds) and narrow in code so
+    // the filter and the displayed status can never disagree.
     where.returnedAt = null;
-    where.dueAt = { lt: new Date() };
   }
+  const selection = {
+    id: true,
+    issuedAt: true,
+    dueAt: true,
+    returnedAt: true,
+    fineAmount: true,
+    book: { select: { id: true, title: true, author: true } },
+    student: { select: { id: true, user: { select: { name: true } } } },
+    issuer: { select: { name: true } },
+  } as const;
+  const ordering = { issuedAt: "desc" } as const;
   const [total, rows, school] = await Promise.all([
-    db.bookLoan.count({ where }),
-    db.bookLoan.findMany({
-      where,
-      select: {
-        id: true,
-        issuedAt: true,
-        dueAt: true,
-        returnedAt: true,
-        fineAmount: true,
-        book: { select: { id: true, title: true, author: true } },
-        student: { select: { id: true, user: { select: { name: true } } } },
-        issuer: { select: { name: true } },
-      },
-      orderBy: { issuedAt: "desc" },
-      skip: (input.page - 1) * input.pageSize,
-      take: input.pageSize,
-    }),
-    db.school.findFirst({ where: { id: schoolId }, select: { libraryFinePerDay: true } }),
+    input.status === "OVERDUE" ? 0 : db.bookLoan.count({ where }),
+    input.status === "OVERDUE"
+      ? db.bookLoan.findMany({ where, select: selection, orderBy: ordering, take: 2000 })
+      : db.bookLoan.findMany({
+        where,
+        select: selection,
+        orderBy: ordering,
+        skip: (input.page - 1) * input.pageSize,
+        take: input.pageSize,
+      }),
+    db.school.findFirst({ where: { id: schoolId }, select: { libraryFinePerDay: true, timezone: true } }),
   ]);
   const now = new Date();
   const rate = school?.libraryFinePerDay ?? DEFAULT_FINE_PER_DAY;
-  return {
-    loans: rows.map((r) => ({
+  const timeZone = school?.timezone ?? DEFAULT_TIMEZONE;
+  const shaped = rows.map((r) => {
+    const daysLate = overdueDays(r.dueAt, r.returnedAt ?? now, timeZone);
+    return {
       id: r.id,
-      status: r.returnedAt ? "RETURNED" : r.dueAt < now ? "OVERDUE" : "ISSUED",
+      status: (r.returnedAt ? "RETURNED" : daysLate > 0 ? "OVERDUE" : "ISSUED") as LoanRow["status"],
       issuedAt: r.issuedAt,
       dueAt: r.dueAt,
       returnedAt: r.returnedAt,
-      fine: (r.returnedAt ? Number(r.fineAmount ?? 0) : fineRupees(r.dueAt, now, rate)).toFixed(2),
+      fine: (r.returnedAt ? Number(r.fineAmount ?? 0) : fineRupees(r.dueAt, now, rate, timeZone)).toFixed(2),
       book: r.book,
       student: { id: r.student.id, name: r.student.user.name },
       issuer: { name: r.issuer.name },
-    })),
+    };
+  });
+  const visible = input.status === "OVERDUE" ? shaped.filter((r) => r.status === "OVERDUE") : shaped;
+  const paged =
+    input.status === "OVERDUE"
+      ? visible.slice((input.page - 1) * input.pageSize, input.page * input.pageSize)
+      : visible;
+  const fullTotal = input.status === "OVERDUE" ? visible.length : total;
+  return {
+    loans: paged,
     finePerDay: rate,
     page: input.page,
     pageSize: input.pageSize,
-    total,
-    totalPages: Math.max(1, Math.ceil(total / input.pageSize)),
+    total: fullTotal,
+    totalPages: Math.max(1, Math.ceil(fullTotal / input.pageSize)),
   };
 }

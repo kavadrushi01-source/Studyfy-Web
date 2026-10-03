@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
+import { fineRupees, overdueDays } from "../src/modules/library/library.service.js";
 
 const app = createApp();
 
@@ -64,6 +65,20 @@ async function loginAs(schoolId: string, slug: string, roleName: string): Promis
   const login = await request(app).post("/api/v1/auth/login").send({ email, password, schoolSlug: slug }).expect(200);
   return login.body.data.accessToken as string;
 }
+
+describe("overdue calendar math (§12.7 school timezone)", () => {
+  it("counts school-local days, never UTC days, never negative", () => {
+    // Due 18:30 UTC Oct 1 = 00:00 IST Oct 2; end 18:29 UTC Oct 2 = 23:59
+    // IST Oct 2 — same school day → 0, while UTC math says 1.
+    expect(overdueDays(new Date("2026-10-01T18:30:00Z"), new Date("2026-10-02T18:29:00Z"), "Asia/Kolkata")).toBe(0);
+    expect(overdueDays(new Date("2026-10-01T18:30:00Z"), new Date("2026-10-02T18:29:00Z"), "UTC")).toBe(1);
+    // One minute earlier due = previous IST day → 1.
+    expect(overdueDays(new Date("2026-10-01T18:29:00Z"), new Date("2026-10-02T18:29:00Z"), "Asia/Kolkata")).toBe(1);
+    // Returned before due: 0, and the rate only scales.
+    expect(overdueDays(new Date("2026-10-05T00:00:00Z"), new Date("2026-10-01T00:00:00Z"), "Asia/Kolkata")).toBe(0);
+    expect(fineRupees(new Date("2026-10-01T18:29:00Z"), new Date("2026-10-02T18:29:00Z"), 5, "Asia/Kolkata")).toBe(5);
+  });
+});
 
 describe("Library catalog (§7 Phase 2 #13)", () => {
   it("adds, searches, edits, and removes titles; guards shrink-below-issued and remove-while-out", async () => {
@@ -180,11 +195,14 @@ describe("Library catalog (§7 Phase 2 #13)", () => {
       .send({ studentId: pupil.studentId })
       .expect(201);
     const loanId = issued.body.data.loan.id as string;
-    // Age it ~2.5 days past due (margin either side of the day boundary):
-    // live fine is ceil(2.5) × 5 = ₹15.00.
+    // Age it to exactly 3 IST calendar days past due (noon IST, so no
+    // run-time of day can shift the count): live fine is 3 × 5 = ₹15.00.
+    const istToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const [yy, mm, dd] = istToday.split("-").map(Number);
+    const threeDaysAgoNoonIST = new Date(Date.UTC(yy ?? 2026, (mm ?? 1) - 1, (dd ?? 1) - 3, 6, 30));
     await prisma.bookLoan.update({
       where: { id: loanId },
-      data: { dueAt: new Date(Date.now() - 2.5 * 86400000) },
+      data: { dueAt: threeDaysAgoNoonIST },
     });
     const open = await request(app)
       .get(`/api/v1/schools/${schoolId}/library/loans?status=OVERDUE`)

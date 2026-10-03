@@ -357,6 +357,15 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+42. **School-timezone fines (2026-10-03, founder cites §12.7).** Overdue
+    math ran on UTC day boundaries — a book due 23:30 UTC is due 05:00
+    IST next morning, and UTC counted a day IST never saw. Now
+    calendar-day diffs in the school's own timezone (DST-immune), applied
+    to status, live fines, and the OVERDUE filter together (a UTC SQL
+    pre-filter would have disagreed with display around midnight — the
+    filter now narrows the bounded open set in code). Pinned by unit
+    tests that UTC and IST answer differently on the same instants.
+    Verified: library 6/6, e2e library 4/4, live issue/return clean.
 41. **Catalog edit UI (2026-10-03, founder ask — the one CRUD piece with
     API but no screen).** Add/remove/counts already shipped; per-row Edit
     now opens a prefilled panel (title/author/ISBN/category/copies) with
