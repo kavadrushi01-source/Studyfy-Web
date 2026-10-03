@@ -109,6 +109,10 @@ model School {
   // IANA timezone; business-day boundaries convert UTC -> this (§12.7).
   // Defaults to Asia/Kolkata for the initial market, editable in setup.
   timezone           String             @default("Asia/Kolkata") @map("timezone")
+  // Library fine policy (§7 #13): flat rupees per overdue day, set by the
+  // school (default ₹5). Read with the loans board, changed from the
+  // library settings block. Whole rupees keep the math exact.
+  libraryFinePerDay  Int                @default(5) @map("library_fine_per_day")
   // Exists from Phase 0 for tenantMiddleware's subscription gate (§13.4);
   // the billing UI to manage it is Phase 4. Every registration => TRIAL.
   subscriptionStatus SubscriptionStatus @default(TRIAL) @map("subscription_status")
@@ -765,7 +769,11 @@ model BookLoan {
   issuedAt   DateTime  @default(now()) @map("issued_at")
   dueAt      DateTime  @map("due_at")
   returnedAt DateTime? @map("returned_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  // Rupees owed, frozen at return time (overdue days × the school's rate
+  // then in force). Null while out or when returned on time — open loans
+  // show a live computation instead, never this column.
+  fineAmount Decimal?  @map("fine_amount") @db.Decimal(10, 2)
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, studentId, returnedAt])
   @@index([bookId, returnedAt])

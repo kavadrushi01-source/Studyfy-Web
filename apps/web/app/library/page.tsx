@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
@@ -25,6 +25,7 @@ interface LoanRow {
   issuedAt: string;
   dueAt: string;
   returnedAt: string | null;
+  fine: string;
   book: { id: string; title: string; author: string };
   student: { id: string; name: string };
   issuer: { name: string };
@@ -75,6 +76,10 @@ export default function LibraryPage() {
   const [loans, setLoans] = useState<LoanRow[]>([]);
   const [loanStatus, setLoanStatus] = useState("");
   const [loansLoading, setLoansLoading] = useState(false);
+  const [finePerDay, setFinePerDay] = useState(5);
+  const [rateInput, setRateInput] = useState("5");
+  const [savingRate, setSavingRate] = useState(false);
+  const rateSeeded = useRef(false);
 
   const loadBooks = useCallback(
     async (next: { search: string; category: string; availableOnly: boolean; page: number }) => {
@@ -126,9 +131,16 @@ export default function LibraryPage() {
           params.set("status", status);
         }
         const response = await apiFetch(`/api/v1/schools/${schoolId}/library/loans?${params}`);
-        const body = (await response.json()) as { data: { loans: LoanRow[] } } | ApiError;
+        const body = (await response.json()) as { data: { loans: LoanRow[]; finePerDay: number } } | ApiError;
         if (!isFailure(response, body)) {
           setLoans(body.data.loans);
+          setFinePerDay(body.data.finePerDay);
+          // Seed the editor once from the server; afterwards the field is
+          // the admin's until they save (reloads must not clobber typing).
+          if (!rateSeeded.current) {
+            rateSeeded.current = true;
+            setRateInput(String(body.data.finePerDay));
+          }
         }
       } catch {
         // Loans board stays stale — catalog above still works.
@@ -262,6 +274,33 @@ export default function LibraryPage() {
       await loadBooks({ search: "", category: "", availableOnly: false, page: 1 });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
+    }
+  }
+
+  async function saveRate(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!schoolId) {
+      return;
+    }
+    setSavingRate(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/library/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ finePerDay: Number(rateInput) }),
+      });
+      const body = (await response.json()) as unknown as ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not save the rate.");
+      }
+      setNotice(`Fine rate saved — ₹${rateInput} per overdue day from now on.`);
+      await loadLoans(loanStatus);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setSavingRate(false);
     }
   }
 
@@ -407,6 +446,31 @@ export default function LibraryPage() {
       {canManage ? (
         <>
           <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
+            <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 4px" }}>Fine policy</h2>
+            <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 12px" }}>
+              Flat rupees per overdue day for this school — priced live on open loans, frozen on
+              returns (rate changes never rewrite history). Zero switches fines off.
+            </p>
+            <form onSubmit={saveRate} className="sf-row-wrap">
+              <label style={{ ...labelStyle, minWidth: 140 }}>
+                Fine rupees per day
+                <input
+                  className="sf-input"
+                  inputMode="numeric"
+                  value={rateInput}
+                  onChange={(e) => setRateInput(e.target.value)}
+                  aria-label="Fine rupees per day"
+                />
+              </label>
+              <button type="submit" disabled={savingRate} style={{ ...secondaryBtn, alignSelf: "flex-end", opacity: savingRate ? 0.6 : 1 }}>
+                {savingRate ? "Saving…" : "Save rate"}
+              </button>
+              <span style={{ alignSelf: "flex-end", fontSize: 13, color: colors.muted, paddingBottom: 8 }}>
+                Current: ₹{finePerDay}/day
+              </span>
+            </form>
+          </section>
+          <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
             <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Add a title</h2>
             <form onSubmit={addBook} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div className="sf-row-wrap">
@@ -514,6 +578,9 @@ export default function LibraryPage() {
                 <button type="submit" disabled={issuing || !pupilId || !issueBookId} style={{ ...primaryBtn, opacity: issuing ? 0.6 : 1 }}>
                   {issuing ? "Issuing…" : "Issue book"}
                 </button>
+                <p style={{ fontSize: 12, color: colors.muted, margin: "8px 0 0" }}>
+                  Overdue fine: ₹{finePerDay}/day after the due date.
+                </p>
               </div>
             </form>
           </section>
@@ -563,6 +630,7 @@ export default function LibraryPage() {
                     <span style={{ fontSize: 12, color: colors.muted }}>
                       Due {fmtDate(l.dueAt)}
                       {l.returnedAt ? ` · returned ${fmtDate(l.returnedAt)}` : ""} · {l.issuer.name}
+                      {l.fine !== "0.00" ? ` · fine ₹${l.fine}` : ""}
                     </span>
                   </span>
                   <span style={loanPill(l.status)}>{l.status}</span>

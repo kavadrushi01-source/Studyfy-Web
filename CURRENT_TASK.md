@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Chunk 3 of 5 complete + prod migrated (library tables + keys verified live; admin/teacher catalog 200 OK). Next is Chunk 4 — Transport (founder picks otherwise).
+**Status:** IDLE — Chunk 3 of 5 complete incl. library fines (flat ₹/day per school, priced live + frozen at return; verified, committed + pushed). Next is Chunk 4 — Transport (founder picks otherwise).
 **Phase / Module:** Phase 2, Chunk 4 (Transport) — awaiting start
 **Last updated:** 2026-10-03
 

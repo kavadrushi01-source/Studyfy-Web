@@ -11,8 +11,9 @@ import {
   listBooksSchema,
   listLoansSchema,
   updateBookSchema,
+  updateSettingsSchema,
 } from "./library.schemas.js";
-import { createBook, deleteBook, issueBook, listBooks, listLoans, returnBook, updateBook } from "./library.service.js";
+import { createBook, deleteBook, getLibrarySettings, issueBook, listBooks, listLoans, returnBook, updateBook, updateLibrarySettings } from "./library.service.js";
 
 export const libraryRouter = Router();
 
@@ -184,6 +185,52 @@ libraryRouter.post(
   }),
 );
 
+// Fine policy (library.manage to change, library.read to see): flat
+// rupees per overdue day for the whole school. Returns also carry it so
+// the desk always prices with the current rate.
+libraryRouter.get(
+  "/schools/:schoolId/library/settings",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("library.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      internalError(res);
+      return;
+    }
+    try {
+      const result = await getLibrarySettings(req.prisma, req.params.schoolId ?? "");
+      res.json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendLibraryError(res, err);
+    }
+  }),
+);
+
+libraryRouter.patch(
+  "/schools/:schoolId/library/settings",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("library.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      internalError(res);
+      return;
+    }
+    const parsed = updateSettingsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      badRequest(res, parsed.error.issues[0]?.message ?? "Invalid request body.");
+      return;
+    }
+    try {
+      const result = await updateLibrarySettings(req.prisma, req.params.schoolId ?? "", parsed.data.finePerDay);
+      res.json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendLibraryError(res, err);
+    }
+  }),
+);
+
 // Loans (library.read): staff see everything (filterable by stage/pupil);
 // STUDENT/PARENT are pinned to own/linked rows, same §3 contract as fees.
 libraryRouter.get(
@@ -205,6 +252,7 @@ libraryRouter.get(
     try {
       const result = await listLoans(
         req.prisma,
+        req.params.schoolId ?? "",
         parsed.data,
         req.studentScope ? req.studentScope.studentIds : null,
       );

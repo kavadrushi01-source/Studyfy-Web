@@ -55,6 +55,22 @@ test.describe("library circuit", () => {
     await page.screenshot({ path: "e2e/shots/library.png" });
   });
 
+  test("admin sets the fine rate; issue desk prices with it", async ({ page }) => {
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/library");
+    await expect(page.getByText("Library").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/current: ₹5\/day/i).first()).toBeVisible({ timeout: 20000 });
+    await page.getByLabel(/fine rupees per day/i).fill("7");
+    await page.getByRole("button", { name: /save rate/i }).click();
+    await expect(page.getByText(/fine rate saved/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/current: ₹7\/day/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/overdue fine: ₹7\/day/i).first()).toBeVisible();
+    // Restore the default so later runs start clean.
+    await page.getByLabel(/fine rupees per day/i).fill("5");
+    await page.getByRole("button", { name: /save rate/i }).click();
+    await expect(page.getByText(/current: ₹5\/day/i).first()).toBeVisible({ timeout: 20000 });
+  });
+
   test("pupil sees own loans, never the desk", async ({ page }) => {
     await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
     await page.goto("/library");

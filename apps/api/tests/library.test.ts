@@ -148,6 +148,70 @@ describe("Library catalog (§7 Phase 2 #13)", () => {
     expect(back.body.data.total).toBe(1);
   });
 
+  it("prices overdue fines at the school rate, frozen at return", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const bookId = await makeBook(schoolId, adminToken, 2);
+    const pupil = await makePupil(schoolId, slug);
+    const auth = { Authorization: `Bearer ${adminToken}` };
+
+    // Default rate is ₹5/day.
+    const settings = await request(app)
+      .get(`/api/v1/schools/${schoolId}/library/settings`)
+      .set(auth)
+      .expect(200);
+    expect(settings.body.data.finePerDay).toBe(5);
+
+    // Bad rates are refused; teachers can't change the policy.
+    await request(app)
+      .patch(`/api/v1/schools/${schoolId}/library/settings`)
+      .set(auth)
+      .send({ finePerDay: -1 })
+      .expect(400);
+    const teacherToken = await loginAs(schoolId, slug, "TEACHER");
+    await request(app)
+      .patch(`/api/v1/schools/${schoolId}/library/settings`)
+      .set("Authorization", `Bearer ${teacherToken}`)
+      .send({ finePerDay: 7 })
+      .expect(403);
+
+    const issued = await request(app)
+      .post(`/api/v1/schools/${schoolId}/library/books/${bookId}/issue`)
+      .set(auth)
+      .send({ studentId: pupil.studentId })
+      .expect(201);
+    const loanId = issued.body.data.loan.id as string;
+    // Age it ~2.5 days past due (margin either side of the day boundary):
+    // live fine is ceil(2.5) × 5 = ₹15.00.
+    await prisma.bookLoan.update({
+      where: { id: loanId },
+      data: { dueAt: new Date(Date.now() - 2.5 * 86400000) },
+    });
+    const open = await request(app)
+      .get(`/api/v1/schools/${schoolId}/library/loans?status=OVERDUE`)
+      .set(auth)
+      .expect(200);
+    expect(open.body.data.loans[0].fine).toBe("15.00");
+    expect(open.body.data.finePerDay).toBe(5);
+
+    // Return freezes ₹15.00 even after the rate doubles.
+    const returned = await request(app)
+      .post(`/api/v1/schools/${schoolId}/library/loans/${loanId}/return`)
+      .set(auth)
+      .expect(200);
+    expect(returned.body.data.loan.fineAmount).toBe("15.00");
+    await request(app)
+      .patch(`/api/v1/schools/${schoolId}/library/settings`)
+      .set(auth)
+      .send({ finePerDay: 10 })
+      .expect(200);
+    const history = await request(app)
+      .get(`/api/v1/schools/${schoolId}/library/loans?status=RETURNED`)
+      .set(auth)
+      .expect(200);
+    expect(history.body.data.loans[0].fine).toBe("15.00");
+    expect(history.body.data.finePerDay).toBe(10);
+  });
+
   it("pins pupils to own loans, flags overdue, and enforces roles + tenancy", async () => {
     const schoolA = await registerSchool();
     const schoolB = await registerSchool();

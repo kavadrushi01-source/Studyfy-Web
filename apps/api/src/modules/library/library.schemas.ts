@@ -50,3 +50,10 @@ export const listLoansSchema = z.object({
 });
 
 export type ListLoansInput = z.infer<typeof listLoansSchema>;
+
+// Flat rupees per overdue day (0 = fines off). Whole rupees only.
+export const updateSettingsSchema = z.object({
+  finePerDay: z.number().int().min(0).max(500),
+});
+
+export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;

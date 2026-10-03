@@ -1,6 +1,41 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { AuthError } from "../auth/auth.service.js";
 import type { CreateBookInput, IssueBookInput, ListBooksInput, ListLoansInput, UpdateBookInput } from "./library.schemas.js";
+
+export const DEFAULT_FINE_PER_DAY = 5;
+
+// Whole-day overdue math on UTC day boundaries: any part of a day past
+// the due date counts as a day (a book due Monday returned Tuesday owes
+// one day, same as Monday-evening vs Tuesday-morning). Never negative.
+export function overdueDays(dueAt: Date, end: Date): number {
+  const ms = end.getTime() - dueAt.getTime();
+  return ms <= 0 ? 0 : Math.ceil(ms / 86400000);
+}
+
+export function fineRupees(dueAt: Date, end: Date, ratePerDay: number): number {
+  return overdueDays(dueAt, end) * ratePerDay;
+}
+
+export async function getLibrarySettings(db: PrismaClient, schoolId: string): Promise<{ finePerDay: number }> {
+  const school = await db.school.findFirst({ where: { id: schoolId }, select: { libraryFinePerDay: true } });
+  if (!school) {
+    throw new AuthError(404, "SCHOOL_NOT_FOUND", "School not found.");
+  }
+  return { finePerDay: school.libraryFinePerDay };
+}
+
+export async function updateLibrarySettings(
+  db: PrismaClient,
+  schoolId: string,
+  finePerDay: number,
+): Promise<{ finePerDay: number }> {
+  const school = await db.school.findFirst({ where: { id: schoolId }, select: { id: true } });
+  if (!school) {
+    throw new AuthError(404, "SCHOOL_NOT_FOUND", "School not found.");
+  }
+  await db.school.update({ where: { id: school.id }, data: { libraryFinePerDay: finePerDay } });
+  return { finePerDay };
+}
 
 // Library (§7 Phase 2 #13): catalog + issue/return. Copies move through
 // availableCopies transactionally (issue decrements, return increments —
@@ -178,7 +213,7 @@ export async function issueBook(
 export async function returnBook(db: PrismaClient, loanId: string) {
   const loan = await db.bookLoan.findFirst({
     where: { id: loanId },
-    select: { id: true, bookId: true, returnedAt: true },
+    select: { id: true, bookId: true, schoolId: true, dueAt: true, returnedAt: true },
   });
   if (!loan) {
     throw new AuthError(404, "LOAN_NOT_FOUND", "Loan not found in this school.");
@@ -186,22 +221,33 @@ export async function returnBook(db: PrismaClient, loanId: string) {
   if (loan.returnedAt) {
     throw new AuthError(409, "ALREADY_RETURNED", "This loan was already returned.");
   }
+  // The fine freezes at return time (days overdue × the school's rate then
+  // in force) — later rate changes never rewrite history.
+  const now = new Date();
+  const school = await db.school.findFirst({ where: { id: loan.schoolId }, select: { libraryFinePerDay: true } });
+  const fine = fineRupees(loan.dueAt, now, school?.libraryFinePerDay ?? DEFAULT_FINE_PER_DAY);
   const [updated] = await db.$transaction([
     db.bookLoan.update({
       where: { id: loan.id },
-      data: { returnedAt: new Date() },
+      data: { returnedAt: now, fineAmount: new Prisma.Decimal(fine) },
       select: {
         id: true,
         issuedAt: true,
         dueAt: true,
         returnedAt: true,
+        fineAmount: true,
         book: { select: { id: true, title: true } },
         student: { select: { id: true, user: { select: { name: true } } } },
       },
     }),
     db.book.update({ where: { id: loan.bookId }, data: { availableCopies: { increment: 1 } } }),
   ]);
-  return { loan: updated };
+  return {
+    loan: {
+      ...updated,
+      fineAmount: updated.fineAmount === null ? null : updated.fineAmount.toFixed(2),
+    },
+  };
 }
 
 export interface LoanRow {
@@ -210,6 +256,9 @@ export interface LoanRow {
   issuedAt: Date;
   dueAt: Date;
   returnedAt: Date | null;
+  // Rupees owed, two decimals: the frozen record for returned loans, a
+  // live computation (today × current rate) for open ones.
+  fine: string;
   book: { id: string; title: string; author: string };
   student: { id: string; name: string };
   issuer: { name: string };
@@ -217,10 +266,12 @@ export interface LoanRow {
 
 export async function listLoans(
   db: PrismaClient,
+  schoolId: string,
   input: ListLoansInput,
   allowedIds: string[] | null,
 ): Promise<{
   loans: LoanRow[];
+  finePerDay: number;
   page: number;
   pageSize: number;
   total: number;
@@ -244,7 +295,7 @@ export async function listLoans(
     where.returnedAt = null;
     where.dueAt = { lt: new Date() };
   }
-  const [total, rows] = await Promise.all([
+  const [total, rows, school] = await Promise.all([
     db.bookLoan.count({ where }),
     db.bookLoan.findMany({
       where,
@@ -253,6 +304,7 @@ export async function listLoans(
         issuedAt: true,
         dueAt: true,
         returnedAt: true,
+        fineAmount: true,
         book: { select: { id: true, title: true, author: true } },
         student: { select: { id: true, user: { select: { name: true } } } },
         issuer: { select: { name: true } },
@@ -261,8 +313,10 @@ export async function listLoans(
       skip: (input.page - 1) * input.pageSize,
       take: input.pageSize,
     }),
+    db.school.findFirst({ where: { id: schoolId }, select: { libraryFinePerDay: true } }),
   ]);
   const now = new Date();
+  const rate = school?.libraryFinePerDay ?? DEFAULT_FINE_PER_DAY;
   return {
     loans: rows.map((r) => ({
       id: r.id,
@@ -270,10 +324,12 @@ export async function listLoans(
       issuedAt: r.issuedAt,
       dueAt: r.dueAt,
       returnedAt: r.returnedAt,
+      fine: (r.returnedAt ? Number(r.fineAmount ?? 0) : fineRupees(r.dueAt, now, rate)).toFixed(2),
       book: r.book,
       student: { id: r.student.id, name: r.student.user.name },
       issuer: { name: r.issuer.name },
     })),
+    finePerDay: rate,
     page: input.page,
     pageSize: input.pageSize,
     total,

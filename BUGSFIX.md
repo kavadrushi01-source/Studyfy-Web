@@ -357,6 +357,15 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+40. **Library fines (2026-10-03, founder picked option A).** Flat ₹/day
+    per school (`schools.library_fine_per_day`, default 5) + `fine_amount`
+    frozen on loans at return; open loans price live, history never
+    rewrites. New GET/PATCH settings endpoints, fine on every loan row,
+    admin settings block + desk rate note. Debugging honors: (1) ceil day
+    boundaries need margin in tests (3 days + ε = 4 — backdate 2.5);
+    (2) missing Content-Type on hand-written POSTs 400s (same trap as the
+    timetable build — now a standing check). Verified: API 217/217, e2e
+    60/60, human settings journey + screenshot.
 
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.
