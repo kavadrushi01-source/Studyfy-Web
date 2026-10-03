@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** DONE — Chunk 2 (Admission/Enquiry CRM §7 #16 + Certificate Generator #17, implemented + verified, committed + pushed). Awaiting founder's live test.
+**Status:** DONE — Chunk 2 live incl. production DB (founder supplied Aiven URL; `migrate deploy` applied both migrations; tables + 4 keys + 7 mappings verified in prod; live /enquiries + /certificates 200 OK, empty as expected). Awaiting founder's live test.
 **Phase / Module:** Phase 2, Chunk 2 complete; next queued: Chunk 3 (founder picks: SMS/WhatsApp stub, library, transport, payroll)
 **Last updated:** 2026-10-02
 
