@@ -110,6 +110,14 @@ export default function CertificatePrintPage() {
   }
 
   const p = detail.payload;
+  // Same wording as the PDF artifact (lib/certificates.ts bodyLines) —
+  // print and download always say the same thing.
+  const bodyText =
+    detail.type === "BONAFIDE"
+      ? `This is to certify that ${p.studentName}${p.admissionNo ? ` (Admission No. ${p.admissionNo})` : ""} is a bonafide student of ${p.schoolName}, ${p.className} ${p.sectionName} during the academic year. This certificate is issued on request for whatever purpose it may serve.`
+      : detail.type === "TRANSFER"
+        ? `This is to certify that ${p.studentName}${p.admissionNo ? ` (Admission No. ${p.admissionNo})` : ""} was a student of ${p.schoolName}, ${p.className} ${p.sectionName}. The student's record has been closed on request, and this transfer certificate is issued to seek admission elsewhere.`
+        : `This is to certify that ${p.studentName}${p.admissionNo ? ` (Admission No. ${p.admissionNo})` : ""}, a student of ${p.schoolName}, ${p.className} ${p.sectionName}, bears a good moral character to the best of our knowledge. We wish the student success in all future endeavours.`;
   return (
     <main style={frame}>
       <style>
@@ -148,11 +156,7 @@ export default function CertificatePrintPage() {
         <div style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>
           Certificate No: {p.serial} · Date: {p.issuedDate}
         </div>
-        <p style={{ color: colors.inkSoft, fontSize: 14, lineHeight: 1.9, margin: "28px 0" }}>
-          This is to certify that <strong>{p.studentName}</strong>
-          {p.admissionNo ? ` (Admission No. ${p.admissionNo})` : ""}, a student of {p.schoolName},{" "}
-          {p.className} {p.sectionName}, has been issued this {TITLES[detail.type]?.toLowerCase() ?? "certificate"}.
-        </p>
+        <p style={{ color: colors.inkSoft, fontSize: 14, lineHeight: 1.9, margin: "28px 0" }}>{bodyText}</p>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 48, fontSize: 13 }}>
           <div style={{ textAlign: "left" }}>
             <div style={{ color: colors.ink, fontWeight: 600 }}>Issued by</div>
