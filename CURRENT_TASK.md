@@ -9,13 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** DONE — certificate confirm step (pick → review → generate, verified, committed + pushed). Awaiting founder's live test.
-**Phase / Module:** Phase 2 Chunk 2 extras (CRM conversion loop)
-**Last updated:** 2026-10-02
+**Status:** IDLE — Chunk 2 of 5 complete (Admission CRM + Certificates, both DONE in STATUS.md per Definition of Done). Next is Chunk 3 — Library.
+**Phase / Module:** Phase 2, Chunk 3 (Library) — awaiting start
+**Last updated:** 2026-10-03
 
 ## What's done in this task so far
-- Stored certificates + print pages DONE + verified (details BUGSFIX 37): issue uploads the PDF and keeps a documents row (CERTIFICATE, pupil-owned); downloads serve stored bytes (%PDF- checked) with snapshot fallback; GET detail backs /certificates/[id]/print (no-print chrome + Print button, linked from the log). Verified: API 213/213, e2e 57/57, print page human-checked.
-- Convert to Admission DONE + verified live (details BUGSFIX 36).
+- Chunk 2 of 5 DONE: Admission/Enquiry CRM (#16) + Certificate Generator (#17) with Convert to Admission, stored artifacts, print pages, confirm flow. Full record in `STATUS.md` Phase 2 rows; detail in BUGSFIX 35–38 + History below.
 - Chunk 2 DONE + verified (details BUGSFIX 35): CRM pipeline (public intake → stages + assignee + notes timeline, office-only; /crm UI) + certificates (Bonafide/Transfer/Character PDFs, CERT/year/sequence serials, frozen snapshots, re-download; /certificates UI). New tables via migration + idempotent permission-keys data migration (prod gets keys via `migrate deploy`). Verified: API 212/212 (57 files), e2e 56/56, typecheck+lint 0, 10-check human pass (public→CONTACTED, TRANSFER CERT/2026/0003, 2073 PDF bytes, nav).
 - Previous: follow-up round DONE (BUGSFIX 34).
 - Chunk 1 of 5 DONE earlier: Razorpay TEST MODE online fee payment. Full record in `STATUS.md` Phase 2 row; detail in History below.
