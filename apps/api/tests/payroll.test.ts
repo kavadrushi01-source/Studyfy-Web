@@ -28,125 +28,181 @@ async function registerSchool(): Promise<{ schoolId: string; slug: string; admin
   };
 }
 
-async function makeStaff(
-  schoolId: string,
-  slug: string,
-  roleName: string,
-  name: string,
-): Promise<{ token: string; staffId: string }> {
+async function makeStaff(schoolId: string, slug: string, roleName: string): Promise<{ staffId: string; token: string }> {
   const email = `payroll-${roleName.toLowerCase()}-${uid()}@example.com`;
   const password = "user-pass-123";
   const role = await prisma.role.findUniqueOrThrow({ where: { name: roleName } });
   const user = await prisma.user.create({
-    data: { schoolId, roleId: role.id, email, passwordHash: await bcrypt.hash(password, 4), name },
+    data: { schoolId, roleId: role.id, email, passwordHash: await bcrypt.hash(password, 4), name: `${roleName} Staffer` },
   });
-  const staff = await prisma.staff.create({ data: { schoolId, userId: user.id, designation: roleName === "TEACHER" ? "Teacher" : "Accountant" } });
+  const staff = await prisma.staff.create({ data: { schoolId, userId: user.id, designation: roleName } });
   const login = await request(app).post("/api/v1/auth/login").send({ email, password, schoolSlug: slug }).expect(200);
-  return { token: login.body.data.accessToken as string, staffId: staff.id };
+  return { staffId: staff.id, token: login.body.data.accessToken as string };
 }
 
-describe("Payroll (§7 Phase 2 #15, basic)", () => {
-  it("sets salaries, generates a month once, pays with payer recorded", async () => {
-    const { schoolId, adminToken } = await registerSchool();
+describe("Payroll (§7 Phase 2 #15, founder schema)", () => {
+  it("marks attendance with re-mark overwrite and month filtering", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
     const auth = { Authorization: `Bearer ${adminToken}` };
-    const teacher = await makeStaff(schoolId, (await prisma.school.findUniqueOrThrow({ where: { id: schoolId } })).slug, "TEACHER", "Payroll Teacher");
+    const { staffId } = await makeStaff(schoolId, slug, "TEACHER");
 
-    const set = await request(app)
-      .post(`/api/v1/schools/${schoolId}/payroll/salaries`)
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/payroll/attendance`)
       .set(auth)
-      .send({ staffId: teacher.staffId, monthlyAmount: "45000.50" })
+      .send({ staffId, date: "2026-10-05", status: "ABSENT" })
       .expect(201);
-    expect(set.body.data.salary.monthlyAmount).toBe("45000.50");
-
-    const gen = await request(app)
-      .post(`/api/v1/schools/${schoolId}/payroll/generate`)
+    // Re-marking the same day overwrites, never duplicates.
+    const rewrite = await request(app)
+      .post(`/api/v1/schools/${schoolId}/payroll/attendance`)
       .set(auth)
-      .send({ month: "2026-10" })
+      .send({ staffId, date: "2026-10-05", status: "PRESENT" })
       .expect(201);
-    expect(gen.body.data.generated).toBe(1);
+    expect(rewrite.body.data.attendance.status).toBe("PRESENT");
 
-    // Regenerating fills gaps only — never duplicates.
-    const regen = await request(app)
-      .post(`/api/v1/schools/${schoolId}/payroll/generate`)
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/payroll/attendance`)
       .set(auth)
-      .send({ month: "2026-10" })
+      .send({ staffId, date: "2026-11-02", status: "ABSENT" })
       .expect(201);
-    expect(regen.body.data.generated).toBe(0);
-    expect(regen.body.data.total).toBe(1);
-
-    const list = await request(app)
-      .get(`/api/v1/schools/${schoolId}/payroll/payments?month=2026-10`)
+    const october = await request(app)
+      .get(`/api/v1/schools/${schoolId}/payroll/attendance?month=2026-10`)
       .set(auth)
       .expect(200);
-    const row = list.body.data.payments[0] as { id: string; amount: string; status: string };
-    expect(row.amount).toBe("45000.50");
-    expect(row.status).toBe("PENDING");
-
-    const paid = await request(app)
-      .post(`/api/v1/schools/${schoolId}/payroll/payments/${row.id}/pay`)
-      .set(auth)
-      .expect(200);
-    expect(paid.body.data.payment.status).toBe("PAID");
-    expect(paid.body.data.payment.payer.name).toBe("Payroll Admin");
-
-    const twice = await request(app)
-      .post(`/api/v1/schools/${schoolId}/payroll/payments/${row.id}/pay`)
-      .set(auth)
-      .expect(409);
-    expect(twice.body.error.code).toBe("ALREADY_PAID");
+    expect(october.body.data.attendance).toHaveLength(1);
+    expect(october.body.data.attendance[0]).toMatchObject({ date: "2026-10-05", status: "PRESENT" });
   });
 
-  it("pins staff to own slips and enforces roles + tenancy", async () => {
-    const schoolA = await registerSchool();
-    const schoolB = await registerSchool();
-    const teacher = await makeStaff(schoolA.schoolId, schoolA.slug, "TEACHER", "Slip Teacher");
-    await request(app)
-      .post(`/api/v1/schools/${schoolA.schoolId}/payroll/salaries`)
-      .set("Authorization", `Bearer ${schoolA.adminToken}`)
-      .send({ staffId: teacher.staffId, monthlyAmount: "30000" })
-      .expect(201);
-    await request(app)
-      .post(`/api/v1/schools/${schoolA.schoolId}/payroll/generate`)
-      .set("Authorization", `Bearer ${schoolA.adminToken}`)
-      .send({ month: "2026-11" })
-      .expect(201);
+  it("runs leave requests with approve-once and self-filing rules", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const auth = { Authorization: `Bearer ${adminToken}` };
+    const teacher = await makeStaff(schoolId, slug, "TEACHER");
+    const other = await makeStaff(schoolId, slug, "TEACHER");
 
-    // The teacher sees exactly one row: their own November slip.
+    // Staff file leave for themselves (no staffId — resolved from login).
     const mine = await request(app)
-      .get(`/api/v1/schools/${schoolA.schoolId}/payroll/payments`)
+      .post(`/api/v1/schools/${schoolId}/payroll/leaves`)
+      .set("Authorization", `Bearer ${teacher.token}`)
+      .send({ dates: ["2026-10-06", "2026-10-07"], reason: "Family function" })
+      .expect(201);
+    expect(mine.body.data.leave.status).toBe("PENDING");
+    expect(mine.body.data.leave.staffId).toBe(teacher.staffId);
+    const leaveId = mine.body.data.leave.id as string;
+
+    // Staff cannot file for someone else.
+    const sneaky = await request(app)
+      .post(`/api/v1/schools/${schoolId}/payroll/leaves`)
+      .set("Authorization", `Bearer ${teacher.token}`)
+      .send({ staffId: other.staffId, dates: ["2026-10-08"], reason: "Nope" })
+      .expect(403);
+    expect(sneaky.body.error.code).toBe("FORBIDDEN");
+
+    // Office approves once; deciding again is refused.
+    const approved = await request(app)
+      .patch(`/api/v1/schools/${schoolId}/payroll/leaves/${leaveId}`)
+      .set(auth)
+      .send({ status: "APPROVED" })
+      .expect(200);
+    expect(approved.body.data.leave.status).toBe("APPROVED");
+    const twice = await request(app)
+      .patch(`/api/v1/schools/${schoolId}/payroll/leaves/${leaveId}`)
+      .set(auth)
+      .send({ status: "REJECTED" })
+      .expect(409);
+    expect(twice.body.error.code).toBe("ALREADY_DECIDED");
+
+    // Staff see only their own queue.
+    const mine2 = await request(app)
+      .get(`/api/v1/schools/${schoolId}/payroll/leaves`)
       .set("Authorization", `Bearer ${teacher.token}`)
       .expect(200);
-    expect(mine.body.data.total).toBe(1);
-    expect(mine.body.data.payments[0].staff.name).toBe("Slip Teacher");
+    expect(mine2.body.data.leaves).toHaveLength(1);
+  });
 
-    // Asking for another staffer's rows is refused.
-    const other = await makeStaff(schoolA.schoolId, schoolA.slug, "TEACHER", "Other Teacher");
+  it("computes base minus unpaid absences with approved leave cover", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const auth = { Authorization: `Bearer ${adminToken}` };
+    const { staffId } = await makeStaff(schoolId, slug, "TEACHER");
+
+    for (const date of ["2026-10-05", "2026-10-06"]) {
+      await request(app)
+        .post(`/api/v1/schools/${schoolId}/payroll/attendance`)
+        .set(auth)
+        .send({ staffId, date, status: "ABSENT" })
+        .expect(201);
+    }
+    // 2026-10-06 is covered by approved leave → only the 5th deducts.
+    const leave = await request(app)
+      .post(`/api/v1/schools/${schoolId}/payroll/leaves`)
+      .set(auth)
+      .send({ staffId, dates: ["2026-10-06"], reason: "Medical" })
+      .expect(201);
     await request(app)
-      .get(`/api/v1/schools/${schoolA.schoolId}/payroll/payments?staffId=${other.staffId}`)
-      .set("Authorization", `Bearer ${teacher.token}`)
-      .expect(403);
+      .patch(`/api/v1/schools/${schoolId}/payroll/leaves/${leave.body.data.leave.id as string}`)
+      .set(auth)
+      .send({ status: "APPROVED" })
+      .expect(200);
+
+    const computed = await request(app)
+      .post(`/api/v1/schools/${schoolId}/payroll/compute`)
+      .set(auth)
+      .send({ staffId, month: "2026-10", baseSalary: 30000 })
+      .expect(201);
+    // 1 unpaid day × (30000/30) = 1000.00; net 29000.00.
+    expect(computed.body.data.payroll).toMatchObject({
+      month: "2026-10",
+      baseSalary: "30000.00",
+      deductions: "1000.00",
+      netPay: "29000.00",
+    });
+    expect(computed.body.data.breakdown).toMatchObject({ unpaidDays: 1, perDayRate: "1000.00" });
+
+    // Recomputing replaces the row — still exactly one row for the month.
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/payroll/compute`)
+      .set(auth)
+      .send({ staffId, month: "2026-10", baseSalary: 30000 })
+      .expect(201);
+    const rows = await request(app).get(`/api/v1/schools/${schoolId}/payroll?month=2026-10`).set(auth).expect(200);
+    expect(rows.body.data.payroll).toHaveLength(1);
+  });
+
+  it("enforces tenancy and office-only writes", async () => {
+    const schoolA = await registerSchool();
+    const schoolB = await registerSchool();
+    const { staffId } = await makeStaff(schoolA.schoolId, schoolA.slug, "TEACHER");
+    await request(app)
+      .post(`/api/v1/schools/${schoolA.schoolId}/payroll/attendance`)
+      .set("Authorization", `Bearer ${schoolA.adminToken}`)
+      .send({ staffId, date: "2026-10-05", status: "PRESENT" })
+      .expect(201);
 
     // Stranger school sees nothing (tenant scope, never a leak).
     const cross = await request(app)
-      .get(`/api/v1/schools/${schoolB.schoolId}/payroll/payments`)
+      .get(`/api/v1/schools/${schoolB.schoolId}/payroll/attendance?month=2026-10`)
       .set("Authorization", `Bearer ${schoolB.adminToken}`)
       .expect(200);
-    expect(cross.body.data.total).toBe(0);
+    expect(cross.body.data.attendance).toEqual([]);
+    await request(app)
+      .post(`/api/v1/schools/${schoolB.schoolId}/payroll/compute`)
+      .set("Authorization", `Bearer ${schoolB.adminToken}`)
+      .send({ staffId, month: "2026-10", baseSalary: 30000 })
+      .expect(404);
 
-    // Pupils hold no payroll key at all.
-    const pupilRole = await prisma.role.findUniqueOrThrow({ where: { name: "STUDENT" } });
-    const pupilEmail = `payroll-pupil-${uid()}@example.com`;
-    await prisma.user.create({
-      data: { schoolId: schoolA.schoolId, roleId: pupilRole.id, email: pupilEmail, passwordHash: await bcrypt.hash("pupil-pass-123", 4), name: "Payroll Pupil" },
-    });
-    const pupilLogin = await request(app)
-      .post("/api/v1/auth/login")
-      .send({ email: pupilEmail, password: "pupil-pass-123", schoolSlug: schoolA.slug })
+    // Teachers read but never run payroll.
+    const teacher = await makeStaff(schoolA.schoolId, schoolA.slug, "TEACHER");
+    await request(app)
+      .get(`/api/v1/schools/${schoolA.schoolId}/payroll`)
+      .set("Authorization", `Bearer ${teacher.token}`)
       .expect(200);
-    const denied = await request(app)
-      .get(`/api/v1/schools/${schoolA.schoolId}/payroll/payments`)
-      .set("Authorization", `Bearer ${pupilLogin.body.data.accessToken as string}`)
-      .expect(403);
-    expect(denied.body.error.code).toBe("PERMISSION_DENIED");
+    for (const call of [
+      request(app).post(`/api/v1/schools/${schoolA.schoolId}/payroll/attendance`),
+      request(app).post(`/api/v1/schools/${schoolA.schoolId}/payroll/compute`),
+    ]) {
+      const denied = await call
+        .set("Authorization", `Bearer ${teacher.token}`)
+        .send({ staffId: teacher.staffId, date: "2026-10-05", status: "PRESENT", month: "2026-10", baseSalary: 1 })
+        .expect(403);
+      expect(denied.body.error.code).toBe("PERMISSION_DENIED");
+    }
   });
 });

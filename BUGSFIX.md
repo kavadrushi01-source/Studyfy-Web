@@ -357,6 +357,20 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+49. **Payroll founder-schema rebuild (2026-10-04, founder-directed).**
+    Replaced SalaryStructure/PayrollPayment with exactly staff_attendance
+    (staff+date UNIQUE, re-mark overwrites, AttendanceStatus reused),
+    leave_requests (dates JSON array, PENDING→APPROVED/REJECTED once),
+    payroll (staff+month UNIQUE, base/deductions/net Decimal-exact).
+    Retired with the old tables: salary structures, month-generate, and
+    the PENDING→PAID mark-paid flow (the founder schema carries no paid
+    status). Deduction policy (no spec formula — disclosed office rule):
+    base/30 per day × (ABSENT days minus APPROVED-leave-covered days);
+    approved leave never deducts; recompute replaces the row. Leave
+    filing: staffId omitted → resolved from the login (office passes
+    explicit ids). E2E lesson: hidden `<option>` elements match getByText,
+    so `.first()` can land on an invisible node — assert on phrasing
+    unique to the visible row. Verified: API 226/226, e2e 65/65.
 48. **Transport founder-schema rebuild (2026-10-04, founder-directed).**
     Replaced BusRoute/BusStop/BusVehicle/StudentTransport with exactly
     vehicles (registration_number UNIQUE per school, capacity, driver_name),

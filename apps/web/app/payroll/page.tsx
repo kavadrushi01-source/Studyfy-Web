@@ -3,206 +3,78 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Wallet } from "lucide-react";
-import { DataTable } from "../../components/ui/data-table";
-import { SkeletonBlocks } from "../../components/ui/shell";
+import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { colors, h1Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
+import { colors, h1Style, labelStyle, mutedStyle, pageFrame, primaryBtn, secondaryBtn } from "@/lib/theme";
 
-interface PayRow {
-  id: string;
-  month: string;
-  amount: string;
-  status: string;
-  paidAt: string | null;
-  staff: { id: string; name: string };
-  payer: { name: string } | null;
-}
-
-interface SalaryRow {
+interface StaffOption {
   staffId: string;
   name: string;
-  email: string;
   designation: string;
-  monthlyAmount: string | null;
+}
+
+interface AttendanceRow {
+  id: string;
+  staffId: string;
+  name: string;
+  date: string;
+  status: string;
+}
+
+interface LeaveRow {
+  id: string;
+  staffId: string;
+  name: string;
+  dates: string[];
+  reason: string;
+  status: string;
+}
+
+interface PayrollRow {
+  id: string;
+  month: string;
+  baseSalary: string;
+  deductions: string;
+  netPay: string;
+  staff: { id: string; name: string };
 }
 
 interface ApiError {
   error: { code: string; message: string };
 }
 
-function currentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-// Payroll (§7 Phase 2 #15, basic): monthly salaries per staffer, month
-// generation, mark-paid with payer recorded. Records only — no money
-// moves here. Office (admin/accountant) runs it; staff see only their
-// own slips.
+// Payroll (§7 Phase 2 #15, founder schema): staff attendance marks,
+// leave requests, computed monthly rows (base − deductions = net).
+// Office (admin/accountant) runs it; staff see only their own rows.
 export default function PayrollPage() {
   const { token, schoolId, ready, apiFetch, user } = useAuth();
   const canManage = user?.role === "SCHOOL_ADMIN" || user?.role === "ACCOUNTANT";
-  const [rows, setRows] = useState<PayRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [page, setPage] = useState(1);
-  const [month, setMonth] = useState(currentMonth());
-  const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [genMonth, setGenMonth] = useState(currentMonth());
-  const [generating, setGenerating] = useState(false);
-  const [salaries, setSalaries] = useState<SalaryRow[]>([]);
-  const [salaryEdits, setSalaryEdits] = useState<Record<string, string>>({});
+  const [staff, setStaff] = useState<StaffOption[]>([]);
 
-  const load = useCallback(
-    async (next: { month: string; status: string; page: number }) => {
-      if (!schoolId) {
-        return;
-      }
-      setLoading(true);
-      setError("");
-      try {
-        const params = new URLSearchParams({ page: String(next.page), pageSize: "20" });
-        if (next.month.trim()) {
-          params.set("month", next.month.trim());
-        }
-        if (next.status) {
-          params.set("status", next.status);
-        }
-        const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/payments?${params}`);
-        const body = (await response.json()) as {
-          data: { payments: PayRow[]; total: number; totalPages: number };
-        } | ApiError;
-        if (isFailure(response, body)) {
-          throw new Error(body.error?.message ?? "Failed to load payroll.");
-        }
-        setRows(body.data.payments);
-        setTotal(body.data.total);
-        setTotalPages(body.data.totalPages);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Network error.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [schoolId, apiFetch],
-  );
-
-  const loadSalaries = useCallback(async () => {
-    if (!schoolId) {
+  const loadStaff = useCallback(async () => {
+    if (!schoolId || !canManage) {
       return;
     }
     try {
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/salaries`);
-      const body = (await response.json()) as { data: { salaries: SalaryRow[] } } | ApiError;
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/staff`);
+      const body = (await response.json()) as { data: { staff: StaffOption[] } } | ApiError;
       if (!isFailure(response, body)) {
-        setSalaries(body.data.salaries);
+        setStaff(body.data.staff);
       }
     } catch {
-      // Salary table stays as-is.
+      // Roster stays as-is.
     }
-  }, [schoolId, apiFetch]);
+  }, [schoolId, apiFetch, canManage]);
 
   useEffect(() => {
     if (!ready || !token || !schoolId) {
       return;
     }
-    void load({ month: currentMonth(), status: "", page: 1 });
-    if (canManage) {
-      void loadSalaries();
-    }
-  }, [ready, token, schoolId, apiFetch, load, loadSalaries, canManage]);
-
-  function applyFilter(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    setPage(1);
-    void load({ month, status, page: 1 });
-  }
-
-  async function generate(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (!schoolId || !genMonth.trim()) {
-      return;
-    }
-    setGenerating(true);
-    setError("");
-    setNotice("");
-    try {
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month: genMonth.trim() }),
-      });
-      const body = (await response.json()) as {
-        data: { generated: number; total: number; withoutStructure: number };
-      } | ApiError;
-      if (isFailure(response, body)) {
-        throw new Error(body.error?.message ?? "Generation failed.");
-      }
-      setNotice(
-        `Month ready: ${body.data.generated} new row(s), ${body.data.total} total` +
-          (body.data.withoutStructure > 0 ? ` — ${body.data.withoutStructure} staffer(s) have no salary set yet.` : "."),
-      );
-      setMonth(genMonth.trim());
-      setPage(1);
-      await load({ month: genMonth.trim(), status, page: 1 });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error.");
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  async function saveSalary(staffId: string): Promise<void> {
-    if (!schoolId) {
-      return;
-    }
-    setError("");
-    setNotice("");
-    try {
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/salaries`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ staffId, monthlyAmount: salaryEdits[staffId] ?? "" }),
-      });
-      const body = (await response.json()) as unknown as ApiError;
-      if (isFailure(response, body)) {
-        throw new Error(body.error?.message ?? "Could not save the salary.");
-      }
-      setNotice("Salary saved — future months generate with it.");
-      await loadSalaries();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error.");
-    }
-  }
-
-  async function markPaid(paymentId: string): Promise<void> {
-    if (!schoolId) {
-      return;
-    }
-    setError("");
-    setNotice("");
-    try {
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/payments/${paymentId}/pay`, {
-        method: "POST",
-      });
-      const body = (await response.json()) as unknown as ApiError;
-      if (isFailure(response, body)) {
-        throw new Error(body.error?.message ?? "Could not mark paid.");
-      }
-      setNotice("Marked paid.");
-      await load({ month, status, page });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error.");
-    }
-  }
-
-  function statusPill(value: string): React.CSSProperties {
-    return value === "PAID" ? pill(colors.success, colors.successTint) : pill(colors.warning, colors.warningTint);
-  }
+    void loadStaff();
+  }, [ready, token, schoolId, apiFetch, loadStaff]);
 
   if (!ready) {
     return (
@@ -227,130 +99,23 @@ export default function PayrollPage() {
 
   return (
     <main style={pageFrame}>
-      <h1 style={{ ...h1Style, display: "flex", alignItems: "center", gap: 8 }}>
+      <h1 style={{ ...h1Style, display: "flex", alignItems: "center", gap: 8, margin: "0 0 4px" }}>
         <Wallet size={22} aria-hidden="true" color={colors.primary} /> Payroll
       </h1>
-      <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
-        {canManage ? "Monthly salaries — set, generate the month, mark paid." : "Your salary slips."}
-      </p>
-      <form onSubmit={applyFilter} className="sf-row-wrap" style={{ marginBottom: 12 }}>
-        <label style={{ ...labelStyle, minWidth: 140 }}>
-          Month
-          <input
-            className="sf-input"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            placeholder="YYYY-MM"
-          />
-        </label>
-        <select
-          className="sf-select"
-          style={{ minWidth: 140, alignSelf: "flex-end" }}
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          aria-label="Filter by status"
-        >
-          <option value="">All statuses</option>
-          <option value="PENDING">Pending</option>
-          <option value="PAID">Paid</option>
-        </select>
-        <button type="submit" style={{ ...primaryBtn, alignSelf: "flex-end" }}>
-          Filter
-        </button>
-      </form>
-      <DataTable<PayRow>
-        columns={[
-          { key: "month", label: "Month", render: (r) => <span style={{ fontWeight: 600 }}>{r.month}</span> },
-          { key: "staff", label: "Staff", render: (r) => <span>{r.staff.name}</span> },
-          {
-            key: "amount",
-            label: "Amount",
-            render: (r) => <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>₹{r.amount}</span>,
-          },
-          { key: "status", label: "Status", render: (r) => <span style={statusPill(r.status)}>{r.status}</span> },
-          {
-            key: "paid",
-            label: "Paid",
-            render: (r) =>
-              r.status === "PAID" ? (
-                <span style={{ color: colors.inkSoft, fontSize: 13 }}>
-                  {r.paidAt ? new Date(r.paidAt).toLocaleDateString("en-GB") : ""} · {r.payer?.name ?? ""}
-                </span>
-              ) : canManage ? (
-                <button type="button" onClick={() => void markPaid(r.id)} style={{ ...primaryBtn, padding: "6px 14px", fontSize: 13 }}>
-                  Mark paid
-                </button>
-              ) : (
-                <span style={{ color: colors.muted }}>—</span>
-              ),
-          },
-        ]}
-        rows={rows}
-        rowKey={(r) => r.id}
-        sort="month"
-        order="desc"
-        onSort={() => undefined}
-        page={page}
-        totalPages={totalPages}
-        total={total}
-        onPage={(next) => {
-          setPage(next);
-          void load({ month, status, page: next });
-        }}
-        loading={loading}
-        emptyMessage="No payroll rows here yet — generate the month above."
-      />
+      <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>Attendance, leaves, and computed monthly pay — base minus unpaid days.</p>
       {canManage ? (
-        <>
-          <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
-            <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Generate a month</h2>
-            <form onSubmit={generate} className="sf-row-wrap">
-              <label style={{ ...labelStyle, minWidth: 140 }}>
-                Month to generate
-                <input
-                  className="sf-input"
-                  value={genMonth}
-                  onChange={(e) => setGenMonth(e.target.value)}
-                  placeholder="YYYY-MM"
-                />
-              </label>
-              <button type="submit" disabled={generating} style={{ ...primaryBtn, alignSelf: "flex-end", opacity: generating ? 0.6 : 1 }}>
-                {generating ? "Generating…" : "Generate month"}
-              </button>
-            </form>
-          </section>
-          <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
-            <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 4px" }}>Salaries</h2>
-            <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 12px" }}>
-              Monthly amount per staffer — future months generate with it. Staff without a salary are skipped.
-            </p>
-            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
-              {salaries.map((s) => (
-                <li
-                  key={s.staffId}
-                  style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14, padding: "8px 0", borderTop: `1px solid ${colors.lineSoft}` }}
-                >
-                  <span style={{ flex: 1, color: colors.ink, fontWeight: 500 }}>
-                    {s.name} <span style={{ color: colors.muted, fontWeight: 400 }}>· {s.designation}</span>
-                  </span>
-                  <input
-                    className="sf-input"
-                    style={{ width: 130 }}
-                    value={salaryEdits[s.staffId] ?? s.monthlyAmount ?? ""}
-                    onChange={(e) => setSalaryEdits((prev) => ({ ...prev, [s.staffId]: e.target.value }))}
-                    placeholder="e.g. 45000"
-                    inputMode="decimal"
-                    aria-label={`Monthly salary for ${s.name}`}
-                  />
-                  <button type="button" onClick={() => void saveSalary(s.staffId)} style={{ ...secondaryBtn, padding: "6px 14px", fontSize: 13 }}>
-                    Save
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </>
-      ) : null}
+        <OfficeDesk
+          schoolId={schoolId}
+          apiFetch={apiFetch}
+          staff={staff}
+          notice={notice}
+          setNotice={setNotice}
+          error={error}
+          setError={setError}
+        />
+      ) : (
+        <MyPay schoolId={schoolId} apiFetch={apiFetch} />
+      )}
       {notice ? <p style={{ color: colors.success, fontSize: 14, margin: "12px 0 0" }}>{notice}</p> : null}
       {error ? (
         <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "12px 0 0" }}>
@@ -358,5 +123,464 @@ export default function PayrollPage() {
         </p>
       ) : null}
     </main>
+  );
+}
+
+function OfficeDesk({
+  schoolId,
+  apiFetch,
+  staff,
+  notice,
+  setNotice,
+  error,
+  setError,
+}: {
+  schoolId: string;
+  apiFetch: (path: string, init?: RequestInit) => Promise<Response>;
+  staff: StaffOption[];
+  notice: string;
+  setNotice: (v: string) => void;
+  error: string;
+  setError: (v: string) => void;
+}) {
+  void notice;
+  void error;
+  const [attStaff, setAttStaff] = useState("");
+  const [attDate, setAttDate] = useState("");
+  const [attStatus, setAttStatus] = useState("PRESENT");
+  const [attMonth, setAttMonth] = useState("2026-10");
+  const [marks, setMarks] = useState<AttendanceRow[]>([]);
+  const [leaveStatus, setLeaveStatus] = useState("PENDING");
+  const [leaves, setLeaves] = useState<LeaveRow[]>([]);
+  const [payStaff, setPayStaff] = useState("");
+  const [payMonth, setPayMonth] = useState("2026-10");
+  const [payBase, setPayBase] = useState("30000");
+  const [lastComputed, setLastComputed] = useState<string>("");
+  const [rows, setRows] = useState<PayrollRow[]>([]);
+  const [rowsMonth, setRowsMonth] = useState("2026-10");
+
+  async function post(path: string, body: unknown, success: string): Promise<boolean> {
+    setError("");
+    setNotice("");
+    try {
+      const response = await apiFetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const parsed = (await response.json()) as unknown as ApiError;
+      if (isFailure(response, parsed)) {
+        throw new Error(parsed.error?.message ?? "Request failed.");
+      }
+      setNotice(success);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+      return false;
+    }
+  }
+
+  async function loadMarks(event?: FormEvent<HTMLFormElement>): Promise<void> {
+    if (event) {
+      event.preventDefault();
+    }
+    try {
+      const params = new URLSearchParams({ month: attMonth });
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/attendance?${params}`);
+      const body = (await response.json()) as { data: { attendance: AttendanceRow[] } } | ApiError;
+      if (!isFailure(response, body)) {
+        setMarks(body.data.attendance);
+      }
+    } catch {
+      // Board stays as-is.
+    }
+  }
+
+  async function loadLeaves(event?: FormEvent<HTMLFormElement>): Promise<void> {
+    if (event) {
+      event.preventDefault();
+    }
+    try {
+      const params = new URLSearchParams({ status: leaveStatus });
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/leaves?${params}`);
+      const body = (await response.json()) as { data: { leaves: LeaveRow[] } } | ApiError;
+      if (!isFailure(response, body)) {
+        setLeaves(body.data.leaves);
+      }
+    } catch {
+      // Queue stays as-is.
+    }
+  }
+
+  async function loadRows(event?: FormEvent<HTMLFormElement>): Promise<void> {
+    if (event) {
+      event.preventDefault();
+    }
+    try {
+      const params = new URLSearchParams({ month: rowsMonth, pageSize: "100" });
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll?${params}`);
+      const body = (await response.json()) as { data: { payroll: PayrollRow[] } } | ApiError;
+      if (!isFailure(response, body)) {
+        setRows(body.data.payroll);
+      }
+    } catch {
+      // Rows stay as-is.
+    }
+  }
+
+  useEffect(() => {
+    void loadMarks();
+    void loadLeaves();
+    void loadRows();
+    // Load once per school; filters reload on demand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolId]);
+
+  async function mark(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!attStaff || !attDate) {
+      return;
+    }
+    const ok = await post(`/api/v1/schools/${schoolId}/payroll/attendance`, { staffId: attStaff, date: attDate, status: attStatus }, "Attendance marked.");
+    if (ok) {
+      await loadMarks();
+    }
+  }
+
+  async function decide(id: string, status: "APPROVED" | "REJECTED"): Promise<void> {
+    setError("");
+    setNotice("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/leaves/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const body = (await response.json()) as unknown as ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not decide the leave.");
+      }
+      setNotice(`Leave ${status.toLowerCase()}.`);
+      await loadLeaves();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    }
+  }
+
+  async function compute(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!payStaff || !payMonth || !payBase) {
+      return;
+    }
+    setError("");
+    setNotice("");
+    setLastComputed("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/compute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffId: payStaff, month: payMonth, baseSalary: Number(payBase) }),
+      });
+      const body = (await response.json()) as {
+        data: {
+          payroll: { staffId: string; name: string; month: string; baseSalary: string; deductions: string; netPay: string };
+          breakdown: { unpaidDays: number; perDayRate: string };
+        };
+      } | ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not compute payroll.");
+      }
+      setLastComputed(
+        `${body.data.payroll.name} · ${body.data.payroll.month}: base ₹${body.data.payroll.baseSalary} − ₹${body.data.payroll.deductions} (${body.data.breakdown.unpaidDays} unpaid days × ₹${body.data.breakdown.perDayRate}) = net ₹${body.data.payroll.netPay}.`,
+      );
+      setNotice("Payroll computed.");
+      await loadRows();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    }
+  }
+
+  return (
+    <>
+      <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
+        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Mark attendance</h2>
+        <form onSubmit={mark} className="sf-row-wrap" style={{ marginBottom: 12 }}>
+          <select className="sf-select" style={{ flex: 2, minWidth: 180 }} value={attStaff} onChange={(e) => setAttStaff(e.target.value)} required aria-label="Attendance staffer">
+            <option value="">— pick a staffer —</option>
+            {staff.map((s) => (
+              <option key={s.staffId} value={s.staffId}>
+                {s.name} · {s.designation}
+              </option>
+            ))}
+          </select>
+          <input className="sf-input" style={{ minWidth: 140 }} value={attDate} onChange={(e) => setAttDate(e.target.value)} placeholder="2026-10-05" aria-label="Attendance date" />
+          <select className="sf-select" style={{ minWidth: 130 }} value={attStatus} onChange={(e) => setAttStatus(e.target.value)} aria-label="Attendance status">
+            <option value="PRESENT">Present</option>
+            <option value="ABSENT">Absent</option>
+            <option value="LATE">Late</option>
+            <option value="EXCUSED">Excused</option>
+          </select>
+          <button type="submit" style={primaryBtn}>
+            Mark
+          </button>
+        </form>
+        <form onSubmit={loadMarks} className="sf-row-wrap" style={{ marginBottom: 8 }}>
+          <input className="sf-input" style={{ minWidth: 130 }} value={attMonth} onChange={(e) => setAttMonth(e.target.value)} aria-label="Attendance month" />
+          <button type="submit" style={secondaryBtn}>
+            Show month
+          </button>
+        </form>
+        {marks.length === 0 ? (
+          <p style={{ ...mutedStyle, fontSize: 13 }}>No marks in this month yet.</p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+            {marks.map((m) => (
+              <li key={m.id} style={{ fontSize: 13, color: colors.inkSoft }}>
+                {m.date} · <strong>{m.name}</strong> · {m.status}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
+        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Leave queue</h2>
+        <form onSubmit={loadLeaves} className="sf-row-wrap" style={{ marginBottom: 8 }}>
+          <select className="sf-select" style={{ minWidth: 150 }} value={leaveStatus} onChange={(e) => setLeaveStatus(e.target.value)} aria-label="Leave status filter">
+            <option value="PENDING">Pending</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+          </select>
+          <button type="submit" style={secondaryBtn}>
+            Filter leaves
+          </button>
+        </form>
+        {leaves.length === 0 ? (
+          <p style={{ ...mutedStyle, fontSize: 13 }}>No leave requests here.</p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+            {leaves.map((l) => (
+              <li key={l.id} style={{ fontSize: 13, color: colors.inkSoft, display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ flex: 1 }}>
+                  <strong>{l.name}</strong> · {l.dates.join(", ")} · {l.reason} · {l.status}
+                </span>
+                {l.status === "PENDING" ? (
+                  <>
+                    <button type="button" onClick={() => void decide(l.id, "APPROVED")} style={{ ...secondaryBtn, padding: "4px 10px", fontSize: 12 }}>
+                      Approve
+                    </button>
+                    <button type="button" onClick={() => void decide(l.id, "REJECTED")} style={{ ...secondaryBtn, padding: "4px 10px", fontSize: 12 }}>
+                      Reject
+                    </button>
+                  </>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
+        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Compute a month</h2>
+        <form onSubmit={compute} className="sf-row-wrap" style={{ marginBottom: 8 }}>
+          <select className="sf-select" style={{ flex: 2, minWidth: 180 }} value={payStaff} onChange={(e) => setPayStaff(e.target.value)} required aria-label="Payroll staffer">
+            <option value="">— pick a staffer —</option>
+            {staff.map((s) => (
+              <option key={s.staffId} value={s.staffId}>
+                {s.name} · {s.designation}
+              </option>
+            ))}
+          </select>
+          <input className="sf-input" style={{ minWidth: 110 }} value={payMonth} onChange={(e) => setPayMonth(e.target.value)} aria-label="Payroll month" />
+          <input className="sf-input" style={{ minWidth: 110 }} inputMode="numeric" value={payBase} onChange={(e) => setPayBase(e.target.value)} aria-label="Base salary" />
+          <button type="submit" style={primaryBtn}>
+            Compute payroll
+          </button>
+        </form>
+        {lastComputed ? <p style={{ fontSize: 13, color: colors.inkSoft }}>{lastComputed}</p> : null}
+      </section>
+
+      <section className="sf-card" style={{ padding: 20 }}>
+        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Payroll rows</h2>
+        <form onSubmit={loadRows} className="sf-row-wrap" style={{ marginBottom: 8 }}>
+          <input className="sf-input" style={{ minWidth: 110 }} value={rowsMonth} onChange={(e) => setRowsMonth(e.target.value)} aria-label="Rows month" />
+          <button type="submit" style={secondaryBtn}>
+            Filter
+          </button>
+        </form>
+        {rows.length === 0 ? (
+          <p style={{ ...mutedStyle, fontSize: 13 }}>No payroll rows here yet — compute a month above.</p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+            {rows.map((r) => (
+              <li key={r.id} style={{ fontSize: 13, color: colors.inkSoft }}>
+                <strong>{r.staff.name}</strong> · {r.month} · base ₹{r.baseSalary} − ₹{r.deductions} = <strong>₹{r.netPay}</strong>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
+  );
+}
+
+function MyPay({
+  schoolId,
+  apiFetch,
+}: {
+  schoolId: string;
+  apiFetch: (path: string, init?: RequestInit) => Promise<Response>;
+}) {
+  const [marks, setMarks] = useState<AttendanceRow[]>([]);
+  const [leaves, setLeaves] = useState<LeaveRow[]>([]);
+  const [rows, setRows] = useState<PayrollRow[]>([]);
+  const [month, setMonth] = useState("2026-10");
+  const [leaveDates, setLeaveDates] = useState("");
+  const [leaveReason, setLeaveReason] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ month });
+      const [aRes, lRes, pRes] = await Promise.all([
+        apiFetch(`/api/v1/schools/${schoolId}/payroll/attendance?${params}`),
+        apiFetch(`/api/v1/schools/${schoolId}/payroll/leaves`),
+        apiFetch(`/api/v1/schools/${schoolId}/payroll?${params}`),
+      ]);
+      const [aBody, lBody, pBody] = (await Promise.all([aRes.json(), lRes.json(), pRes.json()])) as [
+        { data: { attendance: AttendanceRow[] } } | ApiError,
+        { data: { leaves: LeaveRow[] } } | ApiError,
+        { data: { payroll: PayrollRow[] } } | ApiError,
+      ];
+      if (!isFailure(aRes, aBody)) {
+        setMarks(aBody.data.attendance);
+      }
+      if (!isFailure(lRes, lBody)) {
+        setLeaves(lBody.data.leaves);
+      }
+      if (!isFailure(pRes, pBody)) {
+        setRows(pBody.data.payroll);
+      }
+    } catch {
+      // Boards stay as-is.
+    }
+  }, [schoolId, apiFetch, month]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function fileLeave(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    const dates = leaveDates.split(",").map((d) => d.trim()).filter((d) => d.length > 0);
+    if (dates.length === 0 || !leaveReason.trim()) {
+      return;
+    }
+    // No staffId sent: the server resolves the caller from their login.
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/leaves`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dates, reason: leaveReason.trim() }),
+      });
+      const body = (await response.json()) as unknown as ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not file the leave.");
+      }
+      setLeaveDates("");
+      setLeaveReason("");
+      setNotice("Leave requested — the office decides.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    }
+  }
+
+  return (
+    <>
+      <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
+        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>My month</h2>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void load();
+          }}
+          className="sf-row-wrap"
+          style={{ marginBottom: 8 }}
+        >
+          <input className="sf-input" style={{ minWidth: 110 }} value={month} onChange={(e) => setMonth(e.target.value)} aria-label="My month" />
+          <button type="submit" style={secondaryBtn}>
+            Show
+          </button>
+        </form>
+        {marks.length === 0 ? (
+          <p style={{ ...mutedStyle, fontSize: 13 }}>No marks this month.</p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+            {marks.map((m) => (
+              <li key={m.id} style={{ fontSize: 13, color: colors.inkSoft }}>
+                {m.date} · {m.status}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
+        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>My leaves</h2>
+        <form onSubmit={fileLeave} className="sf-row-wrap" style={{ marginBottom: 8 }}>
+          <input
+            className="sf-input"
+            style={{ flex: 2, minWidth: 180 }}
+            value={leaveDates}
+            onChange={(e) => setLeaveDates(e.target.value)}
+            placeholder="Dates — e.g. 2026-10-06, 2026-10-07"
+            aria-label="Leave dates"
+          />
+          <input
+            className="sf-input"
+            style={{ flex: 2, minWidth: 180 }}
+            value={leaveReason}
+            onChange={(e) => setLeaveReason(e.target.value)}
+            placeholder="Reason"
+            aria-label="Leave reason"
+          />
+          <button type="submit" style={primaryBtn}>
+            Request leave
+          </button>
+        </form>
+        {leaves.length === 0 ? (
+          <p style={{ ...mutedStyle, fontSize: 13 }}>No leave requests.</p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+            {leaves.map((l) => (
+              <li key={l.id} style={{ fontSize: 13, color: colors.inkSoft }}>
+                {l.dates.join(", ")} · {l.reason} · {l.status}
+              </li>
+            ))}
+          </ul>
+        )}
+        {notice ? <p style={{ color: colors.success, fontSize: 13 }}>{notice}</p> : null}
+        {error ? (
+          <p role="alert" style={{ color: colors.danger, fontSize: 13 }}>
+            {error}
+          </p>
+        ) : null}
+      </section>
+
+      <section className="sf-card" style={{ padding: 20 }}>
+        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>My pay</h2>
+        {rows.length === 0 ? (
+          <EmptyState icon={<Wallet size={22} aria-hidden="true" />} title="No pay computed yet" detail="The office computes each month — rows appear here." />
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+            {rows.map((r) => (
+              <li key={r.id} style={{ fontSize: 13, color: colors.inkSoft }}>
+                {r.month} · base ₹{r.baseSalary} − ₹{r.deductions} = <strong>₹{r.netPay}</strong>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
   );
 }

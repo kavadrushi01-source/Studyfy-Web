@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { ACCOUNTS, SOS_SLUG, login } from "./helpers";
+import { ACCOUNTS, SOS_SLUG, login, logout } from "./helpers";
 
 // Chunk 4 (§7 Phase 2 #14 + #15): the depot and the salary desk, driven
 // like a human. Deterministic in any run order: every name carries a run
@@ -57,39 +57,71 @@ test.describe("transport depot", () => {
 });
 
 test.describe("payroll desk", () => {
-  test("admin sets a salary, generates the month, marks it paid", async ({ page }) => {
+  test("admin marks absences, computes the month, teacher sees own pay", async ({ page }) => {
     await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
     await page.goto("/payroll");
     await expect(page.getByText("Payroll").first()).toBeVisible({ timeout: 20000 });
-    // Give Arjun a salary through the salaries table.
-    const row = page.locator("li", { hasText: "Arjun Mehta" }).first();
-    await row.getByLabel(/monthly salary for arjun mehta/i).fill("52000");
-    await row.getByRole("button", { name: /^save$/i }).click();
-    await expect(page.getByText(/salary saved/i).first()).toBeVisible({ timeout: 20000 });
 
-    await page.getByLabel(/month to generate/i).fill("2026-10");
-    await page.getByRole("button", { name: /generate month/i }).click();
-    await expect(page.getByText(/month ready/i).first()).toBeVisible({ timeout: 20000 });
-
-    await page.getByLabel(/^month$/i).fill("2026-10");
-    await page.getByRole("button", { name: /^filter$/i }).click();
-    await expect(page.getByText("Arjun Mehta").first()).toBeVisible({ timeout: 20000 });
-    // Idempotent across reruns: a previous run may already have paid this
-    // row — pay it if pending, otherwise assert the PAID state directly.
-    const payRow = page.locator("tr", { hasText: "Arjun Mehta" }).first();
-    if ((await payRow.getByRole("button", { name: /mark paid/i }).count()) > 0) {
-      await payRow.getByRole("button", { name: /mark paid/i }).click();
-      await expect(page.getByText(/marked paid/i).first()).toBeVisible({ timeout: 20000 });
-    } else {
-      await expect(payRow.getByText(/^paid$/i)).toBeVisible({ timeout: 20000 });
+    // Two unpaid absences for Arjun in 2026-10 (re-marking overwrites, so
+    // reruns stay deterministic).
+    const attSel = page.getByLabel(/attendance staffer/i);
+    await expect(attSel.locator("option", { hasText: "Arjun Mehta" })).toBeAttached({ timeout: 20000 });
+    await attSel.selectOption(
+      (await attSel.locator("option", { hasText: "Arjun Mehta" }).first().getAttribute("value")) ?? "",
+    );
+    for (const day of ["2026-10-05", "2026-10-06"]) {
+      await page.getByLabel(/attendance date/i).fill(day);
+      await page.getByLabel(/attendance status/i).selectOption("ABSENT");
+      await page.getByRole("button", { name: /^mark$/i }).click();
+      await expect(page.getByText(/attendance marked/i).first()).toBeVisible({ timeout: 20000 });
     }
-    await page.screenshot({ path: "e2e/shots/payroll.png" });
-  });
 
-  test("teacher sees only own slips", async ({ page }) => {
+    // Compute: 2 unpaid × (30000/30) = 2000 off, net 28000.
+    const paySel = page.getByLabel(/payroll staffer/i);
+    await paySel.selectOption(
+      (await paySel.locator("option", { hasText: "Arjun Mehta" }).first().getAttribute("value")) ?? "",
+    );
+    await page.getByLabel(/payroll month/i).fill("2026-10");
+    await page.getByLabel(/base salary/i).fill("30000");
+    await page.getByRole("button", { name: /compute payroll/i }).click();
+    await expect(page.getByText(/payroll computed/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/net ₹28000\.00/).first()).toBeVisible({ timeout: 20000 });
+
+    await page.getByLabel(/rows month/i).fill("2026-10");
+    await page.getByRole("button", { name: /^filter$/i }).click();
+    // The "· base" phrasing is unique to the rows list (the breakdown
+    // above it reads "2026-10: base", and select options stay hidden).
+    await expect(page.getByText("Arjun Mehta · 2026-10 · base ₹30000.00").first()).toBeVisible({ timeout: 20000 });
+    await page.screenshot({ path: "e2e/shots/payroll.png" });
+    await logout(page);
+
+    // The teacher sees the computed row, never the office desk.
     await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
     await page.goto("/payroll");
     await expect(page.getByText("Payroll").first()).toBeVisible({ timeout: 20000 });
-    await expect(page.getByRole("button", { name: /generate month/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /compute payroll/i })).toHaveCount(0);
+    await expect(page.getByText(/₹28000\.00/).first()).toBeVisible({ timeout: 20000 });
+  });
+
+  test("teacher files leave for self, admin approves", async ({ page }) => {
+    await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
+    await page.goto("/payroll");
+    await expect(page.getByText("Payroll").first()).toBeVisible({ timeout: 20000 });
+    await page.getByLabel(/leave dates/i).fill("2026-10-20");
+    await page.getByLabel(/leave reason/i).fill("E2E family event");
+    await page.getByRole("button", { name: /request leave/i }).click();
+    await expect(page.getByText(/leave requested/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("E2E family event").first()).toBeVisible({ timeout: 20000 });
+    await logout(page);
+
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/payroll");
+    await expect(page.getByText("Payroll").first()).toBeVisible({ timeout: 20000 });
+    await page.getByLabel(/leave status filter/i).selectOption("PENDING");
+    await page.getByRole("button", { name: /filter leaves/i }).click();
+    const row = page.locator("li", { hasText: "E2E family event" }).first();
+    await expect(row).toBeVisible({ timeout: 20000 });
+    await row.getByRole("button", { name: /approve/i }).click();
+    await expect(page.getByText(/leave approved/i).first()).toBeVisible({ timeout: 20000 });
   });
 });

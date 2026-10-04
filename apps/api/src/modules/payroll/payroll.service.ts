@@ -1,15 +1,30 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { AuthError } from "../auth/auth.service.js";
-import type { ListPayrollInput } from "./payroll.schemas.js";
+import type {
+  ComputePayrollInput,
+  DecideLeaveInput,
+  ListAttendanceInput,
+  ListLeavesInput,
+  ListPayrollInput,
+  MarkAttendanceInput,
+  RequestLeaveInput,
+} from "./payroll.schemas.js";
 
-// Payroll (§7 Phase 2 #15, basic): monthly salary structures per staffer,
-// generated month rows flipped PENDING → PAID. Records only — no money
-// moves here, but amounts stay Decimal-exact end to end (§13.6) because
-// payroll numbers end up in front of people. Office (payroll.manage)
-// runs it; staff with payroll.read see only their own slips, pinned by
-// staffId resolved from the login (same idea as studentScope, for staff).
-// Cross-tenant safety from tenantMiddleware + TENANT_MODELS, proven by
-// the stranger-school test in the suite.
+// Payroll (§7 Phase 2 #15, founder schema): staff attendance marks,
+// leave requests, and computed monthly rows (base − deductions = net).
+// Records only — no money moves here, but amounts stay Decimal-exact
+// end to end (§13.6) because payroll numbers end up in front of people.
+// Office (payroll.manage) runs it; staff with payroll.read see only
+// their own rows, pinned by staffId resolved from the login (same idea
+// as studentScope, for staff). Cross-tenant safety from tenantMiddleware
+// + TENANT_MODELS, proven by the stranger-school test in the suite.
+//
+// Deduction policy (no spec formula exists — this is the office rule,
+// recomputed fresh on every compute): per-day rate = base / 30;
+// ABSENT days in the month minus days covered by APPROVED leave =
+// unpaid days; deductions = unpaid × rate (2dp); net = base −
+// deductions. Approved leave never deducts. Recomputing a month
+// replaces the row — latest compute wins.
 const MANAGERS = new Set(["SCHOOL_ADMIN", "ACCOUNTANT"]);
 
 async function staffIdOf(db: PrismaClient, userId: string): Promise<string | null> {
@@ -17,143 +32,195 @@ async function staffIdOf(db: PrismaClient, userId: string): Promise<string | nul
   return staff?.id ?? null;
 }
 
-export async function setSalary(db: PrismaClient, staffId: string, monthlyAmount: string) {
+function monthBounds(month: string): { from: Date; to: Date } {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  return { from: new Date(Date.UTC(y, m - 1, 1)), to: new Date(Date.UTC(y, m, 1)) };
+}
+
+function toISODate(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function parseLeaveDates(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item === "string" && /^\d{4}-\d{2}-\d{2}$/.test(item)) {
+      out.push(item);
+    }
+  }
+  return out;
+}
+
+export async function listStaff(db: PrismaClient) {
+  const rows = await db.staff.findMany({
+    select: { id: true, designation: true, user: { select: { name: true, email: true } } },
+    orderBy: { user: { name: "asc" } },
+    take: 500,
+  });
+  return {
+    staff: rows.map((r) => ({ staffId: r.id, name: r.user.name, email: r.user.email, designation: r.designation })),
+  };
+}
+
+export async function markAttendance(db: PrismaClient, input: MarkAttendanceInput) {
   const staff = await db.staff.findFirst({
-    where: { id: staffId },
+    where: { id: input.staffId },
     select: { id: true, schoolId: true, user: { select: { name: true } } },
   });
   if (!staff) {
     throw new AuthError(404, "STAFF_NOT_FOUND", "Staff member not found in this school.");
   }
-  // No upsert: the tenant extension injects schoolId into every where,
-  // which breaks unique-where contracts — find-then-write by id instead.
-  const existing = await db.salaryStructure.findFirst({ where: { staffId: staff.id }, select: { id: true } });
-  const structure = existing
-    ? await db.salaryStructure.update({
-      where: { id: existing.id },
-      data: { monthlyAmount: new Prisma.Decimal(monthlyAmount) },
-      select: { monthlyAmount: true },
-    })
-    : await db.salaryStructure.create({
-      data: { schoolId: staff.schoolId, staffId: staff.id, monthlyAmount: new Prisma.Decimal(monthlyAmount) },
-      select: { monthlyAmount: true },
-    });
-  return {
-    salary: {
-      staffId: staff.id,
-      name: staff.user.name,
-      monthlyAmount: structure.monthlyAmount.toFixed(2),
-    },
-  };
+  const day = new Date(`${input.date}T00:00:00.000Z`);
+  // One mark per staffer per day: re-marking overwrites. Find-then-write
+  // (no upsert: the tenant extension breaks unique-where contracts),
+  // with a P2002 fallback so two simultaneous marks resolve to one row.
+  const existing = await db.staffAttendance.findFirst({
+    where: { staffId: staff.id, date: day },
+    select: { id: true },
+  });
+  let row;
+  if (existing) {
+    row = await db.staffAttendance.update({ where: { id: existing.id }, data: { status: input.status } });
+  } else {
+    try {
+      row = await db.staffAttendance.create({
+        data: { schoolId: staff.schoolId, staffId: staff.id, date: day, status: input.status },
+      });
+    } catch (err) {
+      if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) {
+        throw err;
+      }
+      const won = await db.staffAttendance.findFirstOrThrow({ where: { staffId: staff.id, date: day }, select: { id: true } });
+      row = await db.staffAttendance.update({ where: { id: won.id }, data: { status: input.status } });
+    }
+  }
+  return { attendance: { id: row.id, staffId: staff.id, name: staff.user.name, date: input.date, status: row.status } };
 }
 
-export async function listSalaries(db: PrismaClient) {
-  const rows = await db.staff.findMany({
+export async function listAttendance(
+  db: PrismaClient,
+  caller: { userId: string; role: string },
+  input: ListAttendanceInput,
+) {
+  const where: Record<string, unknown> = {};
+  if (MANAGERS.has(caller.role)) {
+    if (input.staffId) {
+      where.staffId = input.staffId;
+    }
+  } else {
+    const own = await staffIdOf(db, caller.userId);
+    if (!own) {
+      return { attendance: [] };
+    }
+    if (input.staffId && input.staffId !== own) {
+      throw new AuthError(403, "FORBIDDEN", "Not your record.");
+    }
+    where.staffId = own;
+  }
+  if (input.month) {
+    const { from, to } = monthBounds(input.month);
+    where.date = { gte: from, lt: to };
+  }
+  const rows = await db.staffAttendance.findMany({
+    where,
     select: {
       id: true,
-      designation: true,
-      user: { select: { name: true, email: true } },
-      salaryStructure: { select: { monthlyAmount: true } },
+      date: true,
+      status: true,
+      staff: { select: { id: true, user: { select: { name: true } } } },
     },
-    orderBy: { user: { name: "asc" } },
+    orderBy: [{ date: "desc" }, { staff: { user: { name: "asc" } } }],
     take: 500,
   });
   return {
-    salaries: rows.map((r) => ({
-      staffId: r.id,
-      name: r.user.name,
-      email: r.user.email,
-      designation: r.designation,
-      monthlyAmount: r.salaryStructure ? r.salaryStructure.monthlyAmount.toFixed(2) : null,
+    attendance: rows.map((r) => ({
+      id: r.id,
+      staffId: r.staff.id,
+      name: r.staff.user.name,
+      date: toISODate(r.date),
+      status: r.status,
     })),
   };
 }
 
-export async function generateMonth(db: PrismaClient, schoolId: string, month: string) {
-  const [structures, staffCount] = await Promise.all([
-    db.salaryStructure.findMany({
-      select: { staffId: true, monthlyAmount: true },
-    }),
-    db.staff.count(),
-  ]);
-  let generated = 0;
-  // skipDuplicates: regenerating a month only fills gaps (new hires with
-  // structures added after the first run), never duplicates or overwrites.
-  if (structures.length > 0) {
-    const result = await db.payrollPayment.createMany({
-      data: structures.map((s) => ({
-        schoolId,
-        staffId: s.staffId,
-        month,
-        amount: s.monthlyAmount,
-      })),
-      skipDuplicates: true,
-    });
-    generated = result.count;
+export async function requestLeave(
+  db: PrismaClient,
+  caller: { userId: string; role: string },
+  input: RequestLeaveInput,
+) {
+  // Staff file for themselves (staffId omitted → resolved from the
+  // login); the office files for anyone with an explicit staffer.
+  let targetId = input.staffId;
+  if (!MANAGERS.has(caller.role)) {
+    const own = await staffIdOf(db, caller.userId);
+    if (!own) {
+      throw new AuthError(403, "FORBIDDEN", "No staff record on this login.");
+    }
+    if (input.staffId && input.staffId !== own) {
+      throw new AuthError(403, "FORBIDDEN", "You can only request leave for yourself.");
+    }
+    targetId = own;
   }
-  const total = await db.payrollPayment.count({ where: { month } });
-  return { month, generated, total, withoutStructure: staffCount - structures.length };
-}
-
-export async function markPaid(db: PrismaClient, callerUserId: string, paymentId: string) {
-  const payment = await db.payrollPayment.findFirst({
-    where: { id: paymentId },
-    select: { id: true, status: true },
+  if (!targetId) {
+    throw new AuthError(400, "VALIDATION_ERROR", "Pick a staffer for this leave.");
+  }
+  const staff = await db.staff.findFirst({
+    where: { id: targetId },
+    select: { id: true, schoolId: true, user: { select: { name: true } } },
   });
-  if (!payment) {
-    throw new AuthError(404, "PAYMENT_NOT_FOUND", "Payroll row not found in this school.");
+  if (!staff) {
+    throw new AuthError(404, "STAFF_NOT_FOUND", "Staff member not found in this school.");
   }
-  if (payment.status === "PAID") {
-    throw new AuthError(409, "ALREADY_PAID", "This salary was already marked paid.");
-  }
-  const updated = await db.payrollPayment.update({
-    where: { id: payment.id },
-    data: { status: "PAID", paidAt: new Date(), paidBy: callerUserId },
-    select: {
-      id: true,
-      month: true,
-      amount: true,
-      status: true,
-      paidAt: true,
-      staff: { select: { id: true, user: { select: { name: true } } } },
-      payer: { select: { name: true } },
-    },
+  const uniqueDates = [...new Set(input.dates)].sort();
+  const leave = await db.leaveRequest.create({
+    data: { schoolId: staff.schoolId, staffId: staff.id, dates: uniqueDates as unknown as Prisma.InputJsonValue, reason: input.reason },
+    select: { id: true, dates: true, reason: true, status: true },
   });
   return {
-    payment: {
-      ...updated,
-      amount: updated.amount.toFixed(2),
-      staff: { id: updated.staff.id, name: updated.staff.user.name },
-      payer: updated.payer ? { name: updated.payer.name } : null,
+    leave: {
+      id: leave.id,
+      staffId: staff.id,
+      name: staff.user.name,
+      dates: parseLeaveDates(leave.dates),
+      reason: leave.reason,
+      status: leave.status,
     },
   };
 }
 
-export interface PayrollRow {
-  id: string;
-  month: string;
-  amount: string;
-  status: string;
-  paidAt: Date | null;
-  staff: { id: string; name: string };
-  payer: { name: string } | null;
+export async function decideLeave(db: PrismaClient, leaveId: string, input: DecideLeaveInput) {
+  const leave = await db.leaveRequest.findFirst({
+    where: { id: leaveId },
+    select: { id: true, status: true, staff: { select: { id: true, user: { select: { name: true } } } } },
+  });
+  if (!leave) {
+    throw new AuthError(404, "LEAVE_NOT_FOUND", "Leave request not found in this school.");
+  }
+  if (leave.status !== "PENDING") {
+    throw new AuthError(409, "ALREADY_DECIDED", `This leave is already ${leave.status}.`);
+  }
+  const updated = await db.leaveRequest.update({
+    where: { id: leave.id },
+    data: { status: input.status },
+    select: { id: true, dates: true, reason: true, status: true },
+  });
+  return {
+    leave: {
+      id: updated.id,
+      staffId: leave.staff.id,
+      name: leave.staff.user.name,
+      dates: parseLeaveDates(updated.dates),
+      reason: updated.reason,
+      status: updated.status,
+    },
+  };
 }
 
-export async function listPayroll(
-  db: PrismaClient,
-  caller: { userId: string; role: string },
-  input: ListPayrollInput,
-): Promise<{
-  payments: PayrollRow[];
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-}> {
+export async function listLeaves(db: PrismaClient, caller: { userId: string; role: string }, input: ListLeavesInput) {
   const where: Record<string, unknown> = {};
-  if (input.month) {
-    where.month = input.month;
-  }
   if (input.status) {
     where.status = input.status;
   }
@@ -164,7 +231,146 @@ export async function listPayroll(
   } else {
     const own = await staffIdOf(db, caller.userId);
     if (!own) {
-      return { payments: [], page: input.page, pageSize: input.pageSize, total: 0, totalPages: 1 };
+      return { leaves: [] };
+    }
+    if (input.staffId && input.staffId !== own) {
+      throw new AuthError(403, "FORBIDDEN", "Not your record.");
+    }
+    where.staffId = own;
+  }
+  const rows = await db.leaveRequest.findMany({
+    where,
+    select: {
+      id: true,
+      dates: true,
+      reason: true,
+      status: true,
+      createdAt: true,
+      staff: { select: { id: true, user: { select: { name: true } } } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+  return {
+    leaves: rows.map((r) => ({
+      id: r.id,
+      staffId: r.staff.id,
+      name: r.staff.user.name,
+      dates: parseLeaveDates(r.dates),
+      reason: r.reason,
+      status: r.status,
+    })),
+  };
+}
+
+export interface ComputeBreakdown {
+  unpaidDays: number;
+  absentDays: string[];
+  approvedCovered: string[];
+  perDayRate: string;
+}
+
+export async function computePayroll(db: PrismaClient, input: ComputePayrollInput) {
+  const staff = await db.staff.findFirst({
+    where: { id: input.staffId },
+    select: { id: true, schoolId: true, user: { select: { name: true } } },
+  });
+  if (!staff) {
+    throw new AuthError(404, "STAFF_NOT_FOUND", "Staff member not found in this school.");
+  }
+  const { from, to } = monthBounds(input.month);
+  const [marks, leaves] = await Promise.all([
+    db.staffAttendance.findMany({
+      where: { staffId: staff.id, date: { gte: from, lt: to } },
+      select: { date: true, status: true },
+    }),
+    db.leaveRequest.findMany({
+      where: { staffId: staff.id, status: "APPROVED" },
+      select: { dates: true },
+    }),
+  ]);
+  const monthPrefix = `${input.month}-`;
+  const covered = new Set<string>();
+  for (const leave of leaves) {
+    for (const day of parseLeaveDates(leave.dates)) {
+      if (day.startsWith(monthPrefix)) {
+        covered.add(day);
+      }
+    }
+  }
+  const absent = marks.filter((m) => m.status === "ABSENT").map((m) => toISODate(m.date));
+  const unpaid = [...new Set(absent.filter((day) => !covered.has(day)))].sort();
+  const approvedCovered = [...new Set(absent.filter((day) => covered.has(day)))].sort();
+  const base = new Prisma.Decimal(input.baseSalary);
+  const perDay = base.div(30);
+  const deductions = perDay.mul(unpaid.length).toDecimalPlaces(2);
+  const net = base.minus(deductions).toDecimalPlaces(2);
+  // Recomputing replaces the row — latest compute wins (no upsert: the
+  // tenant extension breaks unique-where contracts).
+  const existing = await db.payroll.findFirst({
+    where: { staffId: staff.id, month: input.month },
+    select: { id: true },
+  });
+  const row = existing
+    ? await db.payroll.update({
+      where: { id: existing.id },
+      data: { baseSalary: base, deductions, netPay: net },
+    })
+    : await db.payroll.create({
+      data: { schoolId: staff.schoolId, staffId: staff.id, month: input.month, baseSalary: base, deductions, netPay: net },
+    });
+  const breakdown: ComputeBreakdown = {
+    unpaidDays: unpaid.length,
+    absentDays: unpaid,
+    approvedCovered,
+    perDayRate: perDay.toDecimalPlaces(2).toFixed(2),
+  };
+  return {
+    payroll: {
+      id: row.id,
+      staffId: staff.id,
+      name: staff.user.name,
+      month: row.month,
+      baseSalary: row.baseSalary.toFixed(2),
+      deductions: row.deductions.toFixed(2),
+      netPay: row.netPay.toFixed(2),
+    },
+    breakdown,
+  };
+}
+
+export interface PayrollRow {
+  id: string;
+  month: string;
+  baseSalary: string;
+  deductions: string;
+  netPay: string;
+  staff: { id: string; name: string };
+}
+
+export async function listPayroll(
+  db: PrismaClient,
+  caller: { userId: string; role: string },
+  input: ListPayrollInput,
+): Promise<{
+  payroll: PayrollRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}> {
+  const where: Record<string, unknown> = {};
+  if (input.month) {
+    where.month = input.month;
+  }
+  if (MANAGERS.has(caller.role)) {
+    if (input.staffId) {
+      where.staffId = input.staffId;
+    }
+  } else {
+    const own = await staffIdOf(db, caller.userId);
+    if (!own) {
+      return { payroll: [], page: input.page, pageSize: input.pageSize, total: 0, totalPages: 1 };
     }
     if (input.staffId && input.staffId !== own) {
       throw new AuthError(403, "FORBIDDEN", "Not your record.");
@@ -172,17 +378,16 @@ export async function listPayroll(
     where.staffId = own;
   }
   const [total, rows] = await Promise.all([
-    db.payrollPayment.count({ where }),
-    db.payrollPayment.findMany({
+    db.payroll.count({ where }),
+    db.payroll.findMany({
       where,
       select: {
         id: true,
         month: true,
-        amount: true,
-        status: true,
-        paidAt: true,
+        baseSalary: true,
+        deductions: true,
+        netPay: true,
         staff: { select: { id: true, user: { select: { name: true } } } },
-        payer: { select: { name: true } },
       },
       orderBy: [{ month: "desc" }, { staff: { user: { name: "asc" } } }],
       skip: (input.page - 1) * input.pageSize,
@@ -190,14 +395,13 @@ export async function listPayroll(
     }),
   ]);
   return {
-    payments: rows.map((r) => ({
+    payroll: rows.map((r) => ({
       id: r.id,
       month: r.month,
-      amount: r.amount.toFixed(2),
-      status: r.status,
-      paidAt: r.paidAt,
+      baseSalary: r.baseSalary.toFixed(2),
+      deductions: r.deductions.toFixed(2),
+      netPay: r.netPay.toFixed(2),
       staff: { id: r.staff.id, name: r.staff.user.name },
-      payer: r.payer ? { name: r.payer.name } : null,
     })),
     page: input.page,
     pageSize: input.pageSize,

@@ -36,8 +36,9 @@ export const TENANT_MODELS = [
   "Vehicle",
   "TransportRoute",
   "StudentRoute",
-  "SalaryStructure",
-  "PayrollPayment",
+  "StaffAttendance",
+  "LeaveRequest",
+  "Payroll",
   "Document",
   "Message",
 ] as const;

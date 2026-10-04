@@ -150,8 +150,9 @@ model School {
   vehicles            Vehicle[]
   transportRoutes     TransportRoute[]
   studentRoutes       StudentRoute[]
-  salaryStructures    SalaryStructure[]
-  payrollPayments     PayrollPayment[]
+  staffAttendances    StaffAttendance[]
+  leaveRequests       LeaveRequest[]
+  payrolls            Payroll[]
   documents           Document[]
   messages            Message[]
 
@@ -192,7 +193,6 @@ model User {
   enquiryNotes      EnquiryNote[]    @relation("EnquiryNoteAuthor")
   issuedCertificates Certificate[]   @relation("CertificateIssuer")
   issuedLoans       BookLoan[]       @relation("LoanIssuer")
-  payrollPaid       PayrollPayment[] @relation("PayrollPayer")
 
   @@unique([schoolId, email])
   @@index([schoolId])
@@ -379,8 +379,9 @@ model Staff {
   timetableSlots   TimetableSlot[] @relation("SlotTeacher")
   classSections    Section[]       @relation("ClassTeacher")
   teacherSubjects  TeacherSubject[]
-  salaryStructure  SalaryStructure?
-  payrollPayments  PayrollPayment[]
+  attendances      StaffAttendance[]
+  leaveRequests    LeaveRequest[]
+  payrolls         Payroll[]
 
   @@index([schoolId])
   @@map("staff")
@@ -829,36 +830,61 @@ model StudentRoute {
 // moves here. Amounts are Decimal-exact strings end to end (§13.6).
 // ---------------------------------------------------------------------------
 
-model SalaryStructure {
-  id            String   @id @default(cuid()) @map("id")
-  schoolId      String   @map("school_id")
-  school        School   @relation(fields: [schoolId], references: [id])
-  staffId       String   @unique @map("staff_id")
-  staff         Staff    @relation(fields: [staffId], references: [id])
-  monthlyAmount Decimal  @map("monthly_amount") @db.Decimal(10, 2)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+// ---------------------------------------------------------------------------
+// Payroll (§7 Phase 2 #15, founder schema): staff attendance marks,
+// leave requests, and computed monthly payroll rows (base − deductions
+// = net). Amounts are Decimal-exact strings end to end (§13.6).
+// ---------------------------------------------------------------------------
 
-  @@map("salary_structures")
+model StaffAttendance {
+  id        String           @id @default(cuid()) @map("id")
+  schoolId  String           @map("school_id")
+  school    School           @relation(fields: [schoolId], references: [id])
+  staffId   String           @map("staff_id")
+  staff     Staff            @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  date      DateTime         @map("date") @db.Date
+  status    AttendanceStatus @default(PRESENT) @map("status")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  @@unique([schoolId, staffId, date])
+  @@index([schoolId, date])
+  @@map("staff_attendance")
 }
 
-model PayrollPayment {
+model LeaveRequest {
   id        String   @id @default(cuid()) @map("id")
   schoolId  String   @map("school_id")
   school    School   @relation(fields: [schoolId], references: [id])
   staffId   String   @map("staff_id")
-  staff     Staff    @relation(fields: [staffId], references: [id])
-  month     String   @map("month")
-  amount    Decimal  @map("amount") @db.Decimal(10, 2)
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  dates     Json     @map("dates")
+  reason    String   @map("reason") @db.Text
   status    String   @default("PENDING") @map("status")
-  paidAt    DateTime? @map("paid_at")
-  paidBy    String?  @map("paid_by")
-  payer     User?    @relation("PayrollPayer", fields: [paidBy], references: [id])
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([staffId, month])
-  @@index([schoolId, month, status])
-  @@map("payroll_payments")
+  @@index([schoolId, staffId])
+  @@index([schoolId, status])
+  @@map("leave_requests")
+}
+
+model Payroll {
+  id          String   @id @default(cuid()) @map("id")
+  schoolId    String   @map("school_id")
+  school      School   @relation(fields: [schoolId], references: [id])
+  staffId     String   @map("staff_id")
+  staff       Staff    @relation(fields: [staffId], references: [id])
+  month       String   @map("month")
+  baseSalary  Decimal  @map("base_salary") @db.Decimal(12, 2)
+  deductions  Decimal  @map("deductions") @db.Decimal(12, 2)
+  netPay      Decimal  @map("net_pay") @db.Decimal(12, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([schoolId, staffId, month])
+  @@index([schoolId, month])
+  @@map("payroll")
 }
 
 model BookLoan {
