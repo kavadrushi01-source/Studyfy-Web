@@ -60,10 +60,17 @@ test.describe("role journeys", () => {
     await page.getByLabel(/search/i).fill("");
     await page.getByRole("button", { name: /search/i }).click();
     await expect(page.getByText(/\d+ total/)).toBeVisible({ timeout: 20000 });
+    // Page count depends on accumulated seed/test pupils, so paginate only
+    // when a second page exists — either way the pager state is asserted.
     const next = page.getByRole("button", { name: /^next$/i });
-    await expect(next).toBeEnabled();
-    await next.click();
-    await expect(page.getByText(/Page 2 of/)).toBeVisible({ timeout: 20000 });
+    if (await next.isEnabled()) {
+      await next.click();
+      await expect(page.getByText(/Page 2 of/)).toBeVisible({ timeout: 20000 });
+      await page.getByRole("button", { name: /^prev/i }).click();
+      await expect(page.getByText(/Page 1 of/)).toBeVisible({ timeout: 20000 });
+    } else {
+      await expect(page.getByText(/Page 1 of 1/)).toBeVisible({ timeout: 20000 });
+    }
 
     await page.getByLabel(/search/i).fill("Priya Patel");
     await page.getByRole("button", { name: /search/i }).click();
@@ -271,6 +278,8 @@ test.describe("session, gates and edges", () => {
           "/crm",
           "/certificates",
           "/library",
+          "/transport",
+          "/payroll",
           "/notices",
           "/profile",
         ],
@@ -278,22 +287,22 @@ test.describe("session, gates and edges", () => {
       {
         email: ACCOUNTS.sosTeacher,
         slug: SOS_SLUG,
-        hrefs: ["/dashboard/teacher", "/attendance/mark", "/exams/results", "/homework", "/timetable", "/messages", "/profile"],
+        hrefs: ["/dashboard/teacher", "/attendance/mark", "/exams/results", "/homework", "/timetable", "/messages", "/transport", "/profile"],
       },
       {
         email: ACCOUNTS.sosAccountant,
         slug: SOS_SLUG,
-        hrefs: ["/dashboard/accountant", "/fees", "/fees/payments", "/crm", "/certificates", "/profile"],
+        hrefs: ["/dashboard/accountant", "/fees", "/fees/payments", "/crm", "/certificates", "/payroll", "/profile"],
       },
       {
         email: ACCOUNTS.sosStudent,
         slug: SOS_SLUG,
-        hrefs: ["/dashboard/student", "/exams/results", "/homework", "/timetable", "/fees", "/notices", "/messages", "/library", "/profile"],
+        hrefs: ["/dashboard/student", "/exams/results", "/homework", "/timetable", "/fees", "/notices", "/messages", "/library", "/transport", "/profile"],
       },
       {
         email: ACCOUNTS.sosParent,
         slug: SOS_SLUG,
-        hrefs: ["/dashboard/parent", "/exams/results", "/homework", "/fees", "/notices", "/messages", "/profile"],
+        hrefs: ["/dashboard/parent", "/exams/results", "/homework", "/fees", "/notices", "/messages", "/transport", "/profile"],
       },
       { email: ACCOUNTS.owner, slug: null, hrefs: ["/dashboard/owner", "/profile"] },
     ];

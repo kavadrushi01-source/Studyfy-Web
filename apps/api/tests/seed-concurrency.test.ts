@@ -19,16 +19,21 @@ describe("concurrent global seeding (CI parallel workers)", () => {
 
   it("seedRoles survives parallel callers even when a row is missing (the CI interleave)", async () => {
     // Worst case, deterministic: TRANSPORT_MANAGER is never held by any
-    // test user and no mapping references it (LIBRARIAN used to serve —
-    // Chunk 3 mapped it — so it no longer deletes cleanly), so deleting
-    // it is invisible to every other file running in parallel — while
-    // every caller here SELECT-misses and INSERTs the same row. Old
-    // upsert-loop code dies here with P2002.
+    // test user, so deleting it (mappings first, then the row) is
+    // invisible to every other file running in parallel — while every
+    // caller here SELECT-misses and INSERTs the same row. Old upsert-loop
+    // code dies here with P2002. (LIBRARIAN served this role until Chunk
+    // 3 mapped it; every role row is mapped now, so mappings go first.)
     const before = await prisma.role.count();
+    const doomed = await prisma.role.findUniqueOrThrow({ where: { name: "TRANSPORT_MANAGER" } });
+    await prisma.rolePermission.deleteMany({ where: { roleId: doomed.id } });
     await prisma.role.deleteMany({ where: { name: "TRANSPORT_MANAGER" } });
     await Promise.all(Array.from({ length: 20 }, () => seedRoles(prisma)));
     expect(await prisma.role.count()).toBe(before);
     expect(await prisma.role.findUnique({ where: { name: "TRANSPORT_MANAGER" } })).not.toBeNull();
+    // Restore the mappings this test removed — sibling files share this
+    // database and must never observe a half-seeded role table.
+    await seedPermissions(prisma);
   });
 
   it("seedPermissions survives parallel callers with mappings intact", async () => {

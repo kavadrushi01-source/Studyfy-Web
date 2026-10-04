@@ -17,6 +17,10 @@ test.describe("library circuit", () => {
     await page.getByLabel(/total copies/i).fill("1");
     await page.getByRole("button", { name: /add to catalog/i }).click();
     await expect(page.getByText(/added to the catalog/i).first()).toBeVisible({ timeout: 20000 });
+    // The shelf is title-sorted and paged — search for the new title so the
+    // assertion holds no matter how many seeded/test books came before.
+    await page.getByLabel(/search catalog/i).fill(title);
+    await page.getByRole("button", { name: /^filter$/i }).click();
     await expect(page.getByText(title).first()).toBeVisible({ timeout: 20000 });
 
     // Issue desk: find the pupil, pick the book, issue.
@@ -66,12 +70,16 @@ test.describe("library circuit", () => {
     await expect(page.getByText("Library").first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByText(/current: ₹5\/day/i).first()).toBeVisible({ timeout: 20000 });
     await page.getByLabel(/fine rupees per day/i).fill("7");
+    // Blur before saving: the rate lives in React state, and a discrete blur
+    // flushes the pending keystroke state so Save never reads a stale value.
+    await page.getByLabel(/fine rupees per day/i).press("Tab");
     await page.getByRole("button", { name: /save rate/i }).click();
     await expect(page.getByText(/fine rate saved/i).first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByText(/current: ₹7\/day/i).first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByText(/overdue fine: ₹7\/day/i).first()).toBeVisible();
     // Restore the default so later runs start clean.
     await page.getByLabel(/fine rupees per day/i).fill("5");
+    await page.getByLabel(/fine rupees per day/i).press("Tab");
     await page.getByRole("button", { name: /save rate/i }).click();
     await expect(page.getByText(/current: ₹5\/day/i).first()).toBeVisible({ timeout: 20000 });
   });
@@ -86,6 +94,11 @@ test.describe("library circuit", () => {
     await page.getByLabel(/book author/i).fill("E2E Author");
     await page.getByLabel(/total copies/i).fill("1");
     await page.getByRole("button", { name: /add to catalog/i }).click();
+    await expect(page.getByText(/added to the catalog/i).first()).toBeVisible({ timeout: 20000 });
+    // Title-sorted paging means a fresh add can land off page 1 once the
+    // shelf holds 20+ titles — search first, then work the row.
+    await page.getByLabel(/search catalog/i).fill(`E2E Edit ${stamp}`);
+    await page.getByRole("button", { name: /^filter$/i }).click();
     await expect(page.getByText(`E2E Edit ${stamp}`).first()).toBeVisible({ timeout: 20000 });
     await page.getByLabel(/find pupil/i).fill("Aditya Sharma");
     await page.getByRole("button", { name: /find pupil/i }).click();

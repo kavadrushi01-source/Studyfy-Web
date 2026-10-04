@@ -9,21 +9,23 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Chunk 3 of 5 complete (Library DONE in STATUS.md per Definition of Done: 220/220, 61/61, senior-reviewed). Next is Chunk 4 — Transport + HR/Payroll.
-**Phase / Module:** Phase 2, Chunk 4 (Transport + HR/Payroll) — awaiting start
-**Last updated:** 2026-10-03
+**Status:** IDLE — Chunk 4 of 5 complete (Transport + HR/Payroll DONE in STATUS.md per Definition of Done: API 220/220, e2e 65/65 zero flakes, human passes + screenshots). Next is Chunk 5 (final — scope per founder).
+**Phase / Module:** Phase 2, Chunk 5 (final) — awaiting start
+**Last updated:** 2026-10-04
 
 ## What's done in this task so far
-- Chunk 3 of 5 DONE: Library (§7 #13) incl. fines, timezone math, race guards, desk UX. Full record in `STATUS.md` Phase 2 row; detail in BUGSFIX 39–42 + History below.
+- Chunk 4 of 5 DONE: Transport (§7 #14) + HR/Payroll (§7 #15) — routes/stops/vehicles/assignments + my-rides, salary structures/generate/pay/slips; `/transport` + `/payroll` UI + nav; migrations + permission keys; `chunk4.spec.ts`. Full record in `STATUS.md` Phase 2 rows; detail in BUGSFIX 43 + History below.
+- Stabilization in the same pass: library last-write-wins loader race fixed with request-id guards (BUGSFIX 44); e2e made count-independent — library search-first, roster conditional paging (BUGSFIX 45); restart-env lesson recorded — FRONTEND_ORIGIN + NEXT_PUBLIC_API_URL + MySQL-first order (BUGSFIX 46).
+- Earlier chunks (detail in STATUS.md Phase 2 rows + History below): Chunk 3 Library DONE (220/220, 61/61, senior-reviewed); Chunk 2 CRM + certificates DONE; Chunk 1 Razorpay TEST MODE DONE.
 - Chunk 2 DONE + verified (details BUGSFIX 35): CRM pipeline (public intake → stages + assignee + notes timeline, office-only; /crm UI) + certificates (Bonafide/Transfer/Character PDFs, CERT/year/sequence serials, frozen snapshots, re-download; /certificates UI). New tables via migration + idempotent permission-keys data migration (prod gets keys via `migrate deploy`). Verified: API 212/212 (57 files), e2e 56/56, typecheck+lint 0, 10-check human pass (public→CONTACTED, TRANSFER CERT/2026/0003, 2073 PDF bytes, nav).
 - Previous: follow-up round DONE (BUGSFIX 34).
 - Chunk 1 of 5 DONE earlier: Razorpay TEST MODE online fee payment. Full record in `STATUS.md` Phase 2 row; detail in History below.
 
 ## What's left in this task
-- Chunk 2 — Admission/Enquiry CRM + Certificate Generator: not started. Start from `AGENT_START_HERE.md` (read `STATUS.md` first, per RULES.md §6.1).
+- Chunk 5 (final chunk): not started. Start from `AGENT_START_HERE.md` (read `STATUS.md` first, per RULES.md §6.1).
 
 ## Exact next action
-- Begin Chunk 2 (Admission/Enquiry CRM + Certificate Generator) whenever the founder says go — no code changes pending, tree clean after this commit.
+- Begin Chunk 5 (final) whenever the founder says go — no code changes pending, tree clean after this commit. Prod migrate for Chunk 4 tables/keys still needed before live use (needs the Aiven URL in chat, used once, stored nowhere).
 
 ## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
@@ -58,7 +60,7 @@
 - Follow-up (not blocking DONE): `npm audit` 2026-10-01 flags 1 critical — next 16.2.0–16.3.5 `next/og` ImageResponse RCE, module never imported here; fix = bump to next 16.3.8 + rebuild + full re-verify. Deliberate upgrade task for a future session.
 
 ## Exact next action
-- Founder tests the 4 fixes on the live site after deploy (needs commit+push first — ASK before pushing). Then Chunk 2 (Admission/Enquiry CRM + Certificate Generator) whenever the founder says go.
+- Chunk 5 (final) whenever the founder says go — tree clean after this commit. Before that, prod `migrate deploy` for the Chunk 4 tables/keys (needs the Aiven URL in chat, used once, stored nowhere), then verify live /transport + /payroll 200s.
 
 ## Repo state right now
 - Clean after this commit. Web + API servers running (3001/4001) against `studyfy_e2e` on 3307. Local `.env` has `RAZORPAY_WEBHOOK_SECRET=wh-local-human-pass` (gitignored). Demo login: slug `school-of-science`, password `Demo@1234`.

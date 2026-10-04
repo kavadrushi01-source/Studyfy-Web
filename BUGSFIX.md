@@ -357,6 +357,36 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+43. **Chunk 4 build traps (2026-10-04, Transport + HR/Payroll).**
+    (1) Prisma `upsert` where-clauses cannot carry the tenant `schoolId`
+    (tenant extension owns it) — replaced with update-or-create inside the
+    tenant context; (2) stop renumbering must stay dense after deletes
+    (P2002 retry on reorder); (3) new tenant models MUST join
+    `TENANT_MODELS` + permission-keys migration or prod 403s (same trap as
+    Chunk 3's missing-keys outage). Verified: API 220/220, e2e 65/65.
+44. **Library last-write-wins race (2026-10-04, real app bug found by the
+    suite).** Mount-effect `loadLoans` and post-save `loadLoans` overlap;
+    under parallel-suite load the stale pre-save response resolved last
+    and repainted `Current: ₹5/day` after a ₹7 save (fine-rate test flaked
+    2 full runs, passed retry). Both loaders now carry monotonically
+    increasing request ids — only the newest response may paint. Lesson:
+    a test that fails-first-then-passes-retry on a 20s-polling assertion
+    is a stale-overwrite race, not timing — fix the loader, not the test.
+45. **E2E count-independence (2026-10-04).** Two tests assumed dataset
+    shape: library edit/add expected the new title on catalog page 1
+    (title-A–Z paging pushed it to page 2 after 28 accumulated E2E books),
+    roster expected Next enabled (exactly 10 pupils = 1 page). Both now
+    search/navigate first and assert pager state conditionally. Rule: no
+    e2e assertion may depend on accumulated row counts.
+46. **Restart env (2026-10-04, cost an hour).** After a process kill the
+    API came back WITHOUT `FRONTEND_ORIGIN` (browser login died with CORS
+    preflight ERR_FAILED while direct API login 200'd — split proven via
+    temp `request` vs `page` spec) and the web served a build baked WITHOUT
+    `NEXT_PUBLIC_API_URL` (`:4000` default vs API `:4001`). Recovery order:
+    MySQL 3307 → API (`PORT=4001` + `FRONTEND_ORIGIN`, cwd `apps/api` for
+    dotenv) → web (`next start --port 3001` via root `.bin` shim, cwd
+    `apps/web`). Standing rule: after ANY kill, re-read the CURRENT_TASK
+    start recipe before assuming servers are healthy.
 42. **Senior review of Chunk 3 (2026-10-03, founder-ordered).** Read
     every line fresh; found and fixed: (1) REAL issue/return race —
     check-then-act outside the transaction let two desks issue the last

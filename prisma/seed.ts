@@ -102,6 +102,10 @@ const PERMISSIONS: { key: string; description: string }[] = [
   { key: "certificates.manage", description: "Issue certificates (School Admin, Accountant)" },
   { key: "library.read", description: "Browse the catalog and read loans (all school roles; pupils/parents narrowed to own)" },
   { key: "library.manage", description: "Manage books, issue and take returns (School Admin, Librarian)" },
+  { key: "transport.read", description: "Read routes, vehicles and assignments (all school roles; pupils/parents narrowed to own)" },
+  { key: "transport.manage", description: "Manage routes, stops, vehicles and assignments (School Admin, Transport Manager)" },
+  { key: "payroll.read", description: "Read payroll (managers see all; staff see own slips only)" },
+  { key: "payroll.manage", description: "Set salaries, generate months, mark paid (School Admin, Accountant)" },
   { key: "dashboard.read", description: "Read own role's dashboard bundle (each board's route additionally role-guards its audience)" },
   { key: "platform.schools.read", description: "List every school cross-tenant (Platform Owner only)" },
 ];
@@ -110,12 +114,13 @@ const PERMISSIONS: { key: string; description: string }[] = [
 // PERMISSION grants access while self-scope narrows ROWS — holding the key
 // never means seeing everyone.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.read", "homework.submit", "homework.grade", "messages.read", "documents.read", "documents.write", "crm.read", "crm.manage", "certificates.read", "certificates.manage", "library.read", "library.manage", "dashboard.read"],
-  TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "notices.read", "notices.write", "exams.manage", "exams.read", "timetable.read", "homework.manage", "homework.read", "homework.grade", "messages.send", "messages.read", "documents.read", "library.read", "dashboard.read"],
-  ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "notices.read", "fees.manage", "fees.read", "exams.read", "timetable.read", "documents.read", "documents.write", "crm.read", "certificates.read", "certificates.manage", "dashboard.read"],
-  STUDENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.submit", "homework.read", "messages.send", "messages.read", "library.read", "dashboard.read"],
-  PARENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.read", "messages.send", "messages.read", "library.read", "dashboard.read"],
-  LIBRARIAN: ["students.read", "library.read", "library.manage", "dashboard.read"],
+  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.read", "homework.submit", "homework.grade", "messages.read", "documents.read", "documents.write", "crm.read", "crm.manage", "certificates.read", "certificates.manage", "library.read", "library.manage", "transport.read", "transport.manage", "payroll.read", "payroll.manage", "dashboard.read"],
+  TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "notices.read", "notices.write", "exams.manage", "exams.read", "timetable.read", "homework.manage", "homework.read", "homework.grade", "messages.send", "messages.read", "documents.read", "library.read", "transport.read", "payroll.read", "dashboard.read"],
+  ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "notices.read", "fees.manage", "fees.read", "exams.read", "timetable.read", "documents.read", "documents.write", "crm.read", "certificates.read", "certificates.manage", "payroll.read", "payroll.manage", "dashboard.read"],
+  STUDENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.submit", "homework.read", "messages.send", "messages.read", "library.read", "transport.read", "dashboard.read"],
+  PARENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.read", "messages.send", "messages.read", "library.read", "transport.read", "dashboard.read"],
+  LIBRARIAN: ["students.read", "library.read", "library.manage", "payroll.read", "dashboard.read"],
+  TRANSPORT_MANAGER: ["students.read", "transport.read", "transport.manage", "payroll.read"],
   PLATFORM_OWNER: ["platform.schools.read"],
 };
 
@@ -560,6 +565,7 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
   await seedNotices(db, school.id, classIds, adminId, spec.eventNotice);
   await seedEnquiries(db, school.id, adminId);
   await seedBooks(db, school.id);
+  await seedTransport(db, school.id);
 }
 
 async function seedFees(
@@ -904,6 +910,59 @@ async function seedBooks(db: PrismaClient, schoolId: string): Promise<void> {
     await db.book.create({
       data: { ...book, schoolId, availableCopies: book.totalCopies },
     });
+  }
+}
+
+async function seedTransport(db: PrismaClient, schoolId: string): Promise<void> {
+  // Deterministic depot demo (idempotent by name/number): two routes with
+  // ordered stops plus one bus each, so the board opens non-empty.
+  const routes: { name: string; description: string; stops: { name: string; pickupTime: string }[]; bus: { number: string; driver: string } }[] = [
+    {
+      name: "Route 1 · North Loop",
+      description: "Northern neighbourhoods to the front gate.",
+      stops: [
+        { name: "Depot", pickupTime: "07:00" },
+        { name: "Lakeview", pickupTime: "07:12" },
+        { name: "Market", pickupTime: "07:24" },
+        { name: "School Gate", pickupTime: "07:40" },
+      ],
+      bus: { number: "SCH-01", driver: "Ramesh Driver" },
+    },
+    {
+      name: "Route 2 · South Loop",
+      description: "Southern neighbourhoods to the front gate.",
+      stops: [
+        { name: "Depot", pickupTime: "07:00" },
+        { name: "Temple Stop", pickupTime: "07:15" },
+        { name: "School Gate", pickupTime: "07:38" },
+      ],
+      bus: { number: "SCH-02", driver: "Suresh Driver" },
+    },
+  ];
+  for (const spec of routes) {
+    let route = await db.busRoute.findFirst({ where: { schoolId, name: spec.name } });
+    if (!route) {
+      route = await db.busRoute.create({ data: { schoolId, name: spec.name, description: spec.description } });
+    }
+    for (let index = 0; index < spec.stops.length; index += 1) {
+      const stop = spec.stops[index];
+      if (!stop) {
+        continue;
+      }
+      const existing = await db.busStop.findFirst({ where: { routeId: route.id, name: stop.name } });
+      if (existing) {
+        continue;
+      }
+      await db.busStop.create({
+        data: { schoolId, routeId: route.id, name: stop.name, stopOrder: index + 1, pickupTime: stop.pickupTime },
+      });
+    }
+    const bus = await db.busVehicle.findFirst({ where: { schoolId, number: spec.bus.number } });
+    if (!bus) {
+      await db.busVehicle.create({
+        data: { schoolId, routeId: route.id, number: spec.bus.number, capacity: 40, driverName: spec.bus.driver },
+      });
+    }
   }
 }
 

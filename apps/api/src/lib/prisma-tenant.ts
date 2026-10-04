@@ -33,6 +33,12 @@ export const TENANT_MODELS = [
   "Certificate",
   "Book",
   "BookLoan",
+  "BusRoute",
+  "BusStop",
+  "BusVehicle",
+  "StudentTransport",
+  "SalaryStructure",
+  "PayrollPayment",
   "Document",
   "Message",
 ] as const;

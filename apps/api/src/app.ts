@@ -9,6 +9,7 @@ import { examsRouter } from "./modules/exams/exams.router.js";
 import { homeworkRouter } from "./modules/homework/homework.router.js";
 import { libraryRouter } from "./modules/library/library.router.js";
 import { messagesRouter } from "./modules/messages/messages.router.js";
+import { payrollRouter } from "./modules/payroll/payroll.router.js";
 import { feesRouter } from "./modules/fees/fees.router.js";
 import { noticesRouter } from "./modules/notices/notices.router.js";
 import { platformRouter } from "./modules/platform/platform.router.js";
@@ -17,6 +18,7 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.router.js";
 import { sectionsRouter } from "./modules/sections/sections.router.js";
 import { staffRouter } from "./modules/staff/staff.router.js";
 import { timetableRouter } from "./modules/timetable/timetable.router.js";
+import { transportRouter } from "./modules/transport/transport.router.js";
 import { studentsRouter } from "./modules/students/students.router.js";
 import { applyCors, applyHelmet } from "./middleware/security.js";
 
@@ -59,8 +61,10 @@ export function createApp(): Express {
   app.use("/api/v1", homeworkRouter);
   app.use("/api/v1", libraryRouter);
   app.use("/api/v1", messagesRouter);
+  app.use("/api/v1", payrollRouter);
   app.use("/api/v1", staffRouter);
   app.use("/api/v1", timetableRouter);
+  app.use("/api/v1", transportRouter);
   app.use("/api/v1", feesRouter);
   app.use("/api/v1", noticesRouter);
   app.use("/api/v1", sectionsRouter);

@@ -100,12 +100,17 @@ export default function LibraryPage() {
   const [rateInput, setRateInput] = useState("5");
   const [savingRate, setSavingRate] = useState(false);
   const rateSeeded = useRef(false);
+  // Last-write-wins guards: overlapping loads (mount + filter + post-mutation
+  // reloads) resolve out of order under load — only the newest may paint.
+  const booksReq = useRef(0);
+  const loansReq = useRef(0);
 
   const loadBooks = useCallback(
     async (next: { search: string; category: string; availableOnly: boolean; page: number }) => {
       if (!schoolId) {
         return;
       }
+      const req = ++booksReq.current;
       setLoading(true);
       setError("");
       try {
@@ -126,6 +131,9 @@ export default function LibraryPage() {
         if (isFailure(response, body)) {
           throw new Error(body.error?.message ?? "Failed to load catalog.");
         }
+        if (req !== booksReq.current) {
+          return;
+        }
         setBooks(body.data.books);
         setCategories(body.data.categories);
         setBookTotal(body.data.total);
@@ -144,6 +152,7 @@ export default function LibraryPage() {
       if (!schoolId) {
         return;
       }
+      const req = ++loansReq.current;
       setLoansLoading(true);
       try {
         const params = new URLSearchParams({ page: String(loanPageNo), pageSize: "20" });
@@ -155,6 +164,9 @@ export default function LibraryPage() {
           data: { loans: LoanRow[]; finePerDay: number; total: number; totalPages: number };
         } | ApiError;
         if (!isFailure(response, body)) {
+          if (req !== loansReq.current) {
+            return;
+          }
           setLoans(body.data.loans);
           setLoanTotal(body.data.total);
           setLoanPages(body.data.totalPages);

@@ -147,6 +147,12 @@ model School {
   certificates        Certificate[]
   books               Book[]
   bookLoans           BookLoan[]
+  busRoutes           BusRoute[]
+  busStops            BusStop[]
+  busVehicles         BusVehicle[]
+  studentTransports   StudentTransport[]
+  salaryStructures    SalaryStructure[]
+  payrollPayments     PayrollPayment[]
   documents           Document[]
   messages            Message[]
 
@@ -187,6 +193,7 @@ model User {
   enquiryNotes      EnquiryNote[]    @relation("EnquiryNoteAuthor")
   issuedCertificates Certificate[]   @relation("CertificateIssuer")
   issuedLoans       BookLoan[]       @relation("LoanIssuer")
+  payrollPaid       PayrollPayment[] @relation("PayrollPayer")
 
   @@unique([schoolId, email])
   @@index([schoolId])
@@ -332,6 +339,7 @@ model Student {
   submissions   HomeworkSubmission[]
   certificates  Certificate[]
   bookLoans     BookLoan[]
+  transport     StudentTransport?
 
   @@index([schoolId, sectionId])
   @@map("students")
@@ -372,6 +380,8 @@ model Staff {
   timetableSlots   TimetableSlot[] @relation("SlotTeacher")
   classSections    Section[]       @relation("ClassTeacher")
   teacherSubjects  TeacherSubject[]
+  salaryStructure  SalaryStructure?
+  payrollPayments  PayrollPayment[]
 
   @@index([schoolId])
   @@map("staff")
@@ -754,6 +764,117 @@ model Book {
   @@index([schoolId, title])
   @@index([schoolId, category])
   @@map("books")
+}
+
+// ---------------------------------------------------------------------------
+// Transport (§7 Phase 2 #14): bus routes with ordered stops, vehicles with
+// drivers, and pupil assignments. A pupil rides at most one stop
+// (@@unique on student). Tenant-scoped like any other school data
+// (RULES.md §3).
+// ---------------------------------------------------------------------------
+
+model BusRoute {
+  id          String             @id @default(cuid()) @map("id")
+  schoolId    String             @map("school_id")
+  school      School             @relation(fields: [schoolId], references: [id])
+  name        String             @map("name")
+  description String?            @map("description") @db.Text
+  stops       BusStop[]
+  vehicles    BusVehicle[]
+  assignments StudentTransport[]
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@index([schoolId, name])
+  @@map("bus_routes")
+}
+
+model BusStop {
+  id        String   @id @default(cuid()) @map("id")
+  schoolId  String   @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id])
+  routeId   String   @map("route_id")
+  route     BusRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  name      String   @map("name")
+  stopOrder Int      @map("stop_order")
+  pickupTime String? @map("pickup_time")
+  riders    StudentTransport[]
+
+  @@unique([routeId, stopOrder])
+  @@index([routeId, stopOrder])
+  @@map("bus_stops")
+}
+
+model BusVehicle {
+  id          String    @id @default(cuid()) @map("id")
+  schoolId    String    @map("school_id")
+  school      School    @relation(fields: [schoolId], references: [id])
+  routeId     String?   @map("route_id")
+  route       BusRoute? @relation(fields: [routeId], references: [id], onDelete: SetNull)
+  number      String    @map("number")
+  capacity    Int       @map("capacity")
+  driverName  String    @map("driver_name")
+  driverPhone String?   @map("driver_phone")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([schoolId, number])
+  @@map("bus_vehicles")
+}
+
+model StudentTransport {
+  id        String    @id @default(cuid()) @map("id")
+  schoolId  String    @map("school_id")
+  school    School    @relation(fields: [schoolId], references: [id])
+  studentId String    @unique @map("student_id")
+  student   Student   @relation(fields: [studentId], references: [id])
+  routeId   String    @map("route_id")
+  route     BusRoute  @relation(fields: [routeId], references: [id])
+  stopId    String    @map("stop_id")
+  stop      BusStop   @relation(fields: [stopId], references: [id])
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([routeId, stopId])
+  @@map("student_transport")
+}
+
+// ---------------------------------------------------------------------------
+// Payroll (§7 Phase 2 #15, basic): monthly salary structures per staffer +
+// generated month rows flipped PENDING → PAID. Records only — no money
+// moves here. Amounts are Decimal-exact strings end to end (§13.6).
+// ---------------------------------------------------------------------------
+
+model SalaryStructure {
+  id            String   @id @default(cuid()) @map("id")
+  schoolId      String   @map("school_id")
+  school        School   @relation(fields: [schoolId], references: [id])
+  staffId       String   @unique @map("staff_id")
+  staff         Staff    @relation(fields: [staffId], references: [id])
+  monthlyAmount Decimal  @map("monthly_amount") @db.Decimal(10, 2)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("salary_structures")
+}
+
+model PayrollPayment {
+  id        String   @id @default(cuid()) @map("id")
+  schoolId  String   @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id])
+  staffId   String   @map("staff_id")
+  staff     Staff    @relation(fields: [staffId], references: [id])
+  month     String   @map("month")
+  amount    Decimal  @map("amount") @db.Decimal(10, 2)
+  status    String   @default("PENDING") @map("status")
+  paidAt    DateTime? @map("paid_at")
+  paidBy    String?  @map("paid_by")
+  payer     User?    @relation("PayrollPayer", fields: [paidBy], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([staffId, month])
+  @@index([schoolId, month, status])
+  @@map("payroll_payments")
 }
 
 model BookLoan {
