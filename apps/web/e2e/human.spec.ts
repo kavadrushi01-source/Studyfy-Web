@@ -309,6 +309,13 @@ test.describe("session, gates and edges", () => {
 
     for (const walk of walks) {
       await login(page, walk.email, walk.slug);
+      // Sidebar must never list the same destination twice (a duplicated
+      // nav entry renders two identical links and a React key collision).
+      await page.goto(walk.hrefs[0]!);
+      await expect(page.locator(".sf-side-nav").first()).toBeVisible({ timeout: 20000 });
+      const navLabels = await page.locator(".sf-side-nav > a, .sf-side-nav > span").allTextContents();
+      const names = navLabels.map((t) => t.replace(/\s*Soon\s*$/, "").trim()).filter((t) => t.length > 0);
+      expect(new Set(names).size).toBe(names.length);
       for (const href of walk.hrefs) {
         await page.goto(href);
         await expect(page.locator("h1").first()).toBeVisible({ timeout: 20000 });

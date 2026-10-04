@@ -357,6 +357,12 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+47. **Duplicate sidebar links (2026-10-04, founder-found on prod).**
+    Chunk 4 pasted Transport/Payroll into the admin nav twice and Payroll
+    into the accountant nav twice — two identical links + React key
+    collision. The sidebar sweep now asserts label uniqueness per role
+    (strips the "Soon" pill text first), which fails 19-vs-17 on the old
+    build and passes on the fixed one.
 43. **Chunk 4 build traps (2026-10-04, Transport + HR/Payroll).**
     (1) Prisma `upsert` where-clauses cannot carry the tenant `schoolId`
     (tenant extension owns it) — replaced with update-or-create inside the
