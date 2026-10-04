@@ -357,6 +357,19 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+48. **Transport founder-schema rebuild (2026-10-04, founder-directed).**
+    Replaced BusRoute/BusStop/BusVehicle/StudentTransport with exactly
+    vehicles (registration_number UNIQUE per school, capacity, driver_name),
+    transport_routes (name, stops JSON run), student_routes (student+route
+    join, one active ride). Retired with the old tables: route
+    descriptions, driver phones, vehicle→route links, per-stop boarding
+    (riders are route-level now; stop-remove needs no guard, route-remove
+    keeps the riders guard). Stops are index-addressed
+    (`routes/:id/stops/:index`, 0-based; out-of-range 404s). Migration
+    carries rows (GROUP_CONCAT+JSON_OBJECT ordered into the JSON run;
+    session concat cap raised) — verified byte-identical runs locally.
+    assignRider survives the find-then-create race via a P2002 fallback to
+    update. Verified: API 224/224, e2e 65/65, screenshot-reviewed.
 47. **Duplicate sidebar links (2026-10-04, founder-found on prod).**
     Chunk 4 pasted Transport/Payroll into the admin nav twice and Payroll
     into the accountant nav twice — two identical links + React key

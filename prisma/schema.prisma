@@ -147,10 +147,9 @@ model School {
   certificates        Certificate[]
   books               Book[]
   bookLoans           BookLoan[]
-  busRoutes           BusRoute[]
-  busStops            BusStop[]
-  busVehicles         BusVehicle[]
-  studentTransports   StudentTransport[]
+  vehicles            Vehicle[]
+  transportRoutes     TransportRoute[]
+  studentRoutes       StudentRoute[]
   salaryStructures    SalaryStructure[]
   payrollPayments     PayrollPayment[]
   documents           Document[]
@@ -339,7 +338,7 @@ model Student {
   submissions   HomeworkSubmission[]
   certificates  Certificate[]
   bookLoans     BookLoan[]
-  transport     StudentTransport?
+  routes        StudentRoute[]
 
   @@index([schoolId, sectionId])
   @@map("students")
@@ -773,70 +772,55 @@ model Book {
 // (RULES.md §3).
 // ---------------------------------------------------------------------------
 
-model BusRoute {
-  id          String             @id @default(cuid()) @map("id")
-  schoolId    String             @map("school_id")
-  school      School             @relation(fields: [schoolId], references: [id])
-  name        String             @map("name")
-  description String?            @map("description") @db.Text
-  stops       BusStop[]
-  vehicles    BusVehicle[]
-  assignments StudentTransport[]
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
+// ---------------------------------------------------------------------------
+// Transport (§7 Phase 2 #14, founder schema): fleet-level vehicles,
+// routes carrying their stops as an ordered JSON run, and a join table
+// mapping pupils onto routes — a pupil rides or doesn't, term to term
+// (row presence IS the subscription; one active ride per pupil).
+// ---------------------------------------------------------------------------
+
+model Vehicle {
+  id                 String   @id @default(cuid()) @map("id")
+  schoolId           String   @map("school_id")
+  school             School   @relation(fields: [schoolId], references: [id])
+  registrationNumber String   @map("registration_number")
+  capacity           Int      @map("capacity")
+  driverName         String   @map("driver_name")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@unique([schoolId, registrationNumber])
+  @@map("vehicles")
+}
+
+model TransportRoute {
+  id        String         @id @default(cuid()) @map("id")
+  schoolId  String         @map("school_id")
+  school    School         @relation(fields: [schoolId], references: [id])
+  name      String         @map("name")
+  stops     Json           @map("stops")
+  riders    StudentRoute[]
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
 
   @@index([schoolId, name])
-  @@map("bus_routes")
+  @@map("transport_routes")
 }
 
-model BusStop {
-  id        String   @id @default(cuid()) @map("id")
-  schoolId  String   @map("school_id")
-  school    School   @relation(fields: [schoolId], references: [id])
-  routeId   String   @map("route_id")
-  route     BusRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  name      String   @map("name")
-  stopOrder Int      @map("stop_order")
-  pickupTime String? @map("pickup_time")
-  riders    StudentTransport[]
+model StudentRoute {
+  id        String         @id @default(cuid()) @map("id")
+  schoolId  String         @map("school_id")
+  school    School         @relation(fields: [schoolId], references: [id])
+  studentId String         @map("student_id")
+  student   Student        @relation(fields: [studentId], references: [id])
+  routeId   String         @map("route_id")
+  route     TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
 
-  @@unique([routeId, stopOrder])
-  @@index([routeId, stopOrder])
-  @@map("bus_stops")
-}
-
-model BusVehicle {
-  id          String    @id @default(cuid()) @map("id")
-  schoolId    String    @map("school_id")
-  school      School    @relation(fields: [schoolId], references: [id])
-  routeId     String?   @map("route_id")
-  route       BusRoute? @relation(fields: [routeId], references: [id], onDelete: SetNull)
-  number      String    @map("number")
-  capacity    Int       @map("capacity")
-  driverName  String    @map("driver_name")
-  driverPhone String?   @map("driver_phone")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-
-  @@index([schoolId, number])
-  @@map("bus_vehicles")
-}
-
-model StudentTransport {
-  id        String    @id @default(cuid()) @map("id")
-  schoolId  String    @map("school_id")
-  school    School    @relation(fields: [schoolId], references: [id])
-  studentId String    @unique @map("student_id")
-  student   Student   @relation(fields: [studentId], references: [id])
-  routeId   String    @map("route_id")
-  route     BusRoute  @relation(fields: [routeId], references: [id])
-  stopId    String    @map("stop_id")
-  stop      BusStop   @relation(fields: [stopId], references: [id])
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-
-  @@index([routeId, stopId])
-  @@map("student_transport")
+  @@unique([schoolId, studentId])
+  @@index([routeId])
+  @@map("student_routes")
 }
 
 // ---------------------------------------------------------------------------

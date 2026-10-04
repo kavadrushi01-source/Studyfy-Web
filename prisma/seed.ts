@@ -915,52 +915,41 @@ async function seedBooks(db: PrismaClient, schoolId: string): Promise<void> {
 
 async function seedTransport(db: PrismaClient, schoolId: string): Promise<void> {
   // Deterministic depot demo (idempotent by name/number): two routes with
-  // ordered stops plus one bus each, so the board opens non-empty.
-  const routes: { name: string; description: string; stops: { name: string; pickupTime: string }[]; bus: { number: string; driver: string } }[] = [
+  // ordered stop runs plus two fleet buses, so the board opens non-empty.
+  const routes: { name: string; stops: { name: string; pickupTime: string }[] }[] = [
     {
       name: "Route 1 · North Loop",
-      description: "Northern neighbourhoods to the front gate.",
       stops: [
         { name: "Depot", pickupTime: "07:00" },
         { name: "Lakeview", pickupTime: "07:12" },
         { name: "Market", pickupTime: "07:24" },
         { name: "School Gate", pickupTime: "07:40" },
       ],
-      bus: { number: "SCH-01", driver: "Ramesh Driver" },
     },
     {
       name: "Route 2 · South Loop",
-      description: "Southern neighbourhoods to the front gate.",
       stops: [
         { name: "Depot", pickupTime: "07:00" },
         { name: "Temple Stop", pickupTime: "07:15" },
         { name: "School Gate", pickupTime: "07:38" },
       ],
-      bus: { number: "SCH-02", driver: "Suresh Driver" },
     },
   ];
   for (const spec of routes) {
-    let route = await db.busRoute.findFirst({ where: { schoolId, name: spec.name } });
-    if (!route) {
-      route = await db.busRoute.create({ data: { schoolId, name: spec.name, description: spec.description } });
+    const existing = await db.transportRoute.findFirst({ where: { schoolId, name: spec.name } });
+    if (!existing) {
+      await db.transportRoute.create({ data: { schoolId, name: spec.name, stops: spec.stops } });
     }
-    for (let index = 0; index < spec.stops.length; index += 1) {
-      const stop = spec.stops[index];
-      if (!stop) {
-        continue;
-      }
-      const existing = await db.busStop.findFirst({ where: { routeId: route.id, name: stop.name } });
-      if (existing) {
-        continue;
-      }
-      await db.busStop.create({
-        data: { schoolId, routeId: route.id, name: stop.name, stopOrder: index + 1, pickupTime: stop.pickupTime },
-      });
-    }
-    const bus = await db.busVehicle.findFirst({ where: { schoolId, number: spec.bus.number } });
-    if (!bus) {
-      await db.busVehicle.create({
-        data: { schoolId, routeId: route.id, number: spec.bus.number, capacity: 40, driverName: spec.bus.driver },
+  }
+  const buses = [
+    { registrationNumber: "SCH-01", driverName: "Ramesh Driver" },
+    { registrationNumber: "SCH-02", driverName: "Suresh Driver" },
+  ];
+  for (const bus of buses) {
+    const existing = await db.vehicle.findFirst({ where: { schoolId, registrationNumber: bus.registrationNumber } });
+    if (!existing) {
+      await db.vehicle.create({
+        data: { schoolId, registrationNumber: bus.registrationNumber, capacity: 40, driverName: bus.driverName },
       });
     }
   }

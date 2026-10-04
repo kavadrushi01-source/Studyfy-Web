@@ -24,11 +24,11 @@ test.describe("transport depot", () => {
       await expect(page.getByText(new RegExp(`${stop} ${stamp}`)).first()).toBeVisible({ timeout: 20000 });
     }
 
-    await page.getByLabel(/bus number/i).fill(`E2E-${stamp.slice(-6).toUpperCase()}`);
+    await page.getByLabel(/registration number/i).fill(`E2E-${stamp.slice(-6).toUpperCase()}`);
     await page.getByLabel(/seat capacity/i).fill("30");
     await page.getByLabel(/driver name/i).fill("E2E Driver");
     await page.getByRole("button", { name: /add vehicle/i }).click();
-    await expect(page.getByText(/vehicle added/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/vehicle added to the fleet/i).first()).toBeVisible({ timeout: 20000 });
 
     await page.getByLabel(/find pupil/i).fill("Aditya Sharma");
     await page.getByRole("button", { name: /find pupil/i }).click();
@@ -42,9 +42,9 @@ test.describe("transport depot", () => {
         .first()
         .getAttribute("value")) ?? "";
     await page.getByLabel(/rider pupil/i).selectOption(pupilValue);
-    await page.getByLabel(/boarding stop/i).selectOption({ index: 1 });
     await page.getByRole("button", { name: /assign rider/i }).click();
     await expect(page.getByText(/rider assigned/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("Aditya Sharma").first()).toBeVisible({ timeout: 20000 });
     await page.screenshot({ path: "e2e/shots/transport.png" });
   });
 

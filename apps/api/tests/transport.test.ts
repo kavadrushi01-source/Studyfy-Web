@@ -59,73 +59,99 @@ async function loginAs(schoolId: string, slug: string, roleName: string): Promis
   return login.body.data.accessToken as string;
 }
 
-describe("Transport (§7 Phase 2 #14)", () => {
-  it("runs routes, ordered stops, vehicles, and rider assignment", async () => {
+describe("Transport (§7 Phase 2 #14, founder schema)", () => {
+  it("runs routes with JSON stop runs, fleet, and rider assignment", async () => {
     const { schoolId, adminToken } = await registerSchool();
     const auth = { Authorization: `Bearer ${adminToken}` };
 
     const route = await request(app)
       .post(`/api/v1/schools/${schoolId}/transport/routes`)
       .set(auth)
-      .send({ name: `Route ${uid()}`, description: "North loop" })
+      .send({ name: `Route ${uid()}`, stops: [{ name: "Depot", pickupTime: "07:00" }] })
       .expect(201);
     const routeId = route.body.data.route.id as string;
+    expect(route.body.data.route.stops).toEqual([{ name: "Depot", pickupTime: "07:00" }]);
 
-    // Stops land dense 1..N in run order, explicit positions splice in.
-    const s1 = await request(app)
-      .post(`/api/v1/schools/${schoolId}/transport/routes/${routeId}/stops`)
-      .set(auth)
-      .send({ name: "Depot", pickupTime: "07:00" })
-      .expect(201);
-    const s3 = await request(app)
+    // Appends land at the end; `at` splices into the run.
+    await request(app)
       .post(`/api/v1/schools/${schoolId}/transport/routes/${routeId}/stops`)
       .set(auth)
       .send({ name: "Lakeview", pickupTime: "07:20" })
       .expect(201);
-    const s2 = await request(app)
+    const mid = await request(app)
       .post(`/api/v1/schools/${schoolId}/transport/routes/${routeId}/stops`)
       .set(auth)
-      .send({ name: "Market", stopOrder: 2, pickupTime: "07:10" })
+      .send({ name: "Market", at: 2, pickupTime: "07:10" })
       .expect(201);
-    expect(s2.body.data.stop.stopOrder).toBe(2);
-    void s1;
-    void s3;
+    expect(mid.body.data.stop.index).toBe(1);
 
-    const board = await request(app)
-      .get(`/api/v1/schools/${schoolId}/transport/routes`)
-      .set(auth)
-      .expect(200);
+    const board = await request(app).get(`/api/v1/schools/${schoolId}/transport/routes`).set(auth).expect(200);
     expect(board.body.data.routes[0].stops.map((s: { name: string }) => s.name)).toEqual(["Depot", "Market", "Lakeview"]);
+
+    // Rename + move a stop by index.
+    const moved = await request(app)
+      .patch(`/api/v1/schools/${schoolId}/transport/routes/${routeId}/stops/2`)
+      .set(auth)
+      .send({ at: 1 })
+      .expect(200);
+    expect(moved.body.data.stop.index).toBe(0);
+    const afterMove = await request(app).get(`/api/v1/schools/${schoolId}/transport/routes`).set(auth).expect(200);
+    expect(afterMove.body.data.routes[0].stops.map((s: { name: string }) => s.name)).toEqual([
+      "Lakeview",
+      "Depot",
+      "Market",
+    ]);
+
+    // Out-of-range positions 404, never 500.
+    const missing = await request(app)
+      .delete(`/api/v1/schools/${schoolId}/transport/routes/${routeId}/stops/9`)
+      .set(auth)
+      .expect(404);
+    expect(missing.body.error.code).toBe("STOP_NOT_FOUND");
 
     const vehicle = await request(app)
       .post(`/api/v1/schools/${schoolId}/transport/vehicles`)
       .set(auth)
-      .send({ number: "KA-05-1234", capacity: 40, driverName: "Driver Dan", routeId })
+      .send({ registrationNumber: `KA-05-${uid()}`, capacity: 40, driverName: "Driver Dan" })
       .expect(201);
-    expect(vehicle.body.data.vehicle.routeId).toBe(routeId);
+    expect(vehicle.body.data.vehicle.registrationNumber).toContain("KA-05-");
+
+    // Duplicate registration numbers are refused loudly.
+    const dupe = await request(app)
+      .post(`/api/v1/schools/${schoolId}/transport/vehicles`)
+      .set(auth)
+      .send({
+        registrationNumber: vehicle.body.data.vehicle.registrationNumber as string,
+        capacity: 30,
+        driverName: "Driver Dee",
+      })
+      .expect(409);
+    expect(dupe.body.error.code).toBe("VEHICLE_EXISTS");
 
     const pupilId = await makePupil(schoolId);
     const assigned = await request(app)
       .post(`/api/v1/schools/${schoolId}/transport/assignments`)
       .set(auth)
-      .send({ studentId: pupilId, routeId, stopId: s2.body.data.stop.id as string })
+      .send({ studentId: pupilId, routeId })
       .expect(201);
-    expect(assigned.body.data.assignment.stop.name).toBe("Market");
+    expect(assigned.body.data.assignment.route.stops).toHaveLength(3);
 
-    // Re-assigning moves the rider (one ride per pupil, no duplicates).
-    const moved = await request(app)
+    // Re-assigning the same pupil is idempotent (one ride per pupil).
+    await request(app)
       .post(`/api/v1/schools/${schoolId}/transport/assignments`)
       .set(auth)
-      .send({ studentId: pupilId, routeId, stopId: s1.body.data.stop.id as string })
+      .send({ studentId: pupilId, routeId })
       .expect(201);
-    expect(moved.body.data.assignment.stop.name).toBe("Depot");
+    const rides = await request(app).get(`/api/v1/schools/${schoolId}/transport/rides`).set(auth).expect(200);
+    expect(rides.body.data.rides.filter((r: { student: { id: string } }) => r.student.id === pupilId)).toHaveLength(1);
 
-    // Stop with a rider aboard refuses removal.
-    const blocked = await request(app)
-      .delete(`/api/v1/schools/${schoolId}/transport/stops/${s1.body.data.stop.id as string}`)
-      .set(auth)
-      .expect(409);
+    // A route with riders aboard refuses removal.
+    const blocked = await request(app).delete(`/api/v1/schools/${schoolId}/transport/routes/${routeId}`).set(auth).expect(409);
     expect(blocked.body.error.code).toBe("RIDERS_ASSIGNED");
+
+    // Unassign, then the route removes cleanly.
+    await request(app).delete(`/api/v1/schools/${schoolId}/transport/assignments/${pupilId}`).set(auth).expect(200);
+    await request(app).delete(`/api/v1/schools/${schoolId}/transport/routes/${routeId}`).set(auth).expect(200);
   });
 
   it("pins pupils to their own ride and enforces roles + tenancy", async () => {
@@ -134,19 +160,14 @@ describe("Transport (§7 Phase 2 #14)", () => {
     const route = await request(app)
       .post(`/api/v1/schools/${schoolA.schoolId}/transport/routes`)
       .set("Authorization", `Bearer ${schoolA.adminToken}`)
-      .send({ name: "Loop" })
+      .send({ name: "Loop", stops: [{ name: "Gate" }] })
       .expect(201);
     const routeId = route.body.data.route.id as string;
-    const stop = await request(app)
-      .post(`/api/v1/schools/${schoolA.schoolId}/transport/routes/${routeId}/stops`)
-      .set("Authorization", `Bearer ${schoolA.adminToken}`)
-      .send({ name: "Gate" })
-      .expect(201);
     const pupilId = await makePupil(schoolA.schoolId);
     await request(app)
       .post(`/api/v1/schools/${schoolA.schoolId}/transport/assignments`)
       .set("Authorization", `Bearer ${schoolA.adminToken}`)
-      .send({ studentId: pupilId, routeId, stopId: stop.body.data.stop.id as string })
+      .send({ studentId: pupilId, routeId })
       .expect(201);
 
     // Stranger school sees an empty board (tenant scope, never a leak).
@@ -158,7 +179,7 @@ describe("Transport (§7 Phase 2 #14)", () => {
     await request(app)
       .post(`/api/v1/schools/${schoolB.schoolId}/transport/assignments`)
       .set("Authorization", `Bearer ${schoolB.adminToken}`)
-      .send({ studentId: pupilId, routeId, stopId: stop.body.data.stop.id as string })
+      .send({ studentId: pupilId, routeId })
       .expect(404);
 
     // Teachers read the board but never run the depot.

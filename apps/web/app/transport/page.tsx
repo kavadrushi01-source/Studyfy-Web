@@ -9,44 +9,30 @@ import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, labelStyle, mutedStyle, pageFrame, primaryBtn, secondaryBtn } from "@/lib/theme";
 
 interface Stop {
-  id: string;
   name: string;
-  stopOrder: number;
   pickupTime: string | null;
-}
-
-interface Vehicle {
-  id: string;
-  number: string;
-  capacity: number;
-  driverName: string;
-  driverPhone: string | null;
 }
 
 interface Route {
   id: string;
   name: string;
-  description: string | null;
   stops: Stop[];
-  vehicles: Vehicle[];
   riderCount: number;
 }
 
-interface Vehicle {
-  id: string;
-  number: string;
-  capacity: number;
-  driverName: string;
-  driverPhone: string | null;
+interface Ride {
+  student: { id: string; name: string };
+  route: { id: string; name: string; stops: Stop[] };
 }
 
 interface ApiError {
   error: { code: string; message: string };
 }
 
-// Transport (§7 Phase 2 #14): routes with ordered stops, vehicles with
-// drivers, one assignment per pupil. Office (admin/transport-manager)
-// manages; pupils/parents see only their own ride.
+// Transport (§7 Phase 2 #14, founder schema): fleet-level vehicles,
+// routes carrying their stops as an ordered run, and a rider join —
+// a pupil rides a route or doesn't, term to term. Office
+// (admin/transport-manager) manages; pupils/parents see only own ride.
 export default function TransportPage() {
   const { token, schoolId, ready, apiFetch, user } = useAuth();
   const canManage = user?.role === "SCHOOL_ADMIN" || user?.role === "TRANSPORT_MANAGER";
@@ -54,25 +40,20 @@ export default function TransportPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  // New route form.
   const [routeName, setRouteName] = useState("");
-  const [routeDesc, setRouteDesc] = useState("");
   const [addingRoute, setAddingRoute] = useState(false);
-  // Active route detail.
   const [activeId, setActiveId] = useState("");
   const [stopName, setStopName] = useState("");
   const [stopTime, setStopTime] = useState("");
   const [pupilQuery, setPupilQuery] = useState("");
   const [pupilOptions, setPupilOptions] = useState<{ id: string; name: string }[]>([]);
   const [pupilId, setPupilId] = useState("");
-  const [stopPick, setStopPick] = useState("");
-  // Vehicle form.
-  const [vehNumber, setVehNumber] = useState("");
+  const [vehReg, setVehReg] = useState("");
   const [vehCapacity, setVehCapacity] = useState("40");
   const [driverName, setDriverName] = useState("");
-  const [driverPhone, setDriverPhone] = useState("");
   const [addingVehicle, setAddingVehicle] = useState(false);
   const [fleetRefresh, setFleetRefresh] = useState(0);
+  const [ridesRefresh, setRidesRefresh] = useState(0);
 
   const load = useCallback(async () => {
     if (!schoolId) {
@@ -118,20 +99,40 @@ export default function TransportPage() {
       const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/routes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: routeName.trim(), description: routeDesc.trim() || undefined }),
+        body: JSON.stringify({ name: routeName.trim() }),
       });
       const body = (await response.json()) as unknown as ApiError;
       if (isFailure(response, body)) {
         throw new Error(body.error?.message ?? "Could not add the route.");
       }
       setRouteName("");
-      setRouteDesc("");
       setNotice("Route added.");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
       setAddingRoute(false);
+    }
+  }
+
+  async function removeRoute(): Promise<void> {
+    if (!schoolId || !active) {
+      return;
+    }
+    if (!window.confirm(`Remove route "${active.name}"? Riders must be moved off first.`)) {
+      return;
+    }
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/routes/${active.id}`, { method: "DELETE" });
+      const body = (await response.json()) as unknown as ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not remove the route.");
+      }
+      setActiveId("");
+      setNotice("Route removed.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
     }
   }
 
@@ -161,15 +162,15 @@ export default function TransportPage() {
     }
   }
 
-  async function removeStop(stopId: string, name: string): Promise<void> {
-    if (!schoolId) {
+  async function removeStop(index: number, name: string): Promise<void> {
+    if (!schoolId || !active) {
       return;
     }
-    if (!window.confirm(`Remove stop "${name}"? Riders must be moved off first.`)) {
+    if (!window.confirm(`Remove stop "${name}" from ${active.name}?`)) {
       return;
     }
     try {
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/stops/${stopId}`, {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/routes/${active.id}/stops/${index}`, {
         method: "DELETE",
       });
       const body = (await response.json()) as unknown as ApiError;
@@ -204,7 +205,7 @@ export default function TransportPage() {
 
   async function assign(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!schoolId || !pupilId || !stopPick || !active) {
+    if (!schoolId || !pupilId || !active) {
       return;
     }
     setError("");
@@ -213,7 +214,7 @@ export default function TransportPage() {
       const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/assignments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId: pupilId, routeId: active.id, stopId: stopPick }),
+        body: JSON.stringify({ studentId: pupilId, routeId: active.id }),
       });
       const body = (await response.json()) as unknown as ApiError;
       if (isFailure(response, body)) {
@@ -221,6 +222,30 @@ export default function TransportPage() {
       }
       setNotice("Rider assigned — re-assigning the same pupil moves them.");
       setPupilId("");
+      setRidesRefresh((n) => n + 1);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    }
+  }
+
+  async function unassign(studentId: string, name: string): Promise<void> {
+    if (!schoolId) {
+      return;
+    }
+    if (!window.confirm(`Take ${name} off transport?`)) {
+      return;
+    }
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/assignments/${studentId}`, {
+        method: "DELETE",
+      });
+      const body = (await response.json()) as unknown as ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not remove the rider.");
+      }
+      setNotice("Rider taken off transport.");
+      setRidesRefresh((n) => n + 1);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
@@ -283,18 +308,15 @@ export default function TransportPage() {
           </div>
           {active ? (
             <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
-              <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 4px" }}>{active.name}</h2>
-              {active.description ? (
-                <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 12px" }}>{active.description}</p>
-              ) : null}
+              <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>{active.name}</h2>
               <h3 style={{ ...h1Style, fontSize: 15, margin: "0 0 8px" }}>Stops in run order</h3>
               {active.stops.length === 0 ? (
                 <p style={{ ...mutedStyle, fontSize: 13 }}>No stops yet — add the first below.</p>
               ) : (
                 <ul style={{ listStyle: "none", margin: "0 0 12px", padding: 0, display: "grid", gap: 6 }}>
-                  {active.stops.map((s) => (
+                  {active.stops.map((s, i) => (
                     <li
-                      key={s.id}
+                      key={`${i}-${s.name}`}
                       style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14, padding: "8px 0", borderTop: `1px solid ${colors.lineSoft}` }}
                     >
                       <span
@@ -312,7 +334,7 @@ export default function TransportPage() {
                           flexShrink: 0,
                         }}
                       >
-                        {s.stopOrder}
+                        {i + 1}
                       </span>
                       <span style={{ flex: 1, fontWeight: 500 }}>
                         {s.name}
@@ -321,7 +343,7 @@ export default function TransportPage() {
                       {canManage ? (
                         <button
                           type="button"
-                          onClick={() => void removeStop(s.id, s.name)}
+                          onClick={() => void removeStop(i, s.name)}
                           style={{ ...secondaryBtn, padding: "5px 12px", fontSize: 12 }}
                         >
                           Remove
@@ -354,15 +376,14 @@ export default function TransportPage() {
                   </button>
                 </form>
               ) : null}
-              <h3 style={{ ...h1Style, fontSize: 15, margin: "16px 0 8px" }}>
-                On this route {active.vehicles.length > 0 ? null : <span style={{ color: colors.muted, fontWeight: 400 }}>— no vehicle assigned</span>}
-              </h3>
-              {active.vehicles.map((v) => (
-                <p key={v.id} style={{ fontSize: 13, color: colors.inkSoft, margin: "0 0 4px" }}>
-                  {v.number} · {v.driverName}
-                  {v.driverPhone ? ` (${v.driverPhone})` : ""} · {v.capacity} seats
-                </p>
-              ))}
+              <RiderList
+                schoolId={schoolId}
+                apiFetch={apiFetch}
+                routeId={active.id}
+                canManage={canManage}
+                refreshKey={ridesRefresh}
+                onUnassign={(studentId, name) => void unassign(studentId, name)}
+              />
               {canManage ? (
                 <>
                   <form onSubmit={findPupils} className="sf-row-wrap" style={{ marginBottom: 8 }}>
@@ -380,42 +401,32 @@ export default function TransportPage() {
                   </form>
                   <form onSubmit={assign} style={{ marginTop: 4 }}>
                     <h3 style={{ ...h1Style, fontSize: 15, margin: "0 0 8px" }}>Assign a rider</h3>
-                  <div className="sf-row-wrap">
-                    <select
-                      className="sf-select"
-                      style={{ flex: 2, minWidth: 180 }}
-                      value={pupilId}
-                      onChange={(e) => setPupilId(e.target.value)}
-                      required
-                      aria-label="Rider pupil"
-                    >
-                      <option value="">— pick a pupil —</option>
-                      {pupilOptions.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.name}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      className="sf-select"
-                      style={{ flex: 2, minWidth: 180 }}
-                      value={stopPick}
-                      onChange={(e) => setStopPick(e.target.value)}
-                      required
-                      aria-label="Boarding stop"
-                    >
-                      <option value="">— pick a stop —</option>
-                      {active.stops.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.stopOrder}. {s.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button type="submit" style={primaryBtn}>
-                      Assign rider
+                    <div className="sf-row-wrap">
+                      <select
+                        className="sf-select"
+                        style={{ flex: 2, minWidth: 180 }}
+                        value={pupilId}
+                        onChange={(e) => setPupilId(e.target.value)}
+                        required
+                        aria-label="Rider pupil"
+                      >
+                        <option value="">— pick a pupil —</option>
+                        {pupilOptions.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="submit" style={primaryBtn}>
+                        Assign rider
+                      </button>
+                    </div>
+                  </form>
+                  <div style={{ marginTop: 16 }}>
+                    <button type="button" onClick={() => void removeRoute()} style={{ ...secondaryBtn, padding: "6px 14px", fontSize: 13 }}>
+                      Remove route
                     </button>
                   </div>
-                </form>
                 </>
               ) : null}
             </section>
@@ -430,10 +441,6 @@ export default function TransportPage() {
               <label style={{ ...labelStyle, flex: 1, minWidth: 200 }}>
                 Route name
                 <input className="sf-input" value={routeName} onChange={(e) => setRouteName(e.target.value)} required aria-label="Route name" />
-              </label>
-              <label style={{ ...labelStyle, flex: 2, minWidth: 200 }}>
-                Description (optional)
-                <input className="sf-input" value={routeDesc} onChange={(e) => setRouteDesc(e.target.value)} aria-label="Route description" />
               </label>
             </div>
             <div>
@@ -459,13 +466,13 @@ export default function TransportPage() {
       {canManage ? (
         <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
           <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Fleet</h2>
-          <FleetList schoolId={schoolId} apiFetch={apiFetch} refreshKey={fleetRefresh} />
+          <FleetList schoolId={schoolId} apiFetch={apiFetch} refreshKey={fleetRefresh} canManage={canManage} />
           <form onSubmit={addVehicle} style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
             <h3 style={{ ...h1Style, fontSize: 15, margin: 0 }}>Add a vehicle</h3>
             <div className="sf-row-wrap">
               <label style={{ ...labelStyle, flex: 1, minWidth: 140 }}>
-                Bus number
-                <input className="sf-input" value={vehNumber} onChange={(e) => setVehNumber(e.target.value)} required aria-label="Bus number" />
+                Registration number
+                <input className="sf-input" value={vehReg} onChange={(e) => setVehReg(e.target.value)} required aria-label="Registration number" />
               </label>
               <label style={{ ...labelStyle, minWidth: 100 }}>
                 Seats
@@ -474,10 +481,6 @@ export default function TransportPage() {
               <label style={{ ...labelStyle, flex: 1, minWidth: 160 }}>
                 Driver
                 <input className="sf-input" value={driverName} onChange={(e) => setDriverName(e.target.value)} required aria-label="Driver name" />
-              </label>
-              <label style={{ ...labelStyle, flex: 1, minWidth: 140 }}>
-                Driver phone (optional)
-                <input className="sf-input" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} aria-label="Driver phone" />
               </label>
             </div>
             <div>
@@ -493,7 +496,7 @@ export default function TransportPage() {
 
   async function addVehicle(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!schoolId || !vehNumber.trim() || !driverName.trim()) {
+    if (!schoolId || !vehReg.trim() || !driverName.trim()) {
       return;
     }
     setAddingVehicle(true);
@@ -504,23 +507,20 @@ export default function TransportPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          number: vehNumber.trim(),
+          registrationNumber: vehReg.trim(),
           capacity: Number(vehCapacity) || 40,
           driverName: driverName.trim(),
-          ...(driverPhone.trim() ? { driverPhone: driverPhone.trim() } : {}),
-          ...(activeId ? { routeId: activeId } : {}),
         }),
       });
       const body = (await response.json()) as unknown as ApiError;
       if (isFailure(response, body)) {
         throw new Error(body.error?.message ?? "Could not add the vehicle.");
       }
-      setVehNumber("");
+      setVehReg("");
       setVehCapacity("40");
       setDriverName("");
-      setDriverPhone("");
       setFleetRefresh((n) => n + 1);
-      setNotice(activeId ? "Vehicle added and assigned to this route." : "Vehicle added to the fleet.");
+      setNotice("Vehicle added to the fleet.");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
@@ -534,43 +534,131 @@ function FleetList({
   schoolId,
   apiFetch,
   refreshKey,
+  canManage,
 }: {
   schoolId: string;
   apiFetch: (path: string, init?: RequestInit) => Promise<Response>;
   refreshKey: number;
+  canManage: boolean;
 }) {
-  const [vehicles, setVehicles] = useState<
-    { id: string; number: string; capacity: number; driverName: string; driverPhone: string | null; route: { name: string } | null }[]
-  >([]);
-  useEffect(() => {
-    void (async () => {
-      try {
-        const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/vehicles`);
-        const body = (await response.json()) as {
-          data: {
-            vehicles: { id: string; number: string; capacity: number; driverName: string; driverPhone: string | null; route: { name: string } | null }[];
-          };
-        } | ApiError;
-        if (!isFailure(response, body)) {
-          setVehicles(body.data.vehicles);
-        }
-      } catch {
-        // Fleet list stays as-is.
+  const [vehicles, setVehicles] = useState<{ id: string; registrationNumber: string; capacity: number; driverName: string }[]>([]);
+  const [error, setError] = useState("");
+  async function reload(): Promise<void> {
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/vehicles`);
+      const body = (await response.json()) as {
+        data: { vehicles: { id: string; registrationNumber: string; capacity: number; driverName: string }[] };
+      } | ApiError;
+      if (!isFailure(response, body)) {
+        setVehicles(body.data.vehicles);
       }
-    })();
+    } catch {
+      // Fleet list stays as-is.
+    }
+  }
+  useEffect(() => {
+    void reload();
   }, [schoolId, apiFetch, refreshKey]);
+  async function remove(id: string, reg: string): Promise<void> {
+    if (!window.confirm(`Retire vehicle "${reg}"?`)) {
+      return;
+    }
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/vehicles/${id}`, { method: "DELETE" });
+      const body = (await response.json()) as unknown as ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not retire the vehicle.");
+      }
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    }
+  }
   if (vehicles.length === 0) {
     return <p style={{ ...mutedStyle, fontSize: 13 }}>No vehicles yet.</p>;
   }
   return (
-    <ul style={{ listStyle: "none", margin: "0 0 4px", padding: 0, display: "grid", gap: 6 }}>
-      {vehicles.map((v) => (
-        <li key={v.id} style={{ fontSize: 13, color: colors.inkSoft }}>
-          <strong>{v.number}</strong> · {v.capacity} seats · {v.driverName}
-          {v.driverPhone ? ` (${v.driverPhone})` : ""} · {v.route ? v.route.name : "unassigned"}
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul style={{ listStyle: "none", margin: "0 0 4px", padding: 0, display: "grid", gap: 6 }}>
+        {vehicles.map((v) => (
+          <li key={v.id} style={{ fontSize: 13, color: colors.inkSoft, display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ flex: 1 }}>
+              <strong>{v.registrationNumber}</strong> · {v.capacity} seats · {v.driverName}
+            </span>
+            {canManage ? (
+              <button type="button" onClick={() => void remove(v.id, v.registrationNumber)} style={{ ...secondaryBtn, padding: "4px 10px", fontSize: 12 }}>
+                Retire
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {error ? (
+        <p role="alert" style={{ color: colors.danger, fontSize: 13 }}>
+          {error}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function RiderList({
+  schoolId,
+  apiFetch,
+  routeId,
+  canManage,
+  refreshKey,
+  onUnassign,
+}: {
+  schoolId: string;
+  apiFetch: (path: string, init?: RequestInit) => Promise<Response>;
+  routeId: string;
+  canManage: boolean;
+  refreshKey: number;
+  onUnassign: (studentId: string, name: string) => void;
+}) {
+  const [riders, setRiders] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/rides`);
+        const body = (await response.json()) as { data: { rides: Ride[] } } | ApiError;
+        if (!isFailure(response, body)) {
+          setRiders(
+            body.data.rides.filter((r) => r.route.id === routeId).map((r) => ({ id: r.student.id, name: r.student.name })),
+          );
+        }
+      } catch {
+        // Riders stay as-is.
+      }
+    })();
+  }, [schoolId, apiFetch, routeId, refreshKey]);
+  return (
+    <>
+      <h3 style={{ ...h1Style, fontSize: 15, margin: "16px 0 8px" }}>
+        Riders {riders.length > 0 ? <span style={{ color: colors.muted, fontWeight: 400 }}>· {riders.length}</span> : null}
+      </h3>
+      {riders.length === 0 ? (
+        <p style={{ ...mutedStyle, fontSize: 13 }}>No riders on this route yet.</p>
+      ) : (
+        <ul style={{ listStyle: "none", margin: "0 0 4px", padding: 0, display: "grid", gap: 6 }}>
+          {riders.map((r) => (
+            <li key={r.id} style={{ fontSize: 13, color: colors.inkSoft, display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ flex: 1 }}>{r.name}</span>
+              {canManage ? (
+                <button
+                  type="button"
+                  onClick={() => onUnassign(r.id, r.name)}
+                  style={{ ...secondaryBtn, padding: "4px 10px", fontSize: 12 }}
+                >
+                  Take off
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 
@@ -581,17 +669,13 @@ function RideList({
   schoolId: string;
   apiFetch: (path: string, init?: RequestInit) => Promise<Response>;
 }) {
-  const [rides, setRides] = useState<{ route: { name: string }; stop: { name: string; pickupTime: string | null }; vehicle: { number: string; driverName: string } | null; student: { name: string } }[]>([]);
+  const [rides, setRides] = useState<Ride[]>([]);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     void (async () => {
       try {
         const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/rides`);
-        const body = (await response.json()) as {
-          data: {
-            rides: { route: { name: string }; stop: { name: string; pickupTime: string | null }; vehicle: { number: string; driverName: string } | null; student: { name: string } }[];
-          };
-        } | ApiError;
+        const body = (await response.json()) as { data: { rides: Ride[] } } | ApiError;
         if (!isFailure(response, body)) {
           setRides(body.data.rides);
         } else {
@@ -610,15 +694,14 @@ function RideList({
   }
   return (
     <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
-      {rides.map((r, i) => (
-        <li key={i} style={{ fontSize: 14, padding: "10px 0", borderTop: `1px solid ${colors.lineSoft}` }}>
-          <strong>{r.student.name}</strong> · {r.route.name} · boards at {r.stop.name}
-          {r.stop.pickupTime ? ` (${r.stop.pickupTime})` : ""}
-          {r.vehicle ? (
-            <>
+      {rides.map((r) => (
+        <li key={r.student.id} style={{ fontSize: 14, padding: "10px 0", borderTop: `1px solid ${colors.lineSoft}` }}>
+          <strong>{r.student.name}</strong> · {r.route.name}
+          {r.route.stops.length > 0 ? (
+            <span style={{ color: colors.muted }}>
               {" "}
-              · {r.vehicle.number}, driver {r.vehicle.driverName}
-            </>
+              · {r.route.stops.map((s) => `${s.name}${s.pickupTime ? ` (${s.pickupTime})` : ""}`).join(" → ")}
+            </span>
           ) : null}
         </li>
       ))}

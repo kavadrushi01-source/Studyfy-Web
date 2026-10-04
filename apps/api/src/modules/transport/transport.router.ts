@@ -1,5 +1,4 @@
 import { Router, type Request, type Response } from "express";
-import { Prisma } from "@prisma/client";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
@@ -39,17 +38,6 @@ function sendTransportError(res: Response, err: unknown): void {
     res.status(err.status).json({ success: false, data: null, error: { code: err.code, message: err.message }, meta: null });
     return;
   }
-  // Two admins editing one route at the same instant can collide on the
-  // stop-order sequence: retry, don't 500.
-  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-    res.status(409).json({
-      success: false,
-      data: null,
-      error: { code: "CONCURRENT_EDIT", message: "Someone just changed this route — please retry." },
-      meta: null,
-    });
-    return;
-  }
   throw err;
 }
 
@@ -71,8 +59,19 @@ function internalError(res: Response): void {
   });
 }
 
+// Stops live inside the route's JSON run — addressed by 0-based position,
+// not by id. The UI numbers them from 1; the API takes the array index.
+function parseIndex(raw: string | undefined, res: Response): number | null {
+  const index = Number(raw);
+  if (!Number.isInteger(index) || index < 0 || index > 500) {
+    badRequest(res, "Stop position must be a valid index.");
+    return null;
+  }
+  return index;
+}
+
 // Routes board (every school role with transport.read): routes with
-// ordered stops, vehicles, and rider counts.
+// their stop runs and rider counts.
 transportRouter.get(
   "/schools/:schoolId/transport/routes",
   authMiddleware,
@@ -117,7 +116,7 @@ transportRouter.post(
   }),
 );
 
-// Rename / re-describe a route (transport.manage).
+// Rename a route (transport.manage).
 transportRouter.patch(
   "/schools/:schoolId/transport/routes/:routeId",
   authMiddleware,
@@ -142,8 +141,7 @@ transportRouter.patch(
   }),
 );
 
-// Remove a route (transport.manage): refused while riders are assigned;
-// stops go with it, vehicles stay unassigned.
+// Remove a route (transport.manage): refused while riders are assigned.
 transportRouter.delete(
   "/schools/:schoolId/transport/routes/:routeId",
   authMiddleware,
@@ -163,8 +161,7 @@ transportRouter.delete(
   }),
 );
 
-// Add a stop (transport.manage): appended, or spliced at stopOrder with
-// the run renumbered dense.
+// Add a stop (transport.manage): appended, or spliced at `at`.
 transportRouter.post(
   "/schools/:schoolId/transport/routes/:routeId/stops",
   authMiddleware,
@@ -191,13 +188,17 @@ transportRouter.post(
 
 // Edit a stop (transport.manage).
 transportRouter.patch(
-  "/schools/:schoolId/transport/stops/:stopId",
+  "/schools/:schoolId/transport/routes/:routeId/stops/:index",
   authMiddleware,
   tenantMiddleware,
   requirePermission("transport.manage"),
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma) {
       internalError(res);
+      return;
+    }
+    const index = parseIndex(req.params.index, res);
+    if (index === null) {
       return;
     }
     const parsed = updateStopSchema.safeParse(req.body);
@@ -206,7 +207,7 @@ transportRouter.patch(
       return;
     }
     try {
-      const result = await updateStop(req.prisma, req.params.stopId ?? "", parsed.data);
+      const result = await updateStop(req.prisma, req.params.routeId ?? "", index, parsed.data);
       res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendTransportError(res, err);
@@ -214,9 +215,10 @@ transportRouter.patch(
   }),
 );
 
-// Remove a stop (transport.manage): refused while riders board there.
+// Remove a stop (transport.manage). Riders are route-level, so no
+// boarding guard: the run simply shortens.
 transportRouter.delete(
-  "/schools/:schoolId/transport/stops/:stopId",
+  "/schools/:schoolId/transport/routes/:routeId/stops/:index",
   authMiddleware,
   tenantMiddleware,
   requirePermission("transport.manage"),
@@ -225,8 +227,12 @@ transportRouter.delete(
       internalError(res);
       return;
     }
+    const index = parseIndex(req.params.index, res);
+    if (index === null) {
+      return;
+    }
     try {
-      const result = await deleteStop(req.prisma, req.params.stopId ?? "");
+      const result = await deleteStop(req.prisma, req.params.routeId ?? "", index);
       res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendTransportError(res, err);
@@ -324,7 +330,8 @@ transportRouter.delete(
   }),
 );
 
-// Assign (or move) a rider (transport.manage): one ride per pupil.
+// Assign (or move) a rider (transport.manage): one ride per pupil,
+// row presence is the subscription.
 transportRouter.post(
   "/schools/:schoolId/transport/assignments",
   authMiddleware,
