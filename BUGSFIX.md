@@ -357,6 +357,18 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+50. **StaffSelfScope middleware (2026-10-04, founder-ordered, test-first).**
+    Payroll had staff self-pinning re-derived per handler (role checks +
+    userId lookups in every list fn). Now `staffSelfScope` in selfscope.ts
+    mirrors the §3 student shape: office (School Admin/Accountant) passes
+    unconstrained; everyone else pins to [ownStaffId] from the login, no
+    staff row → 403, explicit other-id in params/query/body → 403.
+    Handlers take `allowedIds: string[] | null` (null = office) and an
+    empty array fail-closes to nothing — `[]` is truthy in JS, so the
+    length check is the actual guard, not the `if`. Discipline kept:
+    regression test written first (RED: `staffSelfScope is not a
+    function`), endpoint contract (teacher ?staffId=other → 403, default
+    → own) guards the refactor. Verified: API 230/230, e2e 65/65.
 49. **Payroll founder-schema rebuild (2026-10-04, founder-directed).**
     Replaced SalaryStructure/PayrollPayment with exactly staff_attendance
     (staff+date UNIQUE, re-mark overwrites, AttendanceStatus reused),

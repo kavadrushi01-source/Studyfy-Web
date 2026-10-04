@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
+import { staffSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import {
@@ -61,8 +62,14 @@ function internalError(res: Response): void {
   });
 }
 
-function callerOf(req: Request): { userId: string; role: string } {
-  return { userId: req.user?.userId ?? "", role: req.user?.role ?? "" };
+// staffSelfScope pins non-office callers to their own staff id (null =
+// unconstrained office). Absent scope can only mean the middleware was
+// never mounted — fail closed rather than list everybody.
+function scopeOf(req: Request): string[] | null {
+  if (!req.staffScope) {
+    return req.user && (req.user.role === "SCHOOL_ADMIN" || req.user.role === "ACCOUNTANT") ? null : [];
+  }
+  return req.staffScope.staffIds;
 }
 
 // Staff roster for office pickers (payroll.manage).
@@ -110,13 +117,14 @@ payrollRouter.post(
   }),
 );
 
-// Attendance board (payroll.read): managers see everything (staff/month
-// filters); everyone else is pinned to their own staff row.
+// Attendance board (payroll.read): staffSelfScope pins non-office
+// callers to their own staff row before the service ever runs.
 payrollRouter.get(
   "/schools/:schoolId/payroll/attendance",
   authMiddleware,
   tenantMiddleware,
   requirePermission("payroll.read"),
+  staffSelfScope,
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma || !req.user) {
       internalError(res);
@@ -128,7 +136,7 @@ payrollRouter.get(
       return;
     }
     try {
-      const result = await listAttendance(req.prisma, callerOf(req), parsed.data);
+      const result = await listAttendance(req.prisma, scopeOf(req), parsed.data);
       res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendPayrollError(res, err);
@@ -136,13 +144,14 @@ payrollRouter.get(
   }),
 );
 
-// Request leave (payroll.read): staff file for themselves; the office
-// files for anyone. Decision stays office-only below.
+// Request leave (payroll.read): staffSelfScope resolves the caller's
+// own id (omitted staffId) and 403s explicit other-ids first.
 payrollRouter.post(
   "/schools/:schoolId/payroll/leaves",
   authMiddleware,
   tenantMiddleware,
   requirePermission("payroll.read"),
+  staffSelfScope,
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma || !req.user) {
       internalError(res);
@@ -153,8 +162,13 @@ payrollRouter.post(
       badRequest(res, parsed.error.issues[0]?.message ?? "Invalid request body.");
       return;
     }
+    const isManager = req.user.role === "SCHOOL_ADMIN" || req.user.role === "ACCOUNTANT";
+    if (!req.staffScope && !isManager) {
+      sendPayrollError(res, new AuthError(403, "FORBIDDEN", "No staff record is linked to this account."));
+      return;
+    }
     try {
-      const result = await requestLeave(req.prisma, callerOf(req), parsed.data);
+      const result = await requestLeave(req.prisma, req.staffScope ? (req.staffScope.staffIds[0] ?? null) : null, parsed.data);
       res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendPayrollError(res, err);
@@ -187,13 +201,14 @@ payrollRouter.patch(
   }),
 );
 
-// Leave queue (payroll.read): managers see everything (staff/status
-// filters); everyone else sees only their own requests.
+// Leave queue (payroll.read): staffSelfScope pins non-office callers
+// to their own requests before the service ever runs.
 payrollRouter.get(
   "/schools/:schoolId/payroll/leaves",
   authMiddleware,
   tenantMiddleware,
   requirePermission("payroll.read"),
+  staffSelfScope,
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma || !req.user) {
       internalError(res);
@@ -205,7 +220,7 @@ payrollRouter.get(
       return;
     }
     try {
-      const result = await listLeaves(req.prisma, callerOf(req), parsed.data);
+      const result = await listLeaves(req.prisma, scopeOf(req), parsed.data);
       res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendPayrollError(res, err);
@@ -239,13 +254,14 @@ payrollRouter.post(
   }),
 );
 
-// Payroll rows (payroll.read): managers see everything (month/staff
-// filters); everyone else is pinned to their own staff row.
+// Payroll rows (payroll.read): staffSelfScope pins non-office callers
+// to their own staff row before the service ever runs.
 payrollRouter.get(
   "/schools/:schoolId/payroll",
   authMiddleware,
   tenantMiddleware,
   requirePermission("payroll.read"),
+  staffSelfScope,
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma || !req.user) {
       internalError(res);
@@ -257,7 +273,11 @@ payrollRouter.get(
       return;
     }
     try {
-      const result = await listPayroll(req.prisma, callerOf(req), parsed.data);
+      const result = await listPayroll(
+        req.prisma,
+        scopeOf(req),
+        parsed.data,
+      );
       res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendPayrollError(res, err);

@@ -15,9 +15,10 @@ import type {
 // Records only — no money moves here, but amounts stay Decimal-exact
 // end to end (§13.6) because payroll numbers end up in front of people.
 // Office (payroll.manage) runs it; staff with payroll.read see only
-// their own rows, pinned by staffId resolved from the login (same idea
-// as studentScope, for staff). Cross-tenant safety from tenantMiddleware
-// + TENANT_MODELS, proven by the stranger-school test in the suite.
+// their own rows, pinned by staffSelfScope (same §3 shape as
+// studentScope) — handlers take the resolved ids, never the login.
+// Cross-tenant safety from tenantMiddleware + TENANT_MODELS, proven by
+// the stranger-school test in the suite.
 //
 // Deduction policy (no spec formula exists — this is the office rule,
 // recomputed fresh on every compute): per-day rate = base / 30;
@@ -25,13 +26,6 @@ import type {
 // unpaid days; deductions = unpaid × rate (2dp); net = base −
 // deductions. Approved leave never deducts. Recomputing a month
 // replaces the row — latest compute wins.
-const MANAGERS = new Set(["SCHOOL_ADMIN", "ACCOUNTANT"]);
-
-async function staffIdOf(db: PrismaClient, userId: string): Promise<string | null> {
-  const staff = await db.staff.findFirst({ where: { userId }, select: { id: true } });
-  return staff?.id ?? null;
-}
-
 function monthBounds(month: string): { from: Date; to: Date } {
   const [y, m] = month.split("-").map(Number) as [number, number];
   return { from: new Date(Date.UTC(y, m - 1, 1)), to: new Date(Date.UTC(y, m, 1)) };
@@ -100,25 +94,19 @@ export async function markAttendance(db: PrismaClient, input: MarkAttendanceInpu
   return { attendance: { id: row.id, staffId: staff.id, name: staff.user.name, date: input.date, status: row.status } };
 }
 
-export async function listAttendance(
-  db: PrismaClient,
-  caller: { userId: string; role: string },
-  input: ListAttendanceInput,
-) {
+export async function listAttendance(db: PrismaClient, allowedIds: string[] | null, input: ListAttendanceInput) {
+  // allowedIds null = office (staffSelfScope passed through); otherwise
+  // the single pinned id — an omitted filter defaults to own, never all.
   const where: Record<string, unknown> = {};
-  if (MANAGERS.has(caller.role)) {
-    if (input.staffId) {
-      where.staffId = input.staffId;
-    }
-  } else {
-    const own = await staffIdOf(db, caller.userId);
-    if (!own) {
+  if (allowedIds) {
+    // Empty = the middleware never pinned this caller: fail closed to
+    // nothing, never to everybody.
+    if (allowedIds.length === 0) {
       return { attendance: [] };
     }
-    if (input.staffId && input.staffId !== own) {
-      throw new AuthError(403, "FORBIDDEN", "Not your record.");
-    }
-    where.staffId = own;
+    where.staffId = allowedIds[0];
+  } else if (input.staffId) {
+    where.staffId = input.staffId;
   }
   if (input.month) {
     const { from, to } = monthBounds(input.month);
@@ -148,22 +136,17 @@ export async function listAttendance(
 
 export async function requestLeave(
   db: PrismaClient,
-  caller: { userId: string; role: string },
+  ownStaffId: string | null,
   input: RequestLeaveInput,
 ) {
-  // Staff file for themselves (staffId omitted → resolved from the
-  // login); the office files for anyone with an explicit staffer.
-  let targetId = input.staffId;
-  if (!MANAGERS.has(caller.role)) {
-    const own = await staffIdOf(db, caller.userId);
-    if (!own) {
-      throw new AuthError(403, "FORBIDDEN", "No staff record on this login.");
-    }
-    if (input.staffId && input.staffId !== own) {
-      throw new AuthError(403, "FORBIDDEN", "You can only request leave for yourself.");
-    }
-    targetId = own;
+  // Staff file for themselves (staffId omitted → the pinned id); the
+  // office files for anyone with an explicit staffer. An explicit
+  // other-id from a non-manager never reaches here — staffSelfScope
+  // 403s it first; the equality check below is defense in depth.
+  if (ownStaffId && input.staffId && input.staffId !== ownStaffId) {
+    throw new AuthError(403, "FORBIDDEN", "You can only request leave for yourself.");
   }
+  const targetId = ownStaffId ?? input.staffId;
   if (!targetId) {
     throw new AuthError(400, "VALIDATION_ERROR", "Pick a staffer for this leave.");
   }
@@ -219,24 +202,18 @@ export async function decideLeave(db: PrismaClient, leaveId: string, input: Deci
   };
 }
 
-export async function listLeaves(db: PrismaClient, caller: { userId: string; role: string }, input: ListLeavesInput) {
+export async function listLeaves(db: PrismaClient, allowedIds: string[] | null, input: ListLeavesInput) {
   const where: Record<string, unknown> = {};
   if (input.status) {
     where.status = input.status;
   }
-  if (MANAGERS.has(caller.role)) {
-    if (input.staffId) {
-      where.staffId = input.staffId;
-    }
-  } else {
-    const own = await staffIdOf(db, caller.userId);
-    if (!own) {
+  if (allowedIds) {
+    if (allowedIds.length === 0) {
       return { leaves: [] };
     }
-    if (input.staffId && input.staffId !== own) {
-      throw new AuthError(403, "FORBIDDEN", "Not your record.");
-    }
-    where.staffId = own;
+    where.staffId = allowedIds[0];
+  } else if (input.staffId) {
+    where.staffId = input.staffId;
   }
   const rows = await db.leaveRequest.findMany({
     where,
@@ -350,7 +327,7 @@ export interface PayrollRow {
 
 export async function listPayroll(
   db: PrismaClient,
-  caller: { userId: string; role: string },
+  allowedIds: string[] | null,
   input: ListPayrollInput,
 ): Promise<{
   payroll: PayrollRow[];
@@ -363,19 +340,13 @@ export async function listPayroll(
   if (input.month) {
     where.month = input.month;
   }
-  if (MANAGERS.has(caller.role)) {
-    if (input.staffId) {
-      where.staffId = input.staffId;
-    }
-  } else {
-    const own = await staffIdOf(db, caller.userId);
-    if (!own) {
+  if (allowedIds) {
+    if (allowedIds.length === 0) {
       return { payroll: [], page: input.page, pageSize: input.pageSize, total: 0, totalPages: 1 };
     }
-    if (input.staffId && input.staffId !== own) {
-      throw new AuthError(403, "FORBIDDEN", "Not your record.");
-    }
-    where.staffId = own;
+    where.staffId = allowedIds[0];
+  } else if (input.staffId) {
+    where.staffId = input.staffId;
   }
   const [total, rows] = await Promise.all([
     db.payroll.count({ where }),

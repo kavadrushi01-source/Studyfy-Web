@@ -413,6 +413,10 @@ export default function LibraryPage() {
         throw new Error(body.error?.message ?? "Could not save the rate.");
       }
       setNotice(`Fine rate saved — ₹${rateInput} per overdue day from now on.`);
+      // The PATCH already persisted this — paint it now instead of waiting
+      // on the loans reload below (which can lag or drop under load and
+      // leave the label stale for a saved rate). The reload still confirms.
+      setFinePerDay(Number(rateInput));
       await loadLoans(loanStatus, loanPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");

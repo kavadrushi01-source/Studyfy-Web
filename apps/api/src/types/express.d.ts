@@ -18,6 +18,14 @@ declare global {
       // RBAC refines that separately). List handlers MUST filter by it;
       // detail routes are 403-checked by the middleware itself.
       studentScope?: { studentIds: string[] };
+      // Set by staffSelfScope for non-office roles holding payroll.read
+      // (teachers, librarians, transport managers): the ONLY staff id
+      // this caller may see — their own, resolved from the login.
+      // Absent = unconstrained office (School Admin / Accountant with
+      // payroll.manage, refined by RBAC). List handlers MUST filter by
+      // it; explicit other-id requests are 403-checked by the middleware
+      // itself. Same fail-closed shape as studentScope (§3).
+      staffScope?: { staffIds: string[] };
       // Set by teacherSectionScope for TEACHER roles: the ONLY section ids
       // this teacher owns (classTeacherId). Absent = unconstrained.
       // Empty array = fail-closed, sees nothing. List handlers MUST apply it.

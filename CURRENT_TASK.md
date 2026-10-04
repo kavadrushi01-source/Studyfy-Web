@@ -9,7 +9,7 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Chunk 4 of 5 complete (Transport + HR/Payroll DONE in STATUS.md per Definition of Done: API 220/220, e2e 65/65 zero flakes, human passes + screenshots). Next is Chunk 5 (final — scope per founder).
+**Status:** IDLE — Chunk 4 of 5 complete (Transport + HR/Payroll DONE in STATUS.md per Definition of Done: API 230/230, e2e 65/65 zero flakes, human passes + screenshots). Next is Chunk 5 (final — scope per founder).
 **Phase / Module:** Phase 2, Chunk 5 (final) — awaiting start
 **Last updated:** 2026-10-04
 
