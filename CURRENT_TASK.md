@@ -25,7 +25,7 @@
 - Chunk 5 (final chunk): not started. Start from `AGENT_START_HERE.md` (read `STATUS.md` first, per RULES.md §6.1).
 
 ## Exact next action
-- Begin Chunk 5 (final) whenever the founder says go — no code changes pending, tree clean after this commit. Prod migrate for Chunk 4 tables/keys still needed before live use (needs the Aiven URL in chat, used once, stored nowhere).
+- Begin Chunk 5 (final) whenever the founder says go — no code changes pending, tree clean after this commit. Prod migrate for Chunk 4 done 2026-10-04 (both migrations, live 200s verified).
 
 ## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
