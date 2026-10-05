@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ReceiptText } from "lucide-react";
 import { DataTable } from "../../../components/ui/data-table";
-import { EmptyState } from "../../../components/ui/shell";
+import { SkeletonBlocks } from "../../../components/ui/shell";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, mutedStyle, pageFrame, pill } from "@/lib/theme";
 
@@ -93,14 +92,19 @@ export default function PaymentsPage() {
   }, [ready, token, schoolId, apiFetch, load]);
 
   if (!ready) {
-    return null;
+    return (
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Payments &amp; Receipts</h1>
+        <SkeletonBlocks rows={3} height={52} />
+      </main>
+    );
   }
   if (!token || !schoolId) {
     return (
-      <main style={{ maxWidth: 480, margin: "0 auto", padding: "48px 24px", fontFamily: "Inter, system-ui, sans-serif" }}>
-        <h1 style={{ ...h1Style, margin: "0 0 8px" }}>Payments &amp; Receipts</h1>
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Payments &amp; Receipts</h1>
         <p style={{ ...mutedStyle, margin: "0 0 12px" }}>Please sign in to view payments.</p>
-        <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>Go to Login</Link>
+        <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>Go to login</Link>
       </main>
     );
   }
@@ -110,10 +114,7 @@ export default function PaymentsPage() {
       <h1 style={h1Style}>Payments &amp; Receipts</h1>
       <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>Newest first — open any row&apos;s receipt.</p>
       {error ? <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "0 0 12px" }}>{error}</p> : null}
-      {rows.length === 0 && !loading ? (
-        <EmptyState icon={<ReceiptText size={22} aria-hidden="true" />} title="No payments yet" detail="Collections will appear here." />
-      ) : (
-        <DataTable
+      <DataTable
           columns={[
             { key: "student", label: "Student", render: (row: PaymentRow) => row.student.name },
             {
@@ -167,7 +168,6 @@ export default function PaymentsPage() {
           loading={loading}
           emptyMessage="No payments recorded yet."
         />
-      )}
     </main>
   );
 }

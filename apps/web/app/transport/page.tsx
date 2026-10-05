@@ -6,7 +6,7 @@ import { Bus } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { colors, h1Style, labelStyle, mutedStyle, pageFrame, primaryBtn, secondaryBtn } from "@/lib/theme";
+import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, primaryBtn, secondaryBtn } from "@/lib/theme";
 
 interface Stop {
   name: string;
@@ -308,8 +308,8 @@ export default function TransportPage() {
           </div>
           {active ? (
             <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
-              <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>{active.name}</h2>
-              <h3 style={{ ...h1Style, fontSize: 15, margin: "0 0 8px" }}>Stops in run order</h3>
+              <h2 style={{ ...h2Style }}>{active.name}</h2>
+              <h3 style={{ ...h2Style, margin: "0 0 8px" }}>Stops in run order</h3>
               {active.stops.length === 0 ? (
                 <p style={{ ...mutedStyle, fontSize: 13 }}>No stops yet — add the first below.</p>
               ) : (
@@ -400,7 +400,7 @@ export default function TransportPage() {
                     </button>
                   </form>
                   <form onSubmit={assign} style={{ marginTop: 4 }}>
-                    <h3 style={{ ...h1Style, fontSize: 15, margin: "0 0 8px" }}>Assign a rider</h3>
+                    <h3 style={{ ...h2Style, margin: "0 0 8px" }}>Assign a rider</h3>
                     <div className="sf-row-wrap">
                       <select
                         className="sf-select"
@@ -435,7 +435,7 @@ export default function TransportPage() {
       )}
       {canManage ? (
         <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
-          <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>New route</h2>
+          <h2 style={{ ...h2Style }}>New route</h2>
           <form onSubmit={addRoute} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div className="sf-row-wrap">
               <label style={{ ...labelStyle, flex: 1, minWidth: 200 }}>
@@ -453,7 +453,7 @@ export default function TransportPage() {
       ) : null}
       {user?.role === "STUDENT" || user?.role === "PARENT" ? (
         <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
-          <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>My ride</h2>
+          <h2 style={{ ...h2Style }}>My ride</h2>
           <RideList schoolId={schoolId} apiFetch={apiFetch} />
         </section>
       ) : null}
@@ -465,10 +465,10 @@ export default function TransportPage() {
       ) : null}
       {canManage ? (
         <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
-          <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Fleet</h2>
+          <h2 style={{ ...h2Style }}>Fleet</h2>
           <FleetList schoolId={schoolId} apiFetch={apiFetch} refreshKey={fleetRefresh} canManage={canManage} />
           <form onSubmit={addVehicle} style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-            <h3 style={{ ...h1Style, fontSize: 15, margin: 0 }}>Add a vehicle</h3>
+            <h3 style={{ ...h2Style, margin: 0 }}>Add a vehicle</h3>
             <div className="sf-row-wrap">
               <label style={{ ...labelStyle, flex: 1, minWidth: 140 }}>
                 Registration number
@@ -635,7 +635,7 @@ function RiderList({
   }, [schoolId, apiFetch, routeId, refreshKey]);
   return (
     <>
-      <h3 style={{ ...h1Style, fontSize: 15, margin: "16px 0 8px" }}>
+      <h3 style={{ ...h2Style, margin: "16px 0 8px" }}>
         Riders {riders.length > 0 ? <span style={{ color: colors.muted, fontWeight: 400 }}>· {riders.length}</span> : null}
       </h3>
       {riders.length === 0 ? (

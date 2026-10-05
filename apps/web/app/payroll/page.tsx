@@ -6,7 +6,7 @@ import { Wallet } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { colors, h1Style, mutedStyle, pageFrame, primaryBtn, secondaryBtn } from "@/lib/theme";
+import { colors, h1Style, h2Style, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 
 interface StaffOption {
   staffId: string;
@@ -42,6 +42,24 @@ interface PayrollRow {
 
 interface ApiError {
   error: { code: string; message: string };
+}
+
+// Status pills (fees idiom): every workflow state gets a semantic tone.
+function statusPill(status: string) {
+  switch (status) {
+    case "PRESENT":
+    case "APPROVED":
+      return pill(colors.success, colors.successTint);
+    case "ABSENT":
+    case "REJECTED":
+      return pill(colors.danger, colors.dangerTint);
+    case "PENDING":
+    case "LATE":
+    case "EXCUSED":
+      return pill(colors.warning, colors.warningTint);
+    default:
+      return pill(colors.muted, colors.lineSoft);
+  }
 }
 
 // Payroll (§7 Phase 2 #15, founder schema): staff attendance marks,
@@ -158,6 +176,8 @@ function OfficeDesk({
   const [lastComputed, setLastComputed] = useState<string>("");
   const [rows, setRows] = useState<PayrollRow[]>([]);
   const [rowsMonth, setRowsMonth] = useState("2026-10");
+  // Skeleton gate (§8.5): boards never flash false empties on first paint.
+  const [booting, setBooting] = useState(true);
 
   async function openSlip(id: string): Promise<void> {
     setError("");
@@ -239,9 +259,7 @@ function OfficeDesk({
   );
 
   useEffect(() => {
-    void loadMarks(attMonth);
-    void loadLeaves(leaveStatus);
-    void loadRows(rowsMonth);
+    void Promise.all([loadMarks(attMonth), loadLeaves(leaveStatus), loadRows(rowsMonth)]).then(() => setBooting(false));
   }, [schoolId, attMonth, leaveStatus, rowsMonth, loadMarks, loadLeaves, loadRows]);
 
   async function mark(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -311,7 +329,7 @@ function OfficeDesk({
   return (
     <>
       <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
-        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Mark attendance</h2>
+        <h2 style={{ ...h2Style }}>Mark attendance</h2>
         <form onSubmit={mark} className="sf-row-wrap" style={{ marginBottom: 12 }}>
           <select className="sf-select" style={{ flex: 2, minWidth: 180 }} value={attStaff} onChange={(e) => setAttStaff(e.target.value)} required aria-label="Attendance staffer">
             <option value="">— pick a staffer —</option>
@@ -338,13 +356,18 @@ function OfficeDesk({
             Show month
           </button>
         </form>
-        {marks.length === 0 ? (
+        {booting ? (
+          <SkeletonBlocks rows={2} height={40} />
+        ) : marks.length === 0 ? (
           <p style={{ ...mutedStyle, fontSize: 13 }}>No marks in this month yet.</p>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
             {marks.map((m) => (
-              <li key={m.id} style={{ fontSize: 13, color: colors.inkSoft }}>
-                {m.date} · <strong>{m.name}</strong> · {m.status}
+              <li key={m.id} style={{ fontSize: 13, color: colors.inkSoft, display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ flex: 1 }}>
+                  {m.date} · <strong>{m.name}</strong>
+                </span>
+                <span style={statusPill(m.status)}>{m.status}</span>
               </li>
             ))}
           </ul>
@@ -352,7 +375,7 @@ function OfficeDesk({
       </section>
 
       <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
-        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Leave queue</h2>
+        <h2 style={{ ...h2Style }}>Leave queue</h2>
         <form onSubmit={(e) => { e.preventDefault(); void loadLeaves(leaveStatus); }} className="sf-row-wrap" style={{ marginBottom: 8 }}>
           <select className="sf-select" style={{ minWidth: 150 }} value={leaveStatus} onChange={(e) => setLeaveStatus(e.target.value)} aria-label="Leave status filter">
             <option value="PENDING">Pending</option>
@@ -363,15 +386,18 @@ function OfficeDesk({
             Filter leaves
           </button>
         </form>
-        {leaves.length === 0 ? (
+        {booting ? (
+          <SkeletonBlocks rows={2} height={40} />
+        ) : leaves.length === 0 ? (
           <p style={{ ...mutedStyle, fontSize: 13 }}>No leave requests here.</p>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
             {leaves.map((l) => (
               <li key={l.id} style={{ fontSize: 13, color: colors.inkSoft, display: "flex", gap: 8, alignItems: "center" }}>
                 <span style={{ flex: 1 }}>
-                  <strong>{l.name}</strong> · {l.dates.join(", ")} · {l.reason} · {l.status}
+                  <strong>{l.name}</strong> · {l.dates.join(", ")} · {l.reason}
                 </span>
+                <span style={statusPill(l.status)}>{l.status}</span>
                 {l.status === "PENDING" ? (
                   <>
                     <button type="button" onClick={() => void decide(l.id, "APPROVED")} style={{ ...secondaryBtn, padding: "4px 10px", fontSize: 12 }}>
@@ -389,7 +415,7 @@ function OfficeDesk({
       </section>
 
       <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
-        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Compute a month</h2>
+        <h2 style={{ ...h2Style }}>Compute a month</h2>
         <form onSubmit={compute} className="sf-row-wrap" style={{ marginBottom: 8 }}>
           <select className="sf-select" style={{ flex: 2, minWidth: 180 }} value={payStaff} onChange={(e) => setPayStaff(e.target.value)} required aria-label="Payroll staffer">
             <option value="">— pick a staffer —</option>
@@ -409,14 +435,16 @@ function OfficeDesk({
       </section>
 
       <section className="sf-card" style={{ padding: 20 }}>
-        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Payroll rows</h2>
+        <h2 style={{ ...h2Style }}>Payroll rows</h2>
         <form onSubmit={(e) => { e.preventDefault(); void loadRows(rowsMonth); }} className="sf-row-wrap" style={{ marginBottom: 8 }}>
           <input className="sf-input" style={{ minWidth: 110 }} value={rowsMonth} onChange={(e) => setRowsMonth(e.target.value)} aria-label="Rows month" />
           <button type="submit" style={secondaryBtn}>
             Filter
           </button>
         </form>
-        {rows.length === 0 ? (
+        {booting ? (
+          <SkeletonBlocks rows={2} height={40} />
+        ) : rows.length === 0 ? (
           <p style={{ ...mutedStyle, fontSize: 13 }}>No payroll rows here yet — compute a month above.</p>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
@@ -452,6 +480,7 @@ function MyPay({
   const [leaveReason, setLeaveReason] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [booting, setBooting] = useState(true);
 
   const load = useCallback(async () => {
     try {
@@ -477,6 +506,8 @@ function MyPay({
       }
     } catch {
       // Boards stay as-is.
+    } finally {
+      setBooting(false);
     }
   }, [schoolId, apiFetch, month]);
 
@@ -529,7 +560,7 @@ function MyPay({
   return (
     <>
       <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
-        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>My month</h2>
+        <h2 style={{ ...h2Style }}>My month</h2>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -543,13 +574,16 @@ function MyPay({
             Show
           </button>
         </form>
-        {marks.length === 0 ? (
+        {booting ? (
+          <SkeletonBlocks rows={2} height={40} />
+        ) : marks.length === 0 ? (
           <p style={{ ...mutedStyle, fontSize: 13 }}>No marks this month.</p>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
             {marks.map((m) => (
-              <li key={m.id} style={{ fontSize: 13, color: colors.inkSoft }}>
-                {m.date} · {m.status}
+              <li key={m.id} style={{ fontSize: 13, color: colors.inkSoft, display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ flex: 1 }}>{m.date}</span>
+                <span style={statusPill(m.status)}>{m.status}</span>
               </li>
             ))}
           </ul>
@@ -557,7 +591,7 @@ function MyPay({
       </section>
 
       <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
-        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>My leaves</h2>
+        <h2 style={{ ...h2Style }}>My leaves</h2>
         <form onSubmit={fileLeave} className="sf-row-wrap" style={{ marginBottom: 8 }}>
           <input
             className="sf-input"
@@ -579,13 +613,18 @@ function MyPay({
             Request leave
           </button>
         </form>
-        {leaves.length === 0 ? (
+        {booting ? (
+          <SkeletonBlocks rows={2} height={40} />
+        ) : leaves.length === 0 ? (
           <p style={{ ...mutedStyle, fontSize: 13 }}>No leave requests.</p>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
             {leaves.map((l) => (
-              <li key={l.id} style={{ fontSize: 13, color: colors.inkSoft }}>
-                {l.dates.join(", ")} · {l.reason} · {l.status}
+              <li key={l.id} style={{ fontSize: 13, color: colors.inkSoft, display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ flex: 1 }}>
+                  {l.dates.join(", ")} · {l.reason}
+                </span>
+                <span style={statusPill(l.status)}>{l.status}</span>
               </li>
             ))}
           </ul>
@@ -599,8 +638,10 @@ function MyPay({
       </section>
 
       <section className="sf-card" style={{ padding: 20 }}>
-        <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>My pay</h2>
-        {rows.length === 0 ? (
+        <h2 style={{ ...h2Style }}>My pay</h2>
+        {booting ? (
+          <SkeletonBlocks rows={2} height={40} />
+        ) : rows.length === 0 ? (
           <EmptyState icon={<Wallet size={22} aria-hidden="true" />} title="No pay computed yet" detail="The office computes each month — rows appear here." />
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>

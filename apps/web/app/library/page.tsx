@@ -7,7 +7,7 @@ import { DataTable } from "../../components/ui/data-table";
 import { SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { colors, h1Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
+import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 
 interface BookRow {
   id: string;
@@ -576,7 +576,7 @@ export default function LibraryPage() {
       {canManage ? (
         <>
           <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
-            <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 4px" }}>Fine policy</h2>
+            <h2 style={{ ...h2Style, margin: "0 0 4px" }}>Fine policy</h2>
             <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 12px" }}>
               Flat rupees per overdue day for this school — priced live on open loans, frozen on
               returns (rate changes never rewrite history). Zero switches fines off.
@@ -601,7 +601,7 @@ export default function LibraryPage() {
             </form>
           </section>
           <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
-            <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Add a title</h2>
+            <h2 style={{ ...h2Style }}>Add a title</h2>
             <form onSubmit={addBook} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div className="sf-row-wrap">
                 <label style={{ ...labelStyle, flex: 2, minWidth: 200 }}>
@@ -648,7 +648,7 @@ export default function LibraryPage() {
           </section>
           {editingId ? (
             <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
-              <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Edit title</h2>
+              <h2 style={{ ...h2Style }}>Edit title</h2>
               <form onSubmit={saveEdit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div className="sf-row-wrap">
                   <label style={{ ...labelStyle, flex: 2, minWidth: 200 }}>
@@ -674,7 +674,7 @@ export default function LibraryPage() {
                     <input className="sf-input" inputMode="numeric" value={editCopies} onChange={(e) => setEditCopies(e.target.value)} aria-label="Edit total copies" />
                   </label>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="sf-row-wrap" style={{ display: "flex", gap: 8 }}>
                   <button type="submit" disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
                     {saving ? "Saving…" : "Save changes"}
                   </button>
@@ -686,7 +686,7 @@ export default function LibraryPage() {
             </section>
           ) : null}
           <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
-            <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Issue desk</h2>
+            <h2 style={{ ...h2Style }}>Issue desk</h2>
             <form onSubmit={searchBooks} className="sf-row-wrap" style={{ marginBottom: 12 }}>
               <input
                 className="sf-input"
@@ -769,7 +769,7 @@ export default function LibraryPage() {
       {seesLoans ? (
         <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <h2 style={{ ...h1Style, fontSize: 18, margin: 0 }}>{canManage ? "Loans board" : "My loans"}</h2>
+            <h2 style={{ ...h2Style, margin: 0, whiteSpace: "nowrap" }}>{canManage ? "Loans board" : "My loans"}</h2>
             <select
               className="sf-select"
               style={{ marginLeft: "auto", minWidth: 140 }}
@@ -786,74 +786,77 @@ export default function LibraryPage() {
               <option value="RETURNED">Returned</option>
             </select>
           </div>
-          {loansLoading ? (
-            <SkeletonBlocks rows={2} height={44} />
-          ) : loans.length === 0 ? (
-            <p style={{ ...mutedStyle, margin: 0, fontSize: 14 }}>Nothing here — no books out right now.</p>
-          ) : (
-            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
-              {loans.map((l) => (
-                <li
-                  key={l.id}
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "center",
-                    padding: "10px 0",
-                    borderTop: `1px solid ${colors.lineSoft}`,
-                    fontSize: 14,
-                  }}
-                >
-                  <span style={{ flex: 1, color: colors.ink }}>
-                    <strong>{l.book.title}</strong> <span style={{ color: colors.muted }}>· {l.student.name}</span>
+          <DataTable<LoanRow>
+            columns={[
+              {
+                key: "book",
+                label: "Book",
+                render: (l) => (
+                  <span style={{ fontWeight: 600 }}>
+                    {l.book.title}
                     <br />
-                    <span style={{ fontSize: 12, color: colors.muted }}>
-                      Due {fmtDate(l.dueAt)}
-                      {l.returnedAt ? ` · returned ${fmtDate(l.returnedAt)}` : ""} · {l.issuer.name}
-                      {l.fine !== "0.00" ? ` · fine ₹${l.fine}` : ""}
-                    </span>
+                    <span style={{ fontWeight: 400, color: colors.muted, fontSize: 12 }}>Due {fmtDate(l.dueAt)}</span>
                   </span>
-                  <span style={loanPill(l.status)}>{l.status}</span>
-                  {canManage && !l.returnedAt ? (
-                    <button type="button" onClick={() => void takeReturn(l.id)} style={{ ...secondaryBtn, padding: "6px 14px", fontSize: 13 }}>
-                      Return
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-          {loanTotal > 20 ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 14, fontSize: 13, color: "#64748B" }}>
-              <button
-                type="button"
-                disabled={loanPage <= 1 || loansLoading}
-                onClick={() => {
-                  setLoanPage(loanPage - 1);
-                  void loadLoans(loanStatus, loanPage - 1);
-                }}
-                className="sf-btn sf-btn-secondary"
-                style={{ padding: "7px 12px", fontSize: 13 }}
-              >
-                Prev
-              </button>
-              <span style={{ fontWeight: 600, color: "#1E293B" }}>
-                Page {loanPage} of {loanPages} · {loanTotal} total
-              </span>
-              <button
-                type="button"
-                disabled={loanPage >= loanPages || loansLoading}
-                onClick={() => {
-                  setLoanPage(loanPage + 1);
-                  void loadLoans(loanStatus, loanPage + 1);
-                }}
-                className="sf-btn sf-btn-secondary"
-                style={{ padding: "7px 12px", fontSize: 13 }}
-              >
-                Next
-              </button>
-            </div>
-          ) : null}
+                ),
+              },
+              {
+                key: "borrower",
+                label: "Borrower",
+                render: (l) => <span style={{ color: colors.inkSoft }}>{l.student.name}</span>,
+              },
+              {
+                key: "detail",
+                label: "Detail",
+                render: (l) => (
+                  <span style={{ color: colors.muted, fontSize: 12 }}>
+                    {l.returnedAt ? `Returned ${fmtDate(l.returnedAt)}` : "Out now"} · {l.issuer.name}
+                  </span>
+                ),
+              },
+              {
+                key: "fine",
+                label: "Fine",
+                render: (l) => (
+                  <span style={{ fontWeight: 600, color: l.fine !== "0.00" ? colors.warning : colors.muted }}>
+                    {l.fine !== "0.00" ? `₹${l.fine}` : "—"}
+                  </span>
+                ),
+              },
+              { key: "status", label: "Status", render: (l) => <span style={loanPill(l.status)}>{l.status}</span> },
+              ...(canManage
+                ? [
+                    {
+                      key: "actions",
+                      label: "Return",
+                      render: (l: LoanRow) =>
+                        !l.returnedAt ? (
+                          <button
+                            type="button"
+                            onClick={() => void takeReturn(l.id)}
+                            style={{ ...secondaryBtn, padding: "6px 14px", fontSize: 13 }}
+                          >
+                            Return
+                          </button>
+                        ) : null,
+                    },
+                  ]
+                : []),
+            ]}
+            rows={loans}
+            rowKey={(l) => l.id}
+            sort="dueAt"
+            order="desc"
+            onSort={() => undefined}
+            page={loanPage}
+            totalPages={loanPages}
+            total={loanTotal}
+            onPage={(next) => {
+              setLoanPage(next);
+              void loadLoans(loanStatus, next);
+            }}
+            loading={loansLoading}
+            emptyMessage="Nothing here — no books out right now."
+          />
         </section>
       ) : null}
       {notice ? <p style={{ color: colors.success, fontSize: 14, margin: "12px 0 0" }}>{notice}</p> : null}

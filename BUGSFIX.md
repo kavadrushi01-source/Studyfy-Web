@@ -357,6 +357,21 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+54. **UI consistency pass, Phase 2 screens (2026-10-05, founder-ordered).**
+    Subagent audit vs theme.ts + Phase 1 idioms; fixed: (1) 23 section
+    headers using weight-800 `h1Style` at 18/15px → `h2Style` (16/700,
+    margins preserved) across crm/certificates/library/transport/payroll;
+    (2) non-token `#F8FAFD` wells → `colors.lineSoft` (crm, certificates);
+    (3) two-button rows → `sf-row-wrap` (certificates, library edit);
+    (4) library loans board → `DataTable` (status pills, fine column,
+    Return action, built-in pager/skeleton/empty — replaces hand-rolled
+    pager + plain-text empty); (5) payroll status pills via `pill()` +
+    skeleton gates on all six boards (office + self); (6) fees/payments
+    blank `!ready` paint → skeletons, bespoke signed-out frame →
+    `pageFrame`, always-mount `DataTable`; (7) receipts viewer frame →
+    `pageFrame`. Deliberate keeps: print-artifact pages, small `<ul>`
+    boards (transport/payroll month lists), header Lucide icons.
+    Verified: tsc + eslint clean, e2e 65/65, screenshots reviewed.
 53. **CI e2e job was dead on arrival (2026-10-05, founder asked "confirm
     CI is green").** The job ran `playwright test` with no DB, no
     migrate/seed, and no servers — warm-up died in 20s on every push, so

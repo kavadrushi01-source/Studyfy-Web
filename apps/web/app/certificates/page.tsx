@@ -7,7 +7,7 @@ import { DataTable } from "../../components/ui/data-table";
 import { SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { colors, h1Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
+import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 
 const TYPES = ["BONAFIDE", "TRANSFER", "CHARACTER"] as const;
 
@@ -211,7 +211,7 @@ export default function CertificatesPage() {
       </p>
       {canManage ? (
         <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
-          <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Issue a certificate</h2>
+          <h2 style={{ ...h2Style }}>Issue a certificate</h2>
           <form onSubmit={searchPupils} className="sf-row-wrap" style={{ marginBottom: 12 }}>
             <input
               className="sf-input"
@@ -280,7 +280,7 @@ export default function CertificatesPage() {
                 style={{
                   padding: "14px 16px",
                   borderRadius: 12,
-                  background: "#F8FAFD",
+                  background: colors.lineSoft,
                   border: `1px solid ${colors.lineSoft}`,
                   fontSize: 14,
                 }}
@@ -301,7 +301,7 @@ export default function CertificatesPage() {
                   <br />
                   Numbering: next CERT/year/sequence for this school.
                 </div>
-                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <div className="sf-row-wrap" style={{ display: "flex", gap: 8, marginTop: 12 }}>
                   <button type="submit" disabled={issuing} style={{ ...primaryBtn, opacity: issuing ? 0.6 : 1 }}>
                     {issuing ? "Generating…" : "Confirm & generate PDF"}
                   </button>

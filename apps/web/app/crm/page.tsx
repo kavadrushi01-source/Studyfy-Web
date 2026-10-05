@@ -7,7 +7,7 @@ import { DataTable } from "../../components/ui/data-table";
 import { SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { colors, h1Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
+import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 
 const STAGES = ["NEW", "CONTACTED", "VISITED", "ADMITTED", "REJECTED"] as const;
 
@@ -356,7 +356,7 @@ export default function CrmPage() {
       ) : null}
       {activeId && detail ? (
         <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
-          <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 4px" }}>{detail.name}</h2>
+          <h2 style={{ ...h2Style, margin: "0 0 4px" }}>{detail.name}</h2>
           <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 12px" }}>
             {[detail.phone, detail.email].filter(Boolean).join(" · ")} — <span style={stagePill(detail.status)}>{detail.status}</span>{" "}
             · owner {detail.assignee?.name ?? "unassigned"}
@@ -380,7 +380,7 @@ export default function CrmPage() {
               Move this enquiry to Admitted to convert it — the contact carries over, no re-typing.
             </p>
           )}
-          <h3 style={{ ...h1Style, fontSize: 15, margin: "0 0 8px" }}>Timeline</h3>
+          <h3 style={{ ...h2Style, margin: "0 0 8px" }}>Timeline</h3>
           {detail.notes.length === 0 ? (
             <p style={{ ...mutedStyle, fontSize: 13 }}>No follow-ups yet.</p>
           ) : (
@@ -388,7 +388,7 @@ export default function CrmPage() {
               {detail.notes.map((n) => (
                 <li
                   key={n.id}
-                  style={{ padding: "10px 12px", borderRadius: 10, background: "#F8FAFD", border: `1px solid ${colors.lineSoft}`, fontSize: 13 }}
+                  style={{ padding: "10px 12px", borderRadius: 12, background: colors.lineSoft, border: `1px solid ${colors.lineSoft}`, fontSize: 13 }}
                 >
                   <div style={{ color: colors.ink }}>{n.body}</div>
                   <div style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
