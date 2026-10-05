@@ -81,6 +81,28 @@ jobs:
   e2e:
     needs: [build]
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: studyfy_e2e
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping" --health-interval=10s
+          --health-timeout=5s --health-retries=5
+    env:
+      DATABASE_URL: mysql://root:root@localhost:3306/studyfy_e2e
+      JWT_ACCESS_SECRET: test-secret
+      JWT_REFRESH_SECRET: test-refresh-secret
+      # Relaxed knobs: one full suite submits many enquiries/logins from a
+      # single CI runner IP — production defaults (10/hour) would 429 it.
+      LOGIN_ACCOUNT_LIMIT_MAX: 200
+      REGISTER_RATE_LIMIT_MAX: 200
+      ENQUIRY_RATE_LIMIT_MAX: 200
+      NEXT_PUBLIC_API_URL: http://localhost:4001
+      E2E_WEB_URL: http://localhost:3000
+      E2E_API_URL: http://localhost:4001
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -89,4 +111,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps
+      - run: npm run db:deploy
+      - run: npm run db:seed
+      - run: npm run build --workspace=@studyfy/api
+      - run: npm run build --workspace=@studyfy/web
+      - run: npm run start --workspace=@studyfy/api -- --port 4001 &
+        env:
+          PORT: 4001
+          FRONTEND_ORIGIN: http://localhost:3000
+      - run: npm run start --workspace=@studyfy/web -- --port 3000 &
+      - run: sleep 20
       - run: npm run test:e2e --workspace=@studyfy/web

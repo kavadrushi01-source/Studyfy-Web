@@ -357,6 +357,18 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+53. **CI e2e job was dead on arrival (2026-10-05, founder asked "confirm
+    CI is green").** The job ran `playwright test` with no DB, no
+    migrate/seed, and no servers — warm-up died in 20s on every push, so
+    CI was red under every commit. Root causes fixed together: (1) real
+    lint errors the local `eslint src` never saw — unused `labelStyle`
+    import + an `eslint-disable` for an unloaded react-hooks rule (CI
+    runs `eslint .`; loaders now take explicit params via useCallback,
+    no disable comment); (2) the deferred next 16.3.5→16.3.8 bump for
+    the next/og RCE (audit 0 now); (3) the e2e job now wires MySQL +
+    migrate + seed + both servers (NEXT_PUBLIC_API_URL baked at build,
+    relaxed limiter knobs — one runner IP burns the 10/hour defaults).
+    Verification of the fix IS the CI run itself.
 52. **Close-out regression discipline (2026-10-04, Phase 2).** Two
     infra flakes, both load contention, neither product code: (1) a
     30s dashboard-aggregate timeout and (2) a native worker crash
