@@ -6,7 +6,7 @@ import { Wallet } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { colors, h1Style, labelStyle, mutedStyle, pageFrame, primaryBtn, secondaryBtn } from "@/lib/theme";
+import { colors, h1Style, mutedStyle, pageFrame, primaryBtn, secondaryBtn } from "@/lib/theme";
 
 interface StaffOption {
   staffId: string;
@@ -190,61 +190,59 @@ function OfficeDesk({
     }
   }
 
-  async function loadMarks(event?: FormEvent<HTMLFormElement>): Promise<void> {
-    if (event) {
-      event.preventDefault();
-    }
-    try {
-      const params = new URLSearchParams({ month: attMonth });
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/attendance?${params}`);
-      const body = (await response.json()) as { data: { attendance: AttendanceRow[] } } | ApiError;
-      if (!isFailure(response, body)) {
-        setMarks(body.data.attendance);
+  const loadMarks = useCallback(
+    async (month: string): Promise<void> => {
+      try {
+        const params = new URLSearchParams({ month });
+        const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/attendance?${params}`);
+        const body = (await response.json()) as { data: { attendance: AttendanceRow[] } } | ApiError;
+        if (!isFailure(response, body)) {
+          setMarks(body.data.attendance);
+        }
+      } catch {
+        // Board stays as-is.
       }
-    } catch {
-      // Board stays as-is.
-    }
-  }
+    },
+    [schoolId, apiFetch],
+  );
 
-  async function loadLeaves(event?: FormEvent<HTMLFormElement>): Promise<void> {
-    if (event) {
-      event.preventDefault();
-    }
-    try {
-      const params = new URLSearchParams({ status: leaveStatus });
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/leaves?${params}`);
-      const body = (await response.json()) as { data: { leaves: LeaveRow[] } } | ApiError;
-      if (!isFailure(response, body)) {
-        setLeaves(body.data.leaves);
+  const loadLeaves = useCallback(
+    async (status: string): Promise<void> => {
+      try {
+        const params = new URLSearchParams({ status });
+        const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/leaves?${params}`);
+        const body = (await response.json()) as { data: { leaves: LeaveRow[] } } | ApiError;
+        if (!isFailure(response, body)) {
+          setLeaves(body.data.leaves);
+        }
+      } catch {
+        // Queue stays as-is.
       }
-    } catch {
-      // Queue stays as-is.
-    }
-  }
+    },
+    [schoolId, apiFetch],
+  );
 
-  async function loadRows(event?: FormEvent<HTMLFormElement>): Promise<void> {
-    if (event) {
-      event.preventDefault();
-    }
-    try {
-      const params = new URLSearchParams({ month: rowsMonth, pageSize: "100" });
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll?${params}`);
-      const body = (await response.json()) as { data: { payroll: PayrollRow[] } } | ApiError;
-      if (!isFailure(response, body)) {
-        setRows(body.data.payroll);
+  const loadRows = useCallback(
+    async (month: string): Promise<void> => {
+      try {
+        const params = new URLSearchParams({ month, pageSize: "100" });
+        const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll?${params}`);
+        const body = (await response.json()) as { data: { payroll: PayrollRow[] } } | ApiError;
+        if (!isFailure(response, body)) {
+          setRows(body.data.payroll);
+        }
+      } catch {
+        // Rows stay as-is.
       }
-    } catch {
-      // Rows stay as-is.
-    }
-  }
+    },
+    [schoolId, apiFetch],
+  );
 
   useEffect(() => {
-    void loadMarks();
-    void loadLeaves();
-    void loadRows();
-    // Load once per school; filters reload on demand.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolId]);
+    void loadMarks(attMonth);
+    void loadLeaves(leaveStatus);
+    void loadRows(rowsMonth);
+  }, [schoolId, attMonth, leaveStatus, rowsMonth, loadMarks, loadLeaves, loadRows]);
 
   async function mark(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -253,7 +251,7 @@ function OfficeDesk({
     }
     const ok = await post(`/api/v1/schools/${schoolId}/payroll/attendance`, { staffId: attStaff, date: attDate, status: attStatus }, "Attendance marked.");
     if (ok) {
-      await loadMarks();
+      await loadMarks(attMonth);
     }
   }
 
@@ -271,7 +269,7 @@ function OfficeDesk({
         throw new Error(body.error?.message ?? "Could not decide the leave.");
       }
       setNotice(`Leave ${status.toLowerCase()}.`);
-      await loadLeaves();
+      await loadLeaves(leaveStatus);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     }
@@ -304,7 +302,7 @@ function OfficeDesk({
         `${body.data.payroll.name} · ${body.data.payroll.month}: base ₹${body.data.payroll.baseSalary} − ₹${body.data.payroll.deductions} (${body.data.breakdown.unpaidDays} unpaid days × ₹${body.data.breakdown.perDayRate}) = net ₹${body.data.payroll.netPay}.`,
       );
       setNotice("Payroll computed.");
-      await loadRows();
+      await loadRows(rowsMonth);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     }
@@ -334,7 +332,7 @@ function OfficeDesk({
             Mark
           </button>
         </form>
-        <form onSubmit={loadMarks} className="sf-row-wrap" style={{ marginBottom: 8 }}>
+        <form onSubmit={(e) => { e.preventDefault(); void loadMarks(attMonth); }} className="sf-row-wrap" style={{ marginBottom: 8 }}>
           <input className="sf-input" style={{ minWidth: 130 }} value={attMonth} onChange={(e) => setAttMonth(e.target.value)} aria-label="Attendance month" />
           <button type="submit" style={secondaryBtn}>
             Show month
@@ -355,7 +353,7 @@ function OfficeDesk({
 
       <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
         <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Leave queue</h2>
-        <form onSubmit={loadLeaves} className="sf-row-wrap" style={{ marginBottom: 8 }}>
+        <form onSubmit={(e) => { e.preventDefault(); void loadLeaves(leaveStatus); }} className="sf-row-wrap" style={{ marginBottom: 8 }}>
           <select className="sf-select" style={{ minWidth: 150 }} value={leaveStatus} onChange={(e) => setLeaveStatus(e.target.value)} aria-label="Leave status filter">
             <option value="PENDING">Pending</option>
             <option value="APPROVED">Approved</option>
@@ -412,7 +410,7 @@ function OfficeDesk({
 
       <section className="sf-card" style={{ padding: 20 }}>
         <h2 style={{ ...h1Style, fontSize: 18, margin: "0 0 12px" }}>Payroll rows</h2>
-        <form onSubmit={loadRows} className="sf-row-wrap" style={{ marginBottom: 8 }}>
+        <form onSubmit={(e) => { e.preventDefault(); void loadRows(rowsMonth); }} className="sf-row-wrap" style={{ marginBottom: 8 }}>
           <input className="sf-input" style={{ minWidth: 110 }} value={rowsMonth} onChange={(e) => setRowsMonth(e.target.value)} aria-label="Rows month" />
           <button type="submit" style={secondaryBtn}>
             Filter
