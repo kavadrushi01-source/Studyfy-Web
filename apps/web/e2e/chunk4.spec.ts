@@ -1,5 +1,16 @@
-import { expect, test } from "@playwright/test";
-import { ACCOUNTS, SOS_SLUG, login, logout } from "./helpers";
+import { expect, test, type APIRequestContext } from "@playwright/test";
+import { ACCOUNTS, PASSWORD, SOS_SLUG, login, logout } from "./helpers";
+
+const API = process.env.E2E_API_URL ?? "http://localhost:4001";
+
+async function apiLogin(request: APIRequestContext, email: string, slug: string | null) {
+  const res = await request.post(`${API}/api/v1/auth/login`, {
+    data: { ...(slug ? { schoolSlug: slug } : {}), email, password: PASSWORD },
+  });
+  expect(res.ok()).toBe(true);
+  const body = (await res.json()) as { data: { accessToken: string; user: { schoolId: string } } };
+  return { token: body.data.accessToken, schoolId: body.data.user.schoolId };
+}
 
 // Chunk 4 (§7 Phase 2 #14 + #15): the depot and the salary desk, driven
 // like a human. Deterministic in any run order: every name carries a run
@@ -57,8 +68,10 @@ test.describe("transport depot", () => {
 });
 
 test.describe("payroll desk", () => {
-  test("admin marks absences, computes the month, teacher sees own pay", async ({ page }) => {
-    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+  test("admin marks absences, computes the month, teacher sees own pay", async ({ page, request }) => {
+    // Two full logins + compute + slip bytes: allow headroom under the
+    // 4-worker parallel load (standalone it takes ~22s).
+    test.setTimeout(90000);    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
     await page.goto("/payroll");
     await expect(page.getByText("Payroll").first()).toBeVisible({ timeout: 20000 });
 
@@ -92,6 +105,20 @@ test.describe("payroll desk", () => {
     // The "· base" phrasing is unique to the rows list (the breakdown
     // above it reads "2026-10: base", and select options stay hidden).
     await expect(page.getByText("Arjun Mehta · 2026-10 · base ₹30000.00").first()).toBeVisible({ timeout: 20000 });
+    // Slip byte proof: the computed row downloads as a real PDF.
+    const { token, schoolId } = await apiLogin(request, ACCOUNTS.sosAdmin, SOS_SLUG);
+    const rowsRes = await request.get(`${API}/api/v1/schools/${schoolId}/payroll?month=2026-10`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const rowsBody = (await rowsRes.json()) as { data: { payroll: { id: string; staff: { name: string } }[] } };
+    const arjunRow = rowsBody.data.payroll.find((r) => r.staff.name === "Arjun Mehta");
+    expect(arjunRow).toBeTruthy();
+    const slip = await request.get(`${API}/api/v1/schools/${schoolId}/payroll/${arjunRow!.id}/slip`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(slip.ok()).toBe(true);
+    expect(slip.headers()["content-type"]).toContain("application/pdf");
+    expect((await slip.body()).slice(0, 5).toString()).toBe("%PDF-");
     await page.screenshot({ path: "e2e/shots/payroll.png" });
     await logout(page);
 

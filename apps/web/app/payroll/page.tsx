@@ -159,8 +159,22 @@ function OfficeDesk({
   const [rows, setRows] = useState<PayrollRow[]>([]);
   const [rowsMonth, setRowsMonth] = useState("2026-10");
 
-  async function post(path: string, body: unknown, success: string): Promise<boolean> {
+  async function openSlip(id: string): Promise<void> {
     setError("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/${id}/slip`);
+      if (!response.ok) {
+        throw new Error("Could not open the slip.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    }
+  }
+
+  async function post(path: string, body: unknown, success: string): Promise<boolean> {    setError("");
     setNotice("");
     try {
       const response = await apiFetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -409,8 +423,13 @@ function OfficeDesk({
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
             {rows.map((r) => (
-              <li key={r.id} style={{ fontSize: 13, color: colors.inkSoft }}>
-                <strong>{r.staff.name}</strong> · {r.month} · base ₹{r.baseSalary} − ₹{r.deductions} = <strong>₹{r.netPay}</strong>
+              <li key={r.id} style={{ fontSize: 13, color: colors.inkSoft, display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ flex: 1 }}>
+                  <strong>{r.staff.name}</strong> · {r.month} · base ₹{r.baseSalary} − ₹{r.deductions} = <strong>₹{r.netPay}</strong>
+                </span>
+                <button type="button" onClick={() => void openSlip(r.id)} style={{ ...secondaryBtn, padding: "4px 10px", fontSize: 12 }}>
+                  Slip
+                </button>
               </li>
             ))}
           </ul>
@@ -467,8 +486,22 @@ function MyPay({
     void load();
   }, [load]);
 
-  async function fileLeave(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
+  async function openSlip(id: string): Promise<void> {
+    setError("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/${id}/slip`);
+      if (!response.ok) {
+        throw new Error("Could not open the slip.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    }
+  }
+
+  async function fileLeave(event: FormEvent<HTMLFormElement>): Promise<void> {    event.preventDefault();
     setError("");
     setNotice("");
     const dates = leaveDates.split(",").map((d) => d.trim()).filter((d) => d.length > 0);
@@ -574,8 +607,13 @@ function MyPay({
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
             {rows.map((r) => (
-              <li key={r.id} style={{ fontSize: 13, color: colors.inkSoft }}>
-                {r.month} · base ₹{r.baseSalary} − ₹{r.deductions} = <strong>₹{r.netPay}</strong>
+              <li key={r.id} style={{ fontSize: 13, color: colors.inkSoft, display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ flex: 1 }}>
+                  {r.month} · base ₹{r.baseSalary} − ₹{r.deductions} = <strong>₹{r.netPay}</strong>
+                </span>
+                <button type="button" onClick={() => void openSlip(r.id)} style={{ ...secondaryBtn, padding: "4px 10px", fontSize: 12 }}>
+                  Slip
+                </button>
               </li>
             ))}
           </ul>

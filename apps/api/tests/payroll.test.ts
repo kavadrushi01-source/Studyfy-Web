@@ -166,6 +166,62 @@ describe("Payroll (§7 Phase 2 #15, founder schema)", () => {
     expect(rows.body.data.payroll).toHaveLength(1);
   });
 
+  it("serves salary-slip PDFs self-scoped", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const auth = { Authorization: `Bearer ${adminToken}` };
+    const teacher = await makeStaff(schoolId, slug, "TEACHER");
+    const other = await makeStaff(schoolId, slug, "TEACHER");
+    for (const s of [teacher, other]) {
+      await request(app)
+        .post(`/api/v1/schools/${schoolId}/payroll/compute`)
+        .set(auth)
+        .send({ staffId: s.staffId, month: "2026-10", baseSalary: 30000 })
+        .expect(201);
+    }
+    const rows = await request(app).get(`/api/v1/schools/${schoolId}/payroll?month=2026-10`).set(auth).expect(200);
+    const mine = (rows.body.data.payroll as { id: string; staff: { id: string } }[]).find((r) => r.staff.id === teacher.staffId);
+    const theirs = (rows.body.data.payroll as { id: string; staff: { id: string } }[]).find((r) => r.staff.id === other.staffId);
+    expect(mine).toBeTruthy();
+    expect(theirs).toBeTruthy();
+
+    async function slipBytes(token: string, id: string): Promise<Buffer> {
+      const res = await request(app)
+        .get(`/api/v1/schools/${schoolId}/payroll/${id}/slip`)
+        .set("Authorization", `Bearer ${token}`)
+        .buffer(true)
+        .parse((r, cb) => {
+          const chunks: Buffer[] = [];
+          r.on("data", (chunk: Buffer) => chunks.push(chunk));
+          r.on("end", () => cb(null, Buffer.concat(chunks)));
+        })
+        .expect(200);
+      expect(res.headers["content-type"]).toContain("application/pdf");
+      return res.body as Buffer;
+    }
+
+    // Own slip: real PDF bytes.
+    const pdf = await slipBytes(teacher.token, mine!.id);
+    expect(pdf.slice(0, 5).toString()).toBe("%PDF-");
+    expect(pdf.length).toBeGreaterThan(1000);
+
+    // Colleague's slip: 403, never bytes.
+    const denied = await request(app)
+      .get(`/api/v1/schools/${schoolId}/payroll/${theirs!.id}/slip`)
+      .set("Authorization", `Bearer ${teacher.token}`)
+      .expect(403);
+    expect(denied.body.error.code).toBe("FORBIDDEN");
+
+    // Office reads any slip.
+    const officePdf = await slipBytes(adminToken, theirs!.id);
+    expect(officePdf.slice(0, 5).toString()).toBe("%PDF-");
+
+    // Unknown row: 404, never 500.
+    await request(app)
+      .get(`/api/v1/schools/${schoolId}/payroll/does-not-exist/slip`)
+      .set(auth)
+      .expect(404);
+  });
+
   it("enforces tenancy and office-only writes", async () => {
     const schoolA = await registerSchool();
     const schoolB = await registerSchool();

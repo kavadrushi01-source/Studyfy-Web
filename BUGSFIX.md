@@ -357,6 +357,18 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+51. **Salary slip PDFs (2026-10-04, founder ask).** `lib/salary-slip.ts`
+    (PDFKit, same setup as receipts — `Rs.` not `₹`: WinAnsi Helvetica
+    has no rupee glyph) + `GET /payroll/:id/slip` (frozen row + live
+    unpaid-day detail; staff narrowed to own via staffSelfScope, office
+    reads any; 404 unknown). Slip buttons on office rows + My pay (blob
+    → new tab). E2E byte-proofs real `%PDF-` via the request fixture.
+    Lessons: (1) the running API serves `dist/` — a new route 404s until
+    rebuild+restart (same trap as the webhook, now twice-bitten);
+    (2) long two-login tests get `test.setTimeout(90000)` under parallel
+    load; (3) API restarts must carry the full recipe knobs or repeated
+    full runs exhaust the 10/hour enquiry limiter and fail public.spec.
+    Verified: API 231/231, e2e 65/65.
 50. **StaffSelfScope middleware (2026-10-04, founder-ordered, test-first).**
     Payroll had staff self-pinning re-derived per handler (role checks +
     userId lookups in every list fn). Now `staffSelfScope` in selfscope.ts

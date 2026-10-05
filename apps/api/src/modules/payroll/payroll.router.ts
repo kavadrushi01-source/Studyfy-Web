@@ -4,6 +4,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { staffSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
+import { generateSalarySlip } from "../../lib/salary-slip.js";
 import { AuthError } from "../auth/auth.service.js";
 import {
   computePayrollSchema,
@@ -22,6 +23,7 @@ import {
   listPayroll,
   listStaff,
   markAttendance,
+  payrollBreakdown,
   requestLeave,
 } from "./payroll.service.js";
 
@@ -254,8 +256,70 @@ payrollRouter.post(
   }),
 );
 
-// Payroll rows (payroll.read): staffSelfScope pins non-office callers
-// to their own staff row before the service ever runs.
+// Salary slip PDF (payroll.read): the frozen row prints with live
+// unpaid-day detail. Staff hold payroll.read too — narrowed to their
+// own rows the same way the payroll list is. Office (no pins) skips
+// this check. The scoped lookup 404s foreign rows.
+payrollRouter.get(
+  "/schools/:schoolId/payroll/:payrollId/slip",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("payroll.read"),
+  staffSelfScope,
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      internalError(res);
+      return;
+    }
+    const row = await req.prisma.payroll.findFirst({
+      where: { id: req.params.payrollId },
+      include: {
+        staff: { select: { id: true, designation: true, user: { select: { name: true } } } },
+        school: { select: { name: true, brandColor: true } },
+      },
+    });
+    if (!row) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "Payroll row not found." },
+        meta: null,
+      });
+      return;
+    }
+    if (req.staffScope && !req.staffScope.staffIds.includes(row.staffId)) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: { code: "FORBIDDEN", message: "Not your slip." },
+        meta: null,
+      });
+      return;
+    }
+    const detail = await payrollBreakdown(req.prisma, row.staffId, row.month, row.baseSalary);
+    const pdf = await generateSalarySlip({
+      schoolName: row.school.name,
+      brandColor: row.school.brandColor ?? "#2563EB",
+      slipNo: row.id.slice(0, 8).toUpperCase(),
+      staffName: row.staff.user.name,
+      designation: row.staff.designation,
+      month: row.month,
+      baseSalary: row.baseSalary.toFixed(2),
+      deductions: row.deductions.toFixed(2),
+      deductionDetail:
+        detail.unpaidDays === 0
+          ? "No unpaid days"
+          : `${detail.unpaidDays} unpaid day${detail.unpaidDays === 1 ? "" : "s"} × Rs.${detail.perDayRate} (${detail.absentDays.join(", ")})`,
+      netPay: row.netPay.toFixed(2),
+      generatedAt: new Date(),
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="slip-${row.id.slice(0, 8)}.pdf"`);
+    res.setHeader("Content-Length", String(pdf.length));
+    res.send(pdf);
+  }),
+);
+
 payrollRouter.get(
   "/schools/:schoolId/payroll",
   authMiddleware,

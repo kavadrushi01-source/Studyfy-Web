@@ -247,26 +247,27 @@ export interface ComputeBreakdown {
   perDayRate: string;
 }
 
-export async function computePayroll(db: PrismaClient, input: ComputePayrollInput) {
-  const staff = await db.staff.findFirst({
-    where: { id: input.staffId },
-    select: { id: true, schoolId: true, user: { select: { name: true } } },
-  });
-  if (!staff) {
-    throw new AuthError(404, "STAFF_NOT_FOUND", "Staff member not found in this school.");
-  }
-  const { from, to } = monthBounds(input.month);
+// The single deduction formula, shared by compute (freezes the row)
+// and the slip (prints the frozen row with live detail). per-day rate
+// = base / 30; ABSENT days minus APPROVED-leave cover = unpaid.
+export async function payrollBreakdown(
+  db: PrismaClient,
+  staffId: string,
+  month: string,
+  base: Prisma.Decimal,
+): Promise<ComputeBreakdown> {
+  const { from, to } = monthBounds(month);
   const [marks, leaves] = await Promise.all([
     db.staffAttendance.findMany({
-      where: { staffId: staff.id, date: { gte: from, lt: to } },
+      where: { staffId, date: { gte: from, lt: to } },
       select: { date: true, status: true },
     }),
     db.leaveRequest.findMany({
-      where: { staffId: staff.id, status: "APPROVED" },
+      where: { staffId, status: "APPROVED" },
       select: { dates: true },
     }),
   ]);
-  const monthPrefix = `${input.month}-`;
+  const monthPrefix = `${month}-`;
   const covered = new Set<string>();
   for (const leave of leaves) {
     for (const day of parseLeaveDates(leave.dates)) {
@@ -278,9 +279,27 @@ export async function computePayroll(db: PrismaClient, input: ComputePayrollInpu
   const absent = marks.filter((m) => m.status === "ABSENT").map((m) => toISODate(m.date));
   const unpaid = [...new Set(absent.filter((day) => !covered.has(day)))].sort();
   const approvedCovered = [...new Set(absent.filter((day) => covered.has(day)))].sort();
-  const base = new Prisma.Decimal(input.baseSalary);
   const perDay = base.div(30);
-  const deductions = perDay.mul(unpaid.length).toDecimalPlaces(2);
+  return {
+    unpaidDays: unpaid.length,
+    absentDays: unpaid,
+    approvedCovered,
+    perDayRate: perDay.toDecimalPlaces(2).toFixed(2),
+  };
+}
+
+export async function computePayroll(db: PrismaClient, input: ComputePayrollInput) {
+  const staff = await db.staff.findFirst({
+    where: { id: input.staffId },
+    select: { id: true, schoolId: true, user: { select: { name: true } } },
+  });
+  if (!staff) {
+    throw new AuthError(404, "STAFF_NOT_FOUND", "Staff member not found in this school.");
+  }
+  const base = new Prisma.Decimal(input.baseSalary);
+  const detail = await payrollBreakdown(db, staff.id, input.month, base);
+  const perDay = base.div(30);
+  const deductions = perDay.mul(detail.unpaidDays).toDecimalPlaces(2);
   const net = base.minus(deductions).toDecimalPlaces(2);
   // Recomputing replaces the row — latest compute wins (no upsert: the
   // tenant extension breaks unique-where contracts).
@@ -297,10 +316,10 @@ export async function computePayroll(db: PrismaClient, input: ComputePayrollInpu
       data: { schoolId: staff.schoolId, staffId: staff.id, month: input.month, baseSalary: base, deductions, netPay: net },
     });
   const breakdown: ComputeBreakdown = {
-    unpaidDays: unpaid.length,
-    absentDays: unpaid,
-    approvedCovered,
-    perDayRate: perDay.toDecimalPlaces(2).toFixed(2),
+    unpaidDays: detail.unpaidDays,
+    absentDays: detail.absentDays,
+    approvedCovered: detail.approvedCovered,
+    perDayRate: detail.perDayRate,
   };
   return {
     payroll: {
