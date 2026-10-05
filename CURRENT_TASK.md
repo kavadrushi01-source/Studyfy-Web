@@ -9,12 +9,13 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Chunk 4 of 5 complete (Transport + HR/Payroll DONE in STATUS.md per Definition of Done: API 230/230, e2e 65/65 zero flakes, human passes + screenshots). Next is Chunk 5 (final — scope per founder).
-**Phase / Module:** Phase 2, Chunk 5 (final) — awaiting start
+**Status:** IDLE — Chunk 4 of 5 complete (Transport + HR/Payroll DONE in STATUS.md per Definition of Done: API 231/231, e2e 65/65, live end-to-ends + screenshots). Next is Chunk 5 (final): SMS/WhatsApp confirmation, final regression, Phase 2 close-out.
+**Phase / Module:** Phase 2, Chunk 5 (final) — SMS/WhatsApp confirmation, final regression, Phase 2 close-out; awaiting start
 **Last updated:** 2026-10-04
 
 ## What's done in this task so far
-- Chunk 4 of 5 DONE: Transport (§7 #14, founder schema — vehicles/transport_routes/student_routes, JSON stop runs, one active ride per pupil) + HR/Payroll (§7 #15, founder schema — staff_attendance/leave_requests/payroll, base−deductions=net) — `/transport` + `/payroll` UI + nav; migrations + permission keys; `chunk4.spec.ts`. Full record in `STATUS.md` Phase 2 rows; detail in BUGSFIX 43 + 48 + 49 + History below.
+- Chunk 4 of 5 DONE: Transport (§7 #14, founder schema — vehicles/transport_routes/student_routes, JSON stop runs, one active ride per pupil) + HR/Payroll (§7 #15, founder schema — staff_attendance/leave_requests/payroll, base−deductions=net) + StaffSelfScope middleware + salary-slip PDFs — `/transport` + `/payroll` UI + nav; migrations + permission keys; `chunk4.spec.ts`. Full record in `STATUS.md` Phase 2 rows; detail in BUGSFIX 43 + 48 + 49 + 50 + 51 + History below.
+- Live end-to-ends 2026-10-04: transport (Demo Loop → Aditya assigned → rider/father-only visibility → clean teardown) + payroll (Arjun absents + approved leave → net 29000.00 → `%PDF-` slip → Sneha 4-way probe all 403).
 - Prod re-migrates DONE 2026-10-04 (both founder-schema migrations, carry verified live — transport: Route 1 + stops + bus + Aditya riding; payroll: October rows + staff roster 6).
 - Stabilization in the same pass: library last-write-wins loader race fixed with request-id guards (BUGSFIX 44); e2e made count-independent — library search-first, roster conditional paging (BUGSFIX 45); restart-env lesson recorded — FRONTEND_ORIGIN + NEXT_PUBLIC_API_URL + MySQL-first order (BUGSFIX 46).
 - Earlier chunks (detail in STATUS.md Phase 2 rows + History below): Chunk 3 Library DONE (220/220, 61/61, senior-reviewed); Chunk 2 CRM + certificates DONE; Chunk 1 Razorpay TEST MODE DONE.
@@ -23,10 +24,10 @@
 - Chunk 1 of 5 DONE earlier: Razorpay TEST MODE online fee payment. Full record in `STATUS.md` Phase 2 row; detail in History below.
 
 ## What's left in this task
-- Chunk 5 (final chunk): not started. Start from `AGENT_START_HERE.md` (read `STATUS.md` first, per RULES.md §6.1).
+- Chunk 5 (final chunk): SMS/WhatsApp confirmation, final regression, Phase 2 close-out. Not started. Start from `AGENT_START_HERE.md` (read `STATUS.md` first, per RULES.md §6.1).
 
 ## Exact next action
-- Begin Chunk 5 (final) whenever the founder says go — no code changes pending, tree clean after this commit. Prod migrate for Chunk 4 done 2026-10-04 (both migrations, live 200s verified).
+- Begin Chunk 5 (SMS/WhatsApp confirmation, final regression, Phase 2 close-out) whenever the founder says go — no code changes pending, tree clean after this commit.
 
 ## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
