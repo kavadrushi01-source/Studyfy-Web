@@ -357,6 +357,16 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+52. **Close-out regression discipline (2026-10-04, Phase 2).** Two
+    infra flakes, both load contention, neither product code: (1) a
+    30s dashboard-aggregate timeout and (2) a native worker crash
+    (exit 3221226505, the documented Prisma-on-Windows death) — each
+    passed clean on re-run. Standing rule earned: STOP the dev servers
+    before the API suite (zero contention → 61/61, 231/231 first try);
+    restart with the FULL recipe knobs before e2e (limiter defaults
+    fail public.spec after repeated runs). Close-out greens: tsc×3 +
+    lint 0, audit 1 known-critical (next/og, never imported, bump
+    deferred), API 231/231, e2e 65/65 zero flakes.
 51. **Salary slip PDFs (2026-10-04, founder ask).** `lib/salary-slip.ts`
     (PDFKit, same setup as receipts — `Rs.` not `₹`: WinAnsi Helvetica
     has no rupee glyph) + `GET /payroll/:id/slip` (frozen row + live
