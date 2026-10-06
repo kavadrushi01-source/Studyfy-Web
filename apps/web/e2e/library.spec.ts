@@ -128,6 +128,14 @@ test.describe("library circuit", () => {
     await page.screenshot({ path: "e2e/shots/library-edit.png" });
   });
 
+  test("librarian runs the desk, never the admin board", async ({ page }) => {
+    await login(page, ACCOUNTS.sosLibrarian, SOS_SLUG);
+    await page.goto("/library");
+    await expect(page.getByText("Library").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole("button", { name: /add to catalog/i })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: /issue book$/i })).toHaveCount(1);
+  });
+
   test("pupil sees own loans, never the desk", async ({ page }) => {
     await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
     await page.goto("/library");

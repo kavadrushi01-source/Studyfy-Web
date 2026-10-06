@@ -65,6 +65,14 @@ test.describe("transport depot", () => {
     await expect(page.getByText("Transport").first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByRole("button", { name: /add route/i })).toHaveCount(0);
   });
+
+  test("transport manager runs the depot", async ({ page }) => {
+    await login(page, ACCOUNTS.sosTransport, SOS_SLUG);
+    await page.goto("/transport");
+    await expect(page.getByText("Transport").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole("button", { name: /add route/i })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: /add vehicle/i })).toHaveCount(1);
+  });
 });
 
 test.describe("payroll desk", () => {

@@ -10,6 +10,8 @@ export const ACCOUNTS = {
   sosAccountant: "vikram.solanki@schoolofscience.demo",
   sosStudent: "aditya.sharma@schoolofscience.demo",
   sosParent: "suresh.sharma@schoolofscience.demo",
+  sosLibrarian: "lata.nair@schoolofscience.demo",
+  sosTransport: "ravi.nair@schoolofscience.demo",
   rkAdmin: "s.venkataraman@ramakrishnaschool.demo",
   rkTeacher: "anjali.kulkarni@ramakrishnaschool.demo",
   rkStudent: "krishna.murthy@ramakrishnaschool.demo",

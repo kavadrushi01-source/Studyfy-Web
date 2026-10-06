@@ -341,7 +341,7 @@ async function seedOwner(db: PrismaClient, passwordHash: string): Promise<void> 
 }
 
 async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string, string>, passwordHash: string): Promise<void> {
-  const required = ["SCHOOL_ADMIN", "TEACHER", "ACCOUNTANT", "STUDENT", "PARENT"] as const;
+  const required = ["SCHOOL_ADMIN", "TEACHER", "ACCOUNTANT", "STUDENT", "PARENT", "LIBRARIAN", "TRANSPORT_MANAGER"] as const;
   for (const name of required) {
     if (!roles.get(name)) {
       throw new Error(`Role ${name} must be seeded before demo schools.`);
@@ -487,6 +487,24 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
     update: { designation: "Accountant" },
     create: { schoolId: school.id, userId: accountantUserId, designation: "Accountant" },
   });
+
+  // Librarian + Transport Manager demo logins (one staff row each, so
+  // staffSelfScope resolves and their boards show own-scope data).
+  // Names avoid every seeded guardian/student first+last pair per school
+  // (upsertUser keys on email — a collision would merge two people).
+  const extraStaff: { first: string; last: string; role: string; designation: string }[] = [
+    { first: "Lata", last: "Nair", role: "LIBRARIAN", designation: "Librarian" },
+    { first: "Ravi", last: "Nair", role: "TRANSPORT_MANAGER", designation: "Transport Manager" },
+  ];
+  for (const extra of extraStaff) {
+    const email = emailFor(extra.first, extra.last, spec.emailDomain);
+    const userId = await upsertUser(db, school.id, roles.get(extra.role) ?? "", email, `${extra.first} ${extra.last}`, passwordHash);
+    await db.staff.upsert({
+      where: { userId },
+      update: { designation: extra.designation },
+      create: { schoolId: school.id, userId, designation: extra.designation },
+    });
+  }
 
   interface SeededStudent {
     studentId: string;
@@ -957,7 +975,7 @@ async function seedTransport(db: PrismaClient, schoolId: string): Promise<void> 
 
 export async function seedDemo(db: PrismaClient): Promise<void> {
   const roles = new Map<string, string>();
-  for (const name of ["SCHOOL_ADMIN", "TEACHER", "ACCOUNTANT", "STUDENT", "PARENT"] as const) {
+  for (const name of ["SCHOOL_ADMIN", "TEACHER", "ACCOUNTANT", "STUDENT", "PARENT", "LIBRARIAN", "TRANSPORT_MANAGER"] as const) {
     const role = await db.role.findUnique({ where: { name } });
     if (role) {
       roles.set(name, role.id);

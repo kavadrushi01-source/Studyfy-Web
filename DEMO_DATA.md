@@ -42,6 +42,10 @@ thing to show in a portfolio walkthrough or an interview, not just claim.
 
 **Accountant:** Vikram Solanki
 
+**Librarian:** Lata Nair (library desk: catalog, issue/return)
+
+**Transport Manager:** Ravi Nair (transport desk: routes, fleet, riders)
+
 **Students (8) and guardians:**
 | Student | Section | Guardian(s) |
 |---|---|---|
@@ -82,6 +86,10 @@ thing to show in a portfolio walkthrough or an interview, not just claim.
 | Priyanka Bose | Computer Science |
 
 **Accountant:** Ramesh Iyer
+
+**Librarian:** Lata Nair (library desk: catalog, issue/return)
+
+**Transport Manager:** Ravi Nair (transport desk: routes, fleet, riders)
 
 **Students (8) and guardians:**
 | Student | Section | Guardian(s) |
