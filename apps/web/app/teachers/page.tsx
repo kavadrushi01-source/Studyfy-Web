@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { UserPlus, Users } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
-import { Card, EmptyState } from "../../components/ui/shell";
+import { Card, EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -124,7 +124,12 @@ export default function TeachersPage() {
   };
 
   if (!ready) {
-    return null;
+    return (
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, marginBottom: 8 }}>Teachers</h1>
+        <SkeletonBlocks rows={3} height={52} />
+      </main>
+    );
   }
   if (!token || !schoolId) {
     return (

@@ -346,7 +346,13 @@ export default function MarkAttendancePage() {
             <Save size={14} aria-hidden="true" /> {saving ? "Saving…" : `Save attendance (${rows.length})`}
           </button>
         </>
-      ) : null}
+      ) : (
+        <EmptyState
+          icon={<ClipboardList size={22} aria-hidden="true" />}
+          title="Pick a section to begin"
+          detail="Choose a section above and the day's roster loads here, ready to mark."
+        />
+      )}
       {notice ? <p style={{ color: colors.success, fontSize: 14, margin: "12px 0 0" }}>{notice}</p> : null}
       {error ? (
         <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "12px 0 0" }}>

@@ -357,6 +357,25 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+55. **Full-product pass (2026-10-06, founder-ordered, Phase 0–2).**
+    Security matrix first (new permanent `security-matrix.test.ts`: fresh
+    A/B schools, 13 cross-tenant URLs → TENANT_MISMATCH, scoped-ID 404s,
+    owner cross-school reads + school-role/anon denials, student/parent/
+    staff pins + unfiltered-default checks): the only red was my own test
+    expecting 404 where the established contract is 403 — app correct.
+    Module walks with real arithmetic: admit → temp-password first login;
+    attendance 4/4-100% + 0/1-0% (seed + live marks compose correctly);
+    counter 1400+25=1425 PARTIAL + 400 on overpay; ranks 1,2,2,4 with
+    tie-skip; timetable generated 12 slots zero clashes school-wide;
+    homework post→submit→grade; section notice reaches pupil, RK sees
+    zero; Arjun→Aditya delivered, cross-school send 404; dashboards
+    honest per school (SOS live activity, RK untouched). UI: teachers
+    `!ready` blank paint → skeletons; attendance no-section blank →
+    EmptyState prompt; dashboards' 480px loading splash kept (deliberate,
+    shell-less context). Audit: source-map-js HIGH fixed via plain
+    `npm audit fix` (devtool-only DoS surface) — **0 vulnerabilities**.
+    Verified: API 62/62 files 237/237, e2e 65/65 zero flakes. No product
+    bugs found in any module.
 54. **UI consistency pass, Phase 2 screens (2026-10-05, founder-ordered).**
     Subagent audit vs theme.ts + Phase 1 idioms; fixed: (1) 23 section
     headers using weight-800 `h1Style` at 18/15px → `h2Style` (16/700,

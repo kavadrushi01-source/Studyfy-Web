@@ -9,11 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Phase 2 complete. All 5 chunks DONE per Definition of Done (API 231/231, e2e 65/65, live end-to-ends, prod migrated). Nothing in progress.
-**Phase / Module:** Phase 3 — awaiting founder scope
-**Last updated:** 2026-10-05
+**Status:** IDLE — Full-product pass done 2026-10-06 (security matrix green, all modules walked with real math, UI pass extended to Phase 1, suites + lint + audit clean). Nothing in progress.
+**Phase / Module:** Awaiting founder scope (Phase 2 closed; Phase 3 unscheduled)
+**Last updated:** 2026-10-06
 
 ## What's done in this task so far
+- Full-product pass DONE 2026-10-06: permanent `security-matrix.test.ts` (fresh A/B schools, 13 cross-tenant URLs, owner routes, all three self-scopes + defaults — 6/6); every module walked live with hand-checked math (admit→login, attendance %, counter exact + overpay 400, ranks 1-2-2-4, 17 timetable slots zero clashes, homework/notice/message scoping, honest per-school dashboards); UI fixes (teachers blank paint, attendance no-section prompt); audit now **0 vulnerabilities** (source-map-js fixed). Verified: API 62/62 files 237/237, e2e 65/65 zero flakes. Detail in BUGSFIX 55.
 - Chunk 5 (final) DONE 2026-10-04: (1) SMS/WhatsApp stub confirmed — zero send paths, no gateway creds, phones data-only, Brevo email sole channel (STATUS row → DONE); (2) full regression green — tsc×3 + lint 0, audit 1 known-critical (next/og deferred), API 61/61 files 231/231 tests, e2e 65/65 zero flakes (BUGSFIX 52 documents the two infra flakes + stop-servers rule).
 - Phase 2 close-out: Razorpay TEST MODE + Library + Transport (founder schema) + HR/Payroll (founder schema, scope middleware, slips) + CRM + certificates — all DONE rows, all prod-migrated with live proofs.
 - Regression walk 2026-10-05 (all 6 modules live, zero bugs): fee pay-order → signed webhook → PAID → receipt `%PDF-`; public enquiry → NEW→ADMITTED → student + guardian link verified in DB + profile; CERT/2026/0011 + `%PDF-`; library issue → 409 re-issue → return → 1/1 → removed; Walk Loop assign → Aditya-only visibility → teardown; Arjun Nov slip `%PDF-`. One false alarm (guardians key is `guardianLinks`, not `guardians`) — no code change.
