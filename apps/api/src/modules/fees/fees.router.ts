@@ -5,8 +5,8 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { createStructureSchema, generateInvoicesSchema, listInvoicesSchema, listPaymentsSchema, recordPaymentSchema } from "./fees.schemas.js";
-import { createStructure, generateInvoices, initiateOnlinePayment, listInvoices, listPayments, recordOnlineCapture, recordPayment, runFeeReminders } from "./fees.service.js";
+import { createStructureSchema, generateInvoicesSchema, listInvoicesSchema, listPaymentsSchema, recordPaymentSchema, verifyPaymentSchema } from "./fees.schemas.js";
+import { createStructure, generateInvoices, initiateOnlinePayment, listInvoices, listPayments, recordOnlineCapture, recordPayment, runFeeReminders, verifyOnlinePayment } from "./fees.service.js";
 import { verifyWebhookSignature } from "../../lib/razorpay.js";
 import { prisma } from "../../lib/prisma.js";
 import { generateFeeReceipt } from "../../lib/receipt.js";
@@ -244,6 +244,51 @@ feesRouter.post(
         req.params.invoiceId ?? "",
       );
       res.status(201).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendFeesError(res, err);
+    }
+  }),
+);
+
+// Pay-verify fallback (§13.8): reconciles a pending online order against
+// what Razorpay holds, for when the webhook never arrives. Same audience
+// as pay-order (parent, own child) plus office recovery (admin/
+// accountant). A captured payment flows through the same idempotent
+// capture path as the webhook; nothing captured → PENDING (poll again).
+feesRouter.post(
+  "/schools/:schoolId/fees/pay-verify",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("fees.read"),
+  studentSelfScope,
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = verifyPaymentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await verifyOnlinePayment(
+        req.prisma,
+        { userId: req.user.userId, role: req.user.role },
+        req.studentScope ? req.studentScope.studentIds : null,
+        parsed.data.orderId,
+      );
+      res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendFeesError(res, err);
     }

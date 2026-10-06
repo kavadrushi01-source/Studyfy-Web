@@ -66,6 +66,15 @@ export const recordPaymentSchema = z.object({
 
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 
+// Pay-verify fallback (§13.8): reconciles OUR pending order id against
+// what Razorpay holds. The order id comes from our own pay-order
+// response — never from the gateway — so there is nothing to spoof.
+export const verifyPaymentSchema = z.object({
+  orderId: z.string().trim().min(1).max(60),
+});
+
+export type VerifyPaymentInput = z.infer<typeof verifyPaymentSchema>;
+
 const INVOICE_STATUS = ["PENDING", "PARTIAL", "PAID", "OVERDUE", "REFUNDED"] as const;
 const INVOICE_SORT = ["dueDate", "createdAt", "amount"] as const;
 

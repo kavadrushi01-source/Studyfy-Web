@@ -8,7 +8,7 @@ import { SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "@/lib/api";
 import { loadCheckoutScript, openCheckout } from "@/lib/razorpay-checkout";
 import { useAuth } from "@/lib/auth-context";
-import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
+import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 
 interface InvoiceRow {
   id: string;
@@ -54,6 +54,8 @@ export default function FeesPage() {
   const [payNotice, setPayNotice] = useState("");
   const [payingOnlineId, setPayingOnlineId] = useState<string | null>(null);
   const [onlineMsg, setOnlineMsg] = useState("");
+  const [pendingOrderId, setPendingOrderId] = useState("");
+  const [verifying, setVerifying] = useState(false);
 
   const load = useCallback(
     async (next: { status: string; page: number }) => {
@@ -174,10 +176,14 @@ export default function FeesPage() {
         amountPaise: Math.round(Number(body.data.amount) * 100),
         description: `School fee invoice ending ${invoiceId.slice(-6)}`,
         onSuccess: (payment) => {
+          setPendingOrderId(body.data.orderId);
           setOnlineMsg(
-            `Payment submitted (${payment.razorpay_payment_id}) — the receipt appears here once the school confirms it.`,
+            `Payment submitted (${payment.razorpay_payment_id}) — confirming with the school…`,
           );
-          void load({ status: appliedStatus, page });
+          // Webhooks usually land within seconds; poll the ledger so the
+          // row flips without a manual refresh. If the webhook never
+          // arrives, "Check now" reconciles directly (pay-verify).
+          void pollVerify(body.data.orderId, 0);
         },
         onDismiss: () => {
           setOnlineMsg("Payment window closed — no charge was made.");
@@ -187,6 +193,68 @@ export default function FeesPage() {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
       setPayingOnlineId(null);
+    }
+  }
+
+  // Webhook-loss recovery (§13.8): poll our own pay-verify after a
+  // successful checkout. It returns PENDING until Razorpay holds a
+  // capture, then applies it through the same idempotent path as the
+  // webhook — so a slow or lost webhook no longer strands an invoice.
+  async function pollVerify(orderId: string, attempt: number): Promise<void> {
+    if (!schoolId) {
+      return;
+    }
+    if (attempt > 12) {
+      setOnlineMsg("Still confirming — tap Check now any time; the receipt appears once confirmed.");
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 5000));
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/fees/pay-verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const body = (await response.json()) as { data: { status: string } } | { error: { message: string } };
+      if (!isFailure(response, body) && (body as { data: { status: string } }).data.status === "CAPTURED") {
+        setOnlineMsg("Payment confirmed — receipt ready below.");
+        setPendingOrderId("");
+        await load({ status: appliedStatus, page });
+        return;
+      }
+    } catch {
+      // Keep polling — gateways and webhooks lag.
+    }
+    void pollVerify(orderId, attempt + 1);
+  }
+
+  async function verifyNow(): Promise<void> {
+    if (!schoolId || !pendingOrderId || verifying) {
+      return;
+    }
+    setVerifying(true);
+    setError("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/fees/pay-verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: pendingOrderId }),
+      });
+      const body = (await response.json()) as { data: { status: string } } | { error: { message: string } };
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not confirm the payment yet.");
+      }
+      if ((body as { data: { status: string } }).data.status === "CAPTURED") {
+        setOnlineMsg("Payment confirmed — receipt ready below.");
+        setPendingOrderId("");
+        await load({ status: appliedStatus, page });
+      } else {
+        setOnlineMsg("Bank has not confirmed yet — wait a minute and tap Check now again.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -431,7 +499,12 @@ export default function FeesPage() {
       {onlineMsg ? (
         <p style={{ color: colors.success, fontSize: 14, margin: "12px 0 0" }}>
           <span style={{ ...pill(colors.warning, colors.warningTint), marginRight: 8 }}>TEST MODE</span>
-          {onlineMsg}
+          {onlineMsg}{" "}
+          {pendingOrderId ? (
+            <button type="button" onClick={() => void verifyNow()} disabled={verifying} style={{ ...secondaryBtn, padding: "4px 12px", fontSize: 12, marginLeft: 8 }}>
+              {verifying ? "Checking…" : "Check now"}
+            </button>
+          ) : null}
         </p>
       ) : null}
       {error ? (

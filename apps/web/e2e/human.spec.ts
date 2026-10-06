@@ -634,6 +634,10 @@ test.describe("online pay flow", () => {
     // The frontend sends ONLY the invoice id in the path - the body carries
     // no amount for anyone to tamper with.
     await expect(page.getByText(/Payment submitted \(pay_TEST_e2e\)/).first()).toBeVisible({ timeout: 20000 });
+    // Webhook-loss recovery UI: the pending order carries a Check-now
+    // button (pay-verify). Not clicked here — the canned order has no
+    // PENDING row, so it would 404 by design; visibility is the pin.
+    await expect(page.getByRole("button", { name: /check now/i })).toBeVisible({ timeout: 20000 });
     expect(bodies.length).toBeGreaterThan(0);
     expect(bodies[0]).toBe("{}");
     const seen = await page.evaluate(

@@ -50,6 +50,27 @@ export async function createRazorpayOrder(
   return { id: order.id, amount: order.amount, currency: order.currency, receipt: order.receipt, status: order.status, keyId };
 }
 
+export interface RazorpayPayment {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+}
+
+// Reconciliation read (§13.8): list what Razorpay actually holds for an
+// order. Used by the pay-verify fallback when the webhook never arrives —
+// same idempotency + amount discipline as the webhook path, never a
+// blind status flip. Mocked in tests exactly like createRazorpayOrder.
+export async function fetchOrderPayments(orderId: string): Promise<RazorpayPayment[]> {
+  const { keyId, keySecret } = razorpayKeys();
+  const client = new Razorpay({ key_id: keyId, key_secret: keySecret });
+  const result = await client.orders.fetchPayments(orderId);
+  if (!Array.isArray(result.items)) {
+    return [];
+  }
+  return result.items.map((p) => ({ id: String(p.id), amount: Number(p.amount), currency: String(p.currency), status: String(p.status) }));
+}
+
 // Webhook trust root (§13.8): the HMAC-SHA256 of the RAW request bytes,
 // keyed with the webhook secret, must equal Razorpay's signature header -
 // compared in constant time. Anything else (missing secret, missing or

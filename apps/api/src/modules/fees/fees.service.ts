@@ -4,7 +4,7 @@ import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { schoolDay } from "../../lib/school-time.js";
 import { invalidateAccountantBoards, invalidateActivityFeed, invalidateFeeKpis, invalidateStudentBoards } from "../metrics/metrics.service.js";
 import { AuthError } from "../auth/auth.service.js";
-import { createRazorpayOrder } from "../../lib/razorpay.js";
+import { createRazorpayOrder, fetchOrderPayments } from "../../lib/razorpay.js";
 import type { CreateStructureInput, GenerateInvoicesInput, ListInvoicesInput, ListPaymentsInput, RecordPaymentInput } from "./fees.schemas.js";
 
 export interface InvoiceLedger {
@@ -627,4 +627,56 @@ export async function recordOnlineCapture(
     }
     throw err;
   }
+}
+
+export interface VerifyOnlineResult {
+  status: "CAPTURED" | "PENDING";
+  paymentId: string;
+  invoiceId: string;
+  alreadyProcessed: boolean;
+}
+
+// Pay-verify fallback (§13.8): when the webhook never arrives (dashboard
+// misconfigured, delivery lost), the payer reconciles from OUR order id.
+// Same guards as initiation (parent-only, own child) plus office
+// (admin/accountant) recovery. Razorpay is asked what it holds; a
+// captured payment with exact paise flows through the SAME idempotent,
+// amount-checked capture path as the webhook — never a blind flip. No
+// captured payment → PENDING (poll again later), never an error.
+export async function verifyOnlinePayment(
+  db: PrismaClient,
+  caller: { userId: string; role: string },
+  allowedIds: string[] | null,
+  razorpayOrderId: string,
+): Promise<VerifyOnlineResult> {
+  const pending = await db.feePayment.findUnique({ where: { razorpayOrderId } });
+  if (!pending) {
+    throw new AuthError(404, "ORDER_NOT_FOUND", "No payment initiation matches this order.");
+  }
+  if (pending.status === "CAPTURED") {
+    return { status: "CAPTURED", paymentId: pending.id, invoiceId: pending.invoiceId, alreadyProcessed: true };
+  }
+  const invoice = await db.feeInvoice.findFirst({ where: { id: pending.invoiceId } });
+  if (!invoice) {
+    throw new AuthError(404, "INVOICE_NOT_FOUND", "Invoice not found in this school.");
+  }
+  const isOffice = caller.role === "SCHOOL_ADMIN" || caller.role === "ACCOUNTANT";
+  if (caller.role === "PARENT") {
+    if (allowedIds && !allowedIds.includes(invoice.studentId)) {
+      throw new AuthError(403, "FORBIDDEN", "Not your child.");
+    }
+  } else if (!isOffice) {
+    throw new AuthError(403, "FORBIDDEN", "Only parents and the office can verify online payments.");
+  }
+  const remote = await fetchOrderPayments(razorpayOrderId);
+  const captured = remote.find((p) => p.status === "captured" && p.currency === "INR");
+  if (!captured) {
+    return { status: "PENDING", paymentId: pending.id, invoiceId: pending.invoiceId, alreadyProcessed: false };
+  }
+  const applied = await recordOnlineCapture(db, {
+    razorpayOrderId,
+    razorpayPaymentId: captured.id,
+    amountPaise: captured.amount,
+  });
+  return { status: "CAPTURED", paymentId: applied.paymentId, invoiceId: applied.invoiceId, alreadyProcessed: applied.alreadyProcessed };
 }

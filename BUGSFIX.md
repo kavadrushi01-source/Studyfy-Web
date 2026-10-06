@@ -357,6 +357,22 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+56. **Stuck-PENDING online payments (2026-10-06, founder-hit live).**
+    Founder paid twice on prod; both invoices stayed PENDING. Root cause
+    class: our UI relied SOLELY on the Razorpay webhook to flip the
+    invoice — a lost/misconfigured webhook strands the payment with no
+    recovery. Fix: `POST /fees/pay-verify {orderId}` reconciles OUR
+    pending order against what Razorpay holds and applies captures
+    through the SAME idempotent, amount-checked path as the webhook
+    (parent-own-child + office only; unknown order 404; nothing held
+    → PENDING, never an error). UI: auto-poll after checkout success
+    (12×5s) + a "Check now" button while an order is pending. Proves
+    the class, not just the incident: mocked-gateway tests (capture
+    applies + idempotent redelivery, PENDING passthrough, stranger/
+    pupil/unknown refusals). Verified: fees-verify 3/3, online-pay e2e
+    incl. Check-now pin. Founder action still open: confirm the
+    Razorpay dashboard webhook (URL + secret vs Render env) so
+    webhooks flow again — verify covers future losses either way.
 55. **Full-product pass (2026-10-06, founder-ordered, Phase 0–2).**
     Security matrix first (new permanent `security-matrix.test.ts`: fresh
     A/B schools, 13 cross-tenant URLs → TENANT_MISMATCH, scoped-ID 404s,
