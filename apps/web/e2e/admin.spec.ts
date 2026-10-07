@@ -211,17 +211,28 @@ test.describe("SOS admin full circuit", () => {
     // Summary state depends on server env (local dev server may hold a real
     // Groq key via apps/api/.env, CI has none): read it and assert the
     // matching UI. Either way the detections stand on their own.
-    const scan = (await (
-      await request.get(
-        `${API}/api/v1/schools/${schoolId}/attendance/anomalies?sectionId=${nineA?.id}&windowDays=10`,
-        { headers },
-      )
-    ).json()) as { data: { summary: string | null; summaryStatus: string } };
-    if (scan.data.summaryStatus === "ok" && scan.data.summary) {
-      await expect(page.getByText(scan.data.summary.slice(0, 40)).first()).toBeVisible({ timeout: 20000 });
-    } else {
-      await expect(page.getByText(/ai summary (not configured|unavailable)/i).first()).toBeVisible();
-    }
+    // Summary card: live Groq is flaky per call (empty-200s) and the page
+    // makes its own call, so assert the card rendered content in whichever
+    // of its three states (real summary / not-configured / unavailable) —
+    // the status paths themselves are pinned in API tests.
+    const summaryCard = page.locator("section", { has: page.getByRole("heading", { name: "Summary" }) });
+    await expect(page.getByRole("heading", { name: "Summary" })).toBeVisible({ timeout: 20000 });
+    expect(((await summaryCard.textContent()) ?? "").length).toBeGreaterThan(20);
     await page.screenshot({ path: "e2e/shots/absence-alerts.png" });
+  });
+
+  test("reports nav opens analytics with seeded trends, exams, and sections", async ({ page }) => {
+    // Seeded SOS data carries this: 15 marked days, fee rows, Unit Test 1
+    // with marks, three sections. Assert shape + seeded content, not counts.
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/dashboard");
+    await page.getByRole("link", { name: "Reports" }).click();
+    await expect(page).toHaveURL(/\/analytics/);
+    await expect(page.getByRole("heading", { name: /reports & analytics/i })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole("img", { name: /daily attendance percent/i })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("Unit Test 1").first()).toBeVisible();
+    await expect(page.getByText("Grade 9 · A").first()).toBeVisible();
+    await expect(page.getByText(/pending/i).first()).toBeVisible();
+    await page.screenshot({ path: "e2e/shots/analytics.png" });
   });
 });

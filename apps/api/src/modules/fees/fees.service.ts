@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { schoolDay } from "../../lib/school-time.js";
 import { invalidateAccountantBoards, invalidateActivityFeed, invalidateFeeKpis, invalidateStudentBoards } from "../metrics/metrics.service.js";
+import { invalidateAnalytics } from "../metrics/analytics.service.js";
 import { AuthError } from "../auth/auth.service.js";
 import { createRazorpayOrder, fetchOrderPayments } from "../../lib/razorpay.js";
 import type { CreateStructureInput, GenerateInvoicesInput, ListInvoicesInput, ListPaymentsInput, RecordPaymentInput } from "./fees.schemas.js";
@@ -270,6 +271,7 @@ export async function generateInvoices(
   );
   // New money owed → pending totals and the status donut are stale (§12.3).
   invalidateAccountantBoards(structure.schoolId);
+  invalidateAnalytics(structure.schoolId);
   invalidateStudentBoards(structure.schoolId);
   return { generated: fresh.length, skipped };
 }
@@ -329,6 +331,7 @@ export async function recordPayment(
   invalidateFeeKpis(invoice.schoolId);
   invalidateActivityFeed(invoice.schoolId);
   invalidateAccountantBoards(invoice.schoolId);
+  invalidateAnalytics(invoice.schoolId);
   invalidateStudentBoards(invoice.schoolId);
   return {
     invoice: {
@@ -613,6 +616,7 @@ export async function recordOnlineCapture(
     invalidateFeeKpis(invoice.schoolId);
     invalidateActivityFeed(invoice.schoolId);
     invalidateAccountantBoards(invoice.schoolId);
+    invalidateAnalytics(invoice.schoolId);
     invalidateStudentBoards(invoice.schoolId);
     return { paymentId: payment.id, invoiceId: updated.id, status: payment.status, alreadyProcessed: false };
   } catch (err) {

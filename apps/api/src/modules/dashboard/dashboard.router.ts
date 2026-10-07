@@ -5,6 +5,7 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { getAccountantDashboard, getAdminDashboard, getParentDashboard, getStudentDashboard, getTeacherDashboard } from "../metrics/metrics.service.js";
+import { getAnalyticsOverview } from "../metrics/analytics.service.js";
 import { parentBoardQuerySchema } from "./dashboard.schemas.js";
 
 export const dashboardRouter = Router();
@@ -52,6 +53,35 @@ dashboardRouter.get(
       requireRole(req, "SCHOOL_ADMIN");
       const dashboard = await getAdminDashboard(req.prisma, req.schoolId ?? "");
       res.json({ success: true, data: { dashboard }, error: null, meta: null });
+    } catch (err) {
+      sendDashboardError(res, err);
+    }
+  }),
+);
+
+// Admin analytics (§7 Phase 3 #19): attendance trend, fee trend, exam
+// performance, section table — one cached call per load. Same audience
+// gate as the admin bundle (dashboard.read + SCHOOL_ADMIN); teachers and
+// accountants keep their own boards.
+dashboardRouter.get(
+  "/schools/:schoolId/analytics/overview",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("dashboard.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      requireRole(req, "SCHOOL_ADMIN");
+      const analytics = await getAnalyticsOverview(req.prisma, req.schoolId ?? "");
+      res.json({ success: true, data: { analytics }, error: null, meta: null });
     } catch (err) {
       sendDashboardError(res, err);
     }

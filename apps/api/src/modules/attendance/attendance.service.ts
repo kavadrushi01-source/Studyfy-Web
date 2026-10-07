@@ -4,6 +4,7 @@ import { GroqApiError, GroqUnconfiguredError, groq } from "../../lib/groq.js";
 import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateAttendanceKpis, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
+import { invalidateAnalytics } from "../metrics/analytics.service.js";
 import type { AnomaliesInput, MarkAttendanceInput, RosterInput, SummaryInput } from "./attendance.schemas.js";
 
 interface Caller {
@@ -87,6 +88,7 @@ export async function markAttendance(
   // and so are the affected teachers' "today" boards and the marked
   // students' boards (§12.3).
   invalidateAttendanceKpis(section.schoolId);
+  invalidateAnalytics(section.schoolId);
   invalidateTeacherBoards(section.schoolId);
   invalidateStudentBoards(section.schoolId);
   return { marked: input.records.length };
