@@ -5,7 +5,7 @@ import type { ReportCardData } from "../../lib/report-card.js";
 import { AuthError } from "../auth/auth.service.js";
 import { attendanceSummary } from "../attendance/attendance.service.js";
 import { invalidateActivityFeed, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
-import type { CreateExamInput, EnterMarksInput, GenerateRemarkInput } from "./exams.schemas.js";
+import type { CreateExamInput, EnterMarksInput, GenerateRemarkInput, ReviewRemarkInput } from "./exams.schemas.js";
 
 // Exam + subject links in one transaction (§7 Phase 1 #4). Every lookup
 // runs on the tenant-SCOPED client: foreign academic years or subjects
@@ -372,7 +372,24 @@ export async function reportCard(
     rankedOutOf: totals.size,
     attendancePercent,
     attendanceRange,
+    remark: await latestReviewedRemark(db, exam.id, studentId),
   };
+}
+
+// The card pulls the SAVED remark (§7 Phase 3 #18) — newest reviewed row
+// for this pupil+exam — never a fresh Groq call. Unreviewed AI drafts are
+// invisible here by construction: no reviewed row, no remark on the card.
+async function latestReviewedRemark(
+  db: PrismaClient,
+  examId: string,
+  studentId: string,
+): Promise<{ text: string; generatedBy: string } | null> {
+  const row = await db.examRemark.findFirst({
+    where: { examId, studentId, reviewed: true },
+    orderBy: { createdAt: "desc" },
+    select: { remark: true, generatedBy: true },
+  });
+  return row ? { text: row.remark, generatedBy: row.generatedBy } : null;
 }
 
 // AI report-card remark (§7 Phase 3 #18): given one pupil's marks and
@@ -485,4 +502,106 @@ export async function generateRemark(
     },
   });
   return { remark: { id: saved.id, remark: saved.remark, generatedBy: saved.generatedBy, reviewed: saved.reviewed } };
+}
+
+export interface RemarkRow {
+  id: string;
+  remark: string;
+  generatedBy: string;
+  reviewed: boolean;
+  createdAt: Date;
+}
+
+// One pupil's remarks, newest first — the teacher's review queue for the
+// report card page. Same class-teacher-or-admin relationship as generation,
+// resolved through the pupil's own section.
+export async function listRemarks(
+  db: PrismaClient,
+  examId: string,
+  caller: MarksCaller,
+  studentId: string,
+): Promise<{ remarks: RemarkRow[] }> {
+  const exam = await db.exam.findFirst({ where: { id: examId }, select: { id: true } });
+  if (!exam) {
+    throw new AuthError(404, "EXAM_NOT_FOUND", "Exam not found in this school.");
+  }
+  const student = await db.student.findFirst({
+    where: { id: studentId },
+    select: { id: true, section: { select: { classTeacherId: true } } },
+  });
+  if (!student) {
+    throw new AuthError(404, "NOT_FOUND", "Student not found.");
+  }
+  if (caller.role !== "SCHOOL_ADMIN") {
+    const staff = await db.staff.findFirst({ where: { userId: caller.userId } });
+    if (!staff || student.section.classTeacherId !== staff.id) {
+      throw new AuthError(
+        403,
+        "NOT_SECTION_TEACHER",
+        "Only the section's class teacher or a School Admin may read its remarks.",
+      );
+    }
+  }
+  const rows = await db.examRemark.findMany({
+    where: { examId: exam.id, studentId: student.id },
+    orderBy: { createdAt: "desc" },
+  });
+  return {
+    remarks: rows.map((r) => ({
+      id: r.id,
+      remark: r.remark,
+      generatedBy: r.generatedBy,
+      reviewed: r.reviewed,
+      createdAt: r.createdAt,
+    })),
+  };
+}
+
+// Teacher review (§7 Phase 3 #18): edit the draft text and/or flip
+// reviewed. The remark must belong to the exam in the URL — a row from
+// another exam (or school, via tenant scoping) 404s instead of moving.
+export async function reviewRemark(
+  db: PrismaClient,
+  examId: string,
+  caller: MarksCaller,
+  remarkId: string,
+  input: ReviewRemarkInput,
+): Promise<{ remark: RemarkRow }> {
+  const row = await db.examRemark.findFirst({
+    where: { id: remarkId },
+    select: {
+      id: true,
+      examId: true,
+      student: { select: { section: { select: { classTeacherId: true } } } },
+    },
+  });
+  if (!row || row.examId !== examId) {
+    throw new AuthError(404, "REMARK_NOT_FOUND", "Remark not found for this exam.");
+  }
+  if (caller.role !== "SCHOOL_ADMIN") {
+    const staff = await db.staff.findFirst({ where: { userId: caller.userId } });
+    if (!staff || row.student.section.classTeacherId !== staff.id) {
+      throw new AuthError(
+        403,
+        "NOT_SECTION_TEACHER",
+        "Only the section's class teacher or a School Admin may review its remarks.",
+      );
+    }
+  }
+  const updated = await db.examRemark.update({
+    where: { id: row.id },
+    data: {
+      ...(input.remark !== undefined ? { remark: input.remark } : {}),
+      ...(input.reviewed !== undefined ? { reviewed: input.reviewed } : {}),
+    },
+  });
+  return {
+    remark: {
+      id: updated.id,
+      remark: updated.remark,
+      generatedBy: updated.generatedBy,
+      reviewed: updated.reviewed,
+      createdAt: updated.createdAt,
+    },
+  };
 }

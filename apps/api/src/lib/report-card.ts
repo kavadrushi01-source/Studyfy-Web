@@ -25,6 +25,10 @@ export interface ReportCardData {
   rankedOutOf: number;
   attendancePercent: number | null;
   attendanceRange: string | null;
+  // The latest REVIEWED remark for this pupil+exam (§7 Phase 3 #18).
+  // Unreviewed AI drafts never reach the card — the service attaches only
+  // reviewed rows, so the PDF cannot leak an unsigned draft.
+  remark: { text: string; generatedBy: string } | null;
 }
 
 // Report card PDF (§7 Phase 1 #4). PDFKit, A4 — same no-browser reasoning
@@ -92,6 +96,13 @@ export function generateReportCard(data: ReportCardData): Promise<Buffer> {
       doc.text(
         `Attendance: ${data.attendancePercent}%${data.attendanceRange ? ` (${data.attendanceRange})` : ""}`,
       );
+    }
+    if (data.remark) {
+      doc.moveDown(0.5);
+      doc.fontSize(11).font("Helvetica-Bold").fillColor("#0F172A");
+      doc.text("Class Teacher's Remark");
+      doc.fontSize(10).font("Helvetica").fillColor("#334155");
+      doc.text(data.remark.text);
     }
 
     doc.moveDown(2);

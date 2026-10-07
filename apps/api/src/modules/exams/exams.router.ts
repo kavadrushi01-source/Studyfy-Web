@@ -6,8 +6,8 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { createExamSchema, enterMarksSchema, generateRemarkSchema, savedMarksQuerySchema } from "./exams.schemas.js";
-import { createExam, enterMarks, examResults, generateRemark, reportCard, savedMarks } from "./exams.service.js";
+import { createExamSchema, enterMarksSchema, generateRemarkSchema, remarksQuerySchema, reviewRemarkSchema, savedMarksQuerySchema } from "./exams.schemas.js";
+import { createExam, enterMarks, examResults, generateRemark, listRemarks, reportCard, reviewRemark, savedMarks } from "./exams.service.js";
 import { generateReportCard } from "../../lib/report-card.js";
 
 export const examsRouter = Router();
@@ -293,6 +293,89 @@ examsRouter.post(
         parsed.data,
       );
       res.status(201).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendExamsError(res, err);
+    }
+  }),
+);
+
+// One pupil's remarks, newest first — backs the report card review UI.
+// Same key (exams.manage) and relationship as generation.
+examsRouter.get(
+  "/schools/:schoolId/exams/:examId/remarks",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("exams.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = remarksQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await listRemarks(
+        req.prisma,
+        req.params.examId ?? "",
+        { userId: req.user.userId, role: req.user.role },
+        parsed.data.studentId,
+      );
+      res.json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendExamsError(res, err);
+    }
+  }),
+);
+
+// Teacher review (§7 Phase 3 #18): edit the draft and/or flip reviewed.
+// Same key and relationship — pupils/parents never reach this route.
+examsRouter.patch(
+  "/schools/:schoolId/exams/:examId/remarks/:remarkId",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("exams.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = reviewRemarkSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await reviewRemark(
+        req.prisma,
+        req.params.examId ?? "",
+        { userId: req.user.userId, role: req.user.role },
+        req.params.remarkId ?? "",
+        parsed.data,
+      );
+      res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendExamsError(res, err);
     }

@@ -65,6 +65,25 @@ export const generateRemarkSchema = z.object({
 
 export type GenerateRemarkInput = z.infer<typeof generateRemarkSchema>;
 
+// Teacher review (§7 Phase 3 #18): read one pupil's drafts, then edit the
+// text and/or flip reviewed. One pupil at a time, like generation.
+export const remarksQuerySchema = z.object({
+  studentId: z.string().trim().min(1).max(40),
+});
+
+export type RemarksQuery = z.infer<typeof remarksQuerySchema>;
+
+export const reviewRemarkSchema = z
+  .object({
+    remark: z.string().trim().min(1).max(2000).optional(),
+    reviewed: z.boolean().optional(),
+  })
+  .refine((v) => v.remark !== undefined || v.reviewed !== undefined, {
+    message: "Provide remark and/or reviewed.",
+  });
+
+export type ReviewRemarkInput = z.infer<typeof reviewRemarkSchema>;
+
 // Saved-marks read (prefill for the entry form): one subject, one section.
 // Same class-teacher-or-admin gate as entry — pupils/parents never see
 // another pupil's marks through here.

@@ -572,6 +572,7 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
 
   await seedFees(db, school.id, year.id, classIds, seeded, spec.feeByClass, accountantUserId);
   await seedExam(db, school.id, year.id, seeded);
+  await seedRemarks(db, school.id, seeded);
   const marker = teacherStaffIds[0];
   if (marker) {
     await seedAttendance(db, school.id, seeded, marker);
@@ -688,6 +689,56 @@ async function seedExam(
       });
     }
   }
+}
+
+async function seedRemarks(
+  db: PrismaClient,
+  schoolId: string,
+  students: { studentId: string; index: number }[],
+): Promise<void> {
+  // Review-queue demo data (§7 Phase 3 #18): the first pupil of each school
+  // carries one signed TEACHER remark and one unreviewed AI draft on Unit
+  // Test 1, so the report-page review flow is demonstrable (and e2e-covered)
+  // without calling Groq. Deterministic ids — re-runs upsert, never duplicate.
+  const first = students[0];
+  const exam = await db.exam.findUnique({ where: { id: `seed-${schoolId}-unit-test-1` } });
+  if (!first || !exam) {
+    return;
+  }
+  await db.examRemark.upsert({
+    where: { id: `seed-${schoolId}-remark-signed` },
+    update: {
+      remark: "Consistent effort across all subjects this term — keep it up.",
+      generatedBy: "TEACHER",
+      reviewed: true,
+    },
+    create: {
+      id: `seed-${schoolId}-remark-signed`,
+      schoolId,
+      studentId: first.studentId,
+      examId: exam.id,
+      remark: "Consistent effort across all subjects this term — keep it up.",
+      generatedBy: "TEACHER",
+      reviewed: true,
+    },
+  });
+  await db.examRemark.upsert({
+    where: { id: `seed-${schoolId}-remark-draft` },
+    update: {
+      remark: "This student shows steady progress with room to grow in problem-solving speed.",
+      generatedBy: "AI",
+      reviewed: false,
+    },
+    create: {
+      id: `seed-${schoolId}-remark-draft`,
+      schoolId,
+      studentId: first.studentId,
+      examId: exam.id,
+      remark: "This student shows steady progress with room to grow in problem-solving speed.",
+      generatedBy: "AI",
+      reviewed: false,
+    },
+  });
 }
 
 function lastSchoolDays(count: number): Date[] {
