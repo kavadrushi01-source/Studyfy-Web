@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** 2026-09-16 | **Last updated:** 2026-10-05
+**Started:** 2026-09-16 | **Last updated:** 2026-10-07
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -70,7 +70,7 @@
 ## Phase 3 — Scale & Retention
 | Module | Status | Notes |
 |---|---|---|
-| AI features | NOT STARTED | **Build for real on Groq's free tier** — not a stub. OpenAI stays optional/unused unless explicitly requested later |
+| AI features | DONE 2026-10-07 — Groq wrapper (single call site, one model `openai/gpt-oss-20b`, PII scrub inside, fail-closed; live-proven, 2-request demo) + `exam_remarks` (AI\|TEACHER, reviewed flag, TENANT_MODELS same commit) + generate endpoint (de-identified prompt, AI+unreviewed save) + teacher review UI on the report card (edit + mark reviewed) + saved-remark report-card PDF (reviewed only, never a fresh call) + sliding-window anomaly detection (4 signals, pure compute) + anomalies endpoint (Groq phrases the section summary from facts only) + `/attendance/anomalies` staff view. Verified: API 277/277 (69 files) incl. tenant/gate/PII-wire asserts, teacher.spec 6/6 + admin.spec 5/5 e2e, tsc+lint 0, audit 0 vulns, live demo (Aditya/Unit Test 1: generate→review→PDF-input→flag+summary, exactly 2 Groq calls, dev restored) | **Build for real on Groq's free tier** — not a stub. OpenAI stays optional/unused unless explicitly requested later |
 | Analytics dashboard | NOT STARTED | |
 | PWA / offline | NOT STARTED | |
 | Biometric/RFID integration | NOT STARTED | |

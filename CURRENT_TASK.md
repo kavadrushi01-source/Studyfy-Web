@@ -9,11 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS — Phase 3 Chunk 1 pre-flight verification (full suite + builds + CI + core security re-run) before any new code.
-**Phase / Module:** Phase 3 — Chunk 1 (AI features, Groq free tier — pre-flight; no new code yet)
+**Status:** IDLE — Phase 3 Chunk 1 of 5 (AI features) complete and accepted. Next is Chunk 2 — Analytics Dashboard.
+**Phase / Module:** Phase 3 — Chunk 1 DONE → Chunk 2 next (Analytics Dashboard, spec §7 #19)
 **Last updated:** 2026-10-07
 
 ## What's done in this task so far
+- Chunk 1 of 5 COMPLETE 2026-10-07: AI features live — Groq wrapper + exam_remarks + generate + review UI + saved-remark PDF + anomaly detection + alerts view. Full record in `STATUS.md` Phase 3 row (Definition of Done: API 277/277, tenant/gate tests, board-language UI, audit+lint+e2e green, live 2-request demo). Detail bullets below kept for one session, then fold.
 - Chunk 1 step 2 DONE 2026-10-07: `ExamRemark` model (student_id, exam_id, remark TEXT, generatedBy AI|TEACHER default TEACHER, reviewed default false; school-first indexes; RESTRICT deletes) + migration `20261007103539_phase3_exam_remarks` applied to dev AND test DBs. NOTE: ExamRemark was NOT in TENANT_MODELS (checked both lists — "it should be" was not the case); added to the real list (`prisma-tenant.ts`) + the `SECURITY_PATTERNS.md` reference + spec §9.1 ER line, same commit per RULES.md §3. Tests `exam-remarks.test.ts` 5/5 (list entry, both-direction isolation, cross-tenant null, create stamp, defaults). Gates: tsc×2 + eslint 0.
 - Chunk 1 step 1 DONE 2026-10-07: reusable Groq wrapper `apps/api/src/lib/groq.ts` — single `groq().generateText()` call site (OpenAI-compatible endpoint, one model w/ `GROQ_MODEL` env override, 15s abort, maxTokens capped 1024); PII scrub (`minimizePii`: emails/phones/long ids) enforced INSIDE generateText; fail-closed `GroqUnconfiguredError` at call time; `setGroqClient`/`stubGroqClient` seam (mailer.ts shape); no new deps (global fetch). Tests `tests/groq.test.ts` 9/9 (fail-closed, model choice, scrub + prose-intact, auth+model+scrubbed-prompt asserted on wire, 429/empty/timeout errors, stub seam). Gates: tsc×2 + eslint 0. LIVE-PROVEN 2026-10-07: founder set `GROQ_API_KEY` (local .env + Render, deploy success, health `ok:true`); per-env keys done (second key on Render, redeploy verified `/health ok:true`); first live call 404'd — `llama-3.3-70b-versatile` is NOT served anymore; fixed default to `openai/gpt-oss-20b` (verified against the account's live /models list) and re-proved end to end: real one-line remark returned through the wrapper. Temp live-check scripts removed.
 - Phase 3 Chunk 1 PRE-FLIGHT DONE 2026-10-07: full API suite **240/240 (63 files) green** (two infra flakes first — worker crash, then 2×30s dashboard timeouts under parallel load; both pass solo, third full run clean); `tsc`×3 + `lint` 0; `npm audit` **0 vulnerabilities**; API + web builds exit 0; `migrate status` in sync (studyfy_test @3307); core security subset **29/29 (7 files: tenant-isolation, platform, self-scope, staff-self-scope, messages, message-threads, security-matrix)**; CI run 37560538902 on HEAD `716afba` — all 5 jobs success incl. real e2e. STATUS.md Phase 2 rows all still DONE (verified via suite, not live site this session). Sandbox MySQL 3307 was down at session start; restarted per recipe (stale PID 5204 kill denied by OS, new instance listening — left alone).
@@ -44,7 +45,7 @@
 - Chunk 1 step 3 DONE 2026-10-07: `POST /schools/:schoolId/exams/:examId/remarks/generate` — exams.manage + class-teacher-or-admin (via pupil's own section); gathers marks + exam-window attendance (same rule as reportCard, never recomputed); de-identified prompt (name never SELECTED; "this student" + subject scores + optional attendance line; wrapper scrub second layer); saves AI + reviewed=false; Groq missing → 503 AI_UNCONFIGURED, provider failure → 502. Tests `exam-remarks-generate.test.ts` 5/5 (201 + row shape + prompt PII asserts, admin + attendance-window prompt, pupil/parent/other-teacher/stranger-school refusals, 404/400 paths, fail-closed 503 with zero rows). Gates: tsc×2 + eslint 0.
 
 ## Exact next action
-- Chunk 1 DONE — both AI features live (remarks + anomalies); next: mark Chunk 1 DONE in STATUS.md, then Chunk 2 Analytics.
+- Chunk 2 — Analytics Dashboard (spec §7 #19) whenever the founder says go. Chunk 1 is DONE in STATUS.md; tree clean after this commit.
 
 ## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
