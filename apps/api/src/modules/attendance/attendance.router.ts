@@ -5,8 +5,8 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { markAttendanceSchema, rosterSchema, summarySchema } from "./attendance.schemas.js";
-import { attendanceSummary, markAttendance, rosterAttendance } from "./attendance.service.js";
+import { markAttendanceSchema, anomaliesQuerySchema, rosterSchema, summarySchema } from "./attendance.schemas.js";
+import { attendanceAnomalies, attendanceSummary, markAttendance, rosterAttendance } from "./attendance.service.js";
 
 export const attendanceRouter = Router();
 
@@ -132,6 +132,48 @@ attendanceRouter.get(
         req.prisma,
         parsed.data,
         req.studentScope ? req.studentScope.studentIds : null,
+      );
+      res.json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendAttendanceError(res, err);
+    }
+  }),
+);
+
+// Anomaly scan (§7 Phase 3 #18): detection is local sliding-window math,
+// Groq only phrases the section summary from de-identified facts. Staff
+// analytics — pupils/parents hold attendance.read but are not the
+// section's teacher, so the service gate refuses them like roster reads.
+attendanceRouter.get(
+  "/schools/:schoolId/attendance/anomalies",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("attendance.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = anomaliesQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await attendanceAnomalies(
+        req.prisma,
+        { userId: req.user.userId, role: req.user.role },
+        parsed.data,
       );
       res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {

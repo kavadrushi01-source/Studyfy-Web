@@ -1,8 +1,10 @@
 import type { PrismaClient } from "@prisma/client";
+import { detectAnomalies, type AnomalyDay, type AttendanceAnomaly } from "../../lib/attendance-anomalies.js";
+import { GroqApiError, GroqUnconfiguredError, groq } from "../../lib/groq.js";
 import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateAttendanceKpis, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
-import type { MarkAttendanceInput, RosterInput, SummaryInput } from "./attendance.schemas.js";
+import type { AnomaliesInput, MarkAttendanceInput, RosterInput, SummaryInput } from "./attendance.schemas.js";
 
 interface Caller {
   userId: string;
@@ -270,4 +272,131 @@ export async function rosterAttendance(
     select: { studentId: true, status: true },
   });
   return { records: rows.map((r) => ({ studentId: r.studentId, status: r.status })) };
+}
+
+export interface FlaggedPupil {
+  studentId: string;
+  name: string;
+  anomalies: AttendanceAnomaly[];
+}
+
+// Anomaly scan (§7 Phase 3 #18): the DETECTION is the pure sliding-window
+// function above — this service only fetches one section's trailing marked
+// days, groups them per pupil, and runs the detector. Groq's sole input is
+// the detected facts (counts + rates + dates, no pupil names); it phrases
+// the summary, it never reasons about who is anomalous. Without a key the
+// detections still return with summary null — the AI line enhances the
+// scan, it is not the scan.
+export async function attendanceAnomalies(
+  db: PrismaClient,
+  caller: Caller,
+  input: AnomaliesInput,
+): Promise<{
+  section: { id: string; name: string };
+  windowDays: number;
+  range: { from: string; to: string } | null;
+  checked: number;
+  flagged: FlaggedPupil[];
+  summary: string | null;
+  summaryStatus: "ok" | "unconfigured" | "failed";
+}> {
+  const section = await db.section.findFirst({
+    where: { id: input.sectionId },
+    include: { class: { select: { name: true } } },
+  });
+  if (!section) {
+    throw new AuthError(404, "SECTION_NOT_FOUND", "Section not found in this school.");
+  }
+  if (caller.role !== "SCHOOL_ADMIN") {
+    const staff = await db.staff.findFirst({ where: { userId: caller.userId } });
+    if (!staff || section.classTeacherId !== staff.id) {
+      throw new AuthError(
+        403,
+        "NOT_SECTION_TEACHER",
+        "Only the section's class teacher or a School Admin may read its attendance.",
+      );
+    }
+  }
+
+  const recent = await db.attendance.findMany({
+    where: { sectionId: section.id },
+    select: { date: true },
+    distinct: ["date"],
+    orderBy: { date: "desc" },
+    take: input.windowDays,
+  });
+  const dayStrings = recent.map((r) => r.date.toISOString().slice(0, 10)).sort();
+  const pupils = await db.student.findMany({
+    where: { sectionId: section.id },
+    select: { id: true, user: { select: { name: true } } },
+  });
+  if (dayStrings.length === 0) {
+    return {
+      section: { id: section.id, name: `${section.class.name} · ${section.name}` },
+      windowDays: input.windowDays,
+      range: null,
+      checked: pupils.length,
+      flagged: [],
+      summary: null,
+      summaryStatus: "ok",
+    };
+  }
+  const firstDay = dayStrings[0] ?? "";
+  const lastDay = dayStrings[dayStrings.length - 1] ?? "";
+
+  const rows = await db.attendance.findMany({
+    where: { sectionId: section.id, date: { in: recent.map((r) => r.date) } },
+    select: { studentId: true, date: true, status: true },
+  });
+  const byStudent = new Map<string, AnomalyDay[]>();
+  for (const row of rows) {
+    const list = byStudent.get(row.studentId) ?? [];
+    list.push({ date: row.date.toISOString().slice(0, 10), status: row.status });
+    byStudent.set(row.studentId, list);
+  }
+
+  const flagged: FlaggedPupil[] = [];
+  for (const pupil of pupils) {
+    const trail = (byStudent.get(pupil.id) ?? []).sort((a, b) => (a.date < b.date ? -1 : 1));
+    const anomalies = detectAnomalies(trail, input.windowDays);
+    if (anomalies.length > 0) {
+      flagged.push({ studentId: pupil.id, name: pupil.user.name, anomalies });
+    }
+  }
+  flagged.sort((a, b) => a.name.localeCompare(b.name));
+
+  // One summary call for the whole section, built from de-identified
+  // facts only — Groq never sees a pupil name here.
+  let summary: string | null = null;
+  let summaryStatus: "ok" | "unconfigured" | "failed" = "ok";
+  if (flagged.length > 0) {
+    const factLines = flagged.flatMap((p) => p.anomalies.map((a) => `- ${a.facts}`));
+    try {
+      summary = await groq().generateText({
+        prompt: [
+          `Section ${section.class.name} ${section.name} (${pupils.length} pupils checked, trailing ${dayStrings.length} marked days ${firstDay} to ${lastDay}):`,
+          ...factLines,
+          "Summarize these attendance patterns for a school administrator in two or three sentences. Refer to pupils only as 'this pupil' / 'these pupils', never by name.",
+        ].join("\n"),
+      });
+    } catch (err) {
+      if (err instanceof GroqUnconfiguredError) {
+        summaryStatus = "unconfigured";
+      } else if (err instanceof GroqApiError) {
+        summaryStatus = "failed";
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  return {
+    section: { id: section.id, name: `${section.class.name} · ${section.name}` },
+    windowDays: input.windowDays,
+    range: { from: firstDay, to: lastDay },
+    checked: pupils.length,
+    flagged,
+    summary,
+    summaryStatus,
+  };
 }

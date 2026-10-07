@@ -66,3 +66,13 @@ export const summarySchema = z.object({
 });
 
 export type SummaryInput = z.infer<typeof summarySchema>;
+
+// Anomaly scan (§7 Phase 3 #18): one section's trailing marked days.
+// windowDays bounds the scan (and the Groq summary's input) — a whole
+// school in one call would be unbounded work and an unbounded prompt.
+export const anomaliesQuerySchema = z.object({
+  sectionId: z.string().trim().min(1).max(40),
+  windowDays: z.coerce.number().int().min(5).max(30).default(10),
+});
+
+export type AnomaliesInput = z.infer<typeof anomaliesQuerySchema>;
