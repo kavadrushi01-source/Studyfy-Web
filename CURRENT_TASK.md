@@ -9,8 +9,8 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Phase 2 complete, tagged `phase-2-complete`. All 7 rows DONE per Definition of Done (API 62/62 files 237/237 incl. 31/31 Phase-2 module tests, e2e 65/65 zero flakes, lint + audit 0, live end-to-ends, prod migrated). Nothing in progress.
-**Phase / Module:** Awaiting founder scope (Phase 2 closed; Phase 3 unscheduled)
+**Status:** IDLE — Phase 2 accepted by founder (personally verified end to end on the live site). Phase 3 starts next session.
+**Phase / Module:** Phase 3 — awaiting founder scope next session
 **Last updated:** 2026-10-06
 
 ## What's done in this task so far
