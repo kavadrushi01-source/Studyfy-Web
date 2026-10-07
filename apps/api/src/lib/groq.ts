@@ -27,8 +27,11 @@ export const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 // Single model choice for the whole product (short-text tasks per spec
 // §2). Overridable per-environment via GROQ_MODEL; there is no per-call
-// model parameter, so callers cannot fragment the choice.
-export const GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile";
+// model parameter, so callers cannot fragment the choice. Default tracks
+// Groq's live production list — verified 2026-10-07 against the account's
+// own /models endpoint (llama-3.3-70b-versatile is NOT served anymore, so
+// it 404s; gpt-oss-20b is the fast production pick for short text).
+export const GROQ_DEFAULT_MODEL = "openai/gpt-oss-20b";
 
 export function groqModel(): string {
   const override = (process.env.GROQ_MODEL ?? "").trim();
