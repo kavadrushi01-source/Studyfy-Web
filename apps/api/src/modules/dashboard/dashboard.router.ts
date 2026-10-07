@@ -6,7 +6,7 @@ import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { getAccountantDashboard, getAdminDashboard, getParentDashboard, getStudentDashboard, getTeacherDashboard } from "../metrics/metrics.service.js";
 import { getAnalyticsOverview } from "../metrics/analytics.service.js";
-import { parentBoardQuerySchema } from "./dashboard.schemas.js";
+import { parentBoardQuerySchema, analyticsQuerySchema } from "./dashboard.schemas.js";
 
 export const dashboardRouter = Router();
 
@@ -80,7 +80,17 @@ dashboardRouter.get(
     }
     try {
       requireRole(req, "SCHOOL_ADMIN");
-      const analytics = await getAnalyticsOverview(req.prisma, req.schoolId ?? "");
+      const parsed = analyticsQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json({
+          success: false,
+          data: null,
+          error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+          meta: null,
+        });
+        return;
+      }
+      const analytics = await getAnalyticsOverview(req.prisma, req.schoolId ?? "", parsed.data);
       res.json({ success: true, data: { analytics }, error: null, meta: null });
     } catch (err) {
       sendDashboardError(res, err);

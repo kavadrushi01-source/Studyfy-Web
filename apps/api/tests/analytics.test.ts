@@ -181,6 +181,29 @@ describe("GET analytics/overview (§7 Phase 3 #19 — admin analytics)", () => {
     expect((await getOverview(schoolId, adminToken)).status).toBe(200);
   });
 
+  it("honors attendanceDays/feeMonths windows and rejects out-of-range values", async () => {
+    clearAnalyticsCache();
+    const { schoolId, adminToken } = await registerSchool();
+    const auth = { Authorization: `Bearer ${adminToken}` };
+
+    const narrow = await request(app)
+      .get(`/api/v1/schools/${schoolId}/analytics/overview?attendanceDays=7&feeMonths=3`)
+      .set(auth)
+      .expect(200);
+    const narrowed = (narrow.body as { data: { analytics: Overview } }).data.analytics;
+    expect(narrowed.attendanceTrend).toHaveLength(7);
+    expect(narrowed.feeTrend).toHaveLength(3);
+
+    await request(app)
+      .get(`/api/v1/schools/${schoolId}/analytics/overview?attendanceDays=2`)
+      .set(auth)
+      .expect(400);
+    await request(app)
+      .get(`/api/v1/schools/${schoolId}/analytics/overview?feeMonths=99`)
+      .set(auth)
+      .expect(400);
+  });
+
   it("excludes other schools' rows and refreshes after new marks (invalidation wired)", async () => {
     clearAnalyticsCache();
     const { schoolId, adminToken } = await registerSchool();

@@ -6,7 +6,7 @@ import { BarChart3 } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { colors, h1Style, h2Style, mutedStyle, pageFrame, pill } from "@/lib/theme";
+import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
 
 interface TrendPoint {
   date: string;
@@ -60,33 +60,39 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [attendanceDays, setAttendanceDays] = useState("30");
+  const [feeMonths, setFeeMonths] = useState("6");
 
-  const load = useCallback(async () => {
-    if (!schoolId) {
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/analytics/overview`);
-      const body = (await response.json()) as { data: { analytics: Overview } } | ApiError;
-      if (isFailure(response, body)) {
-        throw new Error(body.error?.message ?? "Failed to load analytics.");
+  const load = useCallback(
+    async (nextAttendance: string, nextFees: string) => {
+      if (!schoolId) {
+        return;
       }
-      setData(body.data.analytics);
-    } catch (err) {
-      setData(null);
-      setError(err instanceof Error ? err.message : "Network error.");
-    } finally {
-      setLoading(false);
-    }
-  }, [schoolId, apiFetch]);
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams({ attendanceDays: nextAttendance, feeMonths: nextFees });
+        const response = await apiFetch(`/api/v1/schools/${schoolId}/analytics/overview?${params}`);
+        const body = (await response.json()) as { data: { analytics: Overview } } | ApiError;
+        if (isFailure(response, body)) {
+          throw new Error(body.error?.message ?? "Failed to load analytics.");
+        }
+        setData(body.data.analytics);
+      } catch (err) {
+        setData(null);
+        setError(err instanceof Error ? err.message : "Network error.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [schoolId, apiFetch],
+  );
 
   useEffect(() => {
     if (!ready || !token || !schoolId || !canView) {
       return;
     }
-    void load();
+    void load(attendanceDays, feeMonths);
   }, [ready, token, schoolId, apiFetch, canView, load]);
 
   if (!ready) {
@@ -154,6 +160,52 @@ export default function AnalyticsPage() {
       <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
         Trailing trends across attendance, fees, and exams{data ? ` · as of ${data.asOf.day}` : ""}.
       </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void load(attendanceDays, feeMonths);
+        }}
+        className="sf-row-wrap"
+        style={{ alignItems: "flex-end", marginBottom: 12 }}
+      >
+        <label style={labelStyle}>
+          Attendance window
+          <select
+            className="sf-select"
+            value={attendanceDays}
+            onChange={(e) => {
+              setAttendanceDays(e.target.value);
+              void load(e.target.value, feeMonths);
+            }}
+            aria-label="Attendance window"
+          >
+            <option value="7">7 days</option>
+            <option value="14">14 days</option>
+            <option value="30">30 days</option>
+            <option value="60">60 days</option>
+            <option value="90">90 days</option>
+          </select>
+        </label>
+        <label style={labelStyle}>
+          Fee window
+          <select
+            className="sf-select"
+            value={feeMonths}
+            onChange={(e) => {
+              setFeeMonths(e.target.value);
+              void load(attendanceDays, e.target.value);
+            }}
+            aria-label="Fee window"
+          >
+            <option value="3">3 months</option>
+            <option value="6">6 months</option>
+            <option value="12">12 months</option>
+          </select>
+        </label>
+        <button type="submit" disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.6 : 1 }}>
+          {loading ? "Loading…" : "Apply"}
+        </button>
+      </form>
       {loading ? (
         <SkeletonBlocks rows={6} />
       ) : data ? (

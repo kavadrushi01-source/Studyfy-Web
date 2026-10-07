@@ -61,8 +61,8 @@ const GRADE_ORDER = ["A+", "A", "B+", "B", "C+", "C", "D", "F"];
 
 const analyticsCache = new LruCache<AnalyticsOverview>({ maxEntries: 200, ttlMs: 60_000 });
 
-function overviewKey(schoolId: string, day: string): string {
-  return `analytics:overview:${schoolId}:${day}`;
+function overviewKey(schoolId: string, day: string, attendanceDays: number, feeMonths: number): string {
+  return `analytics:overview:${schoolId}:${day}:a${attendanceDays}f${feeMonths}`;
 }
 
 export function invalidateAnalytics(schoolId: string): void {
@@ -90,17 +90,28 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+export interface AnalyticsOptions {
+  attendanceDays?: number;
+  feeMonths?: number;
+}
+
+export const DEFAULT_ATTENDANCE_DAYS = 30;
+export const DEFAULT_FEE_MONTHS = 6;
+
 export async function getAnalyticsOverview(
   db: PrismaClient,
   schoolId: string,
+  options: AnalyticsOptions = {},
   now: Date = new Date(),
 ): Promise<AnalyticsOverview> {
+  const attendanceDays = options.attendanceDays ?? DEFAULT_ATTENDANCE_DAYS;
+  const feeMonthCount = options.feeMonths ?? DEFAULT_FEE_MONTHS;
   const school = await db.school.findUnique({ where: { id: schoolId }, select: { timezone: true } });
   if (!school) {
     throw new AuthError(404, "SCHOOL_NOT_FOUND", "School not found.");
   }
   const day = schoolDay(school.timezone, now);
-  const key = overviewKey(schoolId, day);
+  const key = overviewKey(schoolId, day, attendanceDays, feeMonthCount);
   const cached = analyticsCache.get(key);
   if (cached !== undefined) {
     return cached;
@@ -109,13 +120,13 @@ export async function getAnalyticsOverview(
   const { year, month } = schoolMonth(school.timezone, now);
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
 
-  // Trailing 30 school-local days. One query, grouped in JS — the marked
+  // Trailing attendanceDays school-local days. One query, grouped in JS — the marked
   // calendar day stored on the row IS the school day by construction
   // (marking writes the section's day, never server UTC), so grouping by
   // the stored day needs no conversion.
   const [y, m, d] = day.split("-").map(Number);
   const days: string[] = [];
-  for (let back = 29; back >= 0; back -= 1) {
+  for (let back = attendanceDays - 1; back >= 0; back -= 1) {
     const t = new Date(Date.UTC(y ?? 2026, (m ?? 1) - 1, (d ?? 1) - back));
     days.push(t.toISOString().slice(0, 10));
   }
@@ -144,7 +155,7 @@ export async function getAnalyticsOverview(
   // into school-local months) + right-now pending/overdue (same outstanding
   // math as the accountant board: amount − amountPaid).
   const feeMonths: { year: number; month: number }[] = [];
-  for (let back = 5; back >= 0; back -= 1) {
+  for (let back = feeMonthCount - 1; back >= 0; back -= 1) {
     const t = new Date(Date.UTC(year, month - 1 - back, 1));
     feeMonths.push({ year: t.getUTCFullYear(), month: t.getUTCMonth() + 1 });
   }

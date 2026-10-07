@@ -233,6 +233,11 @@ test.describe("SOS admin full circuit", () => {
     await expect(page.getByText("Unit Test 1").first()).toBeVisible();
     await expect(page.getByText("Grade 9 · A").first()).toBeVisible();
     await expect(page.getByText(/pending/i).first()).toBeVisible();
+    await page.getByLabel("Attendance window").selectOption("7");
+    await expect(page.getByRole("img", { name: /daily attendance percent/i })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("Unit Test 1").first()).toBeVisible();
+    await page.getByLabel("Fee window").selectOption("3");
+    await expect(page.getByRole("img", { name: /daily attendance percent/i })).toBeVisible({ timeout: 20000 });
     await page.screenshot({ path: "e2e/shots/analytics.png" });
   });
 });
