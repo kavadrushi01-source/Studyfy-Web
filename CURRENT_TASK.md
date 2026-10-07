@@ -9,11 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS — Phase 3 Chunk 2 (Analytics Dashboard, spec §7 #19).
-**Phase / Module:** Phase 3 — Chunk 2 of 5 (Analytics Dashboard)
+**Status:** IDLE — Phase 3 Chunk 2 of 5 (Analytics Dashboard) complete and accepted. Next is Chunk 3 — PWA/Offline.
+**Phase / Module:** Phase 3 — Chunk 2 DONE → Chunk 3 next (PWA/Offline, spec §7 #20)
 **Last updated:** 2026-10-07
 
 ## What's done in this task so far
+- Chunk 2 of 5 COMPLETE 2026-10-07: Analytics Dashboard live — overview endpoint + date-range windows + `/analytics` page + Reports nav. Full record in `STATUS.md` Phase 3 row (Definition of Done: API 281/281, tenant/gate tests, board-language UI, audit+lint+e2e green, live SOS-vs-RK separation demo). Detail bullets below kept for one session, then fold.
 - Chunk 2 step 2 DONE 2026-10-07: analytics date-range filtering — `GET analytics/overview?attendanceDays=&feeMonths=` (7–90d, 3–12mo, zod-validated, defaults 30/6, cache key carries params); page gains Attendance/Fee window dropdowns with auto-rescan + Apply. Verified: analytics.test.ts 4/4 (window lengths, 400s), admin.spec 6/6 (7-day + 3-month rescan), FULL suite 70/70 + 281/281 green first try, web tsc + eslint 0.
 - Chunk 2 step 1 DONE 2026-10-07: admin analytics API + `/analytics` page — `GET analytics/overview` (dashboard.read + SCHOOL_ADMIN; attendance trend 30d, fee trend 6mo + pending/overdue now, latest-5 exam perf with A+..F spread, section table; LRU-cached, invalidateAnalytics wired into marking/payment/invoice/marks writes); web page (SVG trend line, fee bars, exam cards, section table, honest nulls) behind the "Reports" nav slot (null → /analytics, no nav invention); admin.spec e2e 6/6 (fresh truant flagged; new analytics journey via Reports nav). Verified: analytics.test.ts 3/3 (exact aggregates, gate refusals, cross-tenant exclusion, invalidation proof), FULL suite 70/70 + 280/280 green first try, web tsc + eslint 0. E2E lesson: page and probe make separate Groq calls with independent flakiness — assert card content-shape, never cross-call exact text.
 - Chunk 1 of 5 COMPLETE 2026-10-07: AI features live — Groq wrapper + exam_remarks + generate + review UI + saved-remark PDF + anomaly detection + alerts view. Full record in `STATUS.md` Phase 3 row (Definition of Done: API 277/277, tenant/gate tests, board-language UI, audit+lint+e2e green, live 2-request demo). Detail bullets below kept for one session, then fold.
@@ -47,7 +48,7 @@
 - Chunk 1 step 3 DONE 2026-10-07: `POST /schools/:schoolId/exams/:examId/remarks/generate` — exams.manage + class-teacher-or-admin (via pupil's own section); gathers marks + exam-window attendance (same rule as reportCard, never recomputed); de-identified prompt (name never SELECTED; "this student" + subject scores + optional attendance line; wrapper scrub second layer); saves AI + reviewed=false; Groq missing → 503 AI_UNCONFIGURED, provider failure → 502. Tests `exam-remarks-generate.test.ts` 5/5 (201 + row shape + prompt PII asserts, admin + attendance-window prompt, pupil/parent/other-teacher/stranger-school refusals, 404/400 paths, fail-closed 503 with zero rows). Gates: tsc×2 + eslint 0.
 
 ## Exact next action
-- Chunk 2 — Analytics Dashboard (spec §7 #19) whenever the founder says go. Chunk 1 is DONE in STATUS.md; tree clean after this commit.
+- Chunk 3 — PWA/Offline (spec §7 #20) whenever the founder says go. Chunk 2 is DONE in STATUS.md; tree clean after this commit.
 
 ## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
