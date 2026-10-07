@@ -38,8 +38,10 @@
 - Follow-up (not blocking DONE): `npm audit` flags 1 critical — next 16.2.0–16.3.5 `next/og` ImageResponse RCE, module never imported here; fix = bump to next 16.3.8 + rebuild + full re-verify. Deliberate upgrade task for a future session.
 - Offered, unanswered: Librarian + Transport Manager demo logins; per-run stamp on the e2e leave reason (kills duplicate rows).
 
+- Chunk 1 step 3 DONE 2026-10-07: `POST /schools/:schoolId/exams/:examId/remarks/generate` — exams.manage + class-teacher-or-admin (via pupil's own section); gathers marks + exam-window attendance (same rule as reportCard, never recomputed); de-identified prompt (name never SELECTED; "this student" + subject scores + optional attendance line; wrapper scrub second layer); saves AI + reviewed=false; Groq missing → 503 AI_UNCONFIGURED, provider failure → 502. Tests `exam-remarks-generate.test.ts` 5/5 (201 + row shape + prompt PII asserts, admin + attendance-window prompt, pupil/parent/other-teacher/stranger-school refusals, 404/400 paths, fail-closed 503 with zero rows). Gates: tsc×2 + eslint 0.
+
 ## Exact next action
-- Phase 3 Chunk 1 step 3 (spec §7 #18): remark GENERATE endpoint on the Groq wrapper (AI draft → reviewed=false row; teacher review/confirm flip) + attendance-anomaly detection on the same wrapper. Unreviewed AI text never reaches a report card.
+- Phase 3 Chunk 1 step 4 (spec §7 #18): teacher REVIEW flip (reviewed=false → true, office/teacher gate — unreviewed AI text never reaches a report card) + attendance-anomaly detection on the same Groq wrapper.
 
 ## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.

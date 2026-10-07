@@ -6,8 +6,8 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { createExamSchema, enterMarksSchema, savedMarksQuerySchema } from "./exams.schemas.js";
-import { createExam, enterMarks, examResults, reportCard, savedMarks } from "./exams.service.js";
+import { createExamSchema, enterMarksSchema, generateRemarkSchema, savedMarksQuerySchema } from "./exams.schemas.js";
+import { createExam, enterMarks, examResults, generateRemark, reportCard, savedMarks } from "./exams.service.js";
 import { generateReportCard } from "../../lib/report-card.js";
 
 export const examsRouter = Router();
@@ -250,6 +250,49 @@ examsRouter.get(
       );
       res.setHeader("Content-Length", String(pdf.length));
       res.send(pdf);
+    } catch (err) {
+      sendExamsError(res, err);
+    }
+  }),
+);
+
+// AI remark generation (§7 Phase 3 #18): one pupil's marks + attendance in,
+// one UNREVIEWED AI row out. Same permission key as marks entry
+// (exams.manage — pupils/parents don't hold it) plus the same
+// class-teacher-or-admin relationship, resolved through the pupil's section.
+examsRouter.post(
+  "/schools/:schoolId/exams/:examId/remarks/generate",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("exams.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = generateRemarkSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await generateRemark(
+        req.prisma,
+        req.params.examId ?? "",
+        { userId: req.user.userId, role: req.user.role },
+        parsed.data,
+      );
+      res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendExamsError(res, err);
     }

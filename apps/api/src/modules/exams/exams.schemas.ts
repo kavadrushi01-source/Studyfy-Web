@@ -57,6 +57,14 @@ export const enterMarksSchema = z.object({
 
 export type EnterMarksInput = z.infer<typeof enterMarksSchema>;
 
+// AI remark generation (§7 Phase 3 #18): one pupil at a time — a remark is
+// personal, bulk generation would invite unreviewed text onto report cards.
+export const generateRemarkSchema = z.object({
+  studentId: z.string().trim().min(1).max(40),
+});
+
+export type GenerateRemarkInput = z.infer<typeof generateRemarkSchema>;
+
 // Saved-marks read (prefill for the entry form): one subject, one section.
 // Same class-teacher-or-admin gate as entry — pupils/parents never see
 // another pupil's marks through here.

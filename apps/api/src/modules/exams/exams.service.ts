@@ -1,10 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
 import { gradeLetter, percentOf, rankAll, topK } from "../../lib/grades.js";
+import { GroqApiError, GroqUnconfiguredError, groq } from "../../lib/groq.js";
 import type { ReportCardData } from "../../lib/report-card.js";
 import { AuthError } from "../auth/auth.service.js";
 import { attendanceSummary } from "../attendance/attendance.service.js";
 import { invalidateActivityFeed, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
-import type { CreateExamInput, EnterMarksInput } from "./exams.schemas.js";
+import type { CreateExamInput, EnterMarksInput, GenerateRemarkInput } from "./exams.schemas.js";
 
 // Exam + subject links in one transaction (§7 Phase 1 #4). Every lookup
 // runs on the tenant-SCOPED client: foreign academic years or subjects
@@ -372,4 +373,116 @@ export async function reportCard(
     attendancePercent,
     attendanceRange,
   };
+}
+
+// AI report-card remark (§7 Phase 3 #18): given one pupil's marks and
+// attendance for an exam, draft a short remark via the Groq wrapper and
+// store it as an UNREVIEWED AI row — a teacher signs it off separately,
+// unreviewed text never reaches a report card.
+//
+// PII rule (spec §7, explicit): the prompt carries subject scores and an
+// attendance % only, and the pupil is "this student" throughout. The
+// student's name is never even SELECTED below, so it cannot leak into the
+// prompt by accident — the wrapper's minimizePii is the second layer, not
+// the first. Same class-teacher-or-admin relationship as marks entry,
+// resolved through the PUPIL's own section.
+export function buildRemarkPrompt(examName: string, subjectLines: string[], attendancePercent: number | null): string {
+  const lines = [
+    "Write a one-line report card remark for this student.",
+    `Exam: ${examName}`,
+    ...subjectLines,
+  ];
+  if (attendancePercent !== null) {
+    lines.push(`Attendance during the exam window: ${attendancePercent}%.`);
+  }
+  lines.push('Keep it to one or two sentences, warm and specific. Refer to the pupil only as "this student".');
+  return lines.join("\n");
+}
+
+export async function generateRemark(
+  db: PrismaClient,
+  examId: string,
+  caller: MarksCaller,
+  input: GenerateRemarkInput,
+): Promise<{ remark: { id: string; remark: string; generatedBy: string; reviewed: boolean } }> {
+  const exam = await db.exam.findFirst({
+    where: { id: examId },
+    include: { examSubjects: { include: { subject: { select: { name: true } } } } },
+  });
+  if (!exam) {
+    throw new AuthError(404, "EXAM_NOT_FOUND", "Exam not found in this school.");
+  }
+  // No user/name selected here by design — see the PII note above.
+  const student = await db.student.findFirst({
+    where: { id: input.studentId },
+    select: { id: true, schoolId: true, section: { select: { classTeacherId: true } } },
+  });
+  if (!student) {
+    throw new AuthError(404, "NOT_FOUND", "Student not found.");
+  }
+  if (caller.role !== "SCHOOL_ADMIN") {
+    const staff = await db.staff.findFirst({ where: { userId: caller.userId } });
+    if (!staff || student.section.classTeacherId !== staff.id) {
+      throw new AuthError(
+        403,
+        "NOT_SECTION_TEACHER",
+        "Only the section's class teacher or a School Admin may generate its remarks.",
+      );
+    }
+  }
+
+  const marks = await db.mark.findMany({
+    where: { studentId: student.id, examSubjectId: { in: exam.examSubjects.map((s) => s.id) } },
+    select: { examSubjectId: true, marksObtained: true },
+  });
+  const bySubject = new Map(marks.map((m) => [m.examSubjectId, Number(m.marksObtained ?? 0)]));
+  const subjectLines = exam.examSubjects.map((s) => {
+    const max = Number(s.maxMarks);
+    const obtained = bySubject.get(s.id) ?? 0;
+    return `${s.subject.name}: ${obtained}/${max} (${gradeLetter(percentOf(obtained, max))})`;
+  });
+
+  // Attendance comes from the attendance module's own summary — same exam
+  // window rule as the report card, never recomputed here.
+  let attendancePercent: number | null = null;
+  if (exam.startDate && exam.endDate) {
+    const range = await attendanceSummary(
+      db,
+      {
+        from: exam.startDate.toISOString().slice(0, 10),
+        to: exam.endDate.toISOString().slice(0, 10),
+        studentId: student.id,
+      },
+      [student.id],
+    );
+    const row = range.summary.find((r) => r.studentId === student.id);
+    if (row && row.total > 0) {
+      attendancePercent = row.percent;
+    }
+  }
+
+  let text: string;
+  try {
+    text = await groq().generateText({ prompt: buildRemarkPrompt(exam.name, subjectLines, attendancePercent) });
+  } catch (err) {
+    if (err instanceof GroqUnconfiguredError) {
+      throw new AuthError(503, "AI_UNCONFIGURED", "AI remarks are not configured yet.");
+    }
+    if (err instanceof GroqApiError) {
+      throw new AuthError(502, "AI_GENERATION_FAILED", "The AI remark could not be generated. Try again.");
+    }
+    throw err;
+  }
+
+  const saved = await db.examRemark.create({
+    data: {
+      schoolId: exam.schoolId,
+      studentId: student.id,
+      examId: exam.id,
+      remark: text,
+      generatedBy: "AI",
+      reviewed: false,
+    },
+  });
+  return { remark: { id: saved.id, remark: saved.remark, generatedBy: saved.generatedBy, reviewed: saved.reviewed } };
 }
