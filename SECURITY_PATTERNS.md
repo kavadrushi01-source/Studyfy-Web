@@ -28,6 +28,7 @@ export const TENANT_MODELS = [
   'User', 'Student', 'Staff', 'Class', 'Section', 'AcademicYear', 'Subject',
   'StudentGuardian', 'TeacherSubject', 'Attendance', 'FeeStructure',
   'FeeInvoice', 'FeePayment', 'Exam', 'ExamSubject', 'Mark',
+  'ExamRemark',
   'TimetableSlot', 'Homework', 'HomeworkSubmission', 'Notice', 'Message',
   'Document', 'AuditLog', 'Payroll', 'MessageGroup', 'Book', 'BookIssue',
   'Vehicle', 'TransportRoute', 'StudentRoute', 'Enquiry',

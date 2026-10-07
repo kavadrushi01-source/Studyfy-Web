@@ -88,6 +88,13 @@ enum SubmissionStatus {
   GRADED
 }
 
+// Who produced an exam remark (§7 Phase 3 #18): an AI draft from the Groq
+// wrapper, or a teacher's own words. No other source may write remarks.
+enum RemarkSource {
+  AI
+  TEACHER
+}
+
 // ---------------------------------------------------------------------------
 // Tenant root + identity
 // ---------------------------------------------------------------------------
@@ -138,6 +145,7 @@ model School {
   exams               Exam[]
   examSubjects        ExamSubject[]
   marks               Mark[]
+  examRemarks         ExamRemark[]
   timetableSlots      TimetableSlot[]
   homework            Homework[]
   homeworkSubmissions HomeworkSubmission[]
@@ -335,6 +343,7 @@ model Student {
   attendance    Attendance[]
   feeInvoices   FeeInvoice[]
   marks         Mark[]
+  examRemarks   ExamRemark[]
   submissions   HomeworkSubmission[]
   certificates  Certificate[]
   bookLoans     BookLoan[]
@@ -531,6 +540,7 @@ model Exam {
   createdAt      DateTime      @default(now()) @map("created_at")
 
   examSubjects ExamSubject[]
+  remarks      ExamRemark[]
 
   @@index([schoolId])
   @@map("exams")
@@ -570,6 +580,37 @@ model Mark {
   @@unique([examSubjectId, studentId])
   @@index([schoolId, studentId])
   @@map("marks")
+}
+
+// ---------------------------------------------------------------------------
+// Exam remarks (§7 Phase 3 #18): one row per report-card remark, written by
+// a teacher or drafted by the Groq wrapper (RemarkSource.AI). AI drafts land
+// reviewed=false and a teacher flips them after reading — unreviewed AI text
+// must never reach a report card unsigned. Multiple rows per pupil per exam
+// are allowed (re-drafts); newest first wins. Tenant-scoped — ExamRemark ∈
+// TENANT_MODELS (same commit).
+// ---------------------------------------------------------------------------
+
+model ExamRemark {
+  id          String       @id @default(cuid()) @map("id")
+  schoolId    String       @map("school_id")
+  school      School       @relation(fields: [schoolId], references: [id])
+  studentId   String       @map("student_id")
+  student     Student      @relation(fields: [studentId], references: [id])
+  examId      String       @map("exam_id")
+  exam        Exam         @relation(fields: [examId], references: [id])
+  remark      String       @map("remark") @db.Text
+  // AI = Groq draft (reviewed=false until a teacher signs off);
+  // TEACHER = a teacher's own words. Defaults to TEACHER: AI rows are
+  // always stamped explicitly by the generation endpoint, never by default.
+  generatedBy RemarkSource @default(TEACHER) @map("generated_by")
+  reviewed    Boolean      @default(false) @map("reviewed")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([schoolId, studentId])
+  @@index([schoolId, examId])
+  @@map("exam_remarks")
 }
 
 // ---------------------------------------------------------------------------

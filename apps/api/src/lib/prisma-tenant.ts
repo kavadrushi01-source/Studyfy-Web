@@ -24,6 +24,7 @@ export const TENANT_MODELS = [
   "Exam",
   "ExamSubject",
   "Mark",
+  "ExamRemark",
   "TimetableSlot",
   "Homework",
   "HomeworkSubmission",
