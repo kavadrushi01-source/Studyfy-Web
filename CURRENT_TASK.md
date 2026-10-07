@@ -9,11 +9,13 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Phase 2 accepted by founder (personally verified end to end on the live site). Phase 3 starts next session.
-**Phase / Module:** Phase 3 — awaiting founder scope next session
-**Last updated:** 2026-10-06
+**Status:** IN PROGRESS — Phase 3 Chunk 1 pre-flight verification (full suite + builds + CI + core security re-run) before any new code.
+**Phase / Module:** Phase 3 — Chunk 1 (AI features, Groq free tier — pre-flight; no new code yet)
+**Last updated:** 2026-10-07
 
 ## What's done in this task so far
+- Phase 3 Chunk 1 PRE-FLIGHT DONE 2026-10-07: full API suite **240/240 (63 files) green** (two infra flakes first — worker crash, then 2×30s dashboard timeouts under parallel load; both pass solo, third full run clean); `tsc`×3 + `lint` 0; `npm audit` **0 vulnerabilities**; API + web builds exit 0; `migrate status` in sync (studyfy_test @3307); core security subset **29/29 (7 files: tenant-isolation, platform, self-scope, staff-self-scope, messages, message-threads, security-matrix)**; CI run 37560538902 on HEAD `716afba` — all 5 jobs success incl. real e2e. STATUS.md Phase 2 rows all still DONE (verified via suite, not live site this session). Sandbox MySQL 3307 was down at session start; restarted per recipe (stale PID 5204 kill denied by OS, new instance listening — left alone).
+- IMPORTANT schema note 2026-10-07: `exam_remarks` and `biometric_devices` are NOT in `prisma/schema.prisma` (1009 lines checked) nor in spec §9.1 text (§7 items 18-22 only) — they must be ADDED as new models (+TENANT_MODELS, migrations) during Phase 3, not assumed present.
 - Full-product pass DONE 2026-10-06: permanent `security-matrix.test.ts` (fresh A/B schools, 13 cross-tenant URLs, owner routes, all three self-scopes + defaults — 6/6); every module walked live with hand-checked math (admit→login, attendance %, counter exact + overpay 400, ranks 1-2-2-4, 17 timetable slots zero clashes, homework/notice/message scoping, honest per-school dashboards); UI fixes (teachers blank paint, attendance no-section prompt); audit now **0 vulnerabilities** (source-map-js fixed). Verified: API 62/62 files 237/237, e2e 65/65 zero flakes. Detail in BUGSFIX 55.
 - Chunk 5 (final) DONE 2026-10-04: (1) SMS/WhatsApp stub confirmed — zero send paths, no gateway creds, phones data-only, Brevo email sole channel (STATUS row → DONE); (2) full regression green — tsc×3 + lint 0, audit 1 known-critical (next/og deferred), API 61/61 files 231/231 tests, e2e 65/65 zero flakes (BUGSFIX 52 documents the two infra flakes + stop-servers rule).
 - Phase 2 close-out: Razorpay TEST MODE + Library + Transport (founder schema) + HR/Payroll (founder schema, scope middleware, slips) + CRM + certificates — all DONE rows, all prod-migrated with live proofs.
@@ -35,7 +37,7 @@
 - Offered, unanswered: Librarian + Transport Manager demo logins; per-run stamp on the e2e leave reason (kills duplicate rows).
 
 ## Exact next action
-- Phase 3 whenever the founder scopes it — no code changes pending, tree clean after this commit.
+- Phase 3 Chunk 1 (AI features, Groq free tier — spec §7 #18): design `exam_remarks` model + Groq remark/anomaly endpoints. BLOCKER: no `GROQ_API_KEY` in local env — founder must supply a free Groq key (local `.env` + Render dashboard, never chat) before live-provider work; dev can start with provider stub + tests first.
 
 ## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
