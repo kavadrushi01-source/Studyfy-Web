@@ -1,5 +1,25 @@
-import { expect, test } from "@playwright/test";
-import { ACCOUNTS, SOS_SLUG, login, logout } from "./helpers";
+import { expect, test, type APIRequestContext } from "@playwright/test";
+import { ACCOUNTS, PASSWORD, SOS_SLUG, login, logout } from "./helpers";
+
+const API = process.env.E2E_API_URL ?? "http://localhost:4001";
+
+async function apiAdmin(request: APIRequestContext): Promise<{ token: string; schoolId: string }> {
+  const res = await request.post(`${API}/api/v1/auth/login`, {
+    data: { schoolSlug: SOS_SLUG, email: ACCOUNTS.sosAdmin, password: PASSWORD },
+  });
+  expect(res.ok()).toBe(true);
+  const body = (await res.json()) as { data: { accessToken: string; user: { schoolId: string } } };
+  return { token: body.data.accessToken, schoolId: body.data.user.schoolId };
+}
+
+function lastDays(count: number): string[] {
+  const now = new Date();
+  const out: string[] = [];
+  for (let i = count - 1; i >= 0; i -= 1) {
+    out.push(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i)).toISOString().slice(0, 10));
+  }
+  return out;
+}
 
 // School Admin end to end on a FRESH seed: roster, admit, attendance,
 // pay (new UI), marks entry (new UI), homework post (dropdowns),
@@ -143,5 +163,65 @@ test.describe("SOS admin full circuit", () => {
     await expect(page.getByText("Kavita Rao")).toBeVisible({ timeout: 15000 });
     await logout(page);
     await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+  });
+
+  test("absence alerts flag a freshly-truant pupil with facts and no-AI note", async ({ page, request }) => {
+    // Interference-free: admit a stamped pupil into Grade 9-A over the API,
+    // mark 7 present + 3 absent (trailing run of 3), then watch the alerts
+    // page flag them. Re-runs overwrite the same rows (mark upsert).
+    const { token, schoolId } = await apiAdmin(request);
+    const headers = { Authorization: `Bearer ${token}` };
+    const sections = (await (
+      await request.get(`${API}/api/v1/schools/${schoolId}/sections`, { headers })
+    ).json()) as { data: { sections: { id: string; name: string; class: { name: string } }[] } };
+    const nineA = sections.data.sections.find((s) => s.class.name === "Grade 9" && s.name === "A");
+    expect(nineA?.id).toBeTruthy();
+
+    const stamp = Date.now().toString(36);
+    const admitted = await request.post(`${API}/api/v1/schools/${schoolId}/students`, {
+      headers,
+      data: {
+        name: `E2E Truant ${stamp}`,
+        email: `e2e-truant-${stamp}@example.com`,
+        sectionId: nineA?.id,
+        admissionNo: `ADM-E2E-${stamp}`,
+        gender: "Female",
+        guardians: [{ name: `Truant Guardian ${stamp}`, email: `e2e-tguard-${stamp}@example.com`, relationship: "Mother" }],
+      },
+    });
+    expect(admitted.ok()).toBe(true);
+    const pupilId = ((await admitted.json()) as { data: { student: { id: string } } }).data.student.id;
+
+    const days = lastDays(10);
+    for (let i = 0; i < days.length; i += 1) {
+      const status = i < 7 ? "PRESENT" : "ABSENT";
+      const marked = await request.post(`${API}/api/v1/schools/${schoolId}/attendance`, {
+        headers,
+        data: { sectionId: nineA?.id, date: days[i], records: [{ studentId: pupilId, status }] },
+      });
+      expect(marked.ok()).toBe(true);
+    }
+
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/attendance/anomalies");
+    await expect(page.getByRole("heading", { name: /absence alerts/i })).toBeVisible({ timeout: 20000 });
+    await page.getByLabel("Section", { exact: true }).selectOption({ label: "Grade 9 · A" });
+    await expect(page.getByText(`E2E Truant ${stamp}`).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/3 consecutive absences/i).first()).toBeVisible();
+    // Summary state depends on server env (local dev server may hold a real
+    // Groq key via apps/api/.env, CI has none): read it and assert the
+    // matching UI. Either way the detections stand on their own.
+    const scan = (await (
+      await request.get(
+        `${API}/api/v1/schools/${schoolId}/attendance/anomalies?sectionId=${nineA?.id}&windowDays=10`,
+        { headers },
+      )
+    ).json()) as { data: { summary: string | null; summaryStatus: string } };
+    if (scan.data.summaryStatus === "ok" && scan.data.summary) {
+      await expect(page.getByText(scan.data.summary.slice(0, 40)).first()).toBeVisible({ timeout: 20000 });
+    } else {
+      await expect(page.getByText(/ai summary (not configured|unavailable)/i).first()).toBeVisible();
+    }
+    await page.screenshot({ path: "e2e/shots/absence-alerts.png" });
   });
 });

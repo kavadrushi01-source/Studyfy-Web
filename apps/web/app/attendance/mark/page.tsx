@@ -243,6 +243,9 @@ export default function MarkAttendancePage() {
         White-card roster — green Present, red Absent, one Save.{" "}
         <Link href="/attendance/reports" style={{ color: colors.primary, fontWeight: 600 }}>
           Monthly &amp; term reports →
+        </Link>{" "}
+        <Link href="/attendance/anomalies" style={{ color: colors.primary, fontWeight: 600 }}>
+          Absence alerts →
         </Link>
       </p>
       <div className="sf-row-wrap" style={{ marginBottom: 12 }}>
