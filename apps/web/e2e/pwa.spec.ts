@@ -82,7 +82,30 @@ test.describe("PWA shell", () => {
     await page.getByLabel("Section", { exact: true }).selectOption({ label: "Grade 9 · A" });
     await page.getByRole("button", { name: /^show$/i }).click();
     await expect(page.getByText("Period").first()).toBeVisible({ timeout: 20000 });
-    await page.screenshot({ path: "e2e/shots/pwa-key-screens.png" });
+  });
+
+  test("homework started offline queues and sends on reconnect", async ({ page }) => {
+    // A submission begun with no connection must park visibly and flush
+    // itself — never vanish, never pretend it sent.
+    await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
+    await page.goto("/homework");
+    const card = page.locator("article", { hasText: "Geometry Problems" });
+    await expect(card).toBeVisible({ timeout: 20000 });
+
+    await page.context().setOffline(true);
+    await page.goto("/homework");
+    await expect(page.getByText(/you're offline/i)).toBeVisible({ timeout: 20000 });
+    const offlineCard = page.locator("article", { hasText: "Geometry Problems" });
+    await expect(offlineCard).toBeVisible({ timeout: 20000 });
+    const stamp = `Offline answer ${Date.now().toString(36)}`;
+    await page.getByLabel(/answer for geometry problems/i).fill(stamp);
+    await offlineCard.getByRole("button", { name: /^submit$/i }).click();
+    await expect(page.getByText(/sends automatically when you reconnect/i)).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/queued — sends on reconnect/i).first()).toBeVisible();
+
     await page.context().setOffline(false);
+    await expect(page.getByText(/queued homework sent/i)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText(/queued — sends on reconnect/i)).toHaveCount(0, { timeout: 20000 });
+    await page.screenshot({ path: "e2e/shots/pwa-queue-flushed.png" });
   });
 });

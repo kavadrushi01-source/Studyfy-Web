@@ -2,9 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { BookOpen, CheckCircle2, Plus, RefreshCw, Send } from "lucide-react";
+import { BookOpen, CheckCircle2, Plus, RefreshCw, Send, WifiOff } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
 import { isFailure } from "../../lib/api";
+import {
+  dataUrlToFile,
+  dropQueued,
+  enqueueSubmission,
+  fileToDataUrl,
+  readQueue,
+  useOnlineStatus,
+} from "@/lib/offline";
 import { useAuth } from "@/lib/auth-context";
 import { cardStyle, colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 
@@ -60,6 +68,13 @@ export default function HomeworkPage() {
   const [submittingId, setSubmittingId] = useState("");
   const [subjectOptions, setSubjectOptions] = useState<{ id: string; name: string }[]>([]);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Offline queue (§7 Phase 3 #20): submissions started offline park on
+  // this device and flush on reconnect. Nothing fails silently — queued
+  // work shows a pill, flush failures show an error, and the queue stays.
+  const online = useOnlineStatus();
+  const [queuedIds, setQueuedIds] = useState<string[]>([]);
+  const [flushing, setFlushing] = useState(false);
+  const flushGuard = useRef(false);
   // Grade action (teacher): POST /schools/:schoolId/submissions/:id/grade.
   // Buttons render per pending submission from the board rows — no ID
   // hunting (ids come from the same call that shows the counts).
@@ -155,6 +170,26 @@ export default function HomeworkPage() {
       setError("Write an answer or attach a file first.");
       return;
     }
+    // Offline: park it on this device instead of failing. The answer stays
+    // in the box until the flush actually succeeds — never wiped on queue.
+    if (!online && user?.role === "STUDENT" && user.id) {
+      setError("");
+      try {
+        const item = {
+          homeworkId: id,
+          content,
+          fileName: file?.name ?? null,
+          fileType: file?.type ?? null,
+          fileData: file ? await fileToDataUrl(file) : null,
+          queuedAt: new Date().toISOString(),
+        };
+        setQueuedIds(enqueueSubmission(schoolId, user.id, item).map((q) => q.homeworkId));
+        setNotice("Saved on this device — sends automatically when you reconnect.");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not queue this submission.");
+      }
+      return;
+    }
     setSubmittingId(id);
     setError("");
     setNotice("");
@@ -189,6 +224,67 @@ export default function HomeworkPage() {
       setSubmittingId("");
     }
   }
+
+  // Flush parked submissions FIFO. Success drops the row and clears the
+  // box; failure keeps the row and says exactly which send failed — the
+  // queue is never silently dropped.
+  const flushQueue = useCallback(async () => {
+    if (!schoolId || !user?.id || flushGuard.current) {
+      return;
+    }
+    const pending = readQueue(schoolId, user.id);
+    if (pending.length === 0) {
+      return;
+    }
+    flushGuard.current = true;
+    setFlushing(true);
+    try {
+      for (const item of pending) {
+        const form = new FormData();
+        if (item.content) {
+          form.append("content", item.content);
+        }
+        if (item.fileData && item.fileName) {
+          const restored = dataUrlToFile(item.fileData, item.fileName, item.fileType ?? "");
+          if (!restored) {
+            throw new Error("A queued file could not be rebuilt — it stays queued.");
+          }
+          form.append("file", restored);
+        }
+        const response = await apiFetch(`/api/v1/schools/${schoolId}/homework/${item.homeworkId}/submissions`, {
+          method: "POST",
+          body: form,
+        });
+        const body = (await response.json()) as { data?: unknown } | ApiError;
+        if (isFailure(response, body)) {
+          throw new Error(body.error?.message ?? "Queued send failed — it stays queued.");
+        }
+        setQueuedIds(dropQueued(schoolId, user.id, item.homeworkId, item.queuedAt).map((q) => q.homeworkId));
+        setContents((prev) => ({ ...prev, [item.homeworkId]: "" }));
+        setFiles((prev) => ({ ...prev, [item.homeworkId]: null }));
+      }
+      setNotice("Queued homework sent.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Queued send failed — it stays queued.");
+    } finally {
+      setFlushing(false);
+      flushGuard.current = false;
+    }
+  }, [schoolId, apiFetch, user, load]);
+
+  useEffect(() => {
+    if (!schoolId || !user?.id) {
+      return;
+    }
+    setQueuedIds(readQueue(schoolId, user.id).map((q) => q.homeworkId));
+  }, [schoolId, user]);
+
+  useEffect(() => {
+    if (online && ready && token) {
+      void flushQueue();
+    }
+  }, [online, ready, token, flushQueue]);
 
   async function gradeOne(submissionId: string): Promise<void> {
     if (!schoolId) {
@@ -300,6 +396,28 @@ export default function HomeworkPage() {
       <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
         One board per role — post it, submit it, grade it.
       </p>
+      {!online ? (
+        <div
+          role="status"
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            background: "#FFFBEB",
+            border: "1px solid #F59E0B",
+            color: "#92400E",
+            borderRadius: 12,
+            padding: "10px 14px",
+            fontSize: 14,
+            fontWeight: 600,
+            marginBottom: 12,
+          }}
+        >
+          <WifiOff size={16} aria-hidden="true" />
+          You&apos;re offline — answers you submit now queue on this device and send when you reconnect.
+          {flushing ? " Sending…" : null}
+        </div>
+      ) : null}
       <div className="sf-row-wrap" style={{ marginBottom: 12 }}>
         <button
           type="button"
@@ -520,6 +638,9 @@ export default function HomeworkPage() {
                   {item.title}
                 </h3>
                 <span style={statusPill(status)}>{status.label}</span>
+                {queuedIds.includes(item.id) ? (
+                  <span style={pill(colors.warning, colors.warningTint)}>Queued — sends on reconnect</span>
+                ) : null}
               </div>
               <p style={{ color: colors.inkSoft, fontSize: 14, lineHeight: 1.55, margin: "10px 0 6px" }}>
                 {item.description}
