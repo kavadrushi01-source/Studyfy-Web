@@ -9,11 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS — Phase 3 Chunk 3 (PWA/Offline-first, spec §7 #20).
-**Phase / Module:** Phase 3 — Chunk 3 of 5 (PWA/Offline-first)
-**Last updated:** 2026-10-07
+**Status:** IDLE — Phase 3 Chunk 3 of 5 (PWA/Offline-first) complete and accepted. Next is Chunk 4 — Biometric/RFID + Inventory.
+**Phase / Module:** Phase 3 — Chunk 3 DONE → Chunk 4 next (Biometric/RFID + Inventory, spec §7 #21–22)
+**Last updated:** 2026-10-08
 
 ## What's done in this task so far
+- Chunk 3 of 5 COMPLETE 2026-10-08: PWA/Offline-first live — installable manifest + icons + hand-written SW + offline shell + cached key screens + offline homework queue. Full record in `STATUS.md` Phase 3 row (Definition of Done: pwa.spec 4/4, FULL e2e 73/73, tsc+lint 0, offline-timetable screenshot). Detail bullets below kept for one session, then fold.
 - Chunk 3 step 3 DONE 2026-10-08: offline queue for homework — `lib/offline.ts` (useOnlineStatus hook + per-school+user localStorage queue, 2MB file cap, FIFO flush helpers), homework page (offline banner, queue-on-submit keeping the answer text, "Queued — sends on reconnect" pill, auto-flush on reconnect/mount with loud per-failure errors, never silent). Verified: pwa.spec 4/4 (offline submit → queued pill + notice → online auto-flush → "Queued homework sent"), web build + tsc + eslint 0. E2E lesson: build typechecks e2e specs too — a dropped test closing broke the build, not the app.
 - Chunk 3 step 2 DONE 2026-10-08: key screens offline — failure found + fixed: the app calls the API cross-origin (:4001 vs :3001) so the SW's same-origin gate bypassed every API read ("Failed to fetch" on the offline board); SW now handles cross-origin /api/* GETs (CORS responses cache normally; all other cross-origin traffic untouched). Verified: pwa.spec 3/3 (timetable re-driven picker + homework board render fully offline), FULL e2e 73/73 green with widened caching (no stale-data regressions).
 - Chunk 3 step 1 DONE 2026-10-08: PWA foundation — manifest + sharp-rasterized icons (192/512 from the SVG mark, no new deps), hand-written SW (versioned caches: immutable chunks cache-first, navigations network-first → cache → /offline shell, GET API reads network-first + bounded; POSTs/socket/auth never cached), registration component + layout metadata/theme-color, static /offline page. Verified: pwa.spec 2/2 (manifest+icons+sw.js; SW control → offline cached revisit + offline shell on unvisited + online recovery), FULL e2e 72 with 2 failures both proven NOT the SW (seed PTM notice beyond the API latest-100 window under 137 accumulated e2e rows; specs fixed to publish-fresh + BUGSFIX 57; deep+human 29/29 re-run green). Gates: web tsc + eslint 0.
@@ -51,7 +52,7 @@
 - Chunk 1 step 3 DONE 2026-10-07: `POST /schools/:schoolId/exams/:examId/remarks/generate` — exams.manage + class-teacher-or-admin (via pupil's own section); gathers marks + exam-window attendance (same rule as reportCard, never recomputed); de-identified prompt (name never SELECTED; "this student" + subject scores + optional attendance line; wrapper scrub second layer); saves AI + reviewed=false; Groq missing → 503 AI_UNCONFIGURED, provider failure → 502. Tests `exam-remarks-generate.test.ts` 5/5 (201 + row shape + prompt PII asserts, admin + attendance-window prompt, pupil/parent/other-teacher/stranger-school refusals, 404/400 paths, fail-closed 503 with zero rows). Gates: tsc×2 + eslint 0.
 
 ## Exact next action
-- Chunk 3 — PWA/Offline (spec §7 #20) whenever the founder says go. Chunk 2 is DONE in STATUS.md; tree clean after this commit.
+- Chunk 4 — Biometric/RFID + Inventory (spec §7 #21–22) whenever the founder says go. Chunk 3 is DONE in STATUS.md; tree clean after this commit.
 
 ## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
