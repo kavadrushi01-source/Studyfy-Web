@@ -56,6 +56,9 @@ test.describe("SOS biometric + inventory circuit", () => {
     const unit = page.locator("li", { hasText: `E2E Gate Unit ${stamp}` });
     await unit.getByRole("button", { name: /^suspend$/i }).click();
     await expect(page.getByText("Suspended").first()).toBeVisible({ timeout: 20000 });
+    // The tap above must be reflected — guards the stale-build incident
+    // where the page read a renamed-away field and showed "never" forever.
+    await expect(unit.getByText("last tap never")).toHaveCount(0, { timeout: 20000 });
     const denied = await request.post(`${API}/api/v1/devices/attendance-sync`, {
       headers: { "x-device-key": deviceKey },
       data: { events: [{ tag: `BIO-E2E-${stamp}`, timestamp: new Date().toISOString() }] },
