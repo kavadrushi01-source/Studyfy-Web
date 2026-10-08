@@ -75,16 +75,16 @@ describe("biometric devices (§7 Phase 3 #21 — key-authed punch import)", () =
     expect(deviceKey.startsWith("bio_")).toBe(true);
 
     const row = await prisma.biometricDevice.findUnique({ where: { id: deviceId } });
-    expect(row?.keyHash).toBeTruthy();
-    expect(row?.keyHash).not.toContain(deviceKey);
-    expect(row?.keyHash).not.toBe(deviceKey);
+    expect(row?.apiKeyHash).toBeTruthy();
+    expect(row?.apiKeyHash).not.toContain(deviceKey);
+    expect(row?.apiKeyHash).not.toBe(deviceKey);
 
     const list = await request(app)
       .get(`/api/v1/schools/${schoolId}/biometric/devices`)
       .set("Authorization", `Bearer ${adminToken}`)
       .expect(200);
     expect(list.body.data.devices).toHaveLength(1);
-    expect(list.body.data.devices[0]).not.toHaveProperty("keyHash");
+    expect(list.body.data.devices[0]).not.toHaveProperty("apiKeyHash");
     expect(list.body.data.devices[0]).not.toHaveProperty("deviceKey");
   });
 

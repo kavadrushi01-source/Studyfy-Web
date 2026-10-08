@@ -1074,9 +1074,9 @@ model BiometricDevice {
   school       School    @relation(fields: [schoolId], references: [id])
   name         String    @map("name")
   location     String?   @map("location")
-  // sha256 hex of the device key; the raw key exists only in the
+  // sha256 hex of the device API key; the raw key exists only in the
   // registration response, never in a column.
-  keyHash      String    @unique @map("key_hash")
+  apiKeyHash   String    @unique @map("api_key_hash")
   isActive     Boolean   @default(true) @map("is_active")
   lastSeenAt   DateTime? @map("last_seen_at")
   createdAt    DateTime  @default(now()) @map("created_at")

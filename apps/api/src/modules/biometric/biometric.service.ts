@@ -38,7 +38,7 @@ export async function registerDevice(
       schoolId,
       name: input.name,
       location: input.location,
-      keyHash: hashDeviceKey(rawKey),
+      apiKeyHash: hashDeviceKey(rawKey),
     },
   });
   return {
@@ -178,12 +178,12 @@ export async function deviceKeyMiddleware(req: Request, res: Response, next: Nex
     }
     const { prisma } = await import("../../lib/prisma.js");
     const device = await prisma.biometricDevice.findUnique({
-      where: { keyHash: hashDeviceKey(raw) },
-      select: { id: true, schoolId: true, name: true, isActive: true, keyHash: true },
+      where: { apiKeyHash: hashDeviceKey(raw) },
+      select: { id: true, schoolId: true, name: true, isActive: true, apiKeyHash: true },
     });
     // The unique index already matched, but equality is decided by a
     // constant-time comparison — never by the index probe alone.
-    if (!device || !keysEqual(hashDeviceKey(raw), device.keyHash)) {
+    if (!device || !keysEqual(hashDeviceKey(raw), device.apiKeyHash)) {
       deny(401, "DEVICE_UNAUTHORIZED", "Unknown device key.");
       return;
     }
