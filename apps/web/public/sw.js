@@ -6,8 +6,10 @@
 // - STUDYFY_PAGES: navigations — network-first, fall back to the cached
 //   copy of that page, then to the precached /offline shell.
 // - STUDYFY_API: GET API reads only — network-first with cache fallback so
-//   a dropped connection still shows last-known data. POSTs, Socket.io,
-//   and auth traffic are never cached or served stale.
+//   a dropped connection still shows last-known data. The API lives on its
+//   own origin, which the worker still sees because the calls originate
+//   from controlled pages (CORS responses cache normally). POSTs,
+//   Socket.io, and auth traffic are never cached or served stale.
 //
 // Offline-first here means: installable + the shell survives a dead
 // connection. It does NOT mean offline writes — marking attendance or
@@ -90,7 +92,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || isSocket(url)) {
+  if (isSocket(url)) {
+    return;
+  }
+  // The API lives on its own origin (Render in prod, :4001 locally) while
+  // the app calls it directly — the worker still sees those fetches because
+  // they originate from a controlled page. Only /api/ reads from any origin
+  // are handled; every other cross-origin request is left alone.
+  const sameOrigin = url.origin === self.location.origin;
+  if (!sameOrigin && !isApiRead(url, request.method)) {
     return;
   }
   if (isStaticAsset(url)) {
