@@ -35,6 +35,9 @@ declare global {
       // must HMAC these bytes — re-serializing req.body would produce
       // different bytes and break every signature.
       rawBody?: Buffer;
+      // Set by deviceKeyMiddleware (§7 Phase 3 #21): the verified terminal
+      // for machine-actor routes. Absent on every JWT route.
+      device?: { id: string; schoolId: string; name: string };
     }
   }
 }

@@ -9,11 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Phase 3 Chunk 3 of 5 (PWA/Offline-first) complete and accepted. Next is Chunk 4 — Biometric/RFID + Inventory.
-**Phase / Module:** Phase 3 — Chunk 3 DONE → Chunk 4 next (Biometric/RFID + Inventory, spec §7 #21–22)
+**Status:** IN PROGRESS — Phase 3 Chunk 4 (Biometric/RFID #21 + Inventory #22).
+**Phase / Module:** Phase 3 — Chunk 4 of 5 (Biometric/RFID + Inventory)
 **Last updated:** 2026-10-08
 
 ## What's done in this task so far
+- Chunk 4 step 1 DONE 2026-10-08: biometric (#21) + inventory (#22) complete — devices registry (once-shown key, sha256-stored, school-bound, suspendable) + pupil device-ID mapping (per-school unique, 409 on clash) + key-auth punch import → PRESENT rows with school-day derivation + unknown-ID reporting; inventory items + movement-only stock (atomic conditional-decrement guard, 409 on over-draw) + low-stock derivation + history; inventory.read/manage keys (admin both, teacher/accountant read) + data migration; `/inventory` + `/attendance/devices` UIs + nav/terminals links. Verified: biometric 5/5 + inventory 3/3 (incl. key-hash storage, timezone-day, stamp + create-stamp writes, cross-school 403s), phase3-chunk4.spec 2/2 e2e, FULL suite 72/72 + 289/289 green, tsc + eslint 0 both workspaces. E2E lesson: non-interactive `migrate dev` blocks on unique-constraint warnings — diff-to-shadow + hand-written migration dir + deploy.
 - Chunk 3 of 5 COMPLETE 2026-10-08: PWA/Offline-first live — installable manifest + icons + hand-written SW + offline shell + cached key screens + offline homework queue. Full record in `STATUS.md` Phase 3 row (Definition of Done: pwa.spec 4/4, FULL e2e 73/73, tsc+lint 0, offline-timetable screenshot). Detail bullets below kept for one session, then fold.
 - Chunk 3 step 3 DONE 2026-10-08: offline queue for homework — `lib/offline.ts` (useOnlineStatus hook + per-school+user localStorage queue, 2MB file cap, FIFO flush helpers), homework page (offline banner, queue-on-submit keeping the answer text, "Queued — sends on reconnect" pill, auto-flush on reconnect/mount with loud per-failure errors, never silent). Verified: pwa.spec 4/4 (offline submit → queued pill + notice → online auto-flush → "Queued homework sent"), web build + tsc + eslint 0. E2E lesson: build typechecks e2e specs too — a dropped test closing broke the build, not the app.
 - Chunk 3 step 2 DONE 2026-10-08: key screens offline — failure found + fixed: the app calls the API cross-origin (:4001 vs :3001) so the SW's same-origin gate bypassed every API read ("Failed to fetch" on the offline board); SW now handles cross-origin /api/* GETs (CORS responses cache normally; all other cross-origin traffic untouched). Verified: pwa.spec 3/3 (timetable re-driven picker + homework board render fully offline), FULL e2e 73/73 green with widened caching (no stale-data regressions).

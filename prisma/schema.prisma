@@ -163,6 +163,9 @@ model School {
   payrolls            Payroll[]
   documents           Document[]
   messages            Message[]
+  biometricDevices    BiometricDevice[]
+  inventoryItems      InventoryItem[]
+  inventoryMovements  InventoryMovement[]
 
   @@map("schools")
 }
@@ -201,6 +204,7 @@ model User {
   enquiryNotes      EnquiryNote[]    @relation("EnquiryNoteAuthor")
   issuedCertificates Certificate[]   @relation("CertificateIssuer")
   issuedLoans       BookLoan[]       @relation("LoanIssuer")
+  inventoryMovements InventoryMovement[]
 
   @@unique([schoolId, email])
   @@index([schoolId])
@@ -334,6 +338,10 @@ model Student {
   section     Section  @relation(fields: [sectionId], references: [id])
   admissionNo String?  @map("admission_no")
   rollNumber  Int?     @map("roll_number")
+  // Device-side ID (biometric/RFID enrollment number, §7 Phase 3 #21).
+  // Nullable: unmapped pupils coexist (MySQL treats NULLs as distinct);
+  // unique per school once assigned, so a punch resolves to one pupil.
+  deviceUserId String? @map("device_user_id")
   dob         DateTime? @map("dob") @db.Date
   gender      String?  @map("gender")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -350,6 +358,7 @@ model Student {
   routes        StudentRoute[]
 
   @@index([schoolId, sectionId])
+  @@unique([schoolId, deviceUserId])
   @@map("students")
 }
 
@@ -1047,4 +1056,79 @@ model Message {
 
   @@index([schoolId, threadId, createdAt])
   @@map("messages")
+}
+
+// ---------------------------------------------------------------------------
+// Biometric/RFID devices (§7 Phase 3 #21): a registry of physical
+// attendance terminals, one row per unit. Punches arrive on the key-authed
+// import endpoint (machine actor, never a JWT) carrying device-side user
+// IDs, which resolve to pupils through Student.deviceUserId. The device
+// key itself is shown ONCE at registration and stored only as a sha256
+// hash — a leaked database never yields a working device key.
+// Tenant-scoped — BiometricDevice ∈ TENANT_MODELS (same commit).
+// ---------------------------------------------------------------------------
+
+model BiometricDevice {
+  id           String    @id @default(cuid()) @map("id")
+  schoolId     String    @map("school_id")
+  school       School    @relation(fields: [schoolId], references: [id])
+  name         String    @map("name")
+  location     String?   @map("location")
+  // sha256 hex of the device key; the raw key exists only in the
+  // registration response, never in a column.
+  keyHash      String    @unique @map("key_hash")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastSeenAt   DateTime? @map("last_seen_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([schoolId, isActive])
+  @@map("biometric_devices")
+}
+
+// ---------------------------------------------------------------------------
+// Inventory (§7 Phase 3 #22): school stock (stationery, lab supplies,
+// sports gear). Quantities move only through movement rows — the item
+// counter is maintained transactionally on stock-in/out and never goes
+// negative (the 409 path proves it), same discipline as library copies.
+// Low stock is derived (quantity <= reorder level), never stored.
+// Tenant-scoped — both models ∈ TENANT_MODELS (same commit).
+// ---------------------------------------------------------------------------
+
+model InventoryItem {
+  id           String   @id @default(cuid()) @map("id")
+  schoolId     String   @map("school_id")
+  school       School   @relation(fields: [schoolId], references: [id])
+  name         String   @map("name")
+  sku          String?  @map("sku")
+  category     String   @default("General") @map("category")
+  unit         String   @default("pcs") @map("unit")
+  quantity     Int      @default(0) @map("quantity")
+  reorderLevel Int      @default(0) @map("reorder_level")
+  movements    InventoryMovement[]
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([schoolId, name])
+  @@index([schoolId, category])
+  @@map("inventory_items")
+}
+
+model InventoryMovement {
+  id        String   @id @default(cuid()) @map("id")
+  schoolId  String   @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id])
+  itemId    String   @map("item_id")
+  item      InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  // IN adds, OUT subtracts. No ADJUST type: corrections are explicit
+  // IN/OUT rows with a reason, so history always explains the counter.
+  type      String   @map("type")
+  quantity  Int      @map("quantity")
+  reason    String?  @map("reason") @db.Text
+  createdBy String   @map("created_by")
+  creator   User     @relation(fields: [createdBy], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, itemId, createdAt])
+  @@map("inventory_movements")
 }

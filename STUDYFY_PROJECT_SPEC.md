@@ -517,6 +517,7 @@ schools (tenant root, has `timezone` §12.7 and `subscriptionStatus`/`trialEndsA
   ├── fee_structures (class_id FK) ── fee_invoices (student_id FK) ── fee_payments (invoice_id FK, razorpay_order_id + razorpay_payment_id UNIQUE NULLABLE + status — §13.8 idempotency keys, see note below)
   ├── exams (school_id FK) ── exam_subjects (→ subjects) ── marks (student_id FK, exam_subject_id FK)
   ├── exam_remarks (school_id FK, student_id FK, exam_id FK, remark text, generated_by AI|TEACHER, reviewed flag — Phase 3 #18: AI drafts land reviewed=false until a teacher signs off)
+  ├── biometric_devices (school_id FK, name, key_hash, is_active — Phase 3 #21: punch import resolves Student.device_user_id, unique per school)
  ├── timetable_slots (section_id FK, subject_id FK, teacher_id FK, day, period)
  ├── homework (section_id FK, subject_id FK, teacher_id FK) ── homework_submissions (student_id FK)
  ├── notices (school_id FK, target: school-wide | class | section)

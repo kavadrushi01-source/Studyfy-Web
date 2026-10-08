@@ -246,6 +246,9 @@ export default function MarkAttendancePage() {
         </Link>{" "}
         <Link href="/attendance/anomalies" style={{ color: colors.primary, fontWeight: 600 }}>
           Absence alerts →
+        </Link>{" "}
+        <Link href="/attendance/devices" style={{ color: colors.primary, fontWeight: 600 }}>
+          Terminals →
         </Link>
       </p>
       <div className="sf-row-wrap" style={{ marginBottom: 12 }}>

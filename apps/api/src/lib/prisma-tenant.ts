@@ -42,6 +42,9 @@ export const TENANT_MODELS = [
   "Payroll",
   "Document",
   "Message",
+  "BiometricDevice",
+  "InventoryItem",
+  "InventoryMovement",
 ] as const;
 
 const READ_OPS = new Set(["findMany", "findFirst", "findUnique", "count", "aggregate", "groupBy"]);
