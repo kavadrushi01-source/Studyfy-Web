@@ -9,11 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS — Phase 3 Chunk 4 (Biometric/RFID #21 + Inventory #22).
-**Phase / Module:** Phase 3 — Chunk 4 of 5 (Biometric/RFID + Inventory)
+**Status:** IDLE — Phase 3 Chunk 4 of 5 (Biometric/RFID + Inventory) complete and accepted. Next is Chunk 5 — final regression and close-out.
+**Phase / Module:** Phase 3 — Chunk 4 DONE → Chunk 5 next (final regression and close-out)
 **Last updated:** 2026-10-08
 
 ## What's done in this task so far
+- Chunk 4 of 5 COMPLETE 2026-10-08: Biometric/RFID + Inventory live — device registry + key-auth sync + devices UI; inventory items + movement-only stock + UI + nav. Full record in `STATUS.md` Phase 3 rows (Definition of Done: biometric 6/6 + inventory 3/3, e2e 2/2, FULL suite 72/72 + 289/289, tsc+lint 0, live demos with DB restore). Detail bullets below kept for one session, then fold.
 - Chunk 4 step 2 DONE 2026-10-08: canonical device sync — `POST /api/v1/devices/attendance-sync` (no school segment; school derived from the key via renamed `deviceAuthMiddleware`), PRESENT+ABSENT events with last-event-wins, `last_sync_at` rename (data-preserving migrations on all 3 DBs); old per-school punch route removed. Verified: biometric 6/6 (incl. A-key-can't-touch-B proof via shared tag), phase3-chunk4 e2e 2/2 on fresh dist, tsc + eslint 0. Ops lesson: schema renames must reach dev+test+e2e BEFORE any server restarts (stale e2e DB crashed the fresh boot).
 - Chunk 4 step 1 DONE 2026-10-08: biometric (#21) + inventory (#22) complete — devices registry (once-shown key, sha256-stored, school-bound, suspendable) + pupil device-ID mapping (per-school unique, 409 on clash) + key-auth punch import → PRESENT rows with school-day derivation + unknown-ID reporting; inventory items + movement-only stock (atomic conditional-decrement guard, 409 on over-draw) + low-stock derivation + history; inventory.read/manage keys (admin both, teacher/accountant read) + data migration; `/inventory` + `/attendance/devices` UIs + nav/terminals links. Verified: biometric 5/5 + inventory 3/3 (incl. key-hash storage, timezone-day, stamp + create-stamp writes, cross-school 403s), phase3-chunk4.spec 2/2 e2e, FULL suite 72/72 + 289/289 green, tsc + eslint 0 both workspaces. E2E lesson: non-interactive `migrate dev` blocks on unique-constraint warnings — diff-to-shadow + hand-written migration dir + deploy.
 - Chunk 3 of 5 COMPLETE 2026-10-08: PWA/Offline-first live — installable manifest + icons + hand-written SW + offline shell + cached key screens + offline homework queue. Full record in `STATUS.md` Phase 3 row (Definition of Done: pwa.spec 4/4, FULL e2e 73/73, tsc+lint 0, offline-timetable screenshot). Detail bullets below kept for one session, then fold.
@@ -54,7 +55,7 @@
 - Chunk 1 step 3 DONE 2026-10-07: `POST /schools/:schoolId/exams/:examId/remarks/generate` — exams.manage + class-teacher-or-admin (via pupil's own section); gathers marks + exam-window attendance (same rule as reportCard, never recomputed); de-identified prompt (name never SELECTED; "this student" + subject scores + optional attendance line; wrapper scrub second layer); saves AI + reviewed=false; Groq missing → 503 AI_UNCONFIGURED, provider failure → 502. Tests `exam-remarks-generate.test.ts` 5/5 (201 + row shape + prompt PII asserts, admin + attendance-window prompt, pupil/parent/other-teacher/stranger-school refusals, 404/400 paths, fail-closed 503 with zero rows). Gates: tsc×2 + eslint 0.
 
 ## Exact next action
-- Chunk 4 — Biometric/RFID + Inventory (spec §7 #21–22) whenever the founder says go. Chunk 3 is DONE in STATUS.md; tree clean after this commit.
+- Chunk 5 — final regression and close-out whenever the founder says go. Chunk 4 is DONE in STATUS.md; tree clean after this commit.
 
 ## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
