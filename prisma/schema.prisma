@@ -1078,7 +1078,7 @@ model BiometricDevice {
   // registration response, never in a column.
   apiKeyHash   String    @unique @map("api_key_hash")
   isActive     Boolean   @default(true) @map("is_active")
-  lastSeenAt   DateTime? @map("last_seen_at")
+  lastSyncAt   DateTime? @map("last_sync_at")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 

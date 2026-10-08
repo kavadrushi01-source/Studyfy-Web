@@ -41,11 +41,12 @@ test.describe("SOS biometric + inventory circuit", () => {
     await row.getByRole("button", { name: /save mapping/i }).click();
     await expect(page.getByText(`Mapped to device ID BIO-E2E-${stamp}`).first()).toBeVisible({ timeout: 20000 });
 
-    // A real terminal tap, replayed over HTTP with the device key.
-    const { schoolId } = await apiAdmin(request);
-    const punch = await request.post(`${API}/api/v1/schools/${schoolId}/attendance/device-punches`, {
+    // A real terminal tap, replayed over HTTP with the device key. The
+    // sync route carries no school segment — the key's school owns it.
+    await apiAdmin(request);
+    const punch = await request.post(`${API}/api/v1/devices/attendance-sync`, {
       headers: { "x-device-key": deviceKey },
-      data: { punches: [{ deviceUserId: `BIO-E2E-${stamp}`, timestamp: new Date().toISOString() }] },
+      data: { events: [{ tag: `BIO-E2E-${stamp}`, timestamp: new Date().toISOString() }] },
     });
     expect(punch.ok()).toBe(true);
     expect(((await punch.json()) as { data: { marked: number } }).data.marked).toBe(1);
@@ -55,9 +56,9 @@ test.describe("SOS biometric + inventory circuit", () => {
     const unit = page.locator("li", { hasText: `E2E Gate Unit ${stamp}` });
     await unit.getByRole("button", { name: /^suspend$/i }).click();
     await expect(page.getByText("Suspended").first()).toBeVisible({ timeout: 20000 });
-    const denied = await request.post(`${API}/api/v1/schools/${schoolId}/attendance/device-punches`, {
+    const denied = await request.post(`${API}/api/v1/devices/attendance-sync`, {
       headers: { "x-device-key": deviceKey },
-      data: { punches: [{ deviceUserId: `BIO-E2E-${stamp}`, timestamp: new Date().toISOString() }] },
+      data: { events: [{ tag: `BIO-E2E-${stamp}`, timestamp: new Date().toISOString() }] },
     });
     expect(denied.status()).toBe(401);
     await page.screenshot({ path: "e2e/shots/biometric-devices.png" });

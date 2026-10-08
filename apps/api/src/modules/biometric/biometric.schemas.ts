@@ -26,15 +26,17 @@ export const mapDeviceSchema = z.object({
 
 export type MapDeviceInput = z.infer<typeof mapDeviceSchema>;
 
-const punchSchema = z.object({
-  deviceUserId: z.string().trim().min(1).max(64),
+// Device attendance sync (§7 Phase 3 #21): the terminal pushes presence
+// events keyed by RFID tag / enrollment ID. Status is explicit per event
+// — entry taps read PRESENT, exit/end-of-day sweeps may report ABSENT.
+const syncEventSchema = z.object({
+  tag: z.string().trim().min(1).max(64),
   timestamp: z.string().trim().datetime({ message: "Timestamp must be ISO-8601." }),
+  status: z.enum(["PRESENT", "ABSENT"]).default("PRESENT"),
 });
 
-// Bounded like bulk marking (500): a terminal dumping thousands of rows in
-// one call is a backlog to page through, not a single request.
-export const importPunchesSchema = z.object({
-  punches: z.array(punchSchema).min(1).max(500),
+export const syncAttendanceSchema = z.object({
+  events: z.array(syncEventSchema).min(1).max(500),
 });
 
-export type ImportPunchesInput = z.infer<typeof importPunchesSchema>;
+export type SyncAttendanceInput = z.infer<typeof syncAttendanceSchema>;

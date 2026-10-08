@@ -13,7 +13,7 @@ interface Device {
   name: string;
   location: string | null;
   isActive: boolean;
-  lastSeenAt: string | null;
+  lastSyncAt: string | null;
   createdAt: string;
 }
 
@@ -301,7 +301,7 @@ export default function DevicesPage() {
               </div>
               <p style={{ ...mutedStyle, fontSize: 13, margin: "6px 0 0" }}>
                 {d.location ?? "No location"} · last tap{" "}
-                {d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString("en-GB") : "never"}
+                {d.lastSyncAt ? new Date(d.lastSyncAt).toLocaleString("en-GB") : "never"}
               </p>
             </li>
           ))}

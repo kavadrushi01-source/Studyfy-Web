@@ -6,18 +6,18 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import {
-  importPunchesSchema,
   mapDeviceSchema,
   registerDeviceSchema,
   setDeviceActiveSchema,
+  syncAttendanceSchema,
 } from "./biometric.schemas.js";
 import {
-  deviceKeyMiddleware,
-  importPunches,
+  deviceAuthMiddleware,
   listDevices,
   mapPupilDevice,
   registerDevice,
   setDeviceActive,
+  syncAttendance,
 } from "./biometric.service.js";
 
 export const biometricRouter = Router();
@@ -178,12 +178,14 @@ biometricRouter.post(
   }),
 );
 
-// Terminal punch import (§7 Phase 3 #21): x-device-key auth, NO JWT chain —
-// devices hold keys, not logins. Runs on the RAW client pinned to the
-// device's own school (webhook precedent, §13.8).
+// Terminal attendance sync (§7 Phase 3 #21, §13.4 third path): x-device-key
+// auth, NO JWT chain — devices hold keys, not logins, so tenantMiddleware
+// (JWT-derived school) cannot run here. The school comes from the device
+// record itself; the route carries no :schoolId to spoof. Runs on the RAW
+// client pinned to that school (webhook precedent, §13.8).
 biometricRouter.post(
-  "/schools/:schoolId/attendance/device-punches",
-  deviceKeyMiddleware,
+  "/devices/attendance-sync",
+  deviceAuthMiddleware,
   catchAsync(async (req: Request, res: Response) => {
     if (!req.device) {
       res.status(500).json({
@@ -194,7 +196,7 @@ biometricRouter.post(
       });
       return;
     }
-    const parsed = importPunchesSchema.safeParse(req.body);
+    const parsed = syncAttendanceSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({
         success: false,
@@ -205,7 +207,7 @@ biometricRouter.post(
       return;
     }
     try {
-      const result = await importPunches(prisma, req.device, parsed.data);
+      const result = await syncAttendance(prisma, req.device, parsed.data);
       res.status(200).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendBiometricError(res, err);
