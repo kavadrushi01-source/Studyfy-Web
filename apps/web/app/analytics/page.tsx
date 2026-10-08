@@ -211,7 +211,7 @@ export default function AnalyticsPage() {
       ) : data ? (
         <>
           <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
-            <h2 style={h2Style}>Attendance trend — daily % present, trailing 30 days</h2>
+            <h2 style={h2Style}>Attendance trend — daily % present</h2>
             {trend.some((p) => p.percent !== null) ? (
               <svg
                 viewBox={`0 0 ${width} ${height}`}
@@ -242,7 +242,7 @@ export default function AnalyticsPage() {
           </section>
 
           <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
-            <h2 style={h2Style}>Fee collection — trailing 6 months</h2>
+            <h2 style={h2Style}>Fee collection — by month</h2>
             <div style={{ display: "flex", gap: 12, alignItems: "flex-end", height: 150, marginTop: 8 }}>
               {data.feeTrend.map((f) => {
                 const value = Number(f.collected);
