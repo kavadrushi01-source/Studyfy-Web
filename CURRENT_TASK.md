@@ -9,11 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS — Phase 3 Chunk 5 of 5 (final regression and close-out).
-**Phase / Module:** Phase 3 — Chunk 5 of 5 (final regression and close-out)
+**Status:** IDLE — Phase 3 complete (all 5 chunks DONE and accepted). Nothing active.
+**Phase / Module:** Phase 3 — COMPLETE (next: Phase 4 whenever the founder scopes it)
 **Last updated:** 2026-10-08
 
 ## What's done in this task so far
+- Chunk 5 close-out 2026-10-08: full Phase 3 regression — API 72/72 + 290/290 (rerun clean per recipe after one worker-crash pass), security 35/35 (tenant, owner, all self-scopes, messaging ×2, matrix, device auth), FULL e2e 76/76 (one library fine-rate flake passed retry, isolated 5/5 clean — box stall, no bug), audit 0, lint + both typechecks 0, CI all-5-green. Live walks on dev: remark generate→review→PDF-input (1 Groq call), anomaly 3-signal flag + summary (1 call), analytics 15/30-1-3, device sync PRESENT row, inventory 14 exact — 2 Groq calls total, dev fully restored. UI pass + deploy verify done earlier this chunk. No new bugs found; no BUGSFIX entry needed.
 - Chunk 5 close-out 2026-10-08: full regression green — API 72/72 + 290/290 (one infra-flake pass rerun clean per recipe), audit 0, root lint + both typechecks 0 (incl. fixing one uncommitted unused-var that had CI red), FULL e2e 76/76, CI all-5-green on the fix commit. UI pass: Phase 3 pages use tokens/pills/skeletons/empty states, no new hardcoded colors beyond house neutrals. Deploy: Vercel + Render both serving current main (live /inventory, /analytics, new API routes 401-correct); PROD DB NOT YET MIGRATED for Phase 3 (live inventory 403, biometric 500) — needs the one-time Aiven URL to run `migrate deploy`, then re-verify.
 - Chunk 4 of 5 COMPLETE 2026-10-08: Biometric/RFID + Inventory live — device registry + key-auth sync + devices UI; inventory items + movement-only stock + UI + nav. Full record in `STATUS.md` Phase 3 rows (Definition of Done: biometric 6/6 + inventory 3/3, e2e 2/2, FULL suite 72/72 + 289/289, tsc+lint 0, live demos with DB restore). Detail bullets below kept for one session, then fold.
 - Chunk 4 step 2 DONE 2026-10-08: canonical device sync — `POST /api/v1/devices/attendance-sync` (no school segment; school derived from the key via renamed `deviceAuthMiddleware`), PRESENT+ABSENT events with last-event-wins, `last_sync_at` rename (data-preserving migrations on all 3 DBs); old per-school punch route removed. Verified: biometric 6/6 (incl. A-key-can't-touch-B proof via shared tag), phase3-chunk4 e2e 2/2 on fresh dist, tsc + eslint 0. Ops lesson: schema renames must reach dev+test+e2e BEFORE any server restarts (stale e2e DB crashed the fresh boot).
