@@ -202,9 +202,21 @@ test.describe("gates + notices", () => {
     await expect(page.getByText("Invalid email or password.")).toBeVisible({ timeout: 15000 });
   });
 
-  test("pupil notices board carries the seeded meeting", async ({ page }) => {
+  test("pupil notices board carries a fresh school-wide notice", async ({ page, request }) => {
+    // Accumulation-proof: the board API serves the latest 100 rows, so an
+    // ancient seeded row is not guaranteed to be on it after many runs.
+    // Publish something fresh and assert that instead.
+    const { token, schoolId } = await apiLogin(request, ACCOUNTS.sosAdmin, SOS_SLUG);
+    const stamp = Date.now().toString(36);
+    const title = `E2E School Notice ${stamp}`;
+    await request
+      .post(`${API}/api/v1/schools/${schoolId}/notices`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { title, body: "End to end verification notice for the whole school." },
+      })
+      .then((res) => expect(res.ok()).toBe(true));
     await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
     await page.goto("/notices");
-    await expect(page.getByText("Parent-Teacher Meeting on Saturday").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(title).first()).toBeVisible({ timeout: 20000 });
   });
 });

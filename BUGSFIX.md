@@ -357,7 +357,19 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+57. **Seed-row e2e asserts rot as test rows accumulate (2026-10-08, PWA
+    pass).** Two specs asserted the SEEDED "Parent-Teacher Meeting on
+    Saturday" notice is visible — but GET /notices serves the latest 100
+    rows newest-first, and ~137 accumulated e2e rows had pushed the seed
+    row out of the window (row present in DB, correctly excluded from
+    the capped list). Not a product bug and NOT the service worker
+    (fresh contexts start with empty SW caches; the failure screenshot
+    showed live test data). Same class as BUGSFIX 45: e2e must be
+    count-independent. Fix: both specs now publish a fresh stamped
+    SCHOOL notice over the API and assert that. Standing rule extended:
+    never assert ancient seed content on a capped newest-first list.
 56. **Stuck-PENDING online payments (2026-10-06, founder-hit live).**
+
     Founder paid twice on prod; both invoices stayed PENDING. Root cause
     class: our UI relied SOLELY on the Razorpay webhook to flip the
     invoice — a lost/misconfigured webhook strands the payment with no

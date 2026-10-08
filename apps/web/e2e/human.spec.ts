@@ -1,7 +1,16 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 import { ACCOUNTS, PASSWORD, SOS_SLUG, login, logout } from "./helpers.js";
 
 const API = process.env.E2E_API_URL ?? "http://localhost:4001";
+
+async function apiAdmin(request: APIRequestContext): Promise<{ token: string; schoolId: string }> {
+  const res = await request.post(`${API}/api/v1/auth/login`, {
+    data: { schoolSlug: SOS_SLUG, email: ACCOUNTS.sosAdmin, password: PASSWORD },
+  });
+  expect(res.ok()).toBe(true);
+  const body = (await res.json()) as { data: { accessToken: string; user: { schoolId: string } } };
+  return { token: body.data.accessToken, schoolId: body.data.user.schoolId };
+}
 
 // Deep human-like pass: the things a careful person does that the flow
 // specs don't - reopening a saved day, typing bad numbers, resizing the
@@ -131,8 +140,19 @@ test.describe("role journeys", () => {
     });
   });
 
-  test("a class-targeted notice reaches that class and only that class", async ({ page }) => {
+  test("a class-targeted notice reaches that class and only that class", async ({ page, request }) => {
     test.setTimeout(90000);
+    // Accumulation-proof school-wide control: the board serves the latest
+    // 100 rows, so publish fresh rather than relying on an ancient seed row.
+    const admin = await apiAdmin(request);
+    const wideStamp = Date.now().toString(36);
+    const wideTitle = `E2E Wide Notice ${wideStamp}`;
+    await request
+      .post(`${API}/api/v1/schools/${admin.schoolId}/notices`, {
+        headers: { Authorization: `Bearer ${admin.token}` },
+        data: { title: wideTitle, body: "School-wide control notice for the scoping test." },
+      })
+      .then((res) => expect(res.ok()).toBe(true));
     await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
     await page.goto("/notices");
     const stamp = Date.now().toString(36);
@@ -177,7 +197,7 @@ test.describe("role journeys", () => {
     await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
     await page.goto("/notices");
     await expect(page.getByText(title)).toHaveCount(0, { timeout: 20000 });
-    await expect(page.getByText("Parent-Teacher Meeting on Saturday").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(wideTitle).first()).toBeVisible({ timeout: 20000 });
   });
 
   test("marks entry refuses scores above the subject maximum", async ({ page }) => {

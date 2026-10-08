@@ -9,11 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Phase 3 Chunk 2 of 5 (Analytics Dashboard) complete and accepted. Next is Chunk 3 — PWA/Offline.
-**Phase / Module:** Phase 3 — Chunk 2 DONE → Chunk 3 next (PWA/Offline, spec §7 #20)
+**Status:** IN PROGRESS — Phase 3 Chunk 3 (PWA/Offline-first, spec §7 #20).
+**Phase / Module:** Phase 3 — Chunk 3 of 5 (PWA/Offline-first)
 **Last updated:** 2026-10-07
 
 ## What's done in this task so far
+- Chunk 3 step 1 DONE 2026-10-08: PWA foundation — manifest + sharp-rasterized icons (192/512 from the SVG mark, no new deps), hand-written SW (versioned caches: immutable chunks cache-first, navigations network-first → cache → /offline shell, GET API reads network-first + bounded; POSTs/socket/auth never cached), registration component + layout metadata/theme-color, static /offline page. Verified: pwa.spec 2/2 (manifest+icons+sw.js; SW control → offline cached revisit + offline shell on unvisited + online recovery), FULL e2e 72 with 2 failures both proven NOT the SW (seed PTM notice beyond the API latest-100 window under 137 accumulated e2e rows; specs fixed to publish-fresh + BUGSFIX 57; deep+human 29/29 re-run green). Gates: web tsc + eslint 0.
 - Chunk 2 of 5 COMPLETE 2026-10-07: Analytics Dashboard live — overview endpoint + date-range windows + `/analytics` page + Reports nav. Full record in `STATUS.md` Phase 3 row (Definition of Done: API 281/281, tenant/gate tests, board-language UI, audit+lint+e2e green, live SOS-vs-RK separation demo). Detail bullets below kept for one session, then fold.
 - Chunk 2 step 2 DONE 2026-10-07: analytics date-range filtering — `GET analytics/overview?attendanceDays=&feeMonths=` (7–90d, 3–12mo, zod-validated, defaults 30/6, cache key carries params); page gains Attendance/Fee window dropdowns with auto-rescan + Apply. Verified: analytics.test.ts 4/4 (window lengths, 400s), admin.spec 6/6 (7-day + 3-month rescan), FULL suite 70/70 + 281/281 green first try, web tsc + eslint 0.
 - Chunk 2 step 1 DONE 2026-10-07: admin analytics API + `/analytics` page — `GET analytics/overview` (dashboard.read + SCHOOL_ADMIN; attendance trend 30d, fee trend 6mo + pending/overdue now, latest-5 exam perf with A+..F spread, section table; LRU-cached, invalidateAnalytics wired into marking/payment/invoice/marks writes); web page (SVG trend line, fee bars, exam cards, section table, honest nulls) behind the "Reports" nav slot (null → /analytics, no nav invention); admin.spec e2e 6/6 (fresh truant flagged; new analytics journey via Reports nav). Verified: analytics.test.ts 3/3 (exact aggregates, gate refusals, cross-tenant exclusion, invalidation proof), FULL suite 70/70 + 280/280 green first try, web tsc + eslint 0. E2E lesson: page and probe make separate Groq calls with independent flakiness — assert card content-shape, never cross-call exact text.

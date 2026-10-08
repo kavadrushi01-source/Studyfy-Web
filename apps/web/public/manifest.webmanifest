@@ -1,0 +1,25 @@
+{
+  "name": "Studyfy — School Management System",
+  "short_name": "Studyfy",
+  "description": "Attendance, fees, exams, timetable, homework, and parent communication for English-medium schools.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F8FAFC",
+  "theme_color": "#0F172A",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
