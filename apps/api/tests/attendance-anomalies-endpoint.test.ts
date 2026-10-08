@@ -116,7 +116,7 @@ async function markTrail(schoolId: string, sectionId: string, studentId: string,
 
 describe("GET attendance/anomalies (§7 Phase 3 #18 — detect locally, Groq phrases)", () => {
   it("flags the truant, clears the regular, and returns the stubbed summary without pupil names", async () => {
-    const { schoolId, slug, adminToken } = await registerSchool();
+    const { schoolId, adminToken } = await registerSchool();
     const sectionId = await makeSection(schoolId);
     const truant = await makePupil(schoolId, sectionId, "Truant Tara");
     const regular = await makePupil(schoolId, sectionId, "Regular Ravi");

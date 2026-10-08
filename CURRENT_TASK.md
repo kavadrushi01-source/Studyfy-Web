@@ -9,8 +9,8 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Phase 3 Chunk 4 of 5 (Biometric/RFID + Inventory) complete and accepted. Next is Chunk 5 — final regression and close-out.
-**Phase / Module:** Phase 3 — Chunk 4 DONE → Chunk 5 next (final regression and close-out)
+**Status:** IN PROGRESS — Phase 3 Chunk 5 of 5 (final regression and close-out).
+**Phase / Module:** Phase 3 — Chunk 5 of 5 (final regression and close-out)
 **Last updated:** 2026-10-08
 
 ## What's done in this task so far
