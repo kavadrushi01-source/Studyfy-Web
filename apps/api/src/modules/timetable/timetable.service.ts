@@ -56,6 +56,15 @@ export async function generateSectionTimetables(
     qualifications: [...byTeacher].map(([teacherId, subjectIds]) => ({ teacherId, subjectIds })),
     days: [...input.days].sort((a, b) => a - b),
     periodsPerDay: input.periodsPerDay,
+    // Blind spot this closes: regeneration replaces ONLY the demanded
+    // sections' slots, so without this the run happily re-places a teacher
+    // into hours they already teach in a section outside the demand set.
+    // Those surviving rows arrive as blocked occupancy; displaced lessons
+    // surface as unresolved instead of double-booking a human being.
+    blockedTeacherSlots: await db.timetableSlot.findMany({
+      where: { schoolId, sectionId: { notIn: sectionIds } },
+      select: { teacherId: true, dayOfWeek: true, period: true },
+    }).then((rows) => rows.map((r) => ({ teacherId: r.teacherId, day: r.dayOfWeek, period: r.period }))),
   });
 
   // Replace: clear this generation's sections first (scoped delete can only

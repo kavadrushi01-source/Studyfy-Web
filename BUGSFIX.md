@@ -357,6 +357,20 @@ npm audit --audit-level=high
     schoolId despite the tenant extension stamping it at runtime, and
     exactOptionalPropertyTypes rejects explicit undefined. Verified: API
     216/216, e2e 59/59 zero flakes, human desk journey + screenshot.
+58. **Subset timetable regeneration double-booked teachers (2026-10-09,
+    human pass — REAL BUG, the serious kind).** Arjun Mehta taught 9-A and
+    9-B simultaneously at Monday periods 2+3. Root cause: regenerating a
+    SUBSET of sections wiped+replaced only those sections' slots, while the
+    coloring lib only avoided collisions inside the demand set — existing
+    rows in out-of-scope sections were invisible to it. Manual slot adds
+    were already correct (section-free + teacher-free + qualification
+    checks); only the generate path was blind. Fix: the service feeds
+    surviving out-of-scope teacher occupancy into the lib as
+    `blockedTeacherSlots`; displaced lessons surface as unresolved instead
+    of colliding. Regression test regenerates one section around another's
+    held slot and asserts placement aside + no teacher double-book.
+    Cleaned the 2 clashing 9-A rows from the e2e DB (9-B's kept; next
+    9-A regeneration heals itself). Verified: timetable suites green.
 57. **Seed-row e2e asserts rot as test rows accumulate (2026-10-08, PWA
     pass).** Two specs asserted the SEEDED "Parent-Teacher Meeting on
     Saturday" notice is visible — but GET /notices serves the latest 100

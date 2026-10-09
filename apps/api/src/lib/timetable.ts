@@ -60,6 +60,14 @@ export function generateTimetable(input: {
   qualifications: TeacherQualification[];
   days: number[];
   periodsPerDay: number;
+  // Teacher occupancy that survives this run: existing slots in sections
+  // OUTSIDE the demand set (a subset regeneration wipes only its own
+  // sections — blindly re-placing the same teacher at the same hour in two
+  // sections double-books them, which is exactly how Arjun ended up
+  // teaching 9-A and 9-B at Monday periods 2 and 3 simultaneously).
+  // Blocked cells are never taken; lessons that fit nowhere land in
+  // `unresolved` instead of colliding.
+  blockedTeacherSlots?: { teacherId: string; day: number; period: number }[];
 }): TimetableResult {
   const qualifiedBySubject = new Map<string, string[]>();
   for (const qual of input.qualifications) {
@@ -89,6 +97,11 @@ export function generateTimetable(input: {
   const sectionBusy = new Map<string, Set<string>>();
   const teacherLoad = new Map<string, number>();
   const key = (day: number, period: number): string => `${day}-${period}`;
+  for (const blocked of input.blockedTeacherSlots ?? []) {
+    const busy = teacherBusy.get(blocked.teacherId) ?? new Set<string>();
+    busy.add(key(blocked.day, blocked.period));
+    teacherBusy.set(blocked.teacherId, busy);
+  }
 
   const placed: PlacedSlot[] = [];
   const missing = new Map<string, { sectionId: string; subjectId: string; count: number; reason: UnresolvedDemand["reason"] }>();

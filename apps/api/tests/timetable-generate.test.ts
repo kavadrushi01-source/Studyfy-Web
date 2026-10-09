@@ -126,6 +126,45 @@ describe("POST /api/v1/schools/:schoolId/timetable/generate (§10/§11)", () => 
     ]);
   });
 
+  it("subset regeneration never double-books a teacher held by an out-of-scope section", async () => {
+    // Real incident 2026-10-09: regenerating 9-A alone re-placed Arjun into
+    // Monday periods 2+3 while 9-B (outside the demand set) already held him
+    // there — the run only avoided collisions inside its own demand. The
+    // surviving out-of-scope rows now arrive as blocked occupancy.
+    const { schoolId, adminToken } = await registerSchool();
+    const sectionA = await makeSection(schoolId);
+    const sectionB = await makeSection(schoolId);
+    const math = await makeSubject(schoolId, "Mathematics");
+    const teacherId = await makeTeacher(schoolId, [math]);
+
+    // Section B's Monday p1 belongs to the only Maths-qualified teacher.
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/timetable/slots`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ sectionId: sectionB, subjectId: math, teacherId, dayOfWeek: 1, period: 1 })
+      .expect(201);
+
+    // Regenerate section A alone over a 2-slot window: d1p1 is taken (by B),
+    // so the single lesson must land on d1p2 — never on top of the teacher.
+    const res = await request(app)
+      .post(`/api/v1/schools/${schoolId}/timetable/generate`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        demands: [{ sectionId: sectionA, subjectId: math, periodsPerWeek: 1 }],
+        days: [1],
+        periodsPerDay: 2,
+      })
+      .expect(200);
+
+    expect(res.body.data.unresolved).toEqual([]);
+    expect(res.body.data.placed).toHaveLength(1);
+    expect(res.body.data.placed[0]).toMatchObject({ sectionId: sectionA, day: 1, period: 2, teacherId });
+
+    const rows = await prisma.timetableSlot.findMany({ where: { schoolId } });
+    const teacherSlots = new Set(rows.map((r) => `${r.teacherId}@${r.dayOfWeek}-${r.period}`));
+    expect(teacherSlots.size).toBe(rows.length);
+  });
+
   it("regenerating replaces (never duplicates), and guards roles/tenants/input", async () => {
     const schoolA = await registerSchool();
     const schoolB = await registerSchool();
