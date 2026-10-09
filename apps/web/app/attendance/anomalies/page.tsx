@@ -206,6 +206,13 @@ export default function AttendanceAnomaliesPage() {
           {result.checked} {result.checked === 1 ? "pupil" : "pupils"} checked
         </p>
       ) : null}
+      {!loading && !result ? (
+        <EmptyState
+          icon={<BarChart3 size={22} aria-hidden="true" />}
+          title="Pick a section to scan"
+          detail="Choose a section above — the sliding-window scan runs over its trailing marked days."
+        />
+      ) : null}
       {loading ? (
         <SkeletonBlocks rows={4} />
       ) : result ? (
