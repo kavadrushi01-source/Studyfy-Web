@@ -1061,9 +1061,19 @@ The live site holds the two demo schools and is reachable by anyone on the
 internet, including people you've never met:
 - **The documented demo password must not be the live one.** The seed script
   reads `DEMO_PASSWORD` from the environment; `Demo@1234` (`DEMO_DATA.md`) is the
-  local-development fallback only. Production uses a different password held in
-  the host's env vars and your password manager. Assume the repo is public:
-  anything committed is public.
+  local-development fallback only (local database + `NODE_ENV=development` —
+  anything else without the variable refuses to seed rather than writing
+  publicly-documented credentials onto a reachable database). Production uses
+  a different password held in the host's env vars and your password manager.
+  Assume the repo is public: anything committed is public. Rotating the live
+  password never touches data: `npm run db:reset-demo-passwords` rewrites only
+  `passwordHash` rows inside `isDemo` schools plus the seeded owner (one
+  shared password for all demo accounts, owner included — a separate owner
+  password was considered and deliberately rejected: a second credential
+  doubles the rotation burden for no real gain while the data is demo).
+  Live passwords never enter chat messages OR screenshots — terminal output
+  and dashboard URIs leak just as effectively as pasted text, and a leaked
+  credential is rotated, never reused.
 - **Never publish a writable Platform Owner login** — it sees every school and
   can suspend them. Show platform views with screenshots or a short video, or
   create a dedicated read-only demo owner (a `readOnly` token claim enforced by
@@ -1227,7 +1237,11 @@ SMS_WHATSAPP_API_KEY=
 
 # Phase 4
 CRON_SECRET=          # long random string (32+ chars); the scheduler sends it as X-Cron-Secret (§12.4, §13.4)
-DEMO_PASSWORD=        # the live demo accounts' password; the local default lives in DEMO_DATA.md (§13.11)
+DEMO_PASSWORD=        # the LIVE demo accounts' SHARED password (all demo roles + seeded owner).
+                        # Local default Demo@1234 lives in DEMO_DATA.md and applies ONLY to a local DB
+                        # seeded with NODE_ENV=development — anything else without this variable refuses.
+                        # Rotate live WITHOUT touching data: npm run db:reset-demo-passwords. Never committed,
+                        # never pasted into chat or screenshots (§13.11)
 PLATFORM_GSTIN=       # leave blank while this is a portfolio project — invoices then print "TEST INVOICE". Never invent one (§16.1)
 PLATFORM_STATE=       # the state a real business would be registered in; decides CGST+SGST vs IGST (§16.1)
 

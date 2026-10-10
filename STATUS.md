@@ -88,7 +88,7 @@
 | In-app support/tickets | NOT STARTED | `isInternal` notes must never reach a school-facing query |
 | Impersonation | NOT STARTED | Read-only on every channel, staff only, reason + audit (§13.9) |
 | Data export/backup | NOT STARTED | Tenant-isolation test + secrets-excluded test (§13.10) |
-| Public demo hygiene | NOT STARTED (partly done in Chunk 1: DEMO_PASSWORD env + seed source log, isDemo guards; remaining: rotate live demo password + reset job + read-only owner demo — Chunk 5) | Rotate live demo password FIRST (§13.11) — it has been live since Phase 1 |
+| Public demo hygiene | PARTLY DONE 2026-10-10 — live demo password ROTATED (single shared password, 30+23+owner, old documented one 401s, 8/8 live proofs) + DEMO_PASSWORD env + gated seed (dev-only fallback, prod refusal) + reset mode + isDemo guards. Remaining (Chunk 5): nightly reset job + read-only owner demo + upload caps | Rotate live demo password FIRST (§13.11) — it had been live since Phase 1; done 2026-10-10 |
 
 ## Bugs Found This Build
 _(log these in `BUGSFIX.md`, not here — this file tracks status, not bug detail)_

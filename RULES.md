@@ -103,7 +103,10 @@ spec's stated intent, recorded in §9.
   oversight capability (spec §13.7 — this product's users include minors).
 - **Never ask the founder to paste a real secret (API key, database
   password) into a chat message, and never treat one pasted into chat as
-  routine if it happens anyway.** Real credentials belong only in
+  routine if it happens anyway.** Screenshots leak exactly as effectively as
+  pasted text — terminal output, dashboard URIs, and env-var tables have all
+  carried live secrets in this project. A secret that appears in chat OR in
+  an image is burned: flag it, rotate/replace it, and never reuse it. Real credentials belong only in
   Vercel's/Render's/etc. dashboards or a local `.env` file, never in a
   prompt. If a secret does appear in a chat message — especially a
   Razorpay LIVE key — treat it the same as §13.8's live-key rule: stop,
