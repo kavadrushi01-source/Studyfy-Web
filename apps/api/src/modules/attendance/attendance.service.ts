@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { detectAnomalies, type AnomalyDay, type AttendanceAnomaly } from "../../lib/attendance-anomalies.js";
 import { GroqApiError, GroqUnconfiguredError, groq } from "../../lib/groq.js";
-import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
+import { mailerFor, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateAttendanceKpis, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
 import { invalidateAnalytics } from "../metrics/analytics.service.js";
@@ -100,9 +100,12 @@ async function sendAbsenteeAlerts(
   studentIds: string[],
   date: string,
 ): Promise<void> {
-  let send: ReturnType<typeof mailer>;
+  const school = await db.school.findUnique({ where: { id: schoolId }, select: { name: true, slug: true, isDemo: true } });
+  // Single choke point (§13.11): demo schools log instead of sending, real
+  // schools send. The guard lives in mailerFor(), not here.
+  let send: ReturnType<typeof mailerFor>;
   try {
-    send = mailer();
+    send = mailerFor({ isDemo: school?.isDemo ?? false, slug: school?.slug ?? schoolId });
   } catch (err) {
     if (err instanceof MailerUnconfiguredError) {
       console.warn("Skipping absentee alerts: SMTP not configured.");
@@ -110,7 +113,6 @@ async function sendAbsenteeAlerts(
     }
     throw err;
   }
-  const school = await db.school.findUnique({ where: { id: schoolId } });
   const students = await db.student.findMany({
     where: { id: { in: studentIds } },
     select: {

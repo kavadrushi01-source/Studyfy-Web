@@ -19,6 +19,7 @@ beforeAll(() => {
     ...stubMailer,
     sendNoticeEmail: async (email: NoticeEmail) => {
       emailed.push(email);
+      return "sent";
     },
   });
 });

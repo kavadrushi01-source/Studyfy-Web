@@ -15,7 +15,7 @@ function uid(): string {
 const sent: PasswordResetEmail[] = [];
 
 beforeAll(() => {
-  setMailer({ ...stubMailer, sendPasswordResetEmail: async (email) => { sent.push(email); } });
+  setMailer({ ...stubMailer, sendPasswordResetEmail: async (email) => { sent.push(email); return "sent"; } });
 });
 
 afterAll(() => {

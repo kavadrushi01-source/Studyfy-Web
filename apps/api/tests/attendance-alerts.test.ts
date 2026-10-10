@@ -18,6 +18,7 @@ beforeAll(() => {
     ...stubMailer,
     sendAbsenteeAlert: async (alert: AbsenteeAlert) => {
       sent.push(alert);
+      return "sent";
     },
   });
 });
@@ -149,6 +150,7 @@ describe("absentee alerts (§7 Phase 1 #2, Brevo SMTP)", () => {
         ...stubMailer,
         sendAbsenteeAlert: async (alert: AbsenteeAlert) => {
           sent.push(alert);
+          return "sent";
         },
       });
     }
@@ -166,6 +168,7 @@ describe("absentee alerts (§7 Phase 1 #2, Brevo SMTP)", () => {
         ...stubMailer,
         sendAbsenteeAlert: async (alert: AbsenteeAlert) => {
           sent.push(alert);
+          return "sent";
         },
       });
     }

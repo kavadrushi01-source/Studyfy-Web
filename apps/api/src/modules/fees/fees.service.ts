@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
-import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
+import { mailerFor, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { schoolDay } from "../../lib/school-time.js";
 import { invalidateAccountantBoards, invalidateActivityFeed, invalidateFeeKpis, invalidateStudentBoards } from "../metrics/metrics.service.js";
 import { invalidateAnalytics } from "../metrics/analytics.service.js";
@@ -402,32 +402,14 @@ export async function runFeeReminders(
     },
   });
 
-  // §13.11 demo suppression, BEFORE the mailer is even acquired: seeded
-  // guardian addresses end in .demo and don't exist — sending would bounce
-  // (damaging the free email account's reputation) and anyone could burn
-  // its daily quota by triggering runs in a loop. Log instead of send. The
-  // lastReminderAt stamp is still written, so the run stays idempotent and
-  // the cron never retries a suppressed invoice.
-  if (school.isDemo) {
-    for (const invoice of invoices) {
-      if (invoice.lastReminderAt && schoolDay(school.timezone, invoice.lastReminderAt) === today) {
-        continue;
-      }
-      const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
-      if (outstanding.lessThanOrEqualTo(0)) {
-        continue;
-      }
-      await db.feeInvoice.update({ where: { id: invoice.id }, data: { lastReminderAt: now } });
-    }
-    if (invoices.length > 0) {
-      console.log(`[demo] fee reminders for ${school.slug}: ${invoices.length} invoice(s) logged, not emailed.`);
-    }
-    return { emailed: 0, skipped: invoices.length };
-  }
-
-  let send: ReturnType<typeof mailer>;
+  // Single choke point (§13.11): the demo guard lives in mailerFor(), so
+  // the old bespoke demo-suppression block here is gone — one guard for the
+  // whole product can't silently diverge. Demo sends resolve fulfilled but
+  // report "suppressed-demo": they still stamp lastReminderAt below (the run
+  // stays idempotent), but never count as emailed.
+  let send: ReturnType<typeof mailerFor>;
   try {
-    send = mailer();
+    send = mailerFor(school);
   } catch (err) {
     if (err instanceof MailerUnconfiguredError) {
       console.warn("Skipping fee reminders: SMTP not configured.");
@@ -464,14 +446,23 @@ export async function runFeeReminders(
       ),
     );
     let delivered = 0;
+    let suppressed = 0;
     for (const result of results) {
-      if (result.status === "fulfilled") {
+      if (result.status === "fulfilled" && result.value === "sent") {
         delivered += 1;
+      } else if (result.status === "fulfilled") {
+        suppressed += 1;
       } else {
         console.error("Fee reminder delivery failed:", result.reason);
       }
     }
     emailed += delivered;
+    // A fully suppressed invoice (demo school) counts as skipped, never
+    // emailed — the aggregate stays honest. Genuinely failed sends keep
+    // their historical shape (counted nowhere, still stamped).
+    if (delivered === 0 && suppressed > 0 && suppressed === results.length) {
+      skipped += 1;
+    }
     await db.feeInvoice.update({ where: { id: invoice.id }, data: { lastReminderAt: now } });
   }
   return { emailed, skipped };

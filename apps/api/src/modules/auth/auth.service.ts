@@ -4,7 +4,7 @@ import { recordAudit } from "../../lib/audit.js";
 import { prisma } from "../../lib/prisma.js";
 import { signAccessToken } from "../../lib/jwt.js";
 import { slugifyName, uniqueSlug } from "../../lib/slug.js";
-import { MailerUnconfiguredError, mailer } from "../../lib/mailer.js";
+import { MailerUnconfiguredError, mailerFor } from "../../lib/mailer.js";
 import { invalidateOwnerBoards } from "../metrics/metrics.service.js";
 import type { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput } from "./auth.schemas.js";
 
@@ -352,11 +352,11 @@ export async function requestPasswordReset(db: typeof prisma, input: ForgotPassw
   const user = input.schoolSlug
     ? await db.user.findFirst({
         where: { schoolId: { not: null }, email: input.email, school: { slug: input.schoolSlug } },
-        include: { role: true, school: { select: { name: true } } },
+        include: { role: true, school: { select: { name: true, slug: true, isDemo: true } } },
       })
     : await db.user.findFirst({
         where: { schoolId: null, email: input.email },
-        include: { role: true, school: { select: { name: true } } },
+        include: { role: true, school: { select: { name: true, slug: true, isDemo: true } } },
       });
   if (!user || !user.isActive) {
     return { emailed: false, debugToken: null };
@@ -369,13 +369,17 @@ export async function requestPasswordReset(db: typeof prisma, input: ForgotPassw
   let emailed = false;
   try {
     const frontend = process.env.FRONTEND_ORIGIN?.split(",")[0]?.trim() || "http://localhost:3000";
-    await mailer().sendPasswordResetEmail({
+    // Single choke point (§13.11): the demo guard lives in mailerFor(). The
+    // platform owner (no school) is never demo — resets always send there.
+    const schoolRef =
+      user.schoolId && user.school ? { isDemo: user.school.isDemo, slug: user.school.slug } : { isDemo: false, slug: "platform" };
+    const delivery = await mailerFor(schoolRef).sendPasswordResetEmail({
       to: user.email,
       name: user.name,
       link: `${frontend}/reset-password?token=${raw}`,
       schoolName: user.school?.name ?? "Studyfy",
     });
-    emailed = true;
+    emailed = delivery === "sent";
   } catch (err) {
     if (!(err instanceof MailerUnconfiguredError)) {
       console.error("Password reset email delivery failed:", err);

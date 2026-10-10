@@ -19,6 +19,7 @@ beforeAll(() => {
     ...stubMailer,
     sendFeeReminder: async (email: FeeReminderEmail) => {
       emailed.push(email);
+      return "sent";
     },
   });
 });

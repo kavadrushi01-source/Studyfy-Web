@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { mailer, MailerUnconfiguredError } from "../../lib/mailer.js";
+import { mailerFor, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateActivityFeed, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
 import type { CreateNoticeInput } from "./notices.schemas.js";
@@ -62,22 +62,23 @@ async function resolveSchool(db: PrismaClient, authorId: string, input: CreateNo
 }
 
 async function deliverNotice(db: PrismaClient, noticeId: string): Promise<number> {
-  let send: ReturnType<typeof mailer>;
+  const notice = await db.notice.findUnique({
+    where: { id: noticeId },
+    include: { school: { select: { name: true, slug: true, isDemo: true } } },
+  });
+  if (!notice) {
+    return 0;
+  }
+  // Single choke point (§13.11): the demo guard lives in mailerFor().
+  let send: ReturnType<typeof mailerFor>;
   try {
-    send = mailer();
+    send = mailerFor({ isDemo: notice.school.isDemo, slug: notice.school.slug });
   } catch (err) {
     if (err instanceof MailerUnconfiguredError) {
       console.warn("Skipping notice emails: SMTP not configured.");
       return 0;
     }
     throw err;
-  }
-  const notice = await db.notice.findUnique({
-    where: { id: noticeId },
-    include: { school: { select: { name: true } } },
-  });
-  if (!notice) {
-    return 0;
   }
   // Affected audience: school-wide = every parent + staffer; class/section
   // = parents of its students + all teachers (teachers span sections).
@@ -119,9 +120,11 @@ async function deliverNotice(db: PrismaClient, noticeId: string): Promise<number
   );
   let emailed = 0;
   for (const result of results) {
-    if (result.status === "fulfilled") {
+    // Only real sends count — demo-suppressed emails resolve fulfilled but
+    // must never inflate the tally (§13.11).
+    if (result.status === "fulfilled" && result.value === "sent") {
       emailed += 1;
-    } else {
+    } else if (result.status === "rejected") {
       console.error("Notice email delivery failed:", result.reason);
     }
   }

@@ -25,6 +25,7 @@ beforeAll(() => {
     ...stubMailer,
     sendFeeReminder: async (email: FeeReminderEmail) => {
       emailed.push(email);
+      return "sent";
     },
   });
 });
@@ -121,7 +122,10 @@ describe("cron authentication (§13.4 fourth path)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("serves the job with the secret and NO user auth (scheduler path)", async () => {
+  // The HTTP path sweeps the whole shared test DB (no targeting param on
+  // the route by design) — under parallel-worker load that can exceed the
+  // 5s default, same lesson as the service-level test below.
+  it("serves the job with the secret and NO user auth (scheduler path)", { timeout: 60000 }, async () => {
     const res = await request(app)
       .post("/api/v1/internal/jobs/fee-reminders")
       .set("X-Cron-Secret", TEST_CRON_SECRET)
