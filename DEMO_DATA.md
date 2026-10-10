@@ -165,15 +165,6 @@ new password logs in, the old documented one fails. Never paste the live
 password into a chat message — if it ever appears there, treat it as a
 secret rotation event, not routine.
 
-**Separating the owner password (do this before sharing any demo login):**
-the reset accepts an optional second credential, `OWNER_PASSWORD`. When set,
-the platform owner gets THAT password while every school account gets
-`DEMO_PASSWORD` — so sharing the demo password no longer shares platform
-control (no suspend-everything, no cross-school access). The owner password
-lives in your password manager only; the running server never reads it.
-Without `OWNER_PASSWORD`, the owner shares the demo password (fine for local
-dev, never the production shape).
-
 **Subscription demo data (from Phase 4):** seed two or three paid subscription
 invoices per demo school with payment method `TEST`/`MANUAL`, visibly labelled
 as test payments, so the Platform Owner dashboard's revenue cards aren't empty

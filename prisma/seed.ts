@@ -1120,19 +1120,9 @@ export async function seedDemo(db: PrismaClient): Promise<void> {
 export interface ResetDemoPasswordsResult {
   schools: { slug: string; updated: number }[];
   ownerUpdated: boolean;
-  ownerSeparatePassword: boolean;
 }
 
-export async function resetDemoPasswords(
-  db: PrismaClient,
-  password: string,
-  // The platform owner holds the keys to every school, so it may carry a
-  // DIFFERENT password from the shareable demo accounts (§13.11): with a
-  // distinct owner password, sharing the demo password no longer shares
-  // platform control. Omitted = owner shares the demo password (local-dev
-  // shape; never the production shape).
-  opts?: { ownerPassword?: string },
-): Promise<ResetDemoPasswordsResult> {
+export async function resetDemoPasswords(db: PrismaClient, password: string): Promise<ResetDemoPasswordsResult> {
   const passwordHash = await bcrypt.hash(password, DEMO_BCRYPT_COST);
   const demoSchools = await db.school.findMany({ where: { isDemo: true }, select: { id: true, slug: true } });
   const schools: { slug: string; updated: number }[] = [];
@@ -1140,13 +1130,11 @@ export async function resetDemoPasswords(
     const updated = await db.user.updateMany({ where: { schoolId: school.id }, data: { passwordHash } });
     schools.push({ slug: school.slug, updated: updated.count });
   }
-  const ownerPassword = opts?.ownerPassword ?? password;
-  const ownerHash = opts?.ownerPassword ? await bcrypt.hash(ownerPassword, DEMO_BCRYPT_COST) : passwordHash;
   const owner = await db.user.updateMany({
     where: { schoolId: null, email: OWNER_EMAIL },
-    data: { passwordHash: ownerHash },
+    data: { passwordHash },
   });
-  return { schools, ownerUpdated: owner.count > 0, ownerSeparatePassword: Boolean(opts?.ownerPassword) };
+  return { schools, ownerUpdated: owner.count > 0 };
 }
 
 const invokedDirectly = (process.argv[1] ?? "").replace(/\\/g, "/").endsWith("prisma/seed.ts");
@@ -1180,14 +1168,11 @@ async function resetMain(): Promise<void> {
   }
   const db = new PrismaClient();
   try {
-    // Optional second credential: the owner holds every school, so
-    // production keeps it DISTINCT from the shareable demo password (never
-    // required, never falling back — absent means shared, same as before).
-    const result = await resetDemoPasswords(db, password, process.env.OWNER_PASSWORD ? { ownerPassword: process.env.OWNER_PASSWORD } : undefined);
+    const result = await resetDemoPasswords(db, password);
     for (const school of result.schools) {
       console.log(`Reset ${school.updated} demo password(s): ${school.slug}`);
     }
-    console.log(`Seeded owner ${OWNER_EMAIL}: ${result.ownerUpdated ? (result.ownerSeparatePassword ? "separate password set" : "password reset") : "not found (nothing to do)"}`);
+    console.log(`Seeded owner ${OWNER_EMAIL}: ${result.ownerUpdated ? "password reset" : "not found (nothing to do)"}`);
     console.log("Demo passwords rotated. Verify: log in with the new password; the old documented password must now fail.");
   } finally {
     await db.$disconnect();

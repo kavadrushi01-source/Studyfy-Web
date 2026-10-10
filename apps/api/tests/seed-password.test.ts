@@ -111,47 +111,4 @@ describe("reset demo passwords mode (§13.11 rotation)", () => {
     const realAfter = await prisma.user.findUniqueOrThrow({ where: { id: realUser.id } });
     expect(realAfter.passwordHash).toBe(oldHash);
   });
-
-  it("gives the owner a DISTINCT password when asked, keeping demo accounts shareable", async () => {
-    const tag = uid();
-    // The seeded owner row (owner@studyfy.dev) may or may not exist in the
-    // shared test DB — assert the separation property directly instead:
-    // run reset with distinct owner password, then check a demo user got
-    // the demo password while the seeded-owner row (if present) did not.
-    const adminRole = await prisma.role.findUniqueOrThrow({ where: { name: "SCHOOL_ADMIN" } });
-    const demoSchool = await prisma.school.create({
-      data: {
-        name: `Separate Pw School ${tag}`,
-        slug: `separate-pw-${tag}`,
-        subscriptionStatus: "ACTIVE",
-        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        isDemo: true,
-      },
-    });
-    const demoUser = await prisma.user.create({
-      data: {
-        schoolId: demoSchool.id,
-        roleId: adminRole.id,
-        email: `separate-demo-${tag}@example.com`,
-        passwordHash: await bcrypt.hash("old-demo-pw", 4),
-        name: "Separate Demo Admin",
-      },
-    });
-    const seededOwnerBefore = await prisma.user.findFirst({ where: { schoolId: null, email: "owner@studyfy.dev" } });
-
-    const result = await resetDemoPasswords(prisma, "shared-demo-pw", { ownerPassword: "owner-only-pw" });
-    expect(result.ownerSeparatePassword).toBe(true);
-
-    const demoAfter = await prisma.user.findUniqueOrThrow({ where: { id: demoUser.id } });
-    expect(await bcrypt.compare("shared-demo-pw", demoAfter.passwordHash)).toBe(true);
-    expect(await bcrypt.compare("owner-only-pw", demoAfter.passwordHash)).toBe(false);
-
-    if (seededOwnerBefore) {
-      const seededAfter = await prisma.user.findFirstOrThrow({
-        where: { schoolId: null, email: "owner@studyfy.dev" },
-      });
-      expect(await bcrypt.compare("owner-only-pw", seededAfter.passwordHash)).toBe(true);
-      expect(await bcrypt.compare("shared-demo-pw", seededAfter.passwordHash)).toBe(false);
-    }
-  });
 });
