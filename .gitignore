@@ -6,6 +6,7 @@ packages/*/dist/
 coverage/
 .env
 apps/api/.env
+apps/api/.env.prod
 apps/web/.env.local
 *.tsbuildinfo
 .DS_Store
