@@ -28,9 +28,16 @@ export interface FeeRemindersJobResult {
 // Demo schools are doubly excluded: the loop below never selects them AND
 // runFeeReminders() itself suppresses demo mail (§13.11) — a "wipe and
 // resend" bug pointed at a demo school degrades to a log line, never mail.
-export async function runFeeRemindersJob(db: PrismaClient, now: Date = new Date()): Promise<FeeRemindersJobResult> {
+export async function runFeeRemindersJob(
+  db: PrismaClient,
+  now: Date = new Date(),
+  // Code-level targeting only (tests, ops one-offs) — the HTTP route never
+  // exposes it. Lets a test sweep exactly its own fixtures instead of every
+  // accumulated row in a shared database.
+  opts?: { schoolIds?: string[] },
+): Promise<FeeRemindersJobResult> {
   const schools = await db.school.findMany({
-    where: { isDemo: false },
+    where: { isDemo: false, ...(opts?.schoolIds ? { id: { in: opts.schoolIds } } : {}) },
     select: { id: true, timezone: true, subscriptionStatus: true },
   });
   const result: FeeRemindersJobResult = {
