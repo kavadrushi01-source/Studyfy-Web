@@ -113,6 +113,12 @@ jobs:
       - run: npx playwright install --with-deps
       - run: npm run db:deploy
       - run: npm run db:seed
+        env:
+          # The documented development password (DEMO_DATA.md — public by
+          # design). The seed's Demo@1234 fallback applies only with
+          # NODE_ENV=development; CI sets neither, so the value is passed
+          # explicitly — and e2e logs in with exactly this password.
+          DEMO_PASSWORD: Demo@1234
       - run: npm run build --workspace=@studyfy/api
       - run: npm run build --workspace=@studyfy/web
       - run: npm run start --workspace=@studyfy/api -- --port 4001 &

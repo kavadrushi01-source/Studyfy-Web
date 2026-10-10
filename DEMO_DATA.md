@@ -120,9 +120,18 @@ out-of-band operation" that rule allows.
 ## Login credentials for every seeded account
 
 Every account created by `prisma/seed.ts` — every teacher, student, parent,
-accountant, both admins, and the Platform Owner — uses the **same known
-password**: `Demo@1234` (or whatever you prefer; just document it here and
-keep it consistent). Emails follow a predictable pattern so you're never
+accountant, both admins, and the Platform Owner — uses the demo password,
+resolved as follows (§13.11):
+
+- `DEMO_PASSWORD` from the environment always wins (production rotation,
+  CI, local experiments).
+- The `Demo@1234` fallback below applies ONLY to a local database seeded
+  with `NODE_ENV=development`. Anything else without `DEMO_PASSWORD` —
+  production, a remote DB, CI — refuses to seed rather than writing
+  publicly-documented credentials onto a reachable database.
+
+Local development default: `Demo@1234` (run seeds with
+`NODE_ENV=development`). Emails follow a predictable pattern so you're never
 guessing, e.g. `firstname.lastname@schoolofscience.demo` and
 `firstname.lastname@ramakrishnaschool.demo`.
 
@@ -140,10 +149,21 @@ exactly the shared-default-password mistake §13.3 exists to prevent.
 
 **On the live site, this default must not be the password** (spec §13.11). The
 seed script reads `DEMO_PASSWORD` from the environment; `Demo@1234` is the
-local-development fallback only. The deployed demo uses a different password
+local-development fallback only (local DB + `NODE_ENV=development` — anything
+else without the variable refuses). The deployed demo uses a different password
 kept in the host's environment variables and your password manager — assume the
 repo is public and anything written in these files is public too. The Platform
 Owner demo account is never shared as a writable login.
+
+**Rotating the live demo password** (no data touched): generate a strong
+password → password manager + host env vars (`DEMO_PASSWORD`), then run
+`npm run db:reset-demo-passwords --workspace=@studyfy/api` with `DATABASE_URL`
+pointing at the live database and `DEMO_PASSWORD` in the shell environment.
+It rewrites only `passwordHash` rows inside `isDemo` schools plus the seeded
+owner, reports counts per school, and is safe to re-run. Verify afterwards:
+new password logs in, the old documented one fails. Never paste the live
+password into a chat message — if it ever appears there, treat it as a
+secret rotation event, not routine.
 
 **Subscription demo data (from Phase 4):** seed two or three paid subscription
 invoices per demo school with payment method `TEST`/`MANUAL`, visibly labelled

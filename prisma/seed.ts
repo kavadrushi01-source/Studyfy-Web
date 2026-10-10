@@ -9,7 +9,12 @@
 // REAL schools' REAL accounts; seed data exists so a human can log in as
 // each role and verify by hand. Never reuse this pattern for real imports.
 //
-// Run: npm run db:seed  (repo root; DATABASE_URL from env). Local/dev only.
+// Run: npm run db:seed  (DATABASE_URL from env; locally with
+//   NODE_ENV=development, which selects the documented Demo@1234 fallback).
+// Rotate demo passwords only:
+//   npm run db:reset-demo-passwords  (DEMO_PASSWORD required in env —
+//   password manager → shell, never committed; touches passwordHash rows in
+//   isDemo schools + the seeded owner, nothing else).
 import { Prisma, PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -166,12 +171,52 @@ export async function seedPermissions(db: PrismaClient): Promise<void> {
 // Demo data (DEMO_DATA.md — exact names, do not invent different ones)
 // ---------------------------------------------------------------------------
 
-const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "Demo@1234";
-// DEMO_PASSWORD is the LIVE demo password (host env vars + password manager,
-// §13.11) — the fallback above is the LOCAL-development default only (the
-// documented value in DEMO_DATA.md). Assume the repo is public: the live
-// password must never appear in a committed file. The seed logs which source
-// it used, so a production seed with the fallback is visible, not silent.
+export const DEV_FALLBACK_PASSWORD = "Demo@1234";
+
+// The documented demo password is PUBLIC (DEMO_DATA.md) — it must never be
+// the password on any reachable database (§13.11). So the seed resolves its
+// password through decideDemoPassword(), never a bare `??` fallback:
+// - DEMO_PASSWORD from the environment always wins, everywhere (production
+//   rotation, CI, local experiments alike).
+// - The documented fallback applies ONLY to a local database seeded with
+//   NODE_ENV=development. Anything else without DEMO_PASSWORD — production,
+//   a remote staging DB, CI without the documented seed env — throws instead
+//   of silently seeding publicly-known credentials onto a live database.
+// Localhost detection is the backstop: even with NODE_ENV=development, a
+// non-local DATABASE_URL still requires the explicit variable.
+export function isLocalDatabaseUrl(databaseUrl: string): boolean {
+  let host = "";
+  try {
+    host = new URL(databaseUrl).hostname.toLowerCase();
+  } catch {
+    return false; // Unparseable URL: treat as remote (fail closed).
+  }
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "mysql" || host === "db";
+}
+
+export function decideDemoPassword(
+  env: { NODE_ENV?: string; DEMO_PASSWORD?: string },
+  databaseUrl: string,
+): { password: string; source: "environment" | "local fallback" } {
+  if (env.DEMO_PASSWORD) {
+    return { password: env.DEMO_PASSWORD, source: "environment" };
+  }
+  if (env.NODE_ENV === "development" && isLocalDatabaseUrl(databaseUrl)) {
+    return { password: DEV_FALLBACK_PASSWORD, source: "local fallback" };
+  }
+  throw new Error(
+    "Refusing to seed demo passwords: DEMO_PASSWORD is not set, and the documented Demo@1234 fallback " +
+      "applies only to a LOCAL database seeded with NODE_ENV=development (§13.11). " +
+      "Set DEMO_PASSWORD to a strong password (production/password manager), or run locally with NODE_ENV=development.",
+  );
+}
+
+// Lazy on purpose: this module is also imported by the test setup (for
+// seedRoles/seedPermissions), which must never trip the password gate at
+// import time. Resolution happens inside seedDemo(), at seed time.
+function resolveDemoPassword(): { password: string; source: "environment" | "local fallback" } {
+  return decideDemoPassword(process.env, process.env.DATABASE_URL ?? "");
+}
 // Cost 10: the RULES.md minimum. One hash is computed and REUSED for every
 // seeded account (same password → same string is fine here), keeping the
 // seed fast. Real imports must use random per-account passwords (§13.3).
@@ -1054,22 +1099,84 @@ export async function seedDemo(db: PrismaClient): Promise<void> {
       roles.set(name, role.id);
     }
   }
-  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, DEMO_BCRYPT_COST);
+  // Gate runs here (not at import): importing this module for roles-only
+  // seeding must never throw.
+  const { password } = resolveDemoPassword();
+  const passwordHash = await bcrypt.hash(password, DEMO_BCRYPT_COST);
   await seedOwner(db, passwordHash);
   for (const spec of SCHOOLS) {
     await seedSchool(db, spec, roles, passwordHash);
   }
 }
 
+// Password rotation without touching data (§13.11): rewrites ONLY the
+// passwordHash of accounts that already exist inside demo schools
+// (isDemo=true) plus the seeded platform owner — no creates, no updates to
+// any other column, no other school reachable by construction (the
+// isDemo filter is the guard; a bug here degrades to updating nobody,
+// never to touching a real school). Idempotent: re-running with the same
+// DEMO_PASSWORD converges to the same end state (one fresh hash per run —
+// bcrypt salts — all verifying against the same password).
+export interface ResetDemoPasswordsResult {
+  schools: { slug: string; updated: number }[];
+  ownerUpdated: boolean;
+}
+
+export async function resetDemoPasswords(db: PrismaClient, password: string): Promise<ResetDemoPasswordsResult> {
+  const passwordHash = await bcrypt.hash(password, DEMO_BCRYPT_COST);
+  const demoSchools = await db.school.findMany({ where: { isDemo: true }, select: { id: true, slug: true } });
+  const schools: { slug: string; updated: number }[] = [];
+  for (const school of demoSchools) {
+    const updated = await db.user.updateMany({ where: { schoolId: school.id }, data: { passwordHash } });
+    schools.push({ slug: school.slug, updated: updated.count });
+  }
+  const owner = await db.user.updateMany({
+    where: { schoolId: null, email: OWNER_EMAIL },
+    data: { passwordHash },
+  });
+  return { schools, ownerUpdated: owner.count > 0 };
+}
+
 const invokedDirectly = (process.argv[1] ?? "").replace(/\\/g, "/").endsWith("prisma/seed.ts");
+const resetPasswordsMode = process.argv.includes("--reset-demo-passwords");
 
 if (invokedDirectly) {
   // No top-level await: this file must also run as CJS (repo root has no
   // "type": "module", so tsx compiles it to CJS).
-  main().catch((err: unknown) => {
+  (resetPasswordsMode ? resetMain() : main()).catch((err: unknown) => {
     console.error(err);
     process.exitCode = 1;
   });
+}
+
+// Rotation entry point (production use — see the header comment and §13.11):
+//   DATABASE_URL='<prod-uri>' npx tsx prisma/seed.ts --reset-demo-passwords
+// with DEMO_PASSWORD in the environment (password manager → shell env, never
+// a committed file, never a chat message). DEMO_PASSWORD is REQUIRED here —
+// no fallback in any NODE_ENV: a rotation that silently fell back to the
+// documented password would be worse than refusing.
+async function resetMain(): Promise<void> {
+  const password = process.env.DEMO_PASSWORD;
+  if (!password) {
+    console.error(
+      "Refusing to reset demo passwords: DEMO_PASSWORD is not set. " +
+        "Generate a strong password, store it in your password manager (and the host's env vars), " +
+        "then re-run with DEMO_PASSWORD in the environment. There is no fallback in this mode.",
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const db = new PrismaClient();
+  try {
+    const result = await resetDemoPasswords(db, password);
+    for (const school of result.schools) {
+      console.log(`Reset ${school.updated} demo password(s): ${school.slug}`);
+    }
+    console.log(`Seeded owner ${OWNER_EMAIL}: ${result.ownerUpdated ? "password reset" : "not found (nothing to do)"}`);
+    console.log("Demo passwords rotated. Verify: log in with the new password; the old documented password must now fail.");
+  } finally {
+    await db.$disconnect();
+  }
 }
 
 async function main(): Promise<void> {
@@ -1082,9 +1189,10 @@ async function main(): Promise<void> {
     await seedDemo(db);
     console.log(`Seeded demo schools: ${SCHOOLS.map((s) => s.slug).join(", ")} + owner ${OWNER_EMAIL}`);
     // The VALUE never prints: deploy logs are not a password manager. The
-    // source does, so a production seed running on the local fallback is
-    // visible instead of silent (§13.11).
-    console.log(`Demo password source: ${process.env.DEMO_PASSWORD ? "DEMO_PASSWORD (environment)" : "local fallback (DEMO_DATA.md) — NOT for production"}`);
+    // source does, so an environment-sourced production password is
+    // distinguishable from the development fallback in the log (§13.11).
+    const fromEnv = Boolean(process.env.DEMO_PASSWORD);
+    console.log(`Demo password source: ${fromEnv ? "DEMO_PASSWORD (environment)" : "local fallback (DEMO_DATA.md) — development database only"}`);
   } finally {
     await db.$disconnect();
   }
