@@ -9,8 +9,8 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS — Phase 4 Chunk 1 baseline (no new code yet; proving Phase 3 green first per founder order)
-**Phase / Module:** Phase 4 — Chunk 1 (demo safety + audit logs + reliable scheduled jobs)
+**Status:** IDLE — Phase 4 Chunk 1 complete and gated 2026-10-10 (audit logs + demo safety + scheduled jobs). Nothing active; Chunk 2 queued.
+**Phase / Module:** Phase 4 — Chunk 1 DONE (Chunk 2: subscription & billing, not started)
 **Last updated:** 2026-10-10
 
 ## What's done in this task so far
@@ -56,11 +56,11 @@
 - Chunk 1 of 5 DONE earlier: Razorpay TEST MODE online fee payment. Full record in `STATUS.md` Phase 2 row; detail in History below.
 
 ## What's left in this task — Phase 4 Chunk 1 (demo safety + audit logs + reliable scheduled jobs)
-- [ ] BASELINE (no new code): full API suite + build + lint/typecheck/audit + core security subset (tenant, platform, self-scope ×3, messaging, device) + CI green — proves the subscription-gate baseline before Phase 4 touches it
-- [ ] Demo safety: `schools.isDemo` + `plan` columns, seed SOS PREMIUM/RK STANDARD demo flags, exemption hooks (spec §13.11)
-- [ ] Audit logs FIRST: `audit_logs` model (nullable school_id, actor, impersonatedBy, allowlist before/after) + `audit.record()` single writer, append-only (spec §13.10)
-- [ ] Scheduled-job reliability: `cronAuthMiddleware` + `POST /internal/jobs/:name` + move fee reminders onto it, idempotent per-school (spec §12.4)
-- [ ] Chunk 1 gates: new tests (audit append-only/redaction, cron auth, demo guards) + FULL suite + e2e smoke + STATUS.md Phase 4 row update
+- [x] BASELINE (no new code): full API suite + build + lint/typecheck/audit + core security subset (tenant, platform, self-scope ×3, messaging, device) + CI green — proves the subscription-gate baseline before Phase 4 touches it
+- [x] Audit logs FIRST: `audit_logs` model (nullable school_id, actor, impersonatedBy, allowlist before/after) + `audit.record()` single writer, append-only (spec §13.10) — DONE 2026-10-10: model + 2 migrations + TENANT_MODELS; `lib/audit.ts` (allowlist throw, scalar snapshots); reads (admin own / owner all+NULL); wiring OWNER_LOGIN + DEVICE_REGISTER/SUSPEND/RESUME; tests 11/11 incl. append-only src scan + both-direction tenant proofs
+- [x] Demo safety: `schools.isDemo` + `plan` columns, seed SOS PREMIUM/RK STANDARD demo flags, exemption hooks (spec §13.11) — DONE 2026-10-10: gate exemptions (login+tenant agree) + fee-reminder log-instead-of-send + DEMO_PASSWORD env + seed password-source log; tests 5/5 both directions
+- [x] Scheduled-job reliability: `cronAuthMiddleware` + `POST /internal/jobs/:name` + fee-reminders job, idempotent per-school (spec §12.4) — DONE 2026-10-10: 4th auth path, per-school 9am + scoped clients + double demo guard + hourly GH workflow; tests 7/7 (503/401/404 paths, exact partition, idempotent re-run). Lesson: full-DB sweep timed out under accumulated fixtures → code-level schoolIds targeting (HTTP never exposes it)
+- [x] Chunk 1 gates: FULL suite + FULL e2e + dev reseed (isDemo/plan flags) + STATUS.md Phase 4 row update + prod migrate plan — DONE 2026-10-10: API 75/75 + 314/314 first-try green; FULL e2e 76/76 (2 flakies passed retry — admin marks-entry + library fine-rate, both box-stall class; isolated re-run admin 11/11 + library 5/5 clean); audit 0; web rebuilt with :4001; e2e DB migrated+seeded (flags verified SOS PREMIUM/RK STANDARD); dev migrated+reseeded. STATUS.md: audit logs + scheduled-job reliability → DONE, demo hygiene partialnoted. Lesson: `npx next start` via Start-Process silently dies — use root .bin/next.cmd via cmd.exe (BUGSFIX 46 pattern).
 
 - Chunk 1 step 6 DONE 2026-10-07: admin-facing anomaly view — `/attendance/anomalies` (staff-only; section + 5/10/20/30-day window scan, range caption, AI summary card with unconfigured/failed fallback notes, flagged cards with type pills + facts + View-student link, empty states) + "Absence alerts →" link on the mark page. Verified: admin.spec e2e (fresh pupil → 7 present + 3 absent → flagged with facts; summary assertion branches on live summaryStatus since dev API holds a real key). Gates: web tsc + eslint 0. LIVE AI DEMO 2026-10-07 (dev DB, real key, fetch-counted): remark generated for Aditya/Unit Test 1 (AI+unreviewed) → teacher-edited + reviewed → reportCard carries the exact saved text; forced 5-day ABSENT trail → flagged CONSECUTIVE+HIGH_RATE+DECLINING with a sensible section summary. EXACT count: 2 Groq requests total (1 remark + 1 summary; review, reportCard, detection = 0). Free-tier flakiness observed (2× empty-200 responses → wrapper mapped to 502/failed correctly, retry succeeded). Dev DB restored (4 seeded rows intact).
 - Chunk 1 step 5 DONE 2026-10-07: attendance-anomaly detection — pure sliding-window lib `attendance-anomalies.ts` (trailing consecutive absences ≥3, absence rate ≥30% ABSENT-only, first-vs-second-half presence drop ≥30pp, lates ≥3; window default 10/min 5, short trails return []; weights match attendance.service); `GET /attendance/anomalies?sectionId=&windowDays=` (attendance.read + class-teacher-or-admin, one section at a time); Groq phrases ONE section summary from de-identified facts only (no pupil names) — unconfigured/failed provider returns detections with summary null + summaryStatus (AI enhances, never gates). Tests: pure 8/8 (thresholds, boundaries, excused-immunity, trend-vs-rate, recovery, window slide) + endpoint 5/5 (flag/clear + nameless prompt assert, gate refusals, unconfigured soft-fail, 400/404, empty scan with zero Groq calls). FULL suite 69/69 + 277/277 green first try. Gates: tsc×2 + eslint 0.
@@ -68,7 +68,7 @@
 - Chunk 1 step 3 DONE 2026-10-07: `POST /schools/:schoolId/exams/:examId/remarks/generate` — exams.manage + class-teacher-or-admin (via pupil's own section); gathers marks + exam-window attendance (same rule as reportCard, never recomputed); de-identified prompt (name never SELECTED; "this student" + subject scores + optional attendance line; wrapper scrub second layer); saves AI + reviewed=false; Groq missing → 503 AI_UNCONFIGURED, provider failure → 502. Tests `exam-remarks-generate.test.ts` 5/5 (201 + row shape + prompt PII asserts, admin + attendance-window prompt, pupil/parent/other-teacher/stranger-school refusals, 404/400 paths, fail-closed 503 with zero rows). Gates: tsc×2 + eslint 0.
 
 ## Exact next action
-- Chunk 1 build step 1: `schools.isDemo` + `plan` columns (migration + TENANT_MODELS check + seed SOS PREMIUM/RK STANDARD demo flags) per spec §13.11/§16.1. Then audit logs (§13.10), then cron jobs (§12.4).
+- Chunk 1 CLOSED. Next: Chunk 2 (subscription & billing, spec §16.1) whenever the founder says go. PROD DEPLOY PLAN for Chunk 1 (founder): `migrate deploy` the 2 new migrations on Aiven (bare URI, no ?ssl-mode) BEFORE Render serves this build — owner login FAILS CLOSED without audit_logs (by design, §13.10), and audit.read keys come via the keys migration; then set CRON_SECRET on Render + add repo secret CRON_SECRET + var API_URL for the hourly workflow; verify: owner login → /platform/audit-logs shows OWNER_LOGIN, device register → school logs show DEVICE_REGISTER, POST /internal/jobs/fee-reminders with secret → 200.
 
 ## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
@@ -103,7 +103,7 @@
 - Follow-up (not blocking DONE): `npm audit` 2026-10-01 flags 1 critical — next 16.2.0–16.3.5 `next/og` ImageResponse RCE, module never imported here; fix = bump to next 16.3.8 + rebuild + full re-verify. Deliberate upgrade task for a future session.
 
 ## Repo state right now
-- Phase 4 Chunk 1 IN PROGRESS, baseline proven, no new code on disk — repo builds, tree otherwise clean. No dev servers running (stopped for the suite per BUGSFIX 20). MySQL 3307 up. Demo login (when servers run): slug `school-of-science`, password `Demo@1234`.
+- Phase 4 Chunk 1 DONE, tree clean after this commit. API :4001 + web :3001 RUNNING against `studyfy_e2e` (fresh dist + :4001-baked web build, e2e 76/76 green on them). MySQL 3307 up. Dev DB migrated + reseeded (isDemo/plan flags live). Demo login: slug `school-of-science`, password `Demo@1234`.
 
 ## Notes / decisions made mid-task (carry-over operational knowledge — keep)
 - Local API start command (3 override knobs, local-only — never in CI/prod): `cmd /c "set PORT=4001&& set DATABASE_URL=mysql://root@127.0.0.1:3307/studyfy_e2e&& set FRONTEND_ORIGIN=http://localhost:3001&& set JWT_ACCESS_SECRET=dev-access-secret-change-me-please-001&& set LOGIN_ACCOUNT_LIMIT_MAX=200&& set REGISTER_RATE_LIMIT_MAX=200&& set ENQUIRY_RATE_LIMIT_MAX=200&& node dist/server.js"` (workdir `apps/api`). Web: `npx next start --port 3001` in `apps/web` (built with `NEXT_PUBLIC_API_URL=http://localhost:4001` — running it from repo root exits silently). E2e: `$env:E2E_WEB_URL='http://localhost:3001'; $env:E2E_API_URL='http://localhost:4001'; npx --workspace=@studyfy/web playwright test`.

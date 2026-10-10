@@ -81,14 +81,14 @@
 ## Phase 4 — Platform/Business
 | Module | Status | Notes |
 |---|---|---|
-| Audit logs | NOT STARTED | Build FIRST — everything below writes to it. Append-only, allowlist-redacted (§13.10) |
-| Scheduled-job reliability | NOT STARTED | External trigger + `cronAuthMiddleware`; move Phase 1's fee reminders onto it (§12.4) |
+| Audit logs | DONE (Chunk 1, 2026-10-10) — `audit_logs` (nullable school_id; NULL = platform action, hidden from schools by the tenant pin) + single `audit.record()` writer with per-entity allowlists (no-allowlist throws; hashes/keys never logged) + append-only (no update/delete path, src-scan test) + reads (admin own-school / owner all+NULL) + wired OWNER_LOGIN + DEVICE_REGISTER/SUSPEND/RESUME. Verified: 11/11 audit tests (both-direction tenant proofs), FULL API 75/75 + 314/314, FULL e2e 76/76, lint+typechecks+audit 0 |
+| Scheduled-job reliability | DONE (Chunk 1, 2026-10-10) — 4th auth path `cronAuthMiddleware` (32+ char secret, constant-time, 503 when unset) + `POST /internal/jobs/:name` (secret-only, 404 unknown) + fee-reminders job (hourly trigger, per-school 9am in school tz, per-school scoped clients, lastReminderAt idempotency, double demo guard) + hourly GitHub workflow (needs CRON_SECRET secret + API_URL var). Demo safety in same chunk: `schools.isDemo`+`plan` (SOS PREMIUM / RK STANDARD seeded), gate exemptions (login+tenant agree), demo mail log-instead-of-send, DEMO_PASSWORD env. Verified: 12/12 demo+cron tests, FULL API 75/75 + 314/314, FULL e2e 76/76 |
 | Subscription & billing | NOT STARTED | Plan caps, feature gating, GST, atomic invoice numbers, suspended-school exception (§16.1, §13.4) |
 | Super Admin panel | NOT STARTED | Matches §8.3/§8.4 board; Users Management is least-privilege (§13.9) |
 | In-app support/tickets | NOT STARTED | `isInternal` notes must never reach a school-facing query |
 | Impersonation | NOT STARTED | Read-only on every channel, staff only, reason + audit (§13.9) |
 | Data export/backup | NOT STARTED | Tenant-isolation test + secrets-excluded test (§13.10) |
-| Public demo hygiene | NOT STARTED | Rotate live demo password FIRST (§13.11) — it has been live since Phase 1 |
+| Public demo hygiene | NOT STARTED (partly done in Chunk 1: DEMO_PASSWORD env + seed source log, isDemo guards; remaining: rotate live demo password + reset job + read-only owner demo — Chunk 5) | Rotate live demo password FIRST (§13.11) — it has been live since Phase 1 |
 
 ## Bugs Found This Build
 _(log these in `BUGSFIX.md`, not here — this file tracks status, not bug detail)_
