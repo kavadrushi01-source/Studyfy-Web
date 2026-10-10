@@ -32,7 +32,7 @@ export const TENANT_MODELS = [
   'Document', 'AuditLog', 'Payroll', 'MessageGroup', 'Book', 'BookIssue',
   'Vehicle', 'TransportRoute', 'StudentRoute', 'Enquiry',
   'Ticket', 'TicketMessage', 'InventoryItem', 'InventoryMovement', 'BiometricDevice',
-  'Subscription', 'SubscriptionInvoice',
+  'Subscription', 'SubscriptionInvoice', 'AuditLog',
 ] as const;
 // Case in point #1: `AcademicYear` and `Subject` were missing from this
 // exact list until a review caught them against spec §9.1's ER diagram,

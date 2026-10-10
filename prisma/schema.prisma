@@ -9,9 +9,10 @@
 // - roles/permissions/role_permissions are GLOBAL (no school_id, §9.1 note).
 // - auth_tokens has no school_id: it is looked up by token_hash globally
 //   before any tenant context exists (same reason as TENANT_MODELS omits it).
-// - Deliberately NOT here yet (phases that use them): messages, documents,
-//   audit_logs, library (books), transport, payroll, enquiries, tickets,
-//   inventory (AGENT_START_HERE.md Phase 0 box).
+// - Deliberately NOT here yet (phases that use them): subscriptions,
+//   subscription_invoices, tickets, ticket_messages (Phase 4 chunks 2+4).
+//   audit_logs landed in Phase 4 Chunk 1 (§13.10) with schools.isDemo/plan
+//   (§13.11/§16.1).
 // - Deletes default to RESTRICT (no onDelete: Cascade on school children):
 //   suspension retains data (§13.4/§16), nothing cascade-deletes a school.
 
@@ -32,6 +33,17 @@ enum SubscriptionStatus {
   TRIAL
   ACTIVE
   SUSPENDED
+}
+
+// Paid plan tier (§16.1, Phase 4). NULL = no paid plan (trial or
+// pre-billing). The single plan definition (price/caps/features) lives in
+// one shared config in code (Chunk 2) — this column only records WHICH
+// tier, never the tier's details. Seed demo schools carry theirs
+// (DEMO_DATA.md: SOS PREMIUM, Ramakrishna STANDARD).
+enum SchoolPlan {
+  BASIC
+  STANDARD
+  PREMIUM
 }
 
 enum AttendanceStatus {
@@ -123,6 +135,13 @@ model School {
   // Exists from Phase 0 for tenantMiddleware's subscription gate (§13.4);
   // the billing UI to manage it is Phase 4. Every registration => TRIAL.
   subscriptionStatus SubscriptionStatus @default(TRIAL) @map("subscription_status")
+  // Phase 4 Chunk 1 (§13.11/§16.1): demo-school marker + paid plan tier.
+  // isDemo switches on the demo-only behaviors (billing exemption,
+  // outbound-mail suppression, nightly-reset eligibility); plan mirrors
+  // the subscriptions row and is written ONLY by the billing module
+  // (same transaction, §16.1) — never hand-edited elsewhere.
+  isDemo           Boolean    @default(false) @map("is_demo")
+  plan             SchoolPlan? @map("plan")
   // Registration sets this to now + 14 days (spec §8.3's trial promise).
   // No DB default: creation code MUST supply it, so it can't be forgotten.
   trialEndsAt        DateTime           @map("trial_ends_at")
@@ -166,6 +185,7 @@ model School {
   biometricDevices    BiometricDevice[]
   inventoryItems      InventoryItem[]
   inventoryMovements  InventoryMovement[]
+  auditLogs           AuditLog[]
 
   @@map("schools")
 }
@@ -205,6 +225,8 @@ model User {
   issuedCertificates Certificate[]   @relation("CertificateIssuer")
   issuedLoans       BookLoan[]       @relation("LoanIssuer")
   inventoryMovements InventoryMovement[]
+  auditActions       AuditLog[]        @relation("AuditActor")
+  auditImpersonations AuditLog[]       @relation("AuditImpersonator")
 
   @@unique([schoolId, email])
   @@index([schoolId])
@@ -1131,4 +1153,43 @@ model InventoryMovement {
 
   @@index([schoolId, itemId, createdAt])
   @@map("inventory_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Audit logs (§7 Phase 4 #25, §13.10): the platform's memory. Impersonation,
+// billing, suspension and exports all write here from day one through the
+// single audit.record() helper (same transaction as the change where
+// possible). APPEND-ONLY: no update/delete route, service method, or UI —
+// not for School Admin, not for the Platform Owner.
+// - schoolId NULLABLE: NULL means a platform-level action (e.g. owner
+//   login). The tenant extension then hides those rows from every school —
+//   exactly the fail-closed behavior §9.1 wants.
+// - before/after are built from per-entity field ALLOWLISTS in audit.ts,
+//   never by serializing a whole row: hashes, keys and secrets never land
+//   in a log row. A missing allowlist throws instead of logging everything.
+// - Ordinary reads are NOT logged (noise); exports and impersonation are
+//   the exceptions. Retention: decide before the hot table fills the ~1GB
+//   free DB (Chunk 5 close-out at the latest).
+// Tenant-scoped — AuditLog ∈ TENANT_MODELS (same commit).
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id              String    @id @default(cuid()) @map("id")
+  schoolId        String?   @map("school_id")
+  school          School?   @relation(fields: [schoolId], references: [id])
+  actorId         String    @map("actor_id")
+  actor           User      @relation("AuditActor", fields: [actorId], references: [id])
+  // Non-null while impersonating (§13.9): who is actually behind the wheel.
+  impersonatedBy  String?   @map("impersonated_by")
+  impersonator    User?     @relation("AuditImpersonator", fields: [impersonatedBy], references: [id])
+  action          String    @map("action")
+  entity          String    @map("entity")
+  entityId        String?   @map("entity_id")
+  before          Json?     @map("before")
+  after           Json?     @map("after")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, createdAt])
+  @@index([schoolId, entity, createdAt])
+  @@map("audit_logs")
 }

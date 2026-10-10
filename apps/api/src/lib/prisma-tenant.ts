@@ -45,6 +45,12 @@ export const TENANT_MODELS = [
   "BiometricDevice",
   "InventoryItem",
   "InventoryMovement",
+  // Phase 4 Chunk 1 (§13.10): nullable schoolId — NULL means a
+  // platform-level action, which the forced schoolId pin below hides from
+  // every school's scoped reads. Exactly the fail-closed behavior §9.1
+  // wants. Platform writes use the RAW client (platformOnlyMiddleware),
+  // never a scoped one, so NULLs stay writable there.
+  "AuditLog",
 ] as const;
 
 const READ_OPS = new Set(["findMany", "findFirst", "findUnique", "count", "aggregate", "groupBy"]);
