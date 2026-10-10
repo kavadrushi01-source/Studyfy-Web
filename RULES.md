@@ -199,6 +199,15 @@ hand-roll what a database index already solves.
 ## 9. Process Rules
 - Commit after every meaningful change. Never leave uncommitted work at the
   end of a session.
+- **Every chunk closes out the same way, no exceptions: push → prod migrate
+  (before the new API build serves) → live verify → record.** Pushing is not
+  done until the live site is proven on the new build: unauthenticated
+  route-shape checks from this box (old build = 404, new build = 401/503
+  envelopes), then authenticated journeys with founder-provided access.
+  A new build against an unmigrated database breaks tenant routes (unknown
+  column) and fail-closed writes (owner login) — so `migrate deploy` on
+  Aiven always lands BEFORE Render serves the build, never after. The exact
+  live proofs go in `CURRENT_TASK.md`; the standing lesson is this bullet.
 - Keep `STUDYFY_PROJECT_SPEC.md` updated as decisions change.
 - **Whenever the spec's version number changes, update this file's own
   title and §1 version references to match, in the same edit.** This exact
