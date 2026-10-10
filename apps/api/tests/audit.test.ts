@@ -72,7 +72,10 @@ async function loginOwner(): Promise<{ token: string; ownerId: string }> {
 
 describe("audit allowlists (§13.10 redaction)", () => {
   it("throws on an entity with no allowlist instead of logging the whole row", () => {
-    expect(() => pickAuditFields("FeePayment", { id: "x", razorpayPaymentId: "pay_secret" })).toThrow(
+    // NOTE: this must name an entity with genuinely no allowlist — every
+    // entity in AUDIT_FIELDS is a wrong answer here (FeePayment joined the
+    // list in the §13.10 retrofit and broke this test once; lesson kept).
+    expect(() => pickAuditFields("FeeRefund", { id: "x", razorpayPaymentId: "pay_secret" })).toThrow(
       /No audit allowlist/,
     );
   });
