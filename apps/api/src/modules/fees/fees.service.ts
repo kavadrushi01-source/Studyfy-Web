@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { pickAuditFields, recordAudit } from "../../lib/audit.js";
 import { mailerFor, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { schoolDay } from "../../lib/school-time.js";
 import { invalidateAccountantBoards, invalidateActivityFeed, invalidateFeeKpis, invalidateStudentBoards } from "../metrics/metrics.service.js";
@@ -144,7 +145,7 @@ export async function listInvoices(
 // on the tenant-SCOPED client, so the class lookup alone proves "this
 // class belongs to this school" — a foreign classId 404s instead of
 // attaching a structure to another tenant's class.
-export async function createStructure(db: PrismaClient, input: CreateStructureInput) {
+export async function createStructure(db: PrismaClient, input: CreateStructureInput, actorId: string) {
   const cls = await db.class.findFirst({ where: { id: input.classId } });
   if (!cls) {
     throw new AuthError(404, "CLASS_NOT_FOUND", "Class not found in this school.");
@@ -155,19 +156,38 @@ export async function createStructure(db: PrismaClient, input: CreateStructureIn
       throw new AuthError(404, "ACADEMIC_YEAR_NOT_FOUND", "Academic year not found in this school.");
     }
   }
+  // Audit (§13.10 FEE_STRUCTURE_CREATE) joins the create in ONE interactive
+  // transaction — amounts are pre-formatted strings (Decimals aren't scalars).
   try {
-    return await db.feeStructure.create({
-      data: {
+    return await db.$transaction(async (tx) => {
+      const created = await tx.feeStructure.create({
+        data: {
+          schoolId: cls.schoolId,
+          classId: cls.id,
+          academicYearId: input.academicYearId,
+          name: input.name,
+          // String in, Decimal out — the ONLY arithmetic-safe path (§13.6).
+          amount: new Prisma.Decimal(input.amount),
+          term: input.term,
+          category: input.category,
+          description: input.description,
+        },
+      });
+      await recordAudit(tx as unknown as PrismaClient, {
         schoolId: cls.schoolId,
-        classId: cls.id,
-        academicYearId: input.academicYearId,
-        name: input.name,
-        // String in, Decimal out — the ONLY arithmetic-safe path (§13.6).
-        amount: new Prisma.Decimal(input.amount),
-        term: input.term,
-        category: input.category,
-        description: input.description,
-      },
+        actorId,
+        action: "FEE_STRUCTURE_CREATE",
+        entity: "FeeStructure",
+        entityId: created.id,
+        after: {
+          id: created.id,
+          classId: cls.id,
+          name: input.name,
+          amount: new Prisma.Decimal(input.amount).toFixed(2),
+          term: input.term ?? null,
+        },
+      });
+      return created;
     });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
@@ -194,6 +214,7 @@ export interface GenerateInvoicesResult {
 export async function generateInvoices(
   db: PrismaClient,
   input: GenerateInvoicesInput,
+  actorId: string,
 ): Promise<GenerateInvoicesResult> {
   const structure = await db.feeStructure.findFirst({ where: { id: input.structureId } });
   if (!structure) {
@@ -254,8 +275,12 @@ export async function generateInvoices(
   }
 
   const dueDate = new Date(`${input.dueDate}T00:00:00Z`);
-  await db.$transaction(
-    fresh.map((studentId) =>
+  // Audit (§13.10 INVOICES_GENERATED): one SUMMARY row per run — not one
+  // row per invoice (a 500-pupil run must not write 500 log rows). It joins
+  // the creates in the same array transaction. A zero-generate run still
+  // logs (who ran it, on what structure) with count 0.
+  await db.$transaction([
+    ...fresh.map((studentId) =>
       db.feeInvoice.create({
         data: {
           schoolId: structure.schoolId,
@@ -268,7 +293,16 @@ export async function generateInvoices(
         },
       }),
     ),
-  );
+    db.auditLog.create({
+      data: {
+        schoolId: structure.schoolId,
+        actorId,
+        action: "INVOICES_GENERATED",
+        entity: "FeeInvoice",
+        after: pickAuditFields("FeeInvoice", { structureId: structure.id, count: fresh.length }),
+      },
+    }),
+  ]);
   // New money owed → pending totals and the status donut are stale (§12.3).
   invalidateAccountantBoards(structure.schoolId);
   invalidateAnalytics(structure.schoolId);
@@ -309,8 +343,8 @@ export async function recordPayment(
   const newPaid = new Prisma.Decimal(invoice.amountPaid).plus(paying);
   const settled = newPaid.greaterThanOrEqualTo(new Prisma.Decimal(invoice.amount));
 
-  const [payment, updated] = await db.$transaction([
-    db.feePayment.create({
+  const [payment, updated] = await db.$transaction(async (tx) => {
+    const created = await tx.feePayment.create({
       data: {
         schoolId: invoice.schoolId,
         invoiceId: invoice.id,
@@ -318,12 +352,54 @@ export async function recordPayment(
         method: input.method,
         receivedById,
       },
-    }),
-    db.feeInvoice.update({
+    });
+    const updatedInvoice = await tx.feeInvoice.update({
       where: { id: invoice.id },
       data: { amountPaid: newPaid, status: settled ? "PAID" : "PARTIAL" },
-    }),
-  ]);
+    });
+    // Audit (§13.10 PAYMENT_RECORDED, manual counter money): BOTH rows join
+    // the money movement in one transaction — the payment row (real id, now
+    // knowable) and the invoice's before/after balances. The actor is
+    // receivedById: the router passes req.user.userId, i.e. the staffer at
+    // the counter, never a client-supplied id.
+    const txClient = tx as unknown as PrismaClient;
+    await recordAudit(txClient, {
+      schoolId: invoice.schoolId,
+      actorId: receivedById,
+      action: "PAYMENT_RECORDED",
+      entity: "FeePayment",
+      entityId: created.id,
+      after: {
+        id: created.id,
+        invoiceId: invoice.id,
+        amount: paying.toFixed(2),
+        method: input.method,
+        status: "CAPTURED",
+      },
+    });
+    await recordAudit(txClient, {
+      schoolId: invoice.schoolId,
+      actorId: receivedById,
+      action: "PAYMENT_RECORDED",
+      entity: "FeeInvoice",
+      entityId: invoice.id,
+      before: {
+        id: invoice.id,
+        studentId: invoice.studentId,
+        status: invoice.status,
+        amount: new Prisma.Decimal(invoice.amount).toFixed(2),
+        amountPaid: new Prisma.Decimal(invoice.amountPaid).toFixed(2),
+      },
+      after: {
+        id: invoice.id,
+        studentId: invoice.studentId,
+        status: settled ? "PAID" : "PARTIAL",
+        amount: new Prisma.Decimal(invoice.amount).toFixed(2),
+        amountPaid: newPaid.toFixed(2),
+      },
+    });
+    return [created, updatedInvoice] as const;
+  });
   // Money moved → this month's cached collection for this school is stale
   // (§12.3 invalidate on write). Payments also appear in the activities
   // feed, so that goes too (teacher boards surface recent payments only
@@ -593,6 +669,10 @@ export interface OnlineCaptureResult {
 export async function recordOnlineCapture(
   db: PrismaClient,
   input: { razorpayOrderId: string; razorpayPaymentId: string; amountPaise: number },
+  // NULL = the Razorpay webhook (a machine actor — no user exists behind
+  // it, so the audit row carries a NULL actor, §13.10); a user id = the
+  // pay-verify caller (parent or office).
+  actorId: string | null,
 ): Promise<OnlineCaptureResult> {
   const existing = await db.feePayment.findUnique({ where: { razorpayPaymentId: input.razorpayPaymentId } });
   if (existing) {
@@ -617,16 +697,57 @@ export async function recordOnlineCapture(
   const newPaid = new Prisma.Decimal(invoice.amountPaid).plus(amount);
   const settled = newPaid.greaterThanOrEqualTo(new Prisma.Decimal(invoice.amount));
   try {
-    const [payment, updated] = await db.$transaction([
-      db.feePayment.update({
+    const [payment, updated] = await db.$transaction(async (tx) => {
+      const captured = await tx.feePayment.update({
         where: { id: pending.id },
         data: { razorpayPaymentId: input.razorpayPaymentId, amount, status: "CAPTURED" },
-      }),
-      db.feeInvoice.update({
+      });
+      const settledInvoice = await tx.feeInvoice.update({
         where: { id: invoice.id },
         data: { amountPaid: newPaid, status: settled ? "PAID" : "PARTIAL" },
-      }),
-    ]);
+      });
+      // Audit (§13.10 PAYMENT_CAPTURED, online money): same transaction as
+      // the money movement. Idempotent callers (redelivered webhooks) return
+      // before this point, so a repeated delivery never writes a second
+      // log row for the same capture.
+      const txClient = tx as unknown as PrismaClient;
+      await recordAudit(txClient, {
+        schoolId: invoice.schoolId,
+        actorId,
+        action: "PAYMENT_CAPTURED",
+        entity: "FeePayment",
+        entityId: captured.id,
+        after: {
+          id: captured.id,
+          invoiceId: invoice.id,
+          amount: amount.toFixed(2),
+          method: captured.method,
+          status: "CAPTURED",
+        },
+      });
+      await recordAudit(txClient, {
+        schoolId: invoice.schoolId,
+        actorId,
+        action: "PAYMENT_CAPTURED",
+        entity: "FeeInvoice",
+        entityId: invoice.id,
+        before: {
+          id: invoice.id,
+          studentId: invoice.studentId,
+          status: invoice.status,
+          amount: new Prisma.Decimal(invoice.amount).toFixed(2),
+          amountPaid: new Prisma.Decimal(invoice.amountPaid).toFixed(2),
+        },
+        after: {
+          id: invoice.id,
+          studentId: invoice.studentId,
+          status: settled ? "PAID" : "PARTIAL",
+          amount: new Prisma.Decimal(invoice.amount).toFixed(2),
+          amountPaid: newPaid.toFixed(2),
+        },
+      });
+      return [captured, settledInvoice] as const;
+    });
     invalidateFeeKpis(invoice.schoolId);
     invalidateActivityFeed(invoice.schoolId);
     invalidateAccountantBoards(invoice.schoolId);
@@ -691,10 +812,16 @@ export async function verifyOnlinePayment(
   if (!captured) {
     return { status: "PENDING", paymentId: pending.id, invoiceId: pending.invoiceId, alreadyProcessed: false };
   }
-  const applied = await recordOnlineCapture(db, {
-    razorpayOrderId,
-    razorpayPaymentId: captured.id,
-    amountPaise: captured.amount,
-  });
+  const applied = await recordOnlineCapture(
+    db,
+    {
+      razorpayOrderId,
+      razorpayPaymentId: captured.id,
+      amountPaise: captured.amount,
+    },
+    // Human actor here (unlike the webhook): the parent or office staffer
+    // who pressed verify owns this capture's audit row.
+    caller.userId,
+  );
   return { status: "CAPTURED", paymentId: applied.paymentId, invoiceId: applied.invoiceId, alreadyProcessed: applied.alreadyProcessed };
 }

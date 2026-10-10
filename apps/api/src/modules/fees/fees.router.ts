@@ -112,7 +112,7 @@ feesRouter.post(
   tenantMiddleware,
   requirePermission("fees.manage"),
   catchAsync(async (req: Request, res: Response) => {
-    if (!req.prisma) {
+    if (!req.prisma || !req.user) {
       res.status(500).json({
         success: false,
         data: null,
@@ -132,7 +132,7 @@ feesRouter.post(
       return;
     }
     try {
-      const structure = await createStructure(req.prisma, parsed.data);
+      const structure = await createStructure(req.prisma, parsed.data, req.user.userId);
       res.status(201).json({ success: true, data: { structure }, error: null, meta: null });
     } catch (err) {
       sendFeesError(res, err);
@@ -148,7 +148,7 @@ feesRouter.post(
   tenantMiddleware,
   requirePermission("fees.manage"),
   catchAsync(async (req: Request, res: Response) => {
-    if (!req.prisma) {
+    if (!req.prisma || !req.user) {
       res.status(500).json({
         success: false,
         data: null,
@@ -168,7 +168,7 @@ feesRouter.post(
       return;
     }
     try {
-      const result = await generateInvoices(req.prisma, parsed.data);
+      const result = await generateInvoices(req.prisma, parsed.data, req.user.userId);
       res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendFeesError(res, err);
@@ -447,11 +447,18 @@ feesRouter.post(
       return;
     }
     try {
-      const result = await recordOnlineCapture(db, {
-        razorpayOrderId: orderId,
-        razorpayPaymentId: paymentId,
-        amountPaise: amount,
-      });
+      // Machine actor: the webhook carries no user, so the capture's audit
+      // row records a NULL actor (§13.10) — attribution comes from the
+      // order/payment ids, never an invented user.
+      const result = await recordOnlineCapture(
+        db,
+        {
+          razorpayOrderId: orderId,
+          razorpayPaymentId: paymentId,
+          amountPaise: amount,
+        },
+        null,
+      );
       res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendFeesError(res, err);

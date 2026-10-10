@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { recordAudit } from "../../lib/audit.js";
 import { AuthError } from "../auth/auth.service.js";
 import { documentStorage, StorageUnconfiguredError } from "../../lib/storage.js";
 import { generateCertificate, type CertificatePayload, type CertificateType } from "../../lib/certificates.js";
@@ -169,6 +170,19 @@ export async function issueCertificate(
       createdAt: true,
       student: { select: { id: true, user: { select: { name: true } } } },
     },
+  });
+  // Audit (§13.10 CERTIFICATE_ISSUED): sequential same-client write right
+  // after the record — the storage upload above is an external side effect
+  // that can never join a database transaction, so same-tx is impossible
+  // here by construction, not by choice. The actor is callerUserId (the
+  // issuing staffer — the router passes req.user.userId, unchanged).
+  await recordAudit(db, {
+    schoolId: student.schoolId,
+    actorId: callerUserId,
+    action: "CERTIFICATE_ISSUED",
+    entity: "Certificate",
+    entityId: record.id,
+    after: { id: record.id, studentId: student.id, type: record.type, serial: record.serial },
   });
   return {
     certificate: {
