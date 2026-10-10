@@ -27,14 +27,12 @@ import { PrismaClient } from '@prisma/client';
 export const TENANT_MODELS = [
   'User', 'Student', 'Staff', 'Class', 'Section', 'AcademicYear', 'Subject',
   'StudentGuardian', 'TeacherSubject', 'Attendance', 'FeeStructure',
-  'FeeInvoice', 'FeePayment', 'Exam', 'ExamSubject', 'Mark',
-  'ExamRemark',
-  'BiometricDevice',
-  'InventoryMovement',
+  'FeeInvoice', 'FeePayment', 'Exam', 'ExamSubject', 'Mark', 'ExamRemark',
   'TimetableSlot', 'Homework', 'HomeworkSubmission', 'Notice', 'Message',
   'Document', 'AuditLog', 'Payroll', 'MessageGroup', 'Book', 'BookIssue',
   'Vehicle', 'TransportRoute', 'StudentRoute', 'Enquiry',
-  'Ticket', 'InventoryItem',
+  'Ticket', 'TicketMessage', 'InventoryItem', 'InventoryMovement', 'BiometricDevice',
+  'Subscription', 'SubscriptionInvoice',
 ] as const;
 // Case in point #1: `AcademicYear` and `Subject` were missing from this
 // exact list until a review caught them against spec §9.1's ER diagram,
@@ -50,7 +48,13 @@ export const TENANT_MODELS = [
 // passes. If a table can go missing this late, "I'll remember to add it"
 // was never a real control.
 // Three strikes on the exact failure mode this list exists to prevent, in
-// the same file, within one build. Re-check this list against §9.1 every
+// the same file, within one build. `ExamRemark` and `BiometricDevice`
+// (Phase 3, §9.1) are the first two additions that made it into this list
+// in the SAME pass as the schema decision itself, not caught afterward —
+// that's the discipline actually working, for once. Don't take that as
+// permission to relax it; it worked this time because someone checked,
+// not because the risk went away.
+// Re-check this list against §9.1 every
 // single time the schema changes — "I'll remember" isn't a control, this
 // list having every model in it is.
 // Deliberately NOT on this list: `Role`, `Permission`, `RolePermission`.
@@ -157,8 +161,9 @@ export function platformOnlyMiddleware(req: Request, res: Response, next: NextFu
 Mount `/api/v1/platform/...` routes with `authMiddleware` +
 `platformOnlyMiddleware` — never `tenantMiddleware`. Mount every
 `/api/v1/schools/:schoolId/...` route with `authMiddleware` +
-`tenantMiddleware` — never `platformOnlyMiddleware`. A route should never
-have both or neither.
+`tenantMiddleware` — never `platformOnlyMiddleware`. A non-public route should
+never have two auth paths, or none. §5 covers the other two paths that exist
+now: device keys (biometric/RFID sync) and the shared secret for scheduled jobs.
 
 ## 3. Row-level self-scope for Student/Parent
 
@@ -289,3 +294,130 @@ describe('platform owner routes', () => {
 
 Per `RULES.md` §6/§6.1: these tests exist and pass **before** Phase 1 feature
 modules start, not added after an audit finds a problem.
+
+## 5. Other auth paths, and Phase 4's guards
+
+Same caveat as the rest of this file: these are patterns to adapt and verify
+against your real schema and `package.json`, not drop-in code.
+
+### 5.1 Device keys (Phase 3 — biometric/RFID sync)
+
+```typescript
+// apps/api/src/middleware/device-auth.ts
+import crypto from 'node:crypto';
+import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../lib/prisma';
+import { scopedPrismaClient } from '../lib/prisma-tenant';
+
+// Device keys are long random strings (generate >= 32 random bytes), so a
+// fast hash (SHA-256) is the right way to store them — bcrypt is for
+// low-entropy human passwords and would only slow every sync call down.
+export async function deviceAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+  const presented = req.header('x-device-key');
+  if (!presented) {
+    return res.status(401).json({ success: false, error: { code: 'UNAUTHENTICATED', message: 'Missing device key' } });
+  }
+  const apiKeyHash = crypto.createHash('sha256').update(presented).digest('hex');
+
+  // The ONE query here that uses the raw client: it's the lookup that
+  // establishes which school this device belongs to (same reasoning as
+  // POST /auth/register). Everything after it uses the scoped client.
+  // Revoked devices must not match — however revocation is modelled in your
+  // schema (a revokedAt column, or deleting the row).
+  const device = await prisma.biometricDevice.findFirst({ where: { apiKeyHash, revokedAt: null } });
+  if (!device) {
+    return res.status(401).json({ success: false, error: { code: 'UNAUTHENTICATED', message: 'Invalid device key' } });
+  }
+  req.schoolId = device.schoolId;
+  req.deviceId = device.id;
+  req.prisma = scopedPrismaClient(prisma, device.schoolId);
+  next();
+}
+```
+
+### 5.2 Scheduled-job secret (Phase 4)
+
+```typescript
+// apps/api/src/middleware/cron-auth.ts
+import crypto from 'node:crypto';
+import { Request, Response, NextFunction } from 'express';
+
+export function cronAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+  const expected = process.env.CRON_SECRET ?? '';
+  // Fail closed: an unset or short secret means NO job endpoint works —
+  // never "no check".
+  if (expected.length < 32) {
+    return res.status(503).json({ success: false, error: { code: 'JOBS_DISABLED', message: 'Jobs are not configured' } });
+  }
+  const presented = Buffer.from(req.header('x-cron-secret') ?? '');
+  const wanted = Buffer.from(expected);
+  // timingSafeEqual needs equal lengths, so check length first.
+  if (presented.length !== wanted.length || !crypto.timingSafeEqual(presented, wanted)) {
+    return res.status(401).json({ success: false, error: { code: 'UNAUTHENTICATED', message: 'Bad job secret' } });
+  }
+  next();
+}
+
+// Inside a job handler: per-school work always uses a per-school scoped client.
+// const schools = await prisma.school.findMany({ where: { isDemo: false }, select: { id: true } });
+// for (const { id } of schools) {
+//   const db = scopedPrismaClient(prisma, id);   // as in §1
+//   await runFeeRemindersForSchool(db, id);      // idempotent: skips what it already sent
+// }
+```
+
+### 5.3 Read-only sessions: impersonation (and optional read-only demo accounts)
+
+```typescript
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+// Mount on every tenant route and on /platform routes, right after authMiddleware.
+export function blockWritesWhenReadOnlySession(req: Request, res: Response, next: NextFunction) {
+  const readOnly = Boolean(req.user?.impersonatedBy) || Boolean(req.user?.readOnly);
+  if (readOnly && !SAFE_METHODS.has(req.method)) {
+    return res.status(403).json({ success: false, error: { code: 'READ_ONLY_SESSION', message: 'This session is read-only' } });
+  }
+  next();
+}
+
+// HTTP verbs are not the only way to write. Reject these at the Socket.io handshake:
+// io.use((socket, next) => {
+//   const payload = verifyJwt(socket.handshake.auth.token);
+//   if (payload.impersonatedBy || payload.readOnly) return next(new Error('READ_ONLY_SESSION'));
+//   ...
+// });
+
+// Anything that records "seen/read" on a GET must skip it while impersonating:
+// if (!req.user.impersonatedBy) await markNoticeRead(...);
+```
+
+### 5.4 Audit-log field allowlists
+
+```typescript
+// One allowlist per audited entity — never "serialize the row and strip a few".
+const AUDIT_FIELDS: Record<string, readonly string[]> = {
+  Mark: ['studentId', 'examSubjectId', 'score'],
+  User: ['id', 'role', 'isActive'],              // never passwordHash, never tokens
+  FeeInvoice: ['id', 'studentId', 'status', 'amount'],
+  School: ['id', 'subscriptionStatus', 'plan'],
+};
+
+export function pickAuditFields(entity: string, row: Record<string, unknown>) {
+  const allowed = AUDIT_FIELDS[entity];
+  if (!allowed) throw new Error(`No audit allowlist for ${entity} — add one; do not log the whole row`);
+  return Object.fromEntries(allowed.filter((k) => k in row).map((k) => [k, row[k]]));
+}
+```
+
+### 5.5 Regression tests to write first for these
+
+- Device: no key → 401; a revoked key → 401 immediately; a valid key for school A
+  can't write school B's attendance.
+- Cron: no secret → 401; wrong secret → 401; `CRON_SECRET` unset → 503, never "open".
+- Read-only: a write with an impersonation token → 403; a socket connect with it is
+  refused; a notice read under impersonation records no read receipt.
+- Audit: logging an entity with no allowlist throws; a logged `User` row contains no
+  `passwordHash`; there is no code path that updates or deletes an audit row.
+
+Per `RULES.md` §6/§6.1: write these first and watch them fail, as with every
+other test in this file.

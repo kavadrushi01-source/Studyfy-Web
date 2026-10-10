@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** 2026-09-16 | **Last updated:** 2026-10-07
+**Started:** 2026-09-16 | **Last updated:** 2026-10-09
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -81,11 +81,14 @@
 ## Phase 4 — Platform/Business
 | Module | Status | Notes |
 |---|---|---|
-| Super Admin panel | NOT STARTED | |
-| Subscription & billing | NOT STARTED | |
-| Audit logs | NOT STARTED | |
-| Data export/backup | NOT STARTED | |
-| In-app support/tickets | NOT STARTED | |
+| Audit logs | NOT STARTED | Build FIRST — everything below writes to it. Append-only, allowlist-redacted (§13.10) |
+| Scheduled-job reliability | NOT STARTED | External trigger + `cronAuthMiddleware`; move Phase 1's fee reminders onto it (§12.4) |
+| Subscription & billing | NOT STARTED | Plan caps, feature gating, GST, atomic invoice numbers, suspended-school exception (§16.1, §13.4) |
+| Super Admin panel | NOT STARTED | Matches §8.3/§8.4 board; Users Management is least-privilege (§13.9) |
+| In-app support/tickets | NOT STARTED | `isInternal` notes must never reach a school-facing query |
+| Impersonation | NOT STARTED | Read-only on every channel, staff only, reason + audit (§13.9) |
+| Data export/backup | NOT STARTED | Tenant-isolation test + secrets-excluded test (§13.10) |
+| Public demo hygiene | NOT STARTED | Rotate live demo password FIRST (§13.11) — it has been live since Phase 1 |
 
 ## Bugs Found This Build
 _(log these in `BUGSFIX.md`, not here — this file tracks status, not bug detail)_

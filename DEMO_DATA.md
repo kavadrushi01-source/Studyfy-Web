@@ -25,6 +25,7 @@ thing to show in a portfolio walkthrough or an interview, not just claim.
 | City / State | Ahmedabad, Gujarat, India |
 | Timezone | `Asia/Kolkata` |
 | Subscription status | `ACTIVE` (not `TRIAL`) — a demo school showing a "trial ending in 3 days" countdown is a confusing, wrong impression for a portfolio walkthrough |
+| Plan (from Phase 4, §16.1) | `PREMIUM`, and `isDemo = true` (§13.11) — shows every module, including the Phase 3 ones |
 | Brand color (§8.2/§12.6 theming) | Teal `#0D9488` |
 | Subjects | Full §3 default list (Mathematics, Physics, Biology, Chemistry, Earth Science, Environmental Science, Astronomy/Space Science, English, Computer Science) — thematically fits a "Science" school well |
 | Classes | Grade 9 (Sections A, B), Grade 10 (Section A) |
@@ -70,6 +71,7 @@ thing to show in a portfolio walkthrough or an interview, not just claim.
 | City / State | Rajkot, Gujarat, India |
 | Timezone | `Asia/Kolkata` |
 | Subscription status | `ACTIVE` (not `TRIAL`) — same reasoning as SOS |
+| Plan (from Phase 4, §16.1) | `STANDARD`, and `isDemo = true` (§13.11) — deliberately a tier below SOS, so plan gating (locked Phase 3 features with an upgrade prompt) is visible in a side-by-side demo |
 | Brand color (§8.2/§12.6 theming) | Deep maroon `#7F1D1D` — deliberately distinct from SOS's teal, so the two schools are visually unmistakable in any side-by-side demo |
 | Subjects | Same §3 default list as SOS — same curriculum, different institution, proving the subject list is genuinely per-school seeded data, not hardcoded |
 | Classes | Grade 9 (Section A), Grade 10 (Sections A, B) |
@@ -135,6 +137,19 @@ verify dashboards, tenant isolation, and self-scoping by hand (per
 data unusable for its actual purpose. Just as clearly: never reuse this
 pattern for a real bulk import of a real school's real students — that's
 exactly the shared-default-password mistake §13.3 exists to prevent.
+
+**On the live site, this default must not be the password** (spec §13.11). The
+seed script reads `DEMO_PASSWORD` from the environment; `Demo@1234` is the
+local-development fallback only. The deployed demo uses a different password
+kept in the host's environment variables and your password manager — assume the
+repo is public and anything written in these files is public too. The Platform
+Owner demo account is never shared as a writable login.
+
+**Subscription demo data (from Phase 4):** seed two or three paid subscription
+invoices per demo school with payment method `TEST`/`MANUAL`, visibly labelled
+as test payments, so the Platform Owner dashboard's revenue cards aren't empty
+in a walkthrough. It's fictional seed data kept to dev/demo environments, same
+rule as everything else in this file — never presented as real revenue.
 
 ---
 

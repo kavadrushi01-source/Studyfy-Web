@@ -1,5 +1,5 @@
 # Studyfy — School Management System (Multi-Tenant SaaS)
-### Full Project Specification v3.2 — fresh build, from zero, portfolio + production-grade
+### Full Project Specification v3.3 — fresh build, from zero, portfolio + production-grade
 **Owner:** You | **Status:** Starting from scratch | **Last updated:** Sep 2026
 
 > This is a **from-scratch build.** No code from any earlier attempt exists or
@@ -36,6 +36,18 @@
 > checklist), but run in **TEST MODE only** — no real money, ever, in this
 > project. A separate live project already exists for real payments; this
 > one stays test-mode by design, not by half-measure.
+>
+> **v3.3 changes:** Phase 4 was designed in full before its build prompts were
+> written, which surfaced real gaps, now fixed in the plan: scheduled jobs
+> can't run as in-process timers on a sleeping free-tier host (§12.4); a
+> fourth auth path for scheduled jobs and a suspended-school exception so a
+> School Admin can still pay (§13.4); read-only, audited impersonation that
+> excludes minors' accounts (§13.9); append-only, allowlist-redacted audit logs
+> and a secrets-excluding, cross-tenant-tested data export (§13.10); public-demo
+> hygiene for the live portfolio site (§13.11); billing rules covering GST,
+> invoice numbering, plan caps and feature gating (§16.1); and an honesty
+> correction — real payments need per-school settlement, not just live keys
+> (§0, §18).
 
 ---
 
@@ -58,8 +70,8 @@ isolation is real, the RBAC is real, and the payment integration is a
 genuine, complete Razorpay integration (§13.8) that would handle real money
 correctly the moment live keys were ever added — it just runs on free test
 keys here, by design, since this isn't a real business. If a real school
-ever wanted to use this, the answer should be "yes, mostly, and the payment
-flow just needs live keys switched in" — not "let me rebuild the parts I
+ever wanted to use this, the answer should be "yes, mostly — the payment
+flow also needs live keys plus a per-school settlement setup (§18)" — not "let me rebuild the parts I
 cut corners on." Two fully-seeded demo schools (see the Demo Data
 section under §7) exist specifically so this is demonstrable, not
 theoretical — an interviewer can see two independent tenants, correctly
@@ -321,11 +333,11 @@ see the checklist in `AGENT_START_HERE.md`.
 *(Multi-language is not on this roadmap at all — §3 already covers why English-only is a deliberate product decision, not a deferred feature.)*
 
 ### Phase 4 — Platform/Business
-23. Super Admin panel matching §8.3's board exactly
-24. Subscription & billing — plan tiers, trial, auto-suspend, GST invoicing. **How schools actually pay Studyfy is a separate open decision from §7 Phase 2's Razorpay integration** (that one is parents paying schools; this is schools paying you) — if it also uses Razorpay (e.g. Razorpay Subscriptions, a different product from one-time orders), the same §1/§13.8 test-mode-only rule applies for the same reason: this is a portfolio project, not a live business collecting real subscription fees yet
-25. Audit logs
-26. Data export/backup per school
-27. In-app support/ticketing
+23. Super Admin panel matching §8.3's board exactly — nav per §8.4 (Dashboard · Schools · Subscriptions & Billing · Platform Analytics · Users Management · Support & Impersonation · Audit Logs · Settings). Users Management is least-privilege (account administration only, never academic data); impersonation follows §13.9
+24. Subscription & billing — plan tiers, trial, auto-suspend, GST invoicing. **How schools actually pay Studyfy is a separate open decision from §7 Phase 2's Razorpay integration** (that one is parents paying schools; this is schools paying you) — if it also uses Razorpay (e.g. Razorpay Subscriptions, a different product from one-time orders), the same §1/§13.8 test-mode-only rule applies for the same reason: this is a portfolio project, not a live business collecting real subscription fees yet Build rules (plan caps, feature gating, GST, invoice numbering, status flow) are in §16.1
+25. Audit logs — **build these first in Phase 4**: impersonation, billing, suspension and exports must all write to them from day one. Rules in §13.10
+26. Data export/backup per school — rules in §13.10 (tenant-isolation test, secrets excluded, private delivery)
+27. In-app support/ticketing — also the launch point for the "Support & Impersonation" flow (§13.9)
 
 ### Demo Data — Two Reference Schools
 One seeded school can't demonstrate the thing this whole plan is built
@@ -504,7 +516,7 @@ live from Phase 1 since they just count `schools` rows.
 ```
 roles ── permissions (via role_permissions)   ← GLOBAL, seeded once, not per-school (see note below)
 
-schools (tenant root, has `timezone` §12.7 and `subscriptionStatus`/`trialEndsAt` fields — §13.4's gate checks these, and they exist from Phase 0 even though the full billing UI is Phase 4)
+schools (tenant root, has `timezone` §12.7 and `subscriptionStatus`/`trialEndsAt` fields — §13.4's gate checks these, and they exist from Phase 0 even though the full billing UI is Phase 4; Phase 4 also adds `plan` and `isDemo` — §16.1, §13.11)
  ├── users (school_id FK, NULLABLE — see note below; roleId FK → the global roles table)
  ├── academic_years (school_id FK)
  ├── subjects (school_id FK)  ← seeded from §3's default list, editable
@@ -514,20 +526,22 @@ schools (tenant root, has `timezone` §12.7 and `subscriptionStatus`/`trialEndsA
  ├── staff (user_id FK)
  ├── teacher_subjects (staff_id FK, subject_id FK)  ← which subjects a teacher is qualified to teach; added in Phase 1 (Timetable generation and Messaging's teaching-relationship scope both need it — see §9.1's note below), not part of Phase 0's initial schema
  ├── attendance (student_id FK, marked_by FK → staff, date, status)
-  ├── fee_structures (class_id FK) ── fee_invoices (student_id FK) ── fee_payments (invoice_id FK, razorpay_order_id + razorpay_payment_id UNIQUE NULLABLE + status — §13.8 idempotency keys, see note below)
-  ├── exams (school_id FK) ── exam_subjects (→ subjects) ── marks (student_id FK, exam_subject_id FK)
-  ├── exam_remarks (school_id FK, student_id FK, exam_id FK, remark text, generated_by AI|TEACHER, reviewed flag — Phase 3 #18: AI drafts land reviewed=false until a teacher signs off)
-  ├── biometric_devices (school_id FK, name, api_key_hash, is_active — Phase 3 #21: punch import resolves Student.device_user_id, unique per school)
+ ├── fee_structures (class_id FK) ── fee_invoices (student_id FK) ── fee_payments (invoice_id FK, razorpayOrderId, razorpayPaymentId UNIQUE, status — see §13.8's note below)
+ ├── exams (school_id FK) ── exam_subjects (→ subjects) ── marks (student_id FK, exam_subject_id FK)
+ ├── exam_remarks (student_id FK, exam_id FK, remark text, generatedBy: AI|TEACHER, reviewed boolean) — added in Phase 3 (§7 #18): stores the AI-generated report-card remark so it's reviewable/editable by a teacher and isn't silently regenerated (and re-billed against Groq's free tier) every time a report card PDF is requested
  ├── timetable_slots (section_id FK, subject_id FK, teacher_id FK, day, period)
  ├── homework (section_id FK, subject_id FK, teacher_id FK) ── homework_submissions (student_id FK)
  ├── notices (school_id FK, target: school-wide | class | section)
  ├── messages (sender_id FK, receiver_id FK, thread_id)
  ├── documents (owner_id FK, cloudinary_url — stored under a `schools/{schoolId}/...` folder, type)
  ├── auth_tokens (user_id FK, type, token_hash, expires_at, consumed_at)  ← persisted, single-use (§13.3)
- └── audit_logs (school_id FK, actor_id FK, action, entity, before/after JSON)
+ ├── biometric_devices (school_id FK, device_name, api_key_hash, last_sync_at) — added in Phase 3 (§7 #21): a THIRD authentication path, distinct from human JWT and Platform Owner auth — see §13.4's note below, a device can't do an interactive login
+ ├── audit_logs (school_id FK NULLABLE — NULL means a platform-level action, actor_id FK, impersonatedBy FK NULLABLE, action, entity, before/after JSON built from a per-entity field allowlist — append-only, §13.10) — Phase 4
+ ├── subscriptions (school_id FK, plan, status, currentPeriodStart, currentPeriodEnd) ── subscription_invoices (school_id FK, invoiceNumber UNIQUE, amount + GST split in integer paise, status, razorpayOrderId NULLABLE) — Phase 4 (§7 #24, §16.1)
+ └── tickets (school_id FK, created_by FK, subject, status, priority) ── ticket_messages (ticket_id FK, author_id FK, body, isInternal) — Phase 4 (§7 #27)
 ```
 
-**Eight things easy to get wrong here:**
+**Ten things easy to get wrong here:**
 - **`users.school_id` is nullable, and NULL means exactly one thing: a
   Platform Owner account.** Every other role requires it. Don't make it
   nullable "for flexibility" elsewhere — that's how a tenant boundary
@@ -583,22 +597,31 @@ schools (tenant root, has `timezone` §12.7 and `subscriptionStatus`/`trialEndsA
   mental-simulation review passes on this plan kept finding things a pure
   read didn't. Add this table in Phase 1 (Chunk 3, alongside Timetable),
   and add it to `SECURITY_PATTERNS.md`'s `TENANT_MODELS` in the same
-   commit — don't let it become a fourth instance of that exact list
-   missing an entry.
-- **`fee_payments.razorpay_order_id / razorpay_payment_id / status`**
-  (the §13.8 idempotency keys) were missing from this schema the same way
-  `teacher_subjects` was — nothing could actually look a payment up by
-  the provider's order ID, which is exactly what §13.8's "look up the
-  invoice by the Razorpay order/payment ID" requires the webhook to do.
-  Both id columns are UNIQUE NULLABLE (NULL for manual counter payments
-  — MySQL allows multiple NULLs, so the counter flow is untouched), and
-  the Phase 2 webhook resolves invoice + school through them instead of
-  trusting anything embedded in the payload. `status` is PENDING /
-  CAPTURED / FAILED / REFUNDED defaulting to CAPTURED (every existing
-  row is received money, so the default is truthful for all of them);
-  counter payments and confirmed webhooks both land CAPTURED, while
-  PENDING/FAILED/REFUNDED belong to the order-attempt and refund
-  transitions the Phase 2 webhook owns.
+  commit — don't let it become a fourth instance of that exact list
+  missing an entry.
+- **`biometric_devices` is a third authentication path, not a variant of
+  the other two.** A human gets a short-lived JWT by logging in
+  interactively; the Platform Owner is just a human with `school_id`
+  NULL; a biometric/RFID device can't do either — it needs a long-lived
+  API key (hashed at rest, like a password) it presents on every sync
+  call, validated by its own `deviceAuthMiddleware` (§13.4) that derives
+  `school_id` from the device record, not from a JWT. Don't try to issue
+  a device a JWT "to keep it consistent with everything else" — a device
+  sitting in a school office can't refresh a 15-minute token through an
+  interactive flow, and forcing that pattern is how someone ends up
+  hardcoding a long-lived credential somewhere worse instead.
+- **Phase 4 adds tables whose traps are easy to miss** (§7 #23–27, §16.1,
+  §13.9–13.11). `audit_logs.school_id` is nullable on purpose — NULL means a
+  platform-level action — and the tenant extension then hides those rows from
+  every school, which is exactly the fail-closed behavior you want.
+  `schools.subscriptionStatus` and `schools.plan` are mirrors written ONLY by
+  the billing module, in the same transaction as the `subscriptions` row — two
+  writers is how the two drift apart. `subscription_invoices.invoiceNumber`
+  comes from an atomic per-financial-year counter, never `count() + 1` (two
+  invoices created at once would collide). `ticket_messages.isInternal` rows
+  must never be returned by any school-facing query. `schools.isDemo` gates the
+  demo-only behaviors in §13.11. Add `Subscription`, `SubscriptionInvoice` and
+  `TicketMessage` to `TENANT_MODELS` in the same commit as the tables.
 
 ### 9.2 Indexing
 Composite `attendance(school_id, section_id, date)`, `students(school_id,
@@ -633,7 +656,11 @@ through the separate `platformOnlyMiddleware` instead, never
 | GET/POST | `/api/v1/schools/:schoolId/notices` | Notices |
 | POST | `/api/v1/public/enquiries` | Public admission enquiry — unauthenticated, rate-limited + honeypot (§13.5) |
 | GET | `/api/v1/platform/schools` | Platform Owner only — every school, plan, status |
-| POST | `/api/v1/platform/schools/:id/suspend` | Platform Owner only — suspend a school (blocks login for its tenant users, §13.4) |
+| POST | `/api/v1/platform/schools/:id/suspend` | Platform Owner only — suspend a school (blocks its tenant users, §13.4) |
+| POST | `/api/v1/platform/impersonate` | Platform Owner only — start a read-only, 30-minute support session as a staff user; reason required (§13.9) |
+| GET | `/api/v1/platform/audit-logs` | Platform Owner only — audit logs across all schools (a School Admin reads their own school's via `/schools/:schoolId/audit-logs`) |
+| POST | `/api/v1/schools/:schoolId/exports` | School Admin (own school) or Platform Owner (audited, reason required) — start a data export, rate-limited (§13.10) |
+| POST | `/api/v1/internal/jobs/:name` | Scheduled-job trigger — external scheduler only, `cronAuthMiddleware` + `X-Cron-Secret`, never reachable by users (§12.4, §13.4) |
 | POST | `/api/v1/payments/webhook` | Razorpay webhook (Phase 2, TEST MODE — §1, §7) — unauthenticated by nature; full security checklist at §13.8 (signature verification, idempotency, server-side amount, never trust the payload's school/invoice ID) |
 | WS | `/socket.io` | Chat, live notices — the connection handshake verifies the JWT and derives `school_id` server-side; never trust a client-supplied namespace/room name (§12.5) |
 
@@ -693,11 +720,33 @@ fast. This is already how the reference code is written; don't "fix" it
 into per-request client creation.
 
 ### 12.4 Background jobs
-`node-cron` for scheduled jobs at MVP scale — e.g. fee reminders, and
-**checking for expired subscriptions and setting a school's status to
-suspended (§13.4's subscription gate; §16)**. Both need to run against
-**each school's own timezone (§12.7)**, not server UTC — "daily at 9am"
-should mean 9am for that school, not 9am UTC.
+**An in-process `node-cron` timer is not reliable on this hosting tier.**
+Render's free instance sleeps after inactivity (§1), and a sleeping process
+runs no timers — a "daily at 9am" job simply doesn't fire on any day nobody
+happened to open the site. That affects Phase 1's fee reminders as much as
+Phase 4's billing jobs. Do this instead:
+- **Jobs are plain HTTP endpoints** under `/api/v1/internal/jobs/:name`,
+  triggered from outside by a free scheduler — a scheduled GitHub Actions
+  workflow that POSTs with an `X-Cron-Secret` header (which also wakes the
+  instance). They're authenticated by `cronAuthMiddleware` (§13.4), a
+  constant-time comparison against `CRON_SECRET` — not a user, not the
+  Platform Owner, not a device. GitHub's scheduler runs on UTC, can run late,
+  and has been known to disable scheduled workflows on public repositories
+  after a long stretch without repository activity — check now and then that
+  it's still firing.
+- **Jobs are idempotent.** A run that's delayed and then repeated must not
+  send a reminder twice or suspend twice: record "job + school + period
+  already done" and skip it.
+- **Per-school work uses a per-school scoped client** (`SECURITY_PATTERNS.md`
+  §1/§5), looping over schools — not one raw-client query across everyone.
+- **Timezones (§12.7):** the scheduler fires hourly and each job decides, per
+  school, whether it's that school's 9am — rather than one UTC time for all.
+- **A job is never the only thing enforcing access.** The subscription gate
+  also checks dates at request time (§13.4), so a missed run delays an email;
+  it never leaves an expired school wide open.
+
+Jobs in this project: fee reminders (§7 #3), subscription expiry/dunning
+(§16.1), and the demo-school reset (§13.11).
 
 ### 12.5 Realtime
 Socket.io namespaced per school (`/school-:schoolId`) — **the namespace
@@ -767,8 +816,7 @@ before trusting it (see `AGENT_START_HERE.md` step 0).** Add every new
 tenant-scoped Prisma model to the scoping list in the same commit you add it
 to `schema.prisma`.
 
-**Two deliberate exceptions, both already covered above but easy to trip
-over while implementing:**
+**Four deliberate exceptions, all easy to trip over while implementing:**
 - **`POST /auth/register`** doesn't go through `tenantMiddleware` — there's
   no `school_id` to derive yet, because this request is what creates the
   school. It uses the raw, unscoped Prisma client for this one write only
@@ -778,8 +826,24 @@ over while implementing:**
   instead, which checks `role === 'PLATFORM_OWNER'` and does not require or
   derive a `school_id` at all, since the Platform Owner's queries are
   legitimately cross-tenant (§5, §10).
+- **`/api/v1/devices/...` (Phase 3, biometric/RFID sync — §7 #21)**
+  doesn't go through `tenantMiddleware` either, since there's no human JWT
+  at all — it goes through its own `deviceAuthMiddleware`, which validates
+  the device's API key against `biometric_devices` and derives `school_id`
+  from that record (§9.1).
+- **`/api/v1/internal/jobs/...` (Phase 4, scheduled jobs — §12.4)** doesn't go
+  through `tenantMiddleware` either — no human or device is calling. It goes
+  through `cronAuthMiddleware`, a constant-time comparison against
+  `CRON_SECRET`. The jobs themselves still do each school's work with a scoped
+  client (§12.4).
 
-**A third thing, not an exception but worth stating explicitly so nobody
+**Every other route gets exactly one of `tenantMiddleware`,
+`platformOnlyMiddleware`, `deviceAuthMiddleware`, or `cronAuthMiddleware` —
+never two, never none.** The only routes with none are the deliberately public
+ones (login/refresh/reset, register, public enquiries, health) and the Razorpay
+webhook, which authenticates by signature (§13.8).
+
+**A fifth thing, not an exception but worth stating explicitly so nobody
 "completes the symmetry" by accident: there is no public endpoint that
 creates a Platform Owner account, ever.** `POST /auth/register` creates a
 school + a School Admin — it's tempting to assume there should be an
@@ -793,12 +857,18 @@ only) or a direct, manual, out-of-band operation on the production database
 through a request the internet can reach.
 
 **Subscription gate:** `tenantMiddleware`, after deriving `school_id`, also
-checks that school's subscription status. A suspended school (§16
-non-payment) blocks login and all API access for its tenant users with a
-clear "contact your school administrator" message — data is retained, not
-deleted, matching §16's auto-downgrade policy. This check does not apply to
-`platformOnlyMiddleware` routes, since a Platform Owner needs to be able to
-reactivate a suspended school.
+checks that school's subscription status **and dates** — a school whose
+`trialEndsAt` (or paid `currentPeriodEnd` plus any grace period, §16.1) has
+passed is treated as expired at request time even if no scheduled job has
+flipped the stored status yet (§12.4 explains why jobs alone can't be trusted
+on this hosting tier). A suspended school's tenant users get a clear "contact
+your school administrator" message — data is retained, not deleted, matching
+§16's auto-downgrade policy — with one deliberate exception so the school can
+actually fix the problem: its **School Admin** can still log in and reach only
+the billing page, support tickets, and logout, so they can pay and reactivate.
+Every other role stays blocked. Demo schools (`isDemo`, §13.11) are exempt from
+billing-driven suspension. This check does not apply to `platformOnlyMiddleware`
+routes, since a Platform Owner needs to be able to reactivate a suspended school.
 
 ### 13.5 General hardening
 `helmet`; CORS locked to real origins; parameterized queries only; file
@@ -887,13 +957,17 @@ the same code would be production-correct if it ever needed to be.
   the integration is correct, not a formality to skip because it's "just
   test mode."
 - **Webhook idempotency.** Payment gateways redeliver webhooks — the same
-  event can arrive more than once. Use the Razorpay payment/order ID as an
-  idempotency key so a redelivered webhook doesn't record the same payment
-  twice.
-- **Look up the invoice by the Razorpay order/payment ID**, never by
-  trusting a `school_id` or `invoiceId` embedded in the webhook payload
-  itself — the payload identifies the transaction, your own database is
-  what identifies which invoice and which school it belongs to.
+  event can arrive more than once. `fee_payments.razorpayOrderId` (set when
+  the order is created, server-side) and `razorpayPaymentId` (UNIQUE, set
+  on confirmation — §9.1) are what make this concrete, not just a
+  principle: before recording a payment, check whether a row with that
+  `razorpayPaymentId` already exists, and if so, do nothing — a redelivered
+  webhook is a no-op, not a duplicate charge on your own records.
+- **Look up the invoice by `razorpayOrderId`**, never by trusting a
+  `school_id` or `invoiceId` embedded in the webhook payload itself — the
+  payload identifies the transaction, your own database (via the order ID
+  you generated and stored when the payment started) is what identifies
+  which invoice and which school it belongs to.
 - **PCI scope stays minimal by design, keep it that way:** Razorpay hosts
   the actual card-entry checkout — raw card numbers should never touch your
   server or database, test mode or not. Don't build a custom card-input
@@ -902,6 +976,112 @@ the same code would be production-correct if it ever needed to be.
   eventually needs a refund path (full or partial) — it doesn't have to
   ship in the first pass, but the invoice/payment data model (§9.1) should
   be able to represent a refunded state without a schema rework.
+
+### 13.9 Impersonation — Platform Owner support access (Phase 4, §7 #23/#27)
+The most powerful thing in the product: the founder acting inside a school full
+of children's records. The rules are tight on purpose.
+- **Reason required, always audited.** Starting a session needs a reason (a
+  ticket reference or free text), written to the audit log with the Platform
+  Owner, the target user, the school, the IP, and start/end times (§13.10).
+- **Read-only, without exception.** The session token is a normal tenant token
+  for the target user (so `tenantMiddleware` and self-scope apply exactly as
+  they would to that user — it can see no more than they can) plus an
+  `impersonatedBy` claim, a 30-minute life, and no refresh token. A guard
+  rejects every non-GET/HEAD/OPTIONS request carrying the claim — which also
+  means impersonation can never initiate a payment (§13.8). **HTTP verbs are not
+  the only way to write:** the Socket.io handshake must reject impersonation
+  tokens (otherwise you could send messages as a teacher to a child), and any
+  GET that records "seen/read" state (notice or message read receipts) must skip
+  recording while impersonating.
+- **Staff only.** Allowed targets: School Admin, Teacher, Accountant. Student
+  and Parent accounts are not impersonable — they're minors' accounts, and a
+  support problem can be reproduced from a staff view. Also refused: another
+  Platform Owner, a deactivated user, and any user in a suspended school
+  (reactivate first). The founder can relax the Student/Parent rule
+  deliberately; the agent never does it on its own.
+- **Unmissable in the UI:** a persistent banner ("Viewing as {name} —
+  read-only — Exit"); exit discards the token and writes the END audit event.
+- **Traceable in logs:** every request log line carries `impersonatedBy`.
+
+Tests, both directions: a write attempt gets 403; a read as the target works; a
+Student target gets 403; the token dies at expiry; a socket connection with the
+token is refused; a read receipt is *not* recorded; the START and END audit rows
+exist.
+
+### 13.10 Audit logs and data export (Phase 4, §7 #25/#26)
+**Audit logs**
+- **Append-only.** No update or delete route, service method, or admin UI —
+  not for a School Admin, not for the Platform Owner. If the host lets you give
+  the app a database user without UPDATE/DELETE on that table, do that too.
+- **One writer.** Everything goes through a single `audit.record(...)` helper,
+  inside the same database transaction as the change where possible, so a change
+  can't commit without its log row or the reverse.
+- **Must be audited:** user create/deactivate/reactivate and role changes; marks
+  create/update (before/after); attendance edits made after the fact; fee
+  structure, invoice, payment and refund changes, and manual payment recording;
+  school suspension, reactivation, plan change, trial extension; impersonation
+  start/end; device register/revoke; certificate generation; data exports;
+  billing invoice mark-paid; Platform Owner logins. Ordinary reads aren't
+  audited (noise) — exports and impersonation are the exceptions.
+- **Redaction by allowlist, not blocklist.** `before`/`after` JSON is built from
+  a per-entity list of allowed fields (`SECURITY_PATTERNS.md` §5) — never
+  "serialize the row and strip a few". Password hashes, token hashes, device/API
+  keys and their hashes, webhook secrets, and payment-instrument data never
+  appear in a log.
+- **Visibility:** a School Admin reads their own school's logs (tenant-scoped);
+  the Platform Owner reads all; nobody else. `school_id` is nullable — NULL
+  means a platform-level action, which the tenant extension hides from every
+  school.
+- **Retention:** the free database is about 1GB (§1). Decide now how long logs
+  stay in the hot table (e.g. 12 months) so this table can't quietly fill it.
+
+**Data export** — the highest-blast-radius read in the product, since one bug
+leaks a whole school at once:
+- **Who and when:** a School Admin exports their own school; the Platform Owner
+  can export any school with a recorded reason. Rate-limited (e.g. one per hour
+  per school) and always audited.
+- **Tenant-scoped, tested both ways:** assembled only through that school's
+  scoped client. Regression test: an export for school A contains zero rows or
+  IDs from school B, and vice versa.
+- **Secrets never leave:** exclude password hashes, `auth_tokens`,
+  `biometric_devices` key hashes, and any provider keys. A naive "dump every
+  table" would include them — test by scanning the finished export for them.
+- **Delivery:** stream a zip of CSV/JSON files, don't build it in memory (the
+  free API instance has roughly 512MB, §2). If it can't finish within a normal
+  request, run it as a background job and deliver via a short-lived, private,
+  ideally one-time link — never a public or guessable URL (§13.5). It contains
+  children's data.
+- **Backups are a different thing.** An export is portability for the school;
+  database backups are infrastructure. Confirm what Aiven's free plan actually
+  provides, write down the restore steps, and do one test restore into a scratch
+  database before relying on it.
+
+### 13.11 Public demo deployment hygiene (Phase 4 — applies the day the site goes public)
+The live site holds the two demo schools and is reachable by anyone on the
+internet, including people you've never met:
+- **The documented demo password must not be the live one.** The seed script
+  reads `DEMO_PASSWORD` from the environment; `Demo@1234` (`DEMO_DATA.md`) is the
+  local-development fallback only. Production uses a different password held in
+  the host's env vars and your password manager. Assume the repo is public:
+  anything committed is public.
+- **Never publish a writable Platform Owner login** — it sees every school and
+  can suspend them. Show platform views with screenshots or a short video, or
+  create a dedicated read-only demo owner (a `readOnly` token claim enforced by
+  the same guard as impersonation, `SECURITY_PATTERNS.md` §5).
+- **`schools.isDemo` switches on the demo-only behaviors:** (a) exempt from
+  billing automation and suspension; (b) outbound email suppressed — the seeded
+  addresses end in `.demo` and don't exist, bounces damage the free email
+  account's reputation, and anyone could burn its daily quota by marking
+  attendance in a loop — log instead of send; (c) the only schools the nightly
+  reset may touch; (d) a visible "demo environment — data resets nightly" notice.
+- **The reset job can destroy a school, so it guards twice:** it only ever acts
+  on a school with `isDemo = true` **and** a slug on an explicit allowlist
+  (`school-of-science`, `ramakrishna-school`), and refuses otherwise. A bug in a
+  "wipe and reseed" job pointed at a real school would be this product's worst
+  failure. Test that it refuses a non-demo school and deletes nothing.
+- **Abuse limits:** rate limits stay on login/register/enquiry (§13.5); cap
+  upload size and count for demo schools so the free file-storage quota can't be
+  burned.
 
 ---
 
@@ -929,6 +1109,50 @@ the same code would be production-correct if it ever needed to be.
 Auto-downgrade (not delete) on non-payment. India-market pricing/currency —
 see §3 for why this doesn't conflict with the product being internationally usable.
 
+### 16.1 Billing implementation rules (Phase 4, §7 #24)
+- **One plan definition.** Price, student cap, and feature list live in a single
+  shared config consumed by the pricing cards (§8.3), cap enforcement, feature
+  gating, and invoice generation — never copied into each.
+- **Decisions to confirm before building (recommended defaults in
+  parentheses):** whether the listed prices are GST-exclusive (yes, +18% GST at
+  invoice); what a trial includes (Standard-level cap and every Phase 2
+  feature); which modules each tier unlocks (Basic = Phase 1 modules,
+  Standard = + Phase 2, Premium = + Phase 3), with the pricing-card bullets
+  generated from that same config so the marketing claims are literally true;
+  the grace period after a missed payment (7 days, `PAST_DUE`, full access plus a
+  banner).
+- **Single writer.** Only the billing module writes `schools.subscriptionStatus`
+  and `schools.plan`; they mirror the `subscriptions` row and are updated in the
+  same transaction. Status flow: `TRIAL` → `ACTIVE` → `PAST_DUE` → `SUSPENDED`,
+  reversible on payment.
+- **Caps are enforced on the server**, in admission and in CSV import: block with
+  an upgrade message at the cap; never delete anything on a downgrade. Feature
+  gating is one `planAllows(feature)` check returning 403
+  `PLAN_UPGRADE_REQUIRED`; the UI shows the locked state.
+- **No proration.** A plan change applies from the next period; an upgrade that
+  raises the cap takes effect immediately.
+- **Money math** in integer paise, rounded once, never floats (§13.6's Decimal
+  pitfall applies here too).
+- **GST (India).** Add 18% on top of the plan price. Where the school's State
+  (collected at registration, §8.3) matches the platform's registered State, the
+  tax is typically split CGST 9% + SGST 9%; otherwise IGST 18%. Invoice numbers
+  run sequentially per financial year (April–March), come from an atomic counter
+  incremented in the same transaction that creates the invoice (never
+  `count() + 1`), have a UNIQUE constraint, and stay short (GST rules cap the
+  length — verify). **While this is a portfolio project, every invoice prints
+  "TEST INVOICE — not a tax invoice" and `PLATFORM_GSTIN` stays blank. Never
+  invent a GSTIN** — it's the same fabrication §8.1 forbids for statistics. Have
+  an accountant confirm all of this before any real use.
+- **Paying an invoice.** Baseline: the Platform Owner marks it paid (audited,
+  method `MANUAL`). Optional: the School Admin pays online by reusing §13.8's
+  order + webhook flow in test mode — *not* Razorpay Subscriptions, a second
+  product with its own events. The shared webhook identifies the record by
+  looking the `razorpayOrderId` up in `fee_payments` and then
+  `subscription_invoices`, never by a type or ID the payload declares itself, and
+  stays idempotent on the payment ID.
+- **Revenue KPIs** (§8.3's Platform Owner dashboard) are computed only from
+  recorded paid invoices; test/manual payments are labelled as such.
+
 ## 17. Roadmap
 - **Weeks 1–2 — Phase 0:** multi-tenancy, auth, RBAC, row-level self-scoping with regression tests, hardening. Nothing else starts until this is green (§6).
 - **Weeks 3–8 — Phase 1:** MVP modules + all six dashboards + public site, built against §8 from the first commit. Deploy. Pilot with one real school.
@@ -942,6 +1166,8 @@ see §3 for why this doesn't conflict with the product being internationally usa
 | Subscription & billing | You can't actually charge schools without it — build in Phase 4 |
 | DPDP Act compliance (and equivalents wherever a customer school actually operates, given §3's international positioning) | Real legal review before onboarding a real school's student data, not just a policy page — start with India since that's the first market, but don't assume it's the only regime that will ever apply |
 | Dependency vulnerabilities | The `npm audit` CI gate (§15) exists specifically so these don't sit unresolved |
+| Per-school payment settlement | Parent fee payments use one set of Razorpay keys, so every payment would land in a single account. Real use needs each school's money to settle into that school's own bank account (per-school Razorpay accounts, or Razorpay's linked-account/Route product — check current docs): a real design change, not a key swap. Irrelevant in test mode; essential before any real school collects real fees |
+| Right to erasure / school data deletion | Phase 4 adds export (§13.10) but no deletion flow; real use under DPDP-style rules needs one, designed with legal advice rather than just built |
 
 ---
 
@@ -998,6 +1224,12 @@ RAZORPAY_WEBHOOK_SECRET=
 # The one deliberately deferred item — leave blank until you decide to pay
 # for a real gateway (§1); the feature stays behind a stub without this:
 SMS_WHATSAPP_API_KEY=
+
+# Phase 4
+CRON_SECRET=          # long random string (32+ chars); the scheduler sends it as X-Cron-Secret (§12.4, §13.4)
+DEMO_PASSWORD=        # the live demo accounts' password; the local default lives in DEMO_DATA.md (§13.11)
+PLATFORM_GSTIN=       # leave blank while this is a portfolio project — invoices then print "TEST INVOICE". Never invent one (§16.1)
+PLATFORM_STATE=       # the state a real business would be registered in; decides CGST+SGST vs IGST (§16.1)
 
 REDIS_URL=            # later, only once actually needed
 

@@ -1,7 +1,7 @@
-# STUDYFY — WORK RULES v3.2 (fresh build)
+# STUDYFY — WORK RULES v3.3 (fresh build)
 
 > **The single rule that overrides everything else:**
-> **ALWAYS work strictly according to `STUDYFY_PROJECT_SPEC.md` (v3.2).** That
+> **ALWAYS work strictly according to `STUDYFY_PROJECT_SPEC.md` (v3.3).** That
 > file is the source of truth. If something contradicts the spec, follow the
 > spec and note the deviation in §9 below.
 >
@@ -24,7 +24,7 @@ file makes the fix structural:
 - Nothing paid gets built without the founder saying so — §7.
 
 ## 1. Source of Truth
-`STUDYFY_PROJECT_SPEC.md` v3.2 is the living PRD + architecture doc —
+`STUDYFY_PROJECT_SPEC.md` v3.3 is the living PRD + architecture doc —
 authoritative for stack, tenancy, roles, features, UI/UX, security, deploy,
 and cost. Ambiguity → the most reasonable interpretation consistent with the
 spec's stated intent, recorded in §9.
@@ -64,11 +64,21 @@ spec's stated intent, recorded in §9.
 ## 4. Security Rules (non-negotiable, built in Phase 0 — spec §13)
 - Zod validation at every route boundary.
 - `tenantMiddleware` re-derives `school_id` from the JWT, never trusts client input.
-- **The Platform Owner is the one role that never goes through
-  `tenantMiddleware`** — it has no `school_id`. Its routes
-  (`/api/v1/platform/...`) go through `platformOnlyMiddleware` instead
-  (`SECURITY_PATTERNS.md` §2). A route gets exactly one of these two
-  middlewares, never both, never neither.
+- **There are four authentication paths, and a route gets exactly one.**
+  Humans: `tenantMiddleware`. The Platform Owner (no `school_id`, routes under
+  `/api/v1/platform/...`): `platformOnlyMiddleware` (`SECURITY_PATTERNS.md` §2).
+  Biometric/RFID devices (Phase 3, `/api/v1/devices/...`): `deviceAuthMiddleware`.
+  Scheduled jobs (Phase 4, `/api/v1/internal/jobs/...`): `cronAuthMiddleware`
+  (`SECURITY_PATTERNS.md` §5). Never push one path's caller through another's
+  middleware, never stack two, never leave a non-public route with none.
+- **Phase 4 security rules (spec §13.9–13.11, §12.4, §16.1):** impersonation
+  sessions are read-only on every channel including Socket.io, time-limited,
+  reason-required, audited, and never allowed on Student/Parent accounts; audit
+  logs are append-only and written from per-entity field allowlists, never by
+  serializing a whole row; data exports go only through a tenant-scoped client,
+  exclude every credential/hash/key, and are delivered privately; scheduled
+  jobs are HTTP endpoints triggered externally, never in-process timers; the
+  live demo never uses the documented default demo password.
 - Password-reset and email-verification tokens are DB-backed (`auth_tokens`
   table) from the first commit — never an in-memory `Map` — and **single-use**:
   mark them consumed the moment they're used and reject reuse.
@@ -171,6 +181,10 @@ referencing the spec section → never skip the STATUS.md update.
   real, already-live project, those never go in this project under any
   circumstance** — a live key appearing here is a security incident, not a
   convenience: stop, flag it, don't use it.
+- **Never invent a tax identity.** Billing invoices (spec §16.1) take GSTIN and
+  state from configuration; while this is a portfolio project they print as
+  test invoices. A made-up GSTIN is a fabricated legal document — the same
+  class of mistake as §8.1's fake statistics.
 - Phase 0 and Phase 1 must be completable and deployable on entirely free
   infrastructure (Vercel/Render/Aiven free tiers) — don't introduce a
   dependency that breaks that without flagging it first.
