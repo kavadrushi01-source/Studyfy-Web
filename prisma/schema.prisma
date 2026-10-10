@@ -1177,8 +1177,16 @@ model AuditLog {
   id              String    @id @default(cuid()) @map("id")
   schoolId        String?   @map("school_id")
   school          School?   @relation(fields: [schoolId], references: [id])
-  actorId         String    @map("actor_id")
-  actor           User      @relation("AuditActor", fields: [actorId], references: [id])
+  // NULLABLE: NULL means an external-system actor — the Razorpay webhook
+  // captures money with no user behind it (§13.8), and no honest user id
+  // exists to attribute. Human actors always pass their id. (Tenant
+  // reads resolve names only for same-school actors; cross-actor display
+  // belongs to the Super Admin panel, Chunk 3.)
+  actorId         String?   @map("actor_id")
+  // Restrict (not SetNull): audit rows must outlive their actors — deleting
+  // a user who has audit history fails instead of silently orphaning it.
+  // No user-deletion path exists today; this keeps it that way.
+  actor           User?     @relation("AuditActor", fields: [actorId], references: [id], onDelete: Restrict)
   // Non-null while impersonating (§13.9): who is actually behind the wheel.
   impersonatedBy  String?   @map("impersonated_by")
   impersonator    User?     @relation("AuditImpersonator", fields: [impersonatedBy], references: [id])

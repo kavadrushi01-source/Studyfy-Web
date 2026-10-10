@@ -17,6 +17,17 @@ const AUDIT_FIELDS: Record<string, readonly string[]> = {
   User: ["id", "role", "isActive"],
   BiometricDevice: ["id", "name", "isActive"],
   School: ["id", "subscriptionStatus", "plan", "isDemo"],
+  // Phase 4 retrofit (§13.10 must-list): marks carry the graded score (never
+  // the whole row); attendance edits carry day+status; money rows carry
+  // amounts as pre-formatted strings (Decimals are objects, not scalars).
+  // FeeInvoice's "structureId"+"count" exist ONLY for the bulk-generate
+  // summary row (one row per run, not one per invoice).
+  Mark: ["studentId", "examSubjectId", "score"],
+  Attendance: ["studentId", "sectionId", "date", "status"],
+  FeeStructure: ["id", "classId", "name", "amount", "term"],
+  FeeInvoice: ["id", "studentId", "structureId", "status", "amount", "amountPaid", "count"],
+  FeePayment: ["id", "invoiceId", "amount", "method", "status"],
+  Certificate: ["id", "studentId", "type", "serial"],
 };
 
 export function pickAuditFields(entity: string, row: Record<string, unknown>): AuditSnapshot {
@@ -38,7 +49,10 @@ export interface AuditEvent {
   // NULL means a platform-level action (e.g. an owner login) — the tenant
   // extension hides NULL rows from every school's scoped reads (§9.1).
   schoolId: string | null;
-  actorId: string;
+  // NULL means an external-system actor (the Razorpay webhook captures
+  // money with no user behind it). Human actors always pass their id;
+  // impersonated humans additionally pass impersonatedBy (Chunk 4).
+  actorId: string | null;
   impersonatedBy?: string | null;
   action: string;
   entity: string;
