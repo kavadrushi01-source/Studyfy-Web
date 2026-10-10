@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
+import { recordAudit } from "../../lib/audit.js";
 import { prisma } from "../../lib/prisma.js";
 import { signAccessToken } from "../../lib/jwt.js";
 import { slugifyName, uniqueSlug } from "../../lib/slug.js";
@@ -208,15 +209,18 @@ export async function register(
   return { ...auth, school: { id: school.id, name: school.name, slug: school.slug } };
 }
 
-function assertTenantAccess(school: { subscriptionStatus: string; trialEndsAt: Date }): void {
-  if (school.subscriptionStatus === "SUSPENDED") {
+function assertTenantAccess(school: { subscriptionStatus: string; trialEndsAt: Date; isDemo: boolean }): void {
+  // Demo exemption mirrors tenantMiddleware (§13.11) — the login gate and
+  // the request gate must agree, or a demo admin could log in but use
+  // nothing (or vice versa). Both exempt isDemo, both block real schools.
+  if (!school.isDemo && school.subscriptionStatus === "SUSPENDED") {
     throw new AuthError(
       403,
       "SCHOOL_SUSPENDED",
       "This school's account is suspended. Please contact your school administrator.",
     );
   }
-  if (school.subscriptionStatus === "TRIAL" && school.trialEndsAt.getTime() < Date.now()) {
+  if (!school.isDemo && school.subscriptionStatus === "TRIAL" && school.trialEndsAt.getTime() < Date.now()) {
     throw new AuthError(
       403,
       "TRIAL_EXPIRED",
@@ -253,7 +257,22 @@ export async function login(input: LoginInput): Promise<AuthResult> {
   if (!owner || owner.role.name !== "PLATFORM_OWNER") {
     throw new AuthError(401, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
   }
-  return loginUser(owner, input.password);
+  const auth = await loginUser(owner, input.password);
+  // §13.10 must-list: every Platform Owner login is audited. Platform-level
+  // row (NULL school) — invisible to all schools, visible to the Owner's own
+  // /platform/audit-logs. Deliberately fail-closed: if the log write fails,
+  // the login fails with it — a privileged session without its START row is
+  // worse than a refused login. DEPLOY NOTE: audit_logs must be migrated
+  // before this build serves (migrate deploy first, same as every chunk).
+  await recordAudit(prisma, {
+    schoolId: null,
+    actorId: owner.id,
+    action: "OWNER_LOGIN",
+    entity: "User",
+    entityId: owner.id,
+    after: { id: owner.id, role: "PLATFORM_OWNER", isActive: owner.isActive },
+  });
+  return auth;
 }
 
 // POST /auth/refresh — single-use rotation with theft detection: the

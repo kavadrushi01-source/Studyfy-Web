@@ -26,6 +26,23 @@ export function schoolMonth(timezone: string, now: Date): { year: number; month:
   return { year, month };
 }
 
+// School-local hour 0–23 (§12.4): the external scheduler fires hourly and
+// each job decides, PER SCHOOL, whether it is that school's sending hour —
+// one UTC time never fits all schools. `now` injectable, same as schoolDay.
+export function schoolHour(timezone: string, now: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour12: false,
+    hour: "2-digit",
+  }).formatToParts(now);
+  const raw = Number(parts.find((p) => p.type === "hour")?.value);
+  if (!Number.isInteger(raw)) {
+    throw new Error(`Cannot resolve school hour for timezone ${timezone}.`);
+  }
+  // Some ICU builds report midnight as 24 under hour12:false — normalize.
+  return raw % 24;
+}
+
 // School-local weekday as 1 = Monday .. 7 = Sunday, matching
 // timetable_slots.day_of_week (§12.7 — a "today" timetable is the school's
 // today, not the server's).

@@ -63,7 +63,7 @@ biometricRouter.post(
       return;
     }
     try {
-      const result = await registerDevice(req.prisma, req.schoolId ?? "", parsed.data);
+      const result = await registerDevice(req.prisma, req.schoolId ?? "", parsed.data, req.user.userId);
       res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendBiometricError(res, err);
@@ -129,7 +129,7 @@ biometricRouter.patch(
       return;
     }
     try {
-      const result = await setDeviceActive(req.prisma, req.schoolId ?? "", req.params.deviceId ?? "", parsed.data.isActive);
+      const result = await setDeviceActive(req.prisma, req.schoolId ?? "", req.params.deviceId ?? "", parsed.data.isActive, req.user.userId);
       res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendBiometricError(res, err);

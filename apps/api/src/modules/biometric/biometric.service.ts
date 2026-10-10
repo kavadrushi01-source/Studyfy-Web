@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import type { PrismaClient } from "@prisma/client";
+import { recordAudit } from "../../lib/audit.js";
 import { schoolDay } from "../../lib/school-time.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateAttendanceKpis } from "../metrics/metrics.service.js";
@@ -31,6 +32,13 @@ export async function registerDevice(
   db: PrismaClient,
   schoolId: string,
   input: RegisterDeviceInput,
+  // §13.10 must-list: device register/revoke is audited. The actor travels
+  // as a parameter (not from req) so the service stays HTTP-free; the
+  // router passes req.user.userId. Sequential same-client write right after
+  // the change — not yet the same-transaction ideal (§13.10 "where
+  // possible"); recorded as a hardening follow-up, with a test pinning that
+  // the row exists.
+  actorId: string,
 ): Promise<{ device: DeviceInfo & { location: string | null; isActive: boolean }; deviceKey: string }> {
   const rawKey = `bio_${crypto.randomBytes(32).toString("hex")}`;
   const created = await db.biometricDevice.create({
@@ -40,6 +48,16 @@ export async function registerDevice(
       location: input.location,
       apiKeyHash: hashDeviceKey(rawKey),
     },
+  });
+  await recordAudit(db, {
+    schoolId,
+    actorId,
+    action: "DEVICE_REGISTER",
+    entity: "BiometricDevice",
+    entityId: created.id,
+    // Allowlisted shape only: the key hash NEVER enters a log row, even
+    // though it sits on the same record.
+    after: { id: created.id, name: created.name, isActive: created.isActive },
   });
   return {
     device: { id: created.id, schoolId, name: created.name, location: created.location, isActive: created.isActive },
@@ -61,12 +79,22 @@ export async function setDeviceActive(
   schoolId: string,
   deviceId: string,
   isActive: boolean,
+  actorId: string,
 ) {
   const device = await db.biometricDevice.findFirst({ where: { id: deviceId, schoolId } });
   if (!device) {
     throw new AuthError(404, "DEVICE_NOT_FOUND", "Device not found in this school.");
   }
   const updated = await db.biometricDevice.update({ where: { id: device.id }, data: { isActive } });
+  await recordAudit(db, {
+    schoolId,
+    actorId,
+    action: isActive ? "DEVICE_RESUME" : "DEVICE_SUSPEND",
+    entity: "BiometricDevice",
+    entityId: updated.id,
+    before: { id: device.id, name: device.name, isActive: device.isActive },
+    after: { id: updated.id, name: updated.name, isActive: updated.isActive },
+  });
   return { device: { id: updated.id, name: updated.name, isActive: updated.isActive } };
 }
 

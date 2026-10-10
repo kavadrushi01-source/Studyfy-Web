@@ -1,0 +1,35 @@
+name: Scheduled jobs
+
+# Phase 4 Chunk 1 (§12.4): an in-process timer cannot run these — Render's
+# free instance sleeps, and a sleeping process runs no timers. This workflow
+# IS the scheduler: it wakes the API with an authenticated POST once an
+# hour, and each job decides per school whether it is that school's hour.
+#
+# Setup (founder, one time, in GitHub repo settings):
+# - Secret  CRON_SECRET — the same 32+ char random string as the API's
+#   CRON_SECRET env var (Render dashboard). The API compares in constant
+#   time; a wrong secret gets 401, an unset one gets 503 — never "open".
+# - Variable API_URL — the live API origin, e.g.
+#   https://studyfy-api.onrender.com (no trailing slash).
+#
+# Known weakness, documented not hidden (§12.4): GitHub runs on UTC, can run
+# late, and has been known to disable scheduled workflows on quiet
+# repositories — check now and then that this is still firing. A missed run
+# delays an email; it never leaves access open, because the subscription
+# gate also checks dates at request time (§13.4).
+
+on:
+  schedule:
+    # Hourly at :15 — off the :00 rush, exact minute is irrelevant since
+    # jobs decide per-school hours themselves.
+    - cron: "15 * * * *"
+  workflow_dispatch: {} # manual trigger, for verifying the wiring
+
+jobs:
+  fee-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl --fail --show-error -X POST \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.API_URL }}/api/v1/internal/jobs/fee-reminders"

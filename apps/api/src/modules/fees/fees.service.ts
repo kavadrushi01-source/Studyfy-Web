@@ -402,6 +402,29 @@ export async function runFeeReminders(
     },
   });
 
+  // §13.11 demo suppression, BEFORE the mailer is even acquired: seeded
+  // guardian addresses end in .demo and don't exist — sending would bounce
+  // (damaging the free email account's reputation) and anyone could burn
+  // its daily quota by triggering runs in a loop. Log instead of send. The
+  // lastReminderAt stamp is still written, so the run stays idempotent and
+  // the cron never retries a suppressed invoice.
+  if (school.isDemo) {
+    for (const invoice of invoices) {
+      if (invoice.lastReminderAt && schoolDay(school.timezone, invoice.lastReminderAt) === today) {
+        continue;
+      }
+      const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
+      if (outstanding.lessThanOrEqualTo(0)) {
+        continue;
+      }
+      await db.feeInvoice.update({ where: { id: invoice.id }, data: { lastReminderAt: now } });
+    }
+    if (invoices.length > 0) {
+      console.log(`[demo] fee reminders for ${school.slug}: ${invoices.length} invoice(s) logged, not emailed.`);
+    }
+    return { emailed: 0, skipped: invoices.length };
+  }
+
   let send: ReturnType<typeof mailer>;
   try {
     send = mailer();

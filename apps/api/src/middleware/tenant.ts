@@ -40,7 +40,12 @@ export function tenantMiddleware(req: Request, res: Response, next: NextFunction
         reject(res, 401, "UNAUTHENTICATED", "School context is no longer valid.");
         return;
       }
-      if (school.subscriptionStatus === "SUSPENDED") {
+      // Demo schools (§13.11) are exempt from billing-driven suspension:
+      // the public portfolio site runs on them, and no automation (or test
+      // suspension) may ever lock the live demo. Real billing enforcement
+      // lands in Chunk 2; this exemption is wired now so it can never be
+      // forgotten later.
+      if (!school.isDemo && school.subscriptionStatus === "SUSPENDED") {
         reject(
           res,
           403,
@@ -49,7 +54,7 @@ export function tenantMiddleware(req: Request, res: Response, next: NextFunction
         );
         return;
       }
-      if (school.subscriptionStatus === "TRIAL" && school.trialEndsAt.getTime() < Date.now()) {
+      if (!school.isDemo && school.subscriptionStatus === "TRIAL" && school.trialEndsAt.getTime() < Date.now()) {
         reject(
           res,
           403,

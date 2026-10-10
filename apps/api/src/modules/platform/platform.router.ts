@@ -4,6 +4,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { platformOnlyMiddleware } from "../../middleware/platform-only.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { AuthError } from "../auth/auth.service.js";
+import { listPlatformAuditSchema } from "../audit/audit.schemas.js";
 import { getOwnerDashboard } from "../metrics/metrics.service.js";
 
 export const platformRouter = Router();
@@ -73,5 +74,60 @@ platformRouter.get(
       }
       throw err;
     }
+  }),
+);
+
+// Platform-wide audit reads (§13.10): the Owner sees every school's rows
+// AND the platform-level NULL rows (owner logins live there) — the raw
+// client applies no tenant pin. Optional ?schoolId= narrows to one school.
+// Same middleware as every route here: platform-only, never tenant-scoped.
+platformRouter.get(
+  "/audit-logs",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.audit.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = listPlatformAuditSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    const { take, schoolId, entity, action } = parsed.data;
+    const logs = await req.prisma.auditLog.findMany({
+      where: {
+        ...(schoolId ? { schoolId } : {}),
+        ...(entity ? { entity } : {}),
+        ...(action ? { action } : {}),
+      },
+      select: {
+        id: true,
+        schoolId: true,
+        actorId: true,
+        impersonatedBy: true,
+        action: true,
+        entity: true,
+        entityId: true,
+        before: true,
+        after: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take,
+    });
+    res.json({ success: true, data: { logs }, error: null, meta: null });
   }),
 );

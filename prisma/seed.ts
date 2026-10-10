@@ -110,20 +110,22 @@ const PERMISSIONS: { key: string; description: string }[] = [
   { key: "inventory.manage", description: "Manage items and record stock in/out (School Admin)" },
   { key: "dashboard.read", description: "Read own role's dashboard bundle (each board's route additionally role-guards its audience)" },
   { key: "platform.schools.read", description: "List every school cross-tenant (Platform Owner only)" },
+  { key: "audit.read", description: "Read own school's audit logs (School Admin only; Platform Owner uses platform.audit.read)" },
+  { key: "platform.audit.read", description: "Read audit logs across all schools (Platform Owner only)" },
 ];
 
 // Role -> permission keys. STUDENT/PARENT hold students.read because the
 // PERMISSION grants access while self-scope narrows ROWS — holding the key
 // never means seeing everyone.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.read", "homework.submit", "homework.grade", "messages.read", "documents.read", "documents.write", "crm.read", "crm.manage", "certificates.read", "certificates.manage", "library.read", "library.manage", "transport.read", "transport.manage", "payroll.read", "payroll.manage", "inventory.read", "inventory.manage", "dashboard.read"],
+  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.read", "homework.submit", "homework.grade", "messages.read", "documents.read", "documents.write", "crm.read", "crm.manage", "certificates.read", "certificates.manage", "library.read", "library.manage", "transport.read", "transport.manage", "payroll.read", "payroll.manage", "inventory.read", "inventory.manage", "dashboard.read", "audit.read"],
   TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "notices.read", "notices.write", "exams.manage", "exams.read", "timetable.read", "homework.manage", "homework.read", "homework.grade", "messages.send", "messages.read", "documents.read", "library.read", "transport.read", "payroll.read", "inventory.read", "dashboard.read"],
   ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "notices.read", "fees.manage", "fees.read", "exams.read", "timetable.read", "documents.read", "documents.write", "crm.read", "certificates.read", "certificates.manage", "payroll.read", "payroll.manage", "inventory.read", "dashboard.read"],
   STUDENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.submit", "homework.read", "messages.send", "messages.read", "library.read", "transport.read", "dashboard.read"],
   PARENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.read", "messages.send", "messages.read", "library.read", "transport.read", "dashboard.read"],
   LIBRARIAN: ["students.read", "library.read", "library.manage", "payroll.read", "dashboard.read"],
   TRANSPORT_MANAGER: ["students.read", "transport.read", "transport.manage", "payroll.read"],
-  PLATFORM_OWNER: ["platform.schools.read"],
+  PLATFORM_OWNER: ["platform.schools.read", "platform.audit.read"],
 };
 
 export async function seedPermissions(db: PrismaClient): Promise<void> {
@@ -164,7 +166,12 @@ export async function seedPermissions(db: PrismaClient): Promise<void> {
 // Demo data (DEMO_DATA.md — exact names, do not invent different ones)
 // ---------------------------------------------------------------------------
 
-const DEMO_PASSWORD = "Demo@1234";
+const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "Demo@1234";
+// DEMO_PASSWORD is the LIVE demo password (host env vars + password manager,
+// §13.11) — the fallback above is the LOCAL-development default only (the
+// documented value in DEMO_DATA.md). Assume the repo is public: the live
+// password must never appear in a committed file. The seed logs which source
+// it used, so a production seed with the fallback is visible, not silent.
 // Cost 10: the RULES.md minimum. One hash is computed and REUSED for every
 // seeded account (same password → same string is fine here), keeping the
 // seed fast. Real imports must use random per-account passwords (§13.3).
@@ -204,6 +211,10 @@ interface DemoSchool {
   state: string;
   brandColor: string;
   emailDomain: string;
+  // Paid plan tier shown by this demo school (§16.1, DEMO_DATA.md): SOS is
+  // PREMIUM (every module), Ramakrishna is STANDARD (Phase 3 gated) — the
+  // side-by-side plan-gating demo only works if the seeds differ.
+  plan: "PREMIUM" | "STANDARD";
   adminFirst: string;
   adminLast: string;
   classes: { name: string; sections: string[] }[];
@@ -223,6 +234,7 @@ const SCHOOLS: DemoSchool[] = [
     state: "Gujarat",
     brandColor: "#0D9488",
     emailDomain: "schoolofscience.demo",
+    plan: "PREMIUM",
     adminFirst: "Kavita",
     adminLast: "Rao",
     classes: [
@@ -270,6 +282,7 @@ const SCHOOLS: DemoSchool[] = [
     state: "Gujarat",
     brandColor: "#7F1D1D",
     emailDomain: "ramakrishnaschool.demo",
+    plan: "STANDARD",
     adminFirst: "S",
     adminLast: "Venkataraman",
     classes: [
@@ -353,6 +366,9 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
   // ACTIVE, never TRIAL: a "trial ending" countdown would be a wrong
   // impression in a walkthrough (DEMO_DATA.md). trialEndsAt still required
   // by the schema — set a year out, inert while ACTIVE.
+  // isDemo = true: these are the portfolio demo schools (§13.11) — exempt
+  // from billing automation/suspension, outbound mail suppressed, the only
+  // schools the nightly reset may touch. plan per DEMO_DATA.md (§16.1).
   const school = await db.school.upsert({
     where: { slug: spec.slug },
     update: {
@@ -362,6 +378,8 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
       timezone: "Asia/Kolkata",
       subscriptionStatus: "ACTIVE",
       brandColor: spec.brandColor,
+      isDemo: true,
+      plan: spec.plan,
     },
     create: {
       name: spec.name,
@@ -372,6 +390,8 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
       subscriptionStatus: "ACTIVE",
       trialEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       brandColor: spec.brandColor,
+      isDemo: true,
+      plan: spec.plan,
     },
   });
 
@@ -1061,7 +1081,10 @@ async function main(): Promise<void> {
     console.log(`Seeded permissions: ${PERMISSIONS.map((p) => p.key).join(", ")}`);
     await seedDemo(db);
     console.log(`Seeded demo schools: ${SCHOOLS.map((s) => s.slug).join(", ")} + owner ${OWNER_EMAIL}`);
-    console.log(`Demo password for every account: ${DEMO_PASSWORD}`);
+    // The VALUE never prints: deploy logs are not a password manager. The
+    // source does, so a production seed running on the local fallback is
+    // visible instead of silent (§13.11).
+    console.log(`Demo password source: ${process.env.DEMO_PASSWORD ? "DEMO_PASSWORD (environment)" : "local fallback (DEMO_DATA.md) — NOT for production"}`);
   } finally {
     await db.$disconnect();
   }

@@ -2,6 +2,7 @@ import cookieParser from "cookie-parser";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import { authRouter } from "./modules/auth/auth.router.js";
 import { attendanceRouter } from "./modules/attendance/attendance.router.js";
+import { auditRouter } from "./modules/audit/audit.router.js";
 import { biometricRouter } from "./modules/biometric/biometric.router.js";
 import { certificatesRouter } from "./modules/certificates/certificates.router.js";
 import { crmRouter } from "./modules/crm/crm.router.js";
@@ -9,6 +10,7 @@ import { documentsRouter } from "./modules/documents/documents.router.js";
 import { examsRouter } from "./modules/exams/exams.router.js";
 import { homeworkRouter } from "./modules/homework/homework.router.js";
 import { inventoryRouter } from "./modules/inventory/inventory.router.js";
+import { jobsRouter } from "./modules/jobs/jobs.router.js";
 import { libraryRouter } from "./modules/library/library.router.js";
 import { messagesRouter } from "./modules/messages/messages.router.js";
 import { payrollRouter } from "./modules/payroll/payroll.router.js";
@@ -55,6 +57,7 @@ export function createApp(): Express {
   app.use("/api/v1/platform", platformRouter);
   app.use("/api/v1/public", publicRouter);
   app.use("/api/v1", attendanceRouter);
+  app.use("/api/v1", auditRouter);
   app.use("/api/v1", biometricRouter);
   app.use("/api/v1", certificatesRouter);
   app.use("/api/v1", crmRouter);
@@ -63,6 +66,10 @@ export function createApp(): Express {
   app.use("/api/v1", examsRouter);
   app.use("/api/v1", homeworkRouter);
   app.use("/api/v1", inventoryRouter);
+  // Scheduled-job triggers (§12.4): cronAuthMiddleware ONLY — mounted here
+  // (not under /platform or /schools) so no tenant/platform middleware can
+  // ever attach to them by mount-point accident.
+  app.use("/api/v1", jobsRouter);
   app.use("/api/v1", libraryRouter);
   app.use("/api/v1", messagesRouter);
   app.use("/api/v1", payrollRouter);
