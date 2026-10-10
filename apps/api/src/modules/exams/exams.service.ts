@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { pickAuditFields } from "../../lib/audit.js";
 import { gradeLetter, percentOf, rankAll, topK } from "../../lib/grades.js";
 import { GroqApiError, GroqUnconfiguredError, groq } from "../../lib/groq.js";
 import type { ReportCardData } from "../../lib/report-card.js";
@@ -113,8 +114,19 @@ export async function enterMarks(
     throw new AuthError(400, "STUDENT_NOT_IN_SECTION", "Every graded student must belong to the section.");
   }
 
-  await db.$transaction(
-    input.records.map((record) =>
+  // Audit (§13.10 MARK_CREATE/MARK_UPDATE with before/after scores) rides
+  // in the SAME array transaction as the upserts: pre-fetch tells creates
+  // apart from overwrites, and the log rows commit with the marks or not
+  // at all. Snapshots go through pickAuditFields (scores as numbers —
+  // Decimals are objects, not scalars).
+  const previous = await db.mark.findMany({
+    where: { examSubjectId: examSubject.id, studentId: { in: studentIds } },
+    select: { studentId: true, marksObtained: true },
+  });
+  const beforeByStudent = new Map(previous.map((m) => [m.studentId, m.marksObtained]));
+  const ops = [];
+  for (const record of input.records) {
+    ops.push(
       db.mark.upsert({
         where: { examSubjectId_studentId: { examSubjectId: examSubject.id, studentId: record.studentId } },
         update: { marksObtained: record.marksObtained, grade: record.grade },
@@ -126,8 +138,26 @@ export async function enterMarks(
           grade: record.grade,
         },
       }),
-    ),
-  );
+    );
+    const old = beforeByStudent.get(record.studentId);
+    const snapshot = { studentId: record.studentId, examSubjectId: examSubject.id, score: record.marksObtained };
+    ops.push(
+      db.auditLog.create({
+        data: {
+          schoolId: section.schoolId,
+          actorId: caller.userId,
+          action: old === undefined ? "MARK_CREATE" : "MARK_UPDATE",
+          entity: "Mark",
+          entityId: record.studentId,
+          ...(old !== undefined
+            ? { before: pickAuditFields("Mark", { ...snapshot, score: old === null ? null : Number(old) }) }
+            : {}),
+          after: pickAuditFields("Mark", snapshot),
+        },
+      }),
+    );
+  }
+  await db.$transaction(ops);
   // New scores → graded students' boards are stale (§12.3).
   invalidateStudentBoards(section.schoolId);
   invalidateAnalytics(section.schoolId);

@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import { recordAudit } from "../../lib/audit.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateStudentKpis } from "../metrics/metrics.service.js";
 import type { AdmitStudentInput } from "./students.schemas.js";
@@ -36,7 +37,16 @@ function tempPassword(): string {
 // users row for the student's own login, plus guardian accounts + links.
 // Runs on the tenant-SCOPED client, so the section lookup alone enforces
 // "this section belongs to this school" — a foreign sectionId 404s.
-export async function admitStudent(db: PrismaClient, input: AdmitStudentInput): Promise<AdmissionResult> {
+// Audit (§13.10 USER_CREATE): one row per FRESH user (student + new
+// guardians; reused sibling accounts create no user, so no row). Sequential
+// same-client writes right after each create — this looped multi-entity
+// flow can't join a single array transaction without restructuring its
+// reads (every audit row is asserted by test instead).
+export async function admitStudent(
+  db: PrismaClient,
+  input: AdmitStudentInput,
+  actorId: string,
+): Promise<AdmissionResult> {
   const [studentRole, parentRole] = await Promise.all([
     db.role.findUnique({ where: { name: "STUDENT" } }),
     db.role.findUnique({ where: { name: "PARENT" } }),
@@ -67,6 +77,16 @@ export async function admitStudent(db: PrismaClient, input: AdmitStudentInput): 
       passwordHash: await bcrypt.hash(studentTempPassword, BCRYPT_COST),
       name: input.name,
     },
+  });
+  // entityId is the email (stable, known upfront); the allowlist keeps
+  // hashes out — after carries role + active flag only.
+  await recordAudit(db, {
+    schoolId,
+    actorId,
+    action: "USER_CREATE",
+    entity: "User",
+    entityId: input.email,
+    after: { role: "STUDENT", isActive: true },
   });
   const student = await db.student.create({
     data: {
@@ -114,6 +134,14 @@ export async function admitStudent(db: PrismaClient, input: AdmitStudentInput): 
         passwordHash: await bcrypt.hash(fresh, BCRYPT_COST),
         name: guardian.name,
       },
+    });
+    await recordAudit(db, {
+      schoolId,
+      actorId,
+      action: "USER_CREATE",
+      entity: "User",
+      entityId: guardian.email,
+      after: { role: "PARENT", isActive: true },
     });
     await db.studentGuardian.create({
       data: { schoolId, studentId: student.id, parentId: created.id, relationship: guardian.relationship },

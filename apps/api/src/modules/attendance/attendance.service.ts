@@ -1,7 +1,9 @@
 import type { PrismaClient } from "@prisma/client";
+import { pickAuditFields } from "../../lib/audit.js";
 import { detectAnomalies, type AnomalyDay, type AttendanceAnomaly } from "../../lib/attendance-anomalies.js";
 import { GroqApiError, GroqUnconfiguredError, groq } from "../../lib/groq.js";
 import { mailerFor, MailerUnconfiguredError } from "../../lib/mailer.js";
+import { schoolDay } from "../../lib/school-time.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateAttendanceKpis, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
 import { invalidateAnalytics } from "../metrics/analytics.service.js";
@@ -57,8 +59,23 @@ export async function markAttendance(
     throw new AuthError(400, "STUDENT_NOT_IN_SECTION", "Every marked student must belong to the section.");
   }
 
-  await db.$transaction(
-    input.records.map((record) =>
+  // Audit (§13.10 ATTENDANCE_EDIT): routine same-day first marks are NOT
+  // logged (noise); audited are (a) overwrites of an existing row for the
+  // day and (b) any mark for a PAST school day ("edits made after the
+  // fact"). Both ride the SAME array transaction as the upserts. Dates are
+  // school-calendar days (§12.7), and snapshots carry the YYYY-MM-DD string
+  // (AuditSnapshots are scalars — Dates are objects).
+  const school = await db.school.findUnique({ where: { id: section.schoolId }, select: { timezone: true } });
+  const today = school ? schoolDay(school.timezone, new Date()) : input.date;
+  const isPastDay = input.date < today;
+  const previous = await db.attendance.findMany({
+    where: { studentId: { in: studentIds }, date },
+    select: { studentId: true, status: true },
+  });
+  const beforeByStudent = new Map(previous.map((r) => [r.studentId, r.status]));
+  const ops = [];
+  for (const record of input.records) {
+    ops.push(
       db.attendance.upsert({
         where: { studentId_date: { studentId: record.studentId, date } },
         update: { status: record.status, sectionId: section.id, markedById },
@@ -71,8 +88,26 @@ export async function markAttendance(
           markedById,
         },
       }),
-    ),
-  );
+    );
+    const old = beforeByStudent.get(record.studentId);
+    if (old !== undefined || isPastDay) {
+      const snapshot = { studentId: record.studentId, sectionId: section.id, date: input.date, status: record.status };
+      ops.push(
+        db.auditLog.create({
+          data: {
+            schoolId: section.schoolId,
+            actorId: caller.userId,
+            action: "ATTENDANCE_EDIT",
+            entity: "Attendance",
+            entityId: record.studentId,
+            ...(old !== undefined ? { before: pickAuditFields("Attendance", { ...snapshot, status: old }) } : {}),
+            after: pickAuditFields("Attendance", snapshot),
+          },
+        }),
+      );
+    }
+  }
+  await db.$transaction(ops);
 
   // Absentee alerts (§7 Phase 1 #2): EVERY linked guardian gets one — the
   // join table means plural by default, so iterate links, not students.

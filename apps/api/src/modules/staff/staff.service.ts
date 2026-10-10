@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import { recordAudit } from "../../lib/audit.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateStaffCounts, invalidateTeacherBoards } from "../metrics/metrics.service.js";
 import type { InviteStaffInput } from "./staff.schemas.js";
@@ -20,7 +21,14 @@ export interface InvitedStaff {
 // one action. Runs on the tenant-SCOPED client. Duplicate email in this
 // school is 409, mirroring admission. The temp password is returned once,
 // like admission (§13.3 — per-account random, never shared).
-export async function inviteStaffMember(db: PrismaClient, schoolId: string, input: InviteStaffInput): Promise<InvitedStaff> {
+// Audit (§13.10 USER_CREATE) rides INSIDE the same interactive transaction
+// as both creates — the row and its log commit together or not at all.
+export async function inviteStaffMember(
+  db: PrismaClient,
+  schoolId: string,
+  input: InviteStaffInput,
+  actorId: string,
+): Promise<InvitedStaff> {
   const role = await db.role.findUnique({ where: { name: input.role } });
   if (!role) {
     throw new AuthError(500, "ROLES_NOT_SEEDED", "Roles are not seeded.");
@@ -30,22 +38,33 @@ export async function inviteStaffMember(db: PrismaClient, schoolId: string, inpu
     throw new AuthError(409, "EMAIL_TAKEN", "An account with this email already exists in this school.");
   }
   const password = tempPassword();
-  const user = await db.user.create({
-    data: {
+  const { staff } = await db.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        schoolId,
+        email: input.email,
+        passwordHash: await bcrypt.hash(password, BCRYPT_COST),
+        name: input.name,
+        roleId: role.id,
+      },
+    });
+    const created = await tx.staff.create({
+      data: {
+        schoolId,
+        userId: user.id,
+        designation: input.designation ?? (input.role === "TEACHER" ? "Teacher" : "Accountant"),
+      },
+      include: { user: { select: { id: true, email: true, name: true } } },
+    });
+    await recordAudit(tx as unknown as PrismaClient, {
       schoolId,
-      email: input.email,
-      passwordHash: await bcrypt.hash(password, BCRYPT_COST),
-      name: input.name,
-      roleId: role.id,
-    },
-  });
-  const staff = await db.staff.create({
-    data: {
-      schoolId,
-      userId: user.id,
-      designation: input.designation ?? (input.role === "TEACHER" ? "Teacher" : "Accountant"),
-    },
-    include: { user: { select: { id: true, email: true, name: true } } },
+      actorId,
+      action: "USER_CREATE",
+      entity: "User",
+      entityId: input.email,
+      after: { role: input.role, isActive: true },
+    });
+    return { staff: created };
   });
   // A new teacher shifts counts and class lists (§12.3).
   invalidateTeacherBoards(schoolId);

@@ -39,7 +39,7 @@ studentsRouter.post(
   tenantMiddleware,
   requirePermission("students.write"),
   catchAsync(async (req: Request, res: Response) => {
-    if (!req.prisma) {
+    if (!req.prisma || !req.user) {
       res.status(500).json({
         success: false,
         data: null,
@@ -59,7 +59,7 @@ studentsRouter.post(
       return;
     }
     try {
-      const result = await admitStudent(req.prisma, parsed.data);
+      const result = await admitStudent(req.prisma, parsed.data, req.user.userId);
       res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendStudentError(res, err);

@@ -55,7 +55,7 @@ staffRouter.post(
   tenantMiddleware,
   requirePermission("staff.manage"),
   catchAsync(async (req: Request, res: Response) => {
-    if (!req.prisma) {
+    if (!req.prisma || !req.user) {
       res.status(500).json({
         success: false,
         data: null,
@@ -75,7 +75,7 @@ staffRouter.post(
       return;
     }
     try {
-      const result = await inviteStaffMember(req.prisma, req.schoolId ?? "", parsed.data);
+      const result = await inviteStaffMember(req.prisma, req.schoolId ?? "", parsed.data, req.user.userId);
       res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendStaffError(res, err);
