@@ -42,13 +42,9 @@ interface ApiError {
 // Platform Owner board (§7 Phase 1 #9, §8.3 + sequencing note): shared Shell
 // with the canonical owner nav (§8.4 — destinations render as dimmed text +
 // "Soon" until their pages exist), 4 KPI cards, searchable Schools table,
-// Platform Analytics chart, Subscription Plans panel. Sequencing honesty:
-// revenue and plans render live from the API — today that is ₹0.00 / empty,
-// with an explicit "Phase 4 billing" note only in that state, never
-// projections (§8.1). The schools search filters the returned list
-// client-side, which is the honest shape at this scale (tens of schools,
-// one 100-row response), not a paged server query pretending at Google
-// scale.
+// Platform Analytics chart, Subscription Plans panel. Revenue and plans
+// render live from paid invoices + the plan mirror (Chunk 2); test/manual
+// payments are labelled as such on the invoice rows (§16.1).
 
 const PLAN_COLORS = [colors.primary, colors.success, colors.warning, colors.accent, colors.danger, colors.muted];
 
@@ -145,7 +141,7 @@ function PlansDonut({ plans }: { plans: { plan: string; schools: number }[] }): 
       <EmptyState
         icon={<PieChart size={22} />}
         title="No plan data yet"
-        detail="No plan data yet — the plan mix renders here once Phase 4 billing exists. Total revenue likewise stays ₹0.00 until then."
+        detail="Schools on paid plans appear here once billing assigns them."
       />
     );
   }
@@ -158,7 +154,7 @@ function PlansDonut({ plans }: { plans: { plan: string; schools: number }[] }): 
       <EmptyState
         icon={<PieChart size={22} />}
         title="No plan data yet"
-        detail="No plan data yet — the plan mix renders here once Phase 4 billing exists. Total revenue likewise stays ₹0.00 until then."
+        detail="Schools on paid plans appear here once billing assigns them."
       />
     );
   }
@@ -301,7 +297,7 @@ export default function OwnerDashboardPage() {
     {
       label: "Total Revenue",
       value: inr(bundle.totalRevenue),
-      ...(bundle.totalRevenue === "0.00" ? { sub: "Billing lands in Phase 4" } : {}),
+      ...(bundle.totalRevenue === "0.00" ? { sub: "No paid invoices yet" } : { sub: "Paid invoices, test payments labelled" }),
       color: colors.muted,
       tint: colors.lineSoft,
       icon: <IndianRupee size={22} />,

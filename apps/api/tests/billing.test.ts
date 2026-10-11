@@ -185,6 +185,40 @@ describe("invoices (§16.1, integration)", () => {
       expect(await prisma.auditLog.count({ where: { schoolId: school.schoolId, action: "SUBSCRIPTION_INVOICE_PAID" } })).toBe(1);
     },
   );
+
+  it(
+    "paid invoices flow into owner revenue and the plan mix (invalidation proven)",
+    { timeout: 60000 },
+    async () => {
+      const { getOwnerDashboard } = await import("../src/modules/metrics/metrics.service.js");
+      const school = await registerSchool(`Billing Revenue School ${uid()}`);
+      // BASIC 299900 + 18% (53982, same-state Gujarat) = 353882 paise.
+      await prisma.school.update({ where: { id: school.schoolId }, data: { state: "Gujarat" } });
+      process.env.PLATFORM_STATE = "Gujarat";
+      try {
+        await setSubscription(prisma, school.schoolId, { plan: "BASIC", status: "ACTIVE", currentPeriodStart: null, currentPeriodEnd: null }, school.adminId, "SUBSCRIPTION_CREATED");
+        const issued = await issueInvoice(
+          prisma,
+          school.schoolId,
+          { plan: "BASIC" as const, periodStart: startOfDayUtc(new Date("2026-11-01T00:00:00Z")), periodEnd: startOfDayUtc(new Date("2026-11-30T00:00:00Z")), schoolState: "Gujarat", platformState: "Gujarat" },
+          school.adminId,
+        );
+        await markInvoicePaid(prisma, issued.id, school.adminId);
+        // Parallel files also write invoices — floor assert on OUR total,
+        // exact-total would be order-dependent.
+        const board = await getOwnerDashboard(prisma);
+        expect(Number(board.totalRevenue)).toBeGreaterThanOrEqual(3538.82);
+        const basic = board.plans.find((p) => p.plan === "BASIC");
+        expect(basic?.schools).toBeGreaterThanOrEqual(1);
+      } finally {
+        if (savedPlatformState === undefined) {
+          delete process.env.PLATFORM_STATE;
+        } else {
+          process.env.PLATFORM_STATE = savedPlatformState;
+        }
+      }
+    },
+  );
 });
 
 describe("billing cycle (§12.4 + §16.1)", () => {

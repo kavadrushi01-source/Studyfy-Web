@@ -105,6 +105,15 @@ export function schoolAccess(
 // row in the SAME transaction. Every transition is audited.
 // ---------------------------------------------------------------------------
 
+// Owner-board invalidation (dynamic import: metrics.service → auth.service
+// → this module, so a static import would cycle. Same precedent as
+// biometric.service's dynamic prisma import — resolved at call time, long
+// after module evaluation).
+async function invalidateOwner(): Promise<void> {
+  const { invalidateOwnerBoards } = await import("../metrics/metrics.service.js");
+  invalidateOwnerBoards();
+}
+
 export interface SetSubscriptionInput {
   plan: SchoolPlan;
   status: "TRIAL" | "ACTIVE" | "PAST_DUE" | "SUSPENDED";
@@ -163,6 +172,9 @@ export async function setSubscription(
     });
     return row;
   });
+  // New school registrations reshape every platform-board figure (§12.3) —
+  // and so does every billing write below (counts, revenue, plan mix).
+  await invalidateOwner();
   return { id: result.id, plan: result.plan as SchoolPlan, status: result.status };
 }
 
@@ -260,6 +272,7 @@ export async function issueInvoice(
     }
     throw err;
   });
+  await invalidateOwner();
   return { id: created.id, invoiceNumber: created.invoiceNumber, amountPaise: created.amountPaise, status: created.status };
 }
 
@@ -334,6 +347,7 @@ export async function markInvoicePaid(
     }
     return paid;
   });
+  await invalidateOwner();
   return { id: updated.id, status: updated.status };
 }
 
@@ -458,6 +472,7 @@ export async function recordSubscriptionCapture(
       });
       return flipped;
     });
+    await invalidateOwner();
     return { invoiceId: paid.id, status: paid.status, alreadyProcessed: false };
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {

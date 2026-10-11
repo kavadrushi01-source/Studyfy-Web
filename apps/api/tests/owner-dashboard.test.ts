@@ -74,9 +74,16 @@ describe("GET /api/v1/platform/dashboard (§8.3 + sequencing note)", () => {
       expect(slugs).toContain(schoolB.slug);
       const rowA = board.schools.find((s) => s.slug === schoolA.slug)!;
       expect(rowA.subscriptionStatus).toBe("ACTIVE");
-      // Billing data doesn't exist until Phase 4: zeros, never projections.
-      expect(board.totalRevenue).toBe("0.00");
-      expect(board.plans).toEqual([]);
+      // Billing figures are COMPUTED now (Chunk 2), never projected: revenue
+      // is the formatted SUM of paid invoices (zero only when none are
+      // paid), plans the live non-null mix. Exact values are
+      // order-dependent in the shared DB — shape + formatting here, exact
+      // proofs in billing.test.ts.
+      expect(board.totalRevenue).toMatch(/^\d+\.\d{2}$/);
+      for (const entry of board.plans) {
+        expect(typeof entry.plan).toBe("string");
+        expect(entry.schools).toBeGreaterThanOrEqual(1);
+      }
       expect(board.analytics).toHaveLength(6);
       const current = board.analytics[board.analytics.length - 1]!;
       expect(current.month).toBe(board.asOf.month);

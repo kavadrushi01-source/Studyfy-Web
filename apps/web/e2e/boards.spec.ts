@@ -33,12 +33,20 @@ test.describe("student + parent boards", () => {
 });
 
 test.describe("owner board", () => {
-  test("sees both schools, honest zeros, admins denied", async ({ page }) => {
+  test("sees both schools, computed revenue, admins denied", async ({ page }) => {
     await login(page, ACCOUNTS.owner, null);
     await page.goto("/dashboard/owner");
+    // The schools table is newest-first and the e2e DB accumulates rows
+    // across runs — search for the seed schools instead of assuming page-1
+    // position (same rule as the roster and notice boards).
+    await page.getByPlaceholder(/search name or slug/i).fill("School of Science");
     await expect(page.getByText("School of Science")).toBeVisible({ timeout: 20000 });
+    await page.getByPlaceholder(/search name or slug/i).fill("Ramakrishna School");
     await expect(page.getByText("Ramakrishna School")).toBeVisible();
-    await expect(page.getByText("₹0.00", { exact: true }).first()).toBeVisible();
+    // Revenue is COMPUTED from paid subscription invoices now (Chunk 2) —
+    // seed invoices alone total ₹56,632.92, so assert a real formatted
+    // amount, never a frozen zero.
+    await expect(page.getByText(/₹[\d,]+\.\d{2}/).first()).toBeVisible();
     await page.screenshot({ path: "e2e/shots/owner-board.png" });
 
     await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);

@@ -1,0 +1,81 @@
+import { expect, test } from "@playwright/test";
+import { ACCOUNTS, PASSWORD, SOS_SLUG, login } from "./helpers";
+
+const API = process.env.E2E_API_URL ?? "http://localhost:4001";
+
+// Billing end to end (§16.1): plan/status display, TEST-stamped invoices,
+// and the suspended-admin exception journey on a FRESH school (never a
+// seed school — suspending SOS/RK would break every other spec sharing
+// this database).
+test.describe("billing", () => {
+  test("admin sees plan, status and TEST invoices", async ({ page }) => {
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    // Login lands on the "Open my board" interstitial — the sidebar nav
+    // only exists past it (same trap as the audit journey).
+    await page.getByRole("link", { name: /open my board/i }).click();
+    await page.getByRole("link", { name: "Billing" }).click();
+    await expect(page.getByRole("heading", { name: "Billing" })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("PREMIUM plan").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("ACTIVE").first()).toBeVisible();
+    await expect(page.getByText("TEST INVOICE").first()).toBeVisible();
+    await expect(page.getByText(/STY\/\d{2}-\d{2}\//).first()).toBeVisible();
+  });
+
+  test("suspended admin reaches billing with the suspended banner, nowhere else", async ({ page, request }) => {
+    const stamp = Date.now().toString(36);
+    const adminEmail = `billing-e2e-${stamp}@example.com`;
+    const reg = await request.post(`${API}/api/v1/auth/register`, {
+      data: {
+        schoolName: `Billing E2E School ${stamp}`,
+        adminName: "Billing E2E Admin",
+        adminEmail,
+        adminPassword: "password-123",
+      },
+    });
+    expect(reg.ok()).toBe(true);
+    const regBody = (await reg.json()) as { data: { school: { id: string; slug: string } } };
+    const schoolId = regBody.data.school.id;
+    const slug = regBody.data.school.slug;
+
+    const ownerLogin = await request.post(`${API}/api/v1/auth/login`, {
+      data: { email: ACCOUNTS.owner, password: PASSWORD },
+    });
+    expect(ownerLogin.ok()).toBe(true);
+    const ownerToken = ((await ownerLogin.json()) as { data: { accessToken: string } }).data.accessToken;
+    const issue = await request.post(`${API}/api/v1/platform/subscription-invoices`, {
+      headers: { Authorization: `Bearer ${ownerToken}` },
+      data: { schoolId, plan: "BASIC", periodStart: "2026-11-01", periodEnd: "2026-11-30" },
+    });
+    expect(issue.ok()).toBe(true);
+    await request.post(`${API}/api/v1/platform/schools/${schoolId}/suspend`, {
+      headers: { Authorization: `Bearer ${ownerToken}` },
+      data: {},
+    });
+
+    // Suspended admins keep working sessions (the §13.4 exception): prove
+    // the API login first, then plant the session and open billing. (The
+    // shared UI login helper only knows the Demo@1234 seed password, so a
+    // custom-password admin signs in over the API here.)
+    const adminApiLogin = await request.post(`${API}/api/v1/auth/login`, {
+      data: { schoolSlug: slug, email: adminEmail, password: "password-123" },
+    });
+    expect(adminApiLogin.ok()).toBe(true);
+    const adminBody = (await adminApiLogin.json()) as {
+      data: { accessToken: string; user: { schoolId: string } };
+    };
+    await page.goto("/login");
+    await page.evaluate(
+      (session: string) => window.localStorage.setItem("studyfy-session", session),
+      JSON.stringify({
+        token: adminBody.data.accessToken,
+        schoolSlug: slug,
+        issuedAt: Date.now(),
+        user: adminBody.data.user,
+      }),
+    );
+    await page.goto("/billing");
+    await expect(page.getByText("Account suspended").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("TEST INVOICE").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /pay .* online/i }).first()).toBeVisible();
+  });
+});

@@ -1000,13 +1000,16 @@ export interface OwnerDashboard {
   // TRIAL schools (= "pending" conversion). No PENDING status exists in the
   // schema — when one does, it belongs in this count too.
   trialPending: number;
-  // Phase 4 (#24) billing data doesn't exist yet: an honest zero, never a
-  // projection (§8.1's no-fabricated-data rule + §8.3's sequencing note).
+  // Revenue (§16.1, Phase 4 Chunk 2): computed ONLY from recorded PAID
+  // subscription invoices — test/manual payments included, labelled as such
+  // via paidMethod on the invoice rows themselves. Still "0.00" with no
+  // paid invoices (honest zero, never a projection).
   totalRevenue: string;
   schools: OwnerSchoolRow[];
   analytics: OwnerAnalyticsPoint[];
-  // Subscription plan mix renders from billing data that doesn't exist
-  // until Phase 4: empty by design, same rule as revenue above.
+  // Subscription plan mix, from the schools.plan mirror (single-writer
+  // rule — always in sync with the subscriptions rows). Unplanned schools
+  // (trial, pre-billing) carry NULL and are excluded, not invented.
   plans: { plan: string; schools: number }[];
   asOf: { month: string };
 }
@@ -1034,7 +1037,7 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
   }
   const windowStart = new Date(Date.UTC(months[0]!.year, months[0]!.month - 1, 1));
 
-  const [statuses, recent, schools] = await Promise.all([
+  const [statuses, recent, schools, revenue, planMix] = await Promise.all([
     db.school.groupBy({ by: ["subscriptionStatus"], _count: { id: true } }),
     db.school.findMany({
       where: { createdAt: { gte: windowStart } },
@@ -1053,10 +1056,14 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
+    db.subscriptionInvoice.aggregate({
+      where: { status: "PAID" },
+      _sum: { amountPaise: true, cgstPaise: true, sgstPaise: true, igstPaise: true },
+    }),
+    db.school.groupBy({ by: ["plan"], _count: { id: true } }),
   ]);
 
-  const countOf = (status: string): number => statuses.find((s) => s.subscriptionStatus === status)?._count.id ?? 0;
-  const perMonth = new Map<string, number>();
+  const countOf = (status: string): number => statuses.find((s) => s.subscriptionStatus === status)?._count.id ?? 0;  const perMonth = new Map<string, number>();
   for (const school of recent) {
     const k = `${school.createdAt.getUTCFullYear()}-${String(school.createdAt.getUTCMonth() + 1).padStart(2, "0")}`;
     perMonth.set(k, (perMonth.get(k) ?? 0) + 1);
@@ -1066,7 +1073,14 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
     totalSchools: statuses.reduce((sum, s) => sum + s._count.id, 0),
     activeSchools: countOf("ACTIVE"),
     trialPending: countOf("TRIAL"),
-    totalRevenue: "0.00",
+    // Integer paise summed in SQL, formatted once — never floats (§13.6).
+    totalRevenue: (
+      ((revenue._sum.amountPaise ?? 0) +
+        (revenue._sum.cgstPaise ?? 0) +
+        (revenue._sum.sgstPaise ?? 0) +
+        (revenue._sum.igstPaise ?? 0)) /
+      100
+    ).toFixed(2),
     schools: schools.map((school) => ({
       id: school.id,
       name: school.name,
@@ -1081,7 +1095,9 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
       const k = `${m.year}-${String(m.month).padStart(2, "0")}`;
       return { month: k, schools: perMonth.get(k) ?? 0 };
     }),
-    plans: [],
+    plans: planMix
+      .filter((p) => p.plan !== null)
+      .map((p) => ({ plan: p.plan as string, schools: p._count.id })),
     asOf: { month: `${year}-${String(month).padStart(2, "0")}` },
   };
   kpis.set(key, board);
@@ -1089,7 +1105,8 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
 }
 
 // New school registrations reshape every figure here (counts, table,
-// analytics). Subscription/billing writes will join this set in Phase 4.
+// analytics) — and since Chunk 2, so does every billing write (revenue,
+// plan mix), via invalidateOwner() in the billing module.
 export function invalidateOwnerBoards(): void {
   kpis.deletePrefix("kpi:owner:");
 }

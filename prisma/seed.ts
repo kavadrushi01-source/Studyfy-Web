@@ -17,6 +17,7 @@
 //   isDemo schools + the seeded owner, nothing else).
 import { Prisma, PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { PLANS } from "../apps/api/src/modules/billing/plans.js";
 
 // Parallel vitest workers share one database, so every global seed below
 // must survive concurrent identical callers. Two failure modes, both seen
@@ -402,8 +403,69 @@ async function seedOwner(db: PrismaClient, passwordHash: string): Promise<void> 
   }
 }
 
-async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string, string>, passwordHash: string): Promise<void> {
-  const required = ["SCHOOL_ADMIN", "TEACHER", "ACCOUNTANT", "STUDENT", "PARENT", "LIBRARIAN", "TRANSPORT_MANAGER"] as const;
+// Demo billing history (§16.1, DEMO_DATA.md): an ACTIVE subscription row +
+// three PAID invoices (Sep–Nov 2026), so the owner revenue/plan boards
+// aren't empty in a walkthrough. Fictional seed data for dev/demo only —
+// paidMethod MANUAL labels them test payments, never real revenue (§16.1,
+// §8.1). Idempotent: fixed periods (skipped when present) and deterministic
+// numbers. Demo schools are isDemo-exempt from the billing cycle, so these
+// rows never mutate after seeding. Prices come from the single PLANS config
+// (§16.1 — never copied).
+async function seedSubscriptions(
+  db: PrismaClient,
+  schoolId: string,
+  slug: string,
+  plan: "PREMIUM" | "STANDARD",
+): Promise<void> {
+  const tag = slug === "school-of-science" ? "SOS" : "RK";
+  const price = PLANS[plan].pricePaise;
+  const gstTotal = Math.round((price * 18) / 100);
+  const cgst = Math.round(gstTotal / 2);
+  const sgst = gstTotal - cgst;
+  const months = [
+    { y: 2026, m: 9 },
+    { y: 2026, m: 10 },
+    { y: 2026, m: 11 },
+  ];
+  let i = 0;
+  for (const { y, m } of months) {
+    i += 1;
+    const periodStart = new Date(Date.UTC(y, m - 1, 1));
+    const periodEnd = new Date(Date.UTC(y, m, 0));
+    const existing = await db.subscriptionInvoice.findFirst({ where: { schoolId, periodStart } });
+    if (!existing) {
+      await db.subscriptionInvoice.create({
+        data: {
+          schoolId,
+          invoiceNumber: `STY/26-27/${tag}${i}`,
+          financialYear: "2026-27",
+          amountPaise: price,
+          cgstPaise: cgst,
+          sgstPaise: sgst,
+          igstPaise: 0,
+          status: "PAID",
+          periodStart,
+          periodEnd,
+          paidAt: periodEnd,
+          paidMethod: "MANUAL",
+        },
+      });
+    }
+  }
+  await db.subscription.upsert({
+    where: { schoolId },
+    update: { plan, status: "ACTIVE" },
+    create: {
+      schoolId,
+      plan,
+      status: "ACTIVE",
+      currentPeriodStart: new Date(Date.UTC(2026, 10, 1)),
+      currentPeriodEnd: new Date(Date.UTC(2026, 10, 30)),
+    },
+  });
+}
+
+async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string, string>, passwordHash: string): Promise<void> {  const required = ["SCHOOL_ADMIN", "TEACHER", "ACCOUNTANT", "STUDENT", "PARENT", "LIBRARIAN", "TRANSPORT_MANAGER"] as const;
   for (const name of required) {
     if (!roles.get(name)) {
       throw new Error(`Role ${name} must be seeded before demo schools.`);
@@ -449,6 +511,8 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
       create: { schoolId: school.id, name: subject.name, group: subject.group },
     });
   }
+
+  await seedSubscriptions(db, school.id, spec.slug, spec.plan);
 
   const year = await db.academicYear.upsert({
     where: { schoolId_name: { schoolId: school.id, name: "2026-27" } },
