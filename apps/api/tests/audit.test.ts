@@ -25,8 +25,13 @@ async function registerSchool(name: string): Promise<{ schoolId: string; slug: s
       adminPassword: "password-123",
     })
     .expect(201);
+  // Device + remarks rows are Phase 3-gated (§16.1): this fixture school
+  // buys Premium+Active. Plan-gating itself is proven in
+  // billing-gating.test.ts.
+  const schoolId = res.body.data.school.id as string;
+  await prisma.school.update({ where: { id: schoolId }, data: { plan: "PREMIUM", subscriptionStatus: "ACTIVE" } });
   return {
-    schoolId: res.body.data.school.id as string,
+    schoolId,
     slug: res.body.data.school.slug as string,
     adminToken: res.body.data.accessToken as string,
   };

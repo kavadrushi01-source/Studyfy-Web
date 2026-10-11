@@ -92,11 +92,17 @@ describe("demo-school billing exemption (§13.11, §13.4)", () => {
 
     const real = await registerSchool(`Real Suspended School ${uid()}`);
     await prisma.school.update({ where: { id: real.schoolId }, data: { subscriptionStatus: "SUSPENDED" } });
-    const blocked = await request(app)
+    // The suspended ADMIN can still log in (§13.4 exception — billing is
+    // reachable); the gate moves to the tenant routes instead.
+    const adminLogin = await request(app)
       .post("/api/v1/auth/login")
-      .send({ email: real.adminEmail, password: "password-123", schoolSlug: real.slug });
-    expect(blocked.status).toBe(403);
-    expect(blocked.body.error.code).toBe("SCHOOL_SUSPENDED");
+      .send({ email: real.adminEmail, password: "password-123", schoolSlug: real.slug })
+      .expect(200);
+    const denied = await request(app)
+      .get(`/api/v1/schools/${real.schoolId}/students`)
+      .set("Authorization", `Bearer ${adminLogin.body.data.accessToken as string}`);
+    expect(denied.status).toBe(403);
+    expect(denied.body.error.code).toBe("SCHOOL_SUSPENDED");
   });
 
   it("lets a trial-lapsed demo school keep working, while a real lapsed trial is blocked", async () => {

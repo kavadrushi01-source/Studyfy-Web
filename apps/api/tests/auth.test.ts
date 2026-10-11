@@ -176,11 +176,13 @@ describe("POST /api/v1/auth/login", () => {
       where: { id: body.school.id },
       data: { subscriptionStatus: "SUSPENDED" },
     });
-    const suspended = await request(app)
+    // Suspended admin CAN log in (§13.4 exception — billing is reachable);
+    // everyone else on the suspended school still gets 403 (proven in
+    // billing-owner.test.ts, both directions).
+    await request(app)
       .post("/api/v1/auth/login")
       .send({ email: body.user.email, password: "password-123", schoolSlug: body.school.slug })
-      .expect(403);
-    expect(suspended.body.error.code).toBe("SCHOOL_SUSPENDED");
+      .expect(200);
 
     await prisma.school.update({
       where: { id: body.school.id },
