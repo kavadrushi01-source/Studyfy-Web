@@ -5,6 +5,7 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { listAuditSchema } from "./audit.schemas.js";
+import { listAuditLogs } from "./audit.service.js";
 
 export const auditRouter = Router();
 
@@ -55,25 +56,8 @@ auditRouter.get(
       return;
     }
     try {
-      const { take, entity, action } = parsed.data;
-      const logs = await req.prisma.auditLog.findMany({
-        where: { ...(entity ? { entity } : {}), ...(action ? { action } : {}) },
-        select: {
-          id: true,
-          schoolId: true,
-          actorId: true,
-          impersonatedBy: true,
-          action: true,
-          entity: true,
-          entityId: true,
-          before: true,
-          after: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: "desc" },
-        take,
-      });
-      res.json({ success: true, data: { logs }, error: null, meta: null });
+      const { logs, nextCursor } = await listAuditLogs(req.prisma, parsed.data);
+      res.json({ success: true, data: { logs, nextCursor }, error: null, meta: null });
     } catch (err) {
       sendAuditError(res, err);
     }

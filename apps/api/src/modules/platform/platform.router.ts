@@ -5,6 +5,7 @@ import { platformOnlyMiddleware } from "../../middleware/platform-only.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { AuthError } from "../auth/auth.service.js";
 import { listPlatformAuditSchema } from "../audit/audit.schemas.js";
+import { listAuditLogs } from "../audit/audit.service.js";
 import { getOwnerDashboard } from "../metrics/metrics.service.js";
 
 export const platformRouter = Router();
@@ -79,7 +80,8 @@ platformRouter.get(
 
 // Platform-wide audit reads (§13.10): the Owner sees every school's rows
 // AND the platform-level NULL rows (owner logins live there) — the raw
-// client applies no tenant pin. Optional ?schoolId= narrows to one school.
+// client applies no tenant pin. Same cursor pagination + filters as the
+// school route, via the shared reader, plus an optional ?schoolId=.
 // Same middleware as every route here: platform-only, never tenant-scoped.
 platformRouter.get(
   "/audit-logs",
@@ -106,28 +108,7 @@ platformRouter.get(
       });
       return;
     }
-    const { take, schoolId, entity, action } = parsed.data;
-    const logs = await req.prisma.auditLog.findMany({
-      where: {
-        ...(schoolId ? { schoolId } : {}),
-        ...(entity ? { entity } : {}),
-        ...(action ? { action } : {}),
-      },
-      select: {
-        id: true,
-        schoolId: true,
-        actorId: true,
-        impersonatedBy: true,
-        action: true,
-        entity: true,
-        entityId: true,
-        before: true,
-        after: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take,
-    });
-    res.json({ success: true, data: { logs }, error: null, meta: null });
+    const { logs, nextCursor } = await listAuditLogs(req.prisma, parsed.data);
+    res.json({ success: true, data: { logs, nextCursor }, error: null, meta: null });
   }),
 );
