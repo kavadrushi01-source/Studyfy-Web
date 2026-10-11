@@ -9,9 +9,12 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Chunk 2 DONE 2026-10-11 (subscription & billing, 83/83 + 362/362 + e2e 80/80). Nothing active; Chunk 3 queued.
-**Phase / Module:** Phase 4 — Chunk 2 DONE (Chunk 3: Super Admin panel, not started)
+**Status:** IN PROGRESS — Phase 4 Chunk 3 (Super Admin panel, spec §7 #23 + §13.9)
+**Phase / Module:** Phase 4 — Chunk 3 (owner screens for the §8.4 platform nav)
 **Last updated:** 2026-10-11
+
+## Standing security decision (founder-ordered 2026-10-11, do not nag)
+- ALL credential rotations (chat-exposed DB password, demo password, any future paste) happen ONCE, LAST, after the full build completes — not per chunk. The founder explicitly accepted the interim risk (demo-only data at stake; no real pupils). Rotation list lives here until then: (1) Aiven DB password (exposed twice in chat screenshots), (2) live demo password if ever pasted, (3) Cloudinary key + Brevo SMTP key (older exposures, still open). Single "ROTATE EVERYTHING" close-out runs after Chunk 5: regenerate each, update Render env, redeploy, verify, re-verify logins.
 
 ## What's done in this task so far
 - CHUNK 2 PROD MIGRATE DONE 2026-10-11 (founder ran it, 3 attempts: npx blocked by policy → bare URL as command → npx again; fixed via node-direct path + suffix strip): both migrations applied. Live: health 200, login 401-correct, job 401-armed. DB password exposed in chat screenshots AGAIN — rotation open (Aiven regenerate → Render DATABASE_URL → redeploy). Deep billing proof (overview/invoices as admin) needs founder login — asked below.
