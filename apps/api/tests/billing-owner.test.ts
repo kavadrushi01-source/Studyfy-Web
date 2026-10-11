@@ -151,9 +151,9 @@ describe("suspended-school exception (§13.4, both directions)", () => {
       .send({ schoolSlug: school.slug, email: `nobody-${uid()}@example.com`, password: "password-123" });
     expect(strangerLogin.status).toBe(401);
 
-    // Admin on a real route: 403. Admin on a billing path: passes the gate
-    // (no billing routes exist yet — 404 proves pass-through, not denial;
-    // this assertion becomes a 200 journey when the billing router lands).
+    // Admin on a real route: 403. Admin on the billing overview: 200 with
+    // the suspended status visible (the exception working end to end now
+    // that billing routes exist).
     const blocked = await request(app)
       .get(`/api/v1/schools/${school.schoolId}/students`)
       .set({ Authorization: `Bearer ${adminToken}` });
@@ -161,8 +161,10 @@ describe("suspended-school exception (§13.4, both directions)", () => {
     expect(blocked.body.error.code).toBe("SCHOOL_SUSPENDED");
     const billing = await request(app)
       .get(`/api/v1/schools/${school.schoolId}/billing/overview`)
-      .set({ Authorization: `Bearer ${adminToken}` });
-    expect(billing.status).toBe(404);
+      .set({ Authorization: `Bearer ${adminToken}` })
+      .expect(200);
+    expect(billing.body.data.school.subscriptionStatus).toBe("SUSPENDED");
+    expect(billing.body.data.plans.BASIC.pricePaise).toBe(299900);
 
     // Teacher login itself is refused on a suspended school (admin-only).
     expect(teacherLogin.status).toBe(403);

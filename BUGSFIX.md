@@ -582,6 +582,26 @@ npm audit --audit-level=high
     timetable build — now a standing check). Verified: API 217/217, e2e
     60/60, human settings journey + screenshot.
 
+59. **Unpinned tenant-root read returned a stranger school's row (2026-10-11,
+    caught by test — the serious kind).** The new billing overview did
+    `req.prisma.school.findFirst({})` with no `where`, trusting the tenant
+    extension to pin it. But `School` is deliberately NOT in `TENANT_MODELS`
+    (it has no `schoolId` column — it IS the root), so the extension never
+    touches `school.*` queries: the endpoint served the FIRST school row in
+    the table (an old "Dashboard School" fixture) to a logged-in admin of a
+    different school — same shape as v1's leak class, milder data (mirror
+    fields, not pupil records). Every other school read in src/ passes an
+    explicit id/slug (verified by grep — this was the only bare one). Fix:
+    explicit `where: { id: req.schoolId }` + a regression test asserting
+    `data.school.id` equals the caller's school. Standing rule earned:
+    NEVER read the schools table without an explicit constraint, extension
+    or not — the root is outside the extension's protection by construction.
+    Companion lesson from the same session: inside a router mounted at
+    /api/v1, Express strips the mount prefix, so req.path is "/schools/…"
+    — URL maps anchored on /api/v1 silently match nothing (that one shipped
+    the whole plan gate open; fixed with mount-agnostic regexes + a
+    path-shape regression test).
+
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.
 - Check API logs and the network response before changing UI selectors.

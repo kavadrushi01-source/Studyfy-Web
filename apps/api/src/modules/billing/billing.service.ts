@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { pickAuditFields, recordAudit } from "../../lib/audit.js";
+import { createRazorpayOrder, fetchOrderPayments } from "../../lib/razorpay.js";
 import { AuthError } from "../auth/auth.service.js";
 import { GRACE_DAYS, GST_PERCENT, PLANS, type SchoolPlan } from "./plans.js";
 
@@ -334,6 +335,170 @@ export async function markInvoicePaid(
     return paid;
   });
   return { id: updated.id, status: updated.status };
+}
+
+export interface BillingCaptureResult {
+  invoiceId: string;
+  status: string;
+  alreadyProcessed: boolean;
+}
+
+// Online initiation (§16.1, TEST MODE): the frontend sends ONLY the invoice
+// id — the server recomputes the total (amount + GST split) and creates the
+// Razorpay order for that exact number. TEST-mode guards live in
+// razorpayKeys() (missing → 503, live-prefixed → refusal). Always creates a
+// fresh order (amounts may have changed since, checkouts expire).
+export async function initiateSubscriptionPayment(
+  db: PrismaClient,
+  invoiceId: string,
+): Promise<{ orderId: string; keyId: string; amount: string; currency: string; invoiceId: string; status: string }> {
+  const invoice = await db.subscriptionInvoice.findFirst({ where: { id: invoiceId } });
+  if (!invoice) {
+    throw new AuthError(404, "INVOICE_NOT_FOUND", "Subscription invoice not found for this school.");
+  }
+  if (invoice.status === "PAID") {
+    throw new AuthError(409, "INVOICE_SETTLED", "Invoice is already paid.");
+  }
+  const total = invoice.amountPaise + invoice.cgstPaise + invoice.sgstPaise + invoice.igstPaise;
+  const order = await createRazorpayOrder(total, invoice.invoiceNumber, { schoolId: invoice.schoolId, invoiceId: invoice.id });
+  const updated = await db.subscriptionInvoice.update({
+    where: { id: invoice.id },
+    data: { razorpayOrderId: order.id },
+  });
+  return {
+    orderId: order.id,
+    keyId: order.keyId,
+    amount: (total / 100).toFixed(2),
+    currency: order.currency,
+    invoiceId: invoice.id,
+    status: updated.status,
+  };
+}
+
+// Online capture (§16.1: the SHARED §13.8 order + webhook flow — *not*
+// Razorpay Subscriptions, a second product with its own events). Mirrors
+// recordOnlineCapture's contract: existing payment id → already processed;
+// unknown order → 404; amount re-verified against OUR total; P2002 race →
+// already-processed. The router tries fee_payments first and falls through
+// here on ORDER_NOT_FOUND — the payload never declares which ledger it
+// belongs to. Actor NULL on the webhook path (machine), user id on verify.
+export async function recordSubscriptionCapture(
+  db: PrismaClient,
+  input: { razorpayOrderId: string; razorpayPaymentId: string; amountPaise: number },
+  actorId: string | null,
+): Promise<BillingCaptureResult> {
+  const existing = await db.subscriptionInvoice.findUnique({ where: { razorpayPaymentId: input.razorpayPaymentId } });
+  if (existing) {
+    return { invoiceId: existing.id, status: existing.status, alreadyProcessed: true };
+  }
+  const pending = await db.subscriptionInvoice.findUnique({ where: { razorpayOrderId: input.razorpayOrderId } });
+  if (!pending) {
+    throw new AuthError(404, "ORDER_NOT_FOUND", "No payment initiation matches this order.");
+  }
+  if (pending.status === "PAID") {
+    return { invoiceId: pending.id, status: pending.status, alreadyProcessed: true };
+  }
+  const total = pending.amountPaise + pending.cgstPaise + pending.sgstPaise + pending.igstPaise;
+  if (total !== input.amountPaise) {
+    throw new AuthError(400, "AMOUNT_MISMATCH", "Paid amount does not match the invoice total.");
+  }
+  try {
+    const paid = await db.$transaction(async (tx) => {
+      const flipped = await tx.subscriptionInvoice.update({
+        where: { id: pending.id },
+        data: { status: "PAID", paidAt: new Date(), paidMethod: "RAZORPAY", razorpayPaymentId: input.razorpayPaymentId },
+      });
+      const txClient = tx as unknown as PrismaClient;
+      await recordAudit(txClient, {
+        schoolId: pending.schoolId,
+        actorId,
+        action: "SUBSCRIPTION_INVOICE_PAID",
+        entity: "SubscriptionInvoice",
+        entityId: pending.id,
+        before: pickAuditFields("SubscriptionInvoice", {
+          id: pending.id,
+          invoiceNumber: pending.invoiceNumber,
+          status: pending.status,
+          amountPaise: pending.amountPaise,
+          cgstPaise: pending.cgstPaise,
+          sgstPaise: pending.sgstPaise,
+          igstPaise: pending.igstPaise,
+          paidMethod: pending.paidMethod,
+        }),
+        after: pickAuditFields("SubscriptionInvoice", {
+          id: flipped.id,
+          invoiceNumber: flipped.invoiceNumber,
+          status: flipped.status,
+          amountPaise: flipped.amountPaise,
+          cgstPaise: flipped.cgstPaise,
+          sgstPaise: flipped.sgstPaise,
+          igstPaise: flipped.igstPaise,
+          paidMethod: flipped.paidMethod,
+        }),
+      });
+      const sub = await tx.subscription.upsert({
+        where: { schoolId: pending.schoolId },
+        update: { status: "ACTIVE", currentPeriodStart: pending.periodStart, currentPeriodEnd: pending.periodEnd },
+        create: {
+          schoolId: pending.schoolId,
+          plan: "BASIC",
+          status: "ACTIVE",
+          currentPeriodStart: pending.periodStart,
+          currentPeriodEnd: pending.periodEnd,
+        },
+      });
+      await tx.school.update({ where: { id: pending.schoolId }, data: { subscriptionStatus: "ACTIVE" } });
+      await recordAudit(txClient, {
+        schoolId: pending.schoolId,
+        actorId,
+        action: "SUBSCRIPTION_STATUS_CHANGE",
+        entity: "Subscription",
+        entityId: sub.id,
+        after: pickAuditFields("Subscription", { id: sub.id, plan: sub.plan, status: sub.status }),
+      });
+      return flipped;
+    });
+    return { invoiceId: paid.id, status: paid.status, alreadyProcessed: false };
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const raced = await db.subscriptionInvoice.findUnique({ where: { razorpayPaymentId: input.razorpayPaymentId } });
+      return {
+        invoiceId: raced?.id ?? pending.id,
+        status: raced?.status ?? "PAID",
+        alreadyProcessed: true,
+      };
+    }
+    throw err;
+  }
+}
+
+// Pay-verify for subscriptions (§13.8 fallback shape): admin-only recovery
+// when the webhook never arrives. Same idempotent capture path, never a
+// blind flip; nothing captured → PENDING invoice (poll again later).
+export async function verifySubscriptionPayment(
+  db: PrismaClient,
+  schoolId: string,
+  callerUserId: string,
+  razorpayOrderId: string,
+): Promise<BillingCaptureResult & { status: "PAID" | "PENDING" }> {
+  const pending = await db.subscriptionInvoice.findUnique({ where: { razorpayOrderId } });
+  if (!pending || pending.schoolId !== schoolId) {
+    throw new AuthError(404, "ORDER_NOT_FOUND", "No payment initiation matches this order.");
+  }
+  if (pending.status === "PAID") {
+    return { invoiceId: pending.id, status: "PAID", alreadyProcessed: true };
+  }
+  const remote = await fetchOrderPayments(razorpayOrderId);
+  const captured = remote.find((p) => p.status === "captured" && p.currency === "INR");
+  if (!captured) {
+    return { invoiceId: pending.id, status: "PENDING", alreadyProcessed: false };
+  }
+  const applied = await recordSubscriptionCapture(
+    db,
+    { razorpayOrderId, razorpayPaymentId: captured.id, amountPaise: captured.amount },
+    callerUserId,
+  );
+  return { invoiceId: applied.invoiceId, status: "PAID", alreadyProcessed: applied.alreadyProcessed };
 }
 
 export interface BillingCycleResult {

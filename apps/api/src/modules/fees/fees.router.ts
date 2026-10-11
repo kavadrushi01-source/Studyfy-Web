@@ -8,6 +8,7 @@ import { AuthError } from "../auth/auth.service.js";
 import { createStructureSchema, generateInvoicesSchema, listInvoicesSchema, listPaymentsSchema, recordPaymentSchema, verifyPaymentSchema } from "./fees.schemas.js";
 import { createStructure, generateInvoices, initiateOnlinePayment, listInvoices, listPayments, recordOnlineCapture, recordPayment, runFeeReminders, verifyOnlinePayment } from "./fees.service.js";
 import { verifyWebhookSignature } from "../../lib/razorpay.js";
+import { recordSubscriptionCapture } from "../billing/billing.service.js";
 import { prisma } from "../../lib/prisma.js";
 import { generateFeeReceipt } from "../../lib/receipt.js";
 
@@ -461,6 +462,30 @@ feesRouter.post(
       );
       res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
+      // Shared order flow (§16.1): fee_payments holds parent money,
+      // subscription_invoices holds school money — the payload never
+      // declares which ledger, so an unknown fee order falls through to
+      // the subscription lookup before 404ing. Both stay idempotent on
+      // the payment id; a capture for an already-created order always
+      // applies (the gate spoke at initiation, §13.8).
+      if (err instanceof AuthError && err.code === "ORDER_NOT_FOUND") {
+        try {
+          const sub = await recordSubscriptionCapture(
+            db,
+            {
+              razorpayOrderId: orderId,
+              razorpayPaymentId: paymentId,
+              amountPaise: amount,
+            },
+            null,
+          );
+          res.json({ success: true, data: { ...sub, kind: "subscription" }, error: null, meta: null });
+          return;
+        } catch (err2) {
+          sendFeesError(res, err2);
+          return;
+        }
+      }
       sendFeesError(res, err);
     }
   }),

@@ -38,6 +38,12 @@ export const subscriptionInvoiceListSchema = z.object({
   take: z.coerce.number().int().min(1).max(100).default(50),
 });
 
+// Admin pay-verify (§13.8 fallback shape): reconcile OUR pending order id
+// against what Razorpay holds. Order id only — never an amount.
+export const payVerifySchema = z.object({
+  orderId: z.string().trim().min(1).max(64),
+});
+
 export type BillingPlanInput = z.infer<typeof billingPlanSchema>;
 export type SuspendSchoolInput = z.infer<typeof suspendSchoolSchema>;
 export type ReactivateSchoolInput = z.infer<typeof reactivateSchoolSchema>;
