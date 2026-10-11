@@ -45,6 +45,11 @@ export const TENANT_MODELS = [
   "BiometricDevice",
   "InventoryItem",
   "InventoryMovement",
+  // Phase 4 Chunk 2 (§16.1): billing rows are tenant data like any other.
+  // Deliberately NOT here: BillingCounter (global per-year counter, no
+  // school_id — same reasoning as roles/permissions, §9.1).
+  "Subscription",
+  "SubscriptionInvoice",
   // Phase 4 Chunk 1 (§13.10): nullable schoolId — NULL means a
   // platform-level action, which the forced schoolId pin below hides from
   // every school's scoped reads. Exactly the fail-closed behavior §9.1

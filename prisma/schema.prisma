@@ -32,6 +32,10 @@ datasource db {
 enum SubscriptionStatus {
   TRIAL
   ACTIVE
+  // Grace after a missed payment (§16.1): 7 days, full access plus a
+  // banner. Added in Phase 4 Chunk 2 — the request-time gate and the
+  // billing-cycle job both understand it from this commit.
+  PAST_DUE
   SUSPENDED
 }
 
@@ -61,6 +65,16 @@ enum InvoiceStatus {
   // REFUNDED exists from day one so Phase 2 refunds need no schema rework
   // (§13.8 "plan for refunds now").
   REFUNDED
+}
+
+// Subscription-invoice lifecycle (§16.1, Phase 4 Chunk 2): deliberately
+// SMALLER than the fee-invoice one — a school bill is either awaiting
+// payment or settled. No partial online payments here (the order flow
+// charges the exact outstanding); no overdue state (lateness lives on the
+// subscription as PAST_DUE, not on the paper).
+enum SubscriptionInvoiceStatus {
+  PENDING
+  PAID
 }
 
 enum PaymentMethod {
@@ -186,6 +200,8 @@ model School {
   inventoryItems      InventoryItem[]
   inventoryMovements  InventoryMovement[]
   auditLogs           AuditLog[]
+  subscription        Subscription?
+  subscriptionInvoices SubscriptionInvoice[]
 
   @@map("schools")
 }
@@ -1153,6 +1169,84 @@ model InventoryMovement {
 
   @@index([schoolId, itemId, createdAt])
   @@map("inventory_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Subscription & billing (§7 Phase 4 #24, §16.1, Chunk 2): how schools pay
+// Studyfy. (Parents paying schools is Phase 2 Razorpay — a different flow
+// on different tables; the only thing they share is the §13.8 order +
+// webhook shape, extended here, never a second gateway integration.)
+//
+// Single-writer rule (§16.1): ONLY the billing module writes
+// schools.subscriptionStatus and schools.plan — they MIRROR the
+// subscriptions row and update in the same transaction. Status flow:
+// TRIAL → ACTIVE → PAST_DUE → SUSPENDED, reversible on payment. Read the
+// mirror, never the row, anywhere outside billing/.
+// Tenant-scoped — both models ∈ TENANT_MODELS (same commit).
+// ---------------------------------------------------------------------------
+
+model Subscription {
+  id                 String             @id @default(cuid()) @map("id")
+  schoolId           String             @unique @map("school_id")
+  school             School             @relation(fields: [schoolId], references: [id])
+  plan               SchoolPlan         @map("plan")
+  status             SubscriptionStatus @default(TRIAL) @map("status")
+  // The paid period this row covers. NULL on trial rows (trial length comes
+  // from schools.trialEndsAt — one source of truth, never two).
+  currentPeriodStart DateTime?          @map("current_period_start") @db.Date
+  currentPeriodEnd   DateTime?          @map("current_period_end") @db.Date
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
+}
+
+model SubscriptionInvoice {
+  id          String                    @id @default(cuid()) @map("id")
+  schoolId    String                    @map("school_id")
+  school      School                    @relation(fields: [schoolId], references: [id])
+  // Sequential per financial year (April–March), from an atomic counter
+  // incremented in the SAME transaction that creates the invoice (never
+  // count()+1 — two invoices created at once would collide). UNIQUE at the
+  // DB level. Short by GST rules. While this is a portfolio project every
+  // invoice prints "TEST INVOICE — not a tax invoice" (§16.1).
+  invoiceNumber String                   @unique @map("invoice_number")
+  // Financial year the number belongs to ("2026-27") — display + counter key.
+  financialYear String                   @map("financial_year")
+  // Integer paise, rounded once, never floats (§16.1, §13.6). GST is 18% on
+  // top of the plan price: same-state splits CGST 9% + SGST 9%, otherwise
+  // IGST 18% — exactly one of the pairs is nonzero, always.
+  amountPaise Int                      @map("amount_paise")
+  cgstPaise   Int                      @default(0) @map("cgst_paise")
+  sgstPaise   Int                      @default(0) @map("sgst_paise")
+  igstPaise   Int                      @default(0) @map("igst_paise")
+  status      SubscriptionInvoiceStatus @default(PENDING) @map("status")
+  // What the invoice covers.
+  periodStart DateTime                 @map("period_start") @db.Date
+  periodEnd   DateTime                 @map("period_end") @db.Date
+  // Online payment linkage (§16.1: the SHARED §13.8 order + webhook flow,
+  // looked up by order id across fee_payments THEN subscription_invoices —
+  // never a second gateway product). NULL until the school pays online.
+  razorpayOrderId   String?            @unique @map("razorpay_order_id")
+  razorpayPaymentId String?            @unique @map("razorpay_payment_id")
+  paidAt        DateTime?              @map("paid_at")
+  // MANUAL (owner marks paid) or RAZORPAY (online, test mode). Test/manual
+  // payments are labelled as such on every revenue surface (§16.1).
+  paidMethod    String?                @map("paid_method")
+  createdAt     DateTime               @default(now()) @map("created_at")
+
+  @@index([schoolId, status, createdAt])
+  @@map("subscription_invoices")
+}
+
+// Billing counters — GLOBAL table (no school_id), like roles/permissions:
+// one row per financial year, bumped atomically inside the invoice-creation
+// transaction. Deliberately NOT in TENANT_MODELS (nothing to scope).
+model BillingCounter {
+  financialYear String @id @map("financial_year")
+  lastNumber    Int    @default(0) @map("last_number")
+
+  @@map("billing_counters")
 }
 
 // ---------------------------------------------------------------------------

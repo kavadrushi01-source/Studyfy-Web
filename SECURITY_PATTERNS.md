@@ -34,6 +34,8 @@ export const TENANT_MODELS = [
   'Ticket', 'TicketMessage', 'InventoryItem', 'InventoryMovement', 'BiometricDevice',
   'Subscription', 'SubscriptionInvoice', 'AuditLog',
 ] as const;
+// NOT on the list (global, like roles/permissions §9.1): BillingCounter —
+// a per-financial-year invoice-number counter with no school to scope to.
 // Case in point #1: `AcademicYear` and `Subject` were missing from this
 // exact list until a review caught them against spec §9.1's ER diagram,
 // after they'd already been described in the schema elsewhere.
