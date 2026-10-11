@@ -29,8 +29,12 @@ async function registerSchool(): Promise<{ schoolId: string; slug: string; admin
       adminPassword: "password-123",
     })
     .expect(201);
+  // Phase 3 module under test (§16.1): this fixture school buys Premium.
+  // Plan-gating itself is proven in billing-gating.test.ts.
+  const schoolId = res.body.data.school.id as string;
+  await prisma.school.update({ where: { id: schoolId }, data: { plan: "PREMIUM", subscriptionStatus: "ACTIVE" } });
   return {
-    schoolId: res.body.data.school.id as string,
+    schoolId,
     slug: res.body.data.school.slug as string,
     adminToken: res.body.data.accessToken as string,
   };
@@ -238,3 +242,4 @@ describe("GET analytics/overview (§7 Phase 3 #19 — admin analytics)", () => {
     });
   });
 });
+
