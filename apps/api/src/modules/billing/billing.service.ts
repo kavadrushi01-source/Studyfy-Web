@@ -4,8 +4,6 @@ import { pickAuditFields, recordAudit } from "../../lib/audit.js";
 import { AuthError } from "../auth/auth.service.js";
 import { GRACE_DAYS, GST_PERCENT, PLANS, type SchoolPlan } from "./plans.js";
 
-export const TRIAL_DAYS = 14;
-
 // ---------------------------------------------------------------------------
 // Pure date/money helpers (§16.1) — unit-tested without a database.
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { recordAudit } from "../../lib/audit.js";
+import { planAllows } from "../billing/plans.js";
 import { schoolDay } from "../../lib/school-time.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateAttendanceKpis } from "../metrics/metrics.service.js";
@@ -232,6 +233,18 @@ export async function deviceAuthMiddleware(req: Request, res: Response, next: Ne
     // device's own schoolId IS the tenant context (§13.4 third path).
     if (req.params.schoolId && device.schoolId !== req.params.schoolId) {
       deny(403, "TENANT_MISMATCH", "This device does not belong to this school.");
+      return;
+    }
+    // Feature gate (§16.1): terminals are a Premium (Phase 3) capability.
+    // Checked here — the key-auth path never sees tenantMiddleware, so this
+    // is the only place the gate can run for machines.
+    const { prisma: billingPrisma } = await import("../../lib/prisma.js");
+    const gated = await billingPrisma.school.findUnique({
+      where: { id: device.schoolId },
+      select: { subscriptionStatus: true, plan: true },
+    });
+    if (!gated || !planAllows(gated.subscriptionStatus, gated.plan, "phase3")) {
+      deny(403, "PLAN_UPGRADE_REQUIRED", "Biometric terminals need the Premium plan or higher.");
       return;
     }
     req.device = { id: device.id, schoolId: device.schoolId, name: device.name };

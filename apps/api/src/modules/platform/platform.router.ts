@@ -6,6 +6,16 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { AuthError } from "../auth/auth.service.js";
 import { listPlatformAuditSchema } from "../audit/audit.schemas.js";
 import { listAuditLogs } from "../audit/audit.service.js";
+import { recordAudit } from "../../lib/audit.js";
+import { markInvoicePaid, issueInvoice, setSubscription } from "../billing/billing.service.js";
+import {
+  billingPlanSchema,
+  issueSubscriptionInvoiceSchema,
+  reactivateSchoolSchema,
+  subscriptionInvoiceListSchema,
+  suspendSchoolSchema,
+  trialExtensionSchema,
+} from "../billing/billing.schemas.js";
 import { getOwnerDashboard } from "../metrics/metrics.service.js";
 
 export const platformRouter = Router();
@@ -110,5 +120,383 @@ platformRouter.get(
     }
     const { logs, nextCursor } = await listAuditLogs(req.prisma, parsed.data);
     res.json({ success: true, data: { logs, nextCursor }, error: null, meta: null });
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Billing administration (§16.1, Chunk 2): suspend / reactivate / plan /
+// trial / invoices / mark-paid. Owner-only, audited. Demo schools are
+// IMMUNE to suspension — the portfolio demo stays up no matter what, and a
+// billing action pointed at one fails loudly instead of locking it.
+// ---------------------------------------------------------------------------
+
+function sendBillingError(res: Response, err: unknown): void {
+  if (err instanceof AuthError) {
+    res.status(err.status).json({ success: false, data: null, error: { code: err.code, message: err.message }, meta: null });
+    return;
+  }
+  throw err;
+}
+
+// POST /platform/schools/:id/suspend — blocks every tenant login except a
+// suspended School Admin's billing/support/logout paths (§13.4). Data is
+// retained, never deleted (§16 auto-downgrade, not delete).
+platformRouter.post(
+  "/schools/:id/suspend",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.billing.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = suspendSchoolSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const school = await req.prisma.school.findUnique({ where: { id: req.params.id } });
+      if (!school) {
+        sendBillingError(res, new AuthError(404, "SCHOOL_NOT_FOUND", "School not found."));
+        return;
+      }
+      if (school.isDemo) {
+        sendBillingError(res, new AuthError(403, "FORBIDDEN", "Demo schools cannot be suspended."));
+        return;
+      }
+      const result = await setSubscription(
+        req.prisma,
+        school.id,
+        { plan: school.plan ?? "BASIC", status: "SUSPENDED" },
+        req.user.userId,
+        "SUBSCRIPTION_STATUS_CHANGE",
+      );
+      res.json({ success: true, data: { subscription: result, reason: parsed.data.reason ?? null }, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// POST /platform/schools/:id/reactivate — exceptional manual path (the
+// normal path is mark-paid, which re-activates automatically). Requires an
+// explicit paid period — reactivation without one would invent free access.
+platformRouter.post(
+  "/schools/:id/reactivate",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.billing.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = reactivateSchoolSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await setSubscription(
+        req.prisma,
+        req.params.id ?? "",
+        {
+          plan: parsed.data.plan,
+          status: "ACTIVE",
+          currentPeriodStart: new Date(`${parsed.data.periodStart}T00:00:00Z`),
+          currentPeriodEnd: new Date(`${parsed.data.periodEnd}T00:00:00Z`),
+        },
+        req.user.userId,
+        "SUBSCRIPTION_STATUS_CHANGE",
+      );
+      res.json({ success: true, data: { subscription: result }, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// POST /platform/schools/:id/plan — plan change, same period. A raise
+// takes effect immediately (caps unblock admissions); downgrades never
+// delete anything (§16.1, no proration — full effect next period save for
+// the cap, which is immediate by construction of effectivePlan()).
+platformRouter.post(
+  "/schools/:id/plan",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.billing.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = billingPlanSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const school = await req.prisma.school.findUnique({ where: { id: req.params.id } });
+      if (!school) {
+        sendBillingError(res, new AuthError(404, "SCHOOL_NOT_FOUND", "School not found."));
+        return;
+      }
+      const sub = await req.prisma.subscription.findUnique({ where: { schoolId: school.id } });
+      const result = await setSubscription(
+        req.prisma,
+        school.id,
+        {
+          plan: parsed.data.plan,
+          status: (sub?.status ?? school.subscriptionStatus) as "TRIAL" | "ACTIVE" | "PAST_DUE" | "SUSPENDED",
+          currentPeriodStart: sub?.currentPeriodStart,
+          currentPeriodEnd: sub?.currentPeriodEnd,
+        },
+        req.user.userId,
+        "SUBSCRIPTION_PLAN_CHANGE",
+      );
+      res.json({ success: true, data: { subscription: result }, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// POST /platform/schools/:id/trial-extension — moves schools.trialEndsAt
+// forward. Must be a FUTURE date: backdating would silently expire a trial.
+platformRouter.post(
+  "/schools/:id/trial-extension",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.billing.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = trialExtensionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const school = await req.prisma.school.findUnique({ where: { id: req.params.id } });
+      if (!school) {
+        sendBillingError(res, new AuthError(404, "SCHOOL_NOT_FOUND", "School not found."));
+        return;
+      }
+      const trialEndsAt = new Date(`${parsed.data.trialEndsAt}T00:00:00Z`);
+      if (trialEndsAt.getTime() <= Date.now()) {
+        sendBillingError(res, new AuthError(400, "VALIDATION_ERROR", "Trial end must be a future date."));
+        return;
+      }
+      const updated = await req.prisma.school.update({ where: { id: school.id }, data: { trialEndsAt } });
+      await recordAudit(req.prisma, {
+        schoolId: school.id,
+        actorId: req.user.userId,
+        action: "SUBSCRIPTION_TRIAL_EXTENDED",
+        entity: "School",
+        entityId: school.id,
+        after: { id: school.id, trialEndsAt: trialEndsAt.toISOString() },
+      });
+      res.json({ success: true, data: { trialEndsAt: updated.trialEndsAt }, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// GET /platform/schools/:id/subscription — one school's billing picture:
+// mirror fields, subscription row (nullable pre-billing), latest invoices.
+platformRouter.get(
+  "/schools/:id/subscription",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.billing.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const school = await req.prisma.school.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, name: true, slug: true, subscriptionStatus: true, plan: true, trialEndsAt: true, isDemo: true },
+    });
+    if (!school) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "SCHOOL_NOT_FOUND", message: "School not found." },
+        meta: null,
+      });
+      return;
+    }
+    const subscription = await req.prisma.subscription.findUnique({ where: { schoolId: school.id } });
+    const invoices = await req.prisma.subscriptionInvoice.findMany({
+      where: { schoolId: school.id },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+    res.json({ success: true, data: { school, subscription, invoices }, error: null, meta: null });
+  }),
+);
+
+// GET /platform/subscription-invoices — newest first, optional school.
+platformRouter.get(
+  "/subscription-invoices",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.billing.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = subscriptionInvoiceListSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    const invoices = await req.prisma.subscriptionInvoice.findMany({
+      where: { ...(parsed.data.schoolId ? { schoolId: parsed.data.schoolId } : {}) },
+      orderBy: { createdAt: "desc" },
+      take: parsed.data.take,
+    });
+    res.json({ success: true, data: { invoices }, error: null, meta: null });
+  }),
+);
+
+// POST /platform/subscription-invoices — owner issues a bill (period-keyed,
+// idempotent like the cycle's own issuance).
+platformRouter.post(
+  "/subscription-invoices",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.billing.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = issueSubscriptionInvoiceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const school = await req.prisma.school.findUnique({ where: { id: parsed.data.schoolId } });
+      if (!school) {
+        sendBillingError(res, new AuthError(404, "SCHOOL_NOT_FOUND", "School not found."));
+        return;
+      }
+      const invoice = await issueInvoice(
+        req.prisma,
+        school.id,
+        {
+          plan: parsed.data.plan,
+          periodStart: new Date(`${parsed.data.periodStart}T00:00:00Z`),
+          periodEnd: new Date(`${parsed.data.periodEnd}T00:00:00Z`),
+          schoolState: school.state,
+          platformState: process.env.PLATFORM_STATE ?? null,
+        },
+        req.user.userId,
+      );
+      res.status(201).json({ success: true, data: { invoice }, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// POST /platform/subscription-invoices/:id/mark-paid — the baseline §16.1
+// collection path: owner records payment (MANUAL), audited, reversible
+// states only (PAID re-pays are no-ops, never double-credits).
+platformRouter.post(
+  "/subscription-invoices/:id/mark-paid",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.billing.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await markInvoicePaid(req.prisma, req.params.id ?? "", req.user.userId);
+      res.json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
   }),
 );

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { recordAudit } from "../../lib/audit.js";
 import { prisma } from "../../lib/prisma.js";
+import { schoolAccess } from "../billing/billing.service.js";
 import { signAccessToken } from "../../lib/jwt.js";
 import { slugifyName, uniqueSlug } from "../../lib/slug.js";
 import { MailerUnconfiguredError, mailerFor } from "../../lib/mailer.js";
@@ -209,23 +210,22 @@ export async function register(
   return { ...auth, school: { id: school.id, name: school.name, slug: school.slug } };
 }
 
-function assertTenantAccess(school: { subscriptionStatus: string; trialEndsAt: Date; isDemo: boolean }): void {
-  // Demo exemption mirrors tenantMiddleware (§13.11) — the login gate and
-  // the request gate must agree, or a demo admin could log in but use
-  // nothing (or vice versa). Both exempt isDemo, both block real schools.
-  if (!school.isDemo && school.subscriptionStatus === "SUSPENDED") {
-    throw new AuthError(
-      403,
-      "SCHOOL_SUSPENDED",
-      "This school's account is suspended. Please contact your school administrator.",
-    );
-  }
-  if (!school.isDemo && school.subscriptionStatus === "TRIAL" && school.trialEndsAt.getTime() < Date.now()) {
-    throw new AuthError(
-      403,
-      "TRIAL_EXPIRED",
-      "The free trial for this school has ended. Please contact your school administrator.",
-    );
+function assertTenantAccess(
+  school: { subscriptionStatus: string; trialEndsAt: Date; isDemo: boolean },
+  subscription: { status: string; currentPeriodEnd: Date | null } | null,
+): void {
+  // Same engine as tenantMiddleware (§13.4) — the login gate and the
+  // request gate must agree, or an admin could log in but use nothing (or
+  // vice versa). Demo exemption lives inside schoolAccess (§13.11).
+  const access = schoolAccess(school, subscription);
+  if (!access.allowed) {
+    const message =
+      access.code === "TRIAL_EXPIRED"
+        ? "The free trial for this school has ended. Please contact your school administrator."
+        : access.code === "SUBSCRIPTION_EXPIRED"
+          ? "This school's subscription has expired. Please contact your school administrator to renew."
+          : "This school's account is suspended. Please contact your school administrator.";
+    throw new AuthError(403, access.code, message);
   }
 }
 
@@ -239,7 +239,28 @@ export async function login(input: LoginInput): Promise<AuthResult> {
     if (!school) {
       throw new AuthError(401, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
     }
-    assertTenantAccess(school);
+    const subscription = await prisma.subscription.findUnique({ where: { schoolId: school.id } });
+    // Suspended-school login exception (§13.4): the check needs the role,
+    // so the user lookup moves ahead of the gate ONLY for suspended
+    // schools — every other shape keeps the exact old order (and the old
+    // enumeration-safe 401s). A suspended admin logs in (to reach billing);
+    // anyone else on a suspended school gets the same 403 as before, and
+    // an unknown email gets the same 401 as a live school.
+    const gate = schoolAccess(school, subscription);
+    if (!gate.allowed && gate.code === "SCHOOL_SUSPENDED") {
+      const candidate = await prisma.user.findUnique({
+        where: { schoolId_email: { schoolId: school.id, email: input.email } },
+        include: { role: true },
+      });
+      if (!candidate) {
+        throw new AuthError(401, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
+      }
+      if (candidate.role.name !== "SCHOOL_ADMIN") {
+        throw new AuthError(403, "SCHOOL_SUSPENDED", "This school's account is suspended. Please contact your school administrator.");
+      }
+      return loginUser(candidate, input.password);
+    }
+    assertTenantAccess(school, subscription);
     const user = await prisma.user.findUnique({
       where: { schoolId_email: { schoolId: school.id, email: input.email } },
       include: { role: true },

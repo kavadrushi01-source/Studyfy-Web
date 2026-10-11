@@ -51,6 +51,22 @@ export function tenantMiddleware(req: Request, res: Response, next: NextFunction
       }
       const access = schoolAccess(school, subscription);
       if (!access.allowed) {
+        // Suspended-school exception (§13.4): a suspended School Admin can
+        // still reach ONLY the billing routes (pay + reactivate) — every
+        // other path, and every other role, stays blocked. The billing
+        // router enforces its own billing.read key on top, so this is a
+        // narrowed doorway, not an open one. Support tickets join the
+        // allowlist with Chunk 4 (no ticket routes exist yet to allow).
+        if (
+          access.code === "SCHOOL_SUSPENDED" &&
+          req.user?.role === "SCHOOL_ADMIN" &&
+          /^\/schools\/[^/]+\/billing(\/|$)/.test(req.path)
+        ) {
+          req.prisma = scopedPrismaClient(prisma, schoolId) as unknown as PrismaClient;
+          req.schoolId = schoolId;
+          next();
+          return;
+        }
         const message =
           access.code === "SCHOOL_SUSPENDED"
             ? "This school's account is suspended. Please contact your school administrator."

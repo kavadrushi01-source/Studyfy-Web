@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { recordAudit } from "../../lib/audit.js";
+import { effectivePlan, PLANS } from "../billing/plans.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateStudentKpis } from "../metrics/metrics.service.js";
 import type { AdmitStudentInput } from "./students.schemas.js";
@@ -61,6 +62,30 @@ export async function admitStudent(
   }
 
   const schoolId = section.schoolId;
+  // Plan cap (§16.1): enforced on the server at admission — block with an
+  // upgrade message at the cap. Demo schools skip (portfolio seeds show
+  // every tier, not cap math). Downgrades never delete: existing pupils
+  // over a lowered cap keep every read; only NEW admissions block.
+  const school = await db.school.findUnique({
+    where: { id: schoolId },
+    select: { subscriptionStatus: true, plan: true, isDemo: true },
+  });
+  if (!school) {
+    throw new AuthError(404, "SECTION_NOT_FOUND", "Section not found in this school.");
+  }
+  if (!school.isDemo) {
+    const cap = PLANS[effectivePlan(school.subscriptionStatus, school.plan)].studentCap;
+    if (cap !== null) {
+      const enrolled = await db.student.count({ where: { schoolId } });
+      if (enrolled >= cap) {
+        throw new AuthError(
+          409,
+          "PLAN_UPGRADE_REQUIRED",
+          `This school's plan allows up to ${cap} students. Contact your school administrator to upgrade.`,
+        );
+      }
+    }
+  }
   const existing = await db.user.findUnique({
     where: { schoolId_email: { schoolId, email: input.email } },
   });
