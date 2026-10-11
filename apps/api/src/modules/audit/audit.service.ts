@@ -55,12 +55,17 @@ export async function listAuditLogs(db: PrismaClient, query: ListPlatformAuditQu
     take: take + 1,
   });
 
+  // take+1 probing: when an extra row exists, the cursor encodes the last
+  // RETURNED row (rows[take-1]) — never the popped extra. Encoding the
+  // extra would skip a row on the next page (the extra IS the next page's
+  // first row, and the keyset is strictly-older-than).
   let nextCursor: string | null = null;
   if (rows.length > take) {
-    const last = rows.pop();
+    const last = rows[take - 1];
     if (last) {
       nextCursor = encodeAuditCursor(last.createdAt, last.id);
     }
+    rows.length = take;
   }
   return { logs: rows, nextCursor };
 }
