@@ -74,6 +74,7 @@ export default function BillingPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [payingId, setPayingId] = useState("");
+  const [pdfId, setPdfId] = useState("");
   const [pendingOrders, setPendingOrders] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
@@ -103,6 +104,37 @@ export default function BillingPage() {
     }
     void load();
   }, [ready, token, schoolId, apiFetch, canView, load]);
+
+  // Invoice PDF (§16.1): fetch the bytes with the session (Bearer, own
+  // origin) and trigger a real file download via a blob anchor — every PDF
+  // prints TEST INVOICE, never a tax invoice. A download (not a popup)
+  // because an invoice is kept, not merely glanced at.
+  async function downloadPdf(invoiceId: string, invoiceNumber: string): Promise<void> {
+    if (!schoolId) {
+      return;
+    }
+    setPdfId(invoiceId);
+    setError("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/billing/invoices/${invoiceId}/pdf`);
+      if (!response.ok) {
+        throw new Error("Could not download the invoice PDF.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `invoice-${invoiceNumber.replace(/[^A-Za-z0-9]+/g, "-")}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setPdfId("");
+    }
+  }
 
   // Online payment (§16.1, TEST MODE): invoice id only — the server prices
   // the order (amount + GST). No card form here by design; Razorpay's hosted
@@ -335,6 +367,17 @@ export default function BillingPage() {
                       {fmtDay(invoice.periodStart)} – {fmtDay(invoice.periodEnd)} · {rupees(total)} {gstLabel}
                       {invoice.paidMethod ? ` · paid via ${invoice.paidMethod}` : ""}
                     </p>
+                    <div className="sf-row-wrap" style={{ marginTop: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => void downloadPdf(invoice.id, invoice.invoiceNumber)}
+                        disabled={pdfId === invoice.id}
+                        className="sf-btn sf-btn-secondary"
+                        style={{ opacity: pdfId === invoice.id ? 0.6 : 1 }}
+                      >
+                        {pdfId === invoice.id ? "Preparing…" : "Invoice PDF"}
+                      </button>
+                    </div>
                     {invoice.status === "PENDING" ? (
                       <div className="sf-row-wrap" style={{ marginTop: 10 }}>
                         <button

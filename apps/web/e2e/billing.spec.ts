@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { ACCOUNTS, PASSWORD, SOS_SLUG, login } from "./helpers";
 
@@ -19,6 +20,16 @@ test.describe("billing", () => {
     await expect(page.getByText("ACTIVE").first()).toBeVisible();
     await expect(page.getByText("TEST INVOICE").first()).toBeVisible();
     await expect(page.getByText(/STY\/\d{2}-\d{2}\//).first()).toBeVisible();
+    // The invoice PDF downloads real bytes (§16.1 stamp proven API-side;
+    // here the wiring: button → blob download → %PDF- on disk).
+    const [download] = await Promise.all([
+      page.waitForEvent("download", { timeout: 20000 }),
+      page.getByRole("button", { name: /invoice pdf/i }).first().click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/\.pdf$/i);
+    const saved = await download.path();
+    expect(saved).not.toBeNull();
+    expect(readFileSync(saved as string).subarray(0, 5).toString()).toBe("%PDF-");
   });
 
   test("suspended admin reaches billing with the suspended banner, nowhere else", async ({ page, request }) => {
