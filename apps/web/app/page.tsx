@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { colors, gradients, iconTile, pill, primaryBtn, secondaryBtn, shadows } from "@/lib/theme";
+import { PLANS as PLAN_CONFIG } from "@studyfy/shared-types";
 
 // Public marketing site (§7 Phase 1 #10, copy per §8.3). Exclusions
 // honored (§8.1): no invented customer stats, no app-store badges, and the
@@ -30,26 +31,16 @@ const FEATURES: { title: string; detail: string; icon: LucideIcon }[] = [
   { title: "Reports & Analytics", detail: "Role dashboards with live KPIs for every stakeholder.", icon: BarChart3 },
 ];
 
-const PLANS: { name: string; price: string; popular: boolean; points: string[] }[] = [
-  {
-    name: "Basic",
-    price: "₹2,999/month",
-    popular: false,
-    points: ["Up to 500 students", "Core features", "Email support"],
-  },
-  {
-    name: "Standard",
-    price: "₹5,999/month",
-    popular: true,
-    points: ["Up to 1,500 students", "All core features", "Priority support"],
-  },
-  {
-    name: "Premium",
-    price: "₹9,999/month",
-    popular: false,
-    points: ["Unlimited students", "Advanced features", "24/7 support"],
-  },
-];
+// Pricing cards (§16.1): generated FROM the single shared plan config —
+// names, headline prices and bullets all derive here, so the page cannot
+// promise more than the code enforces. `popular` is presentation-only
+// (Standard is the highlighted tier); everything else is config truth.
+const PLANS: { name: string; price: string; popular: boolean; points: string[] }[] = Object.values(PLAN_CONFIG).map((p) => ({
+  name: p.plan.charAt(0) + p.plan.slice(1).toLowerCase(),
+  price: `₹${(p.pricePaise / 100).toLocaleString("en-IN")}/month`,
+  popular: p.plan === "STANDARD",
+  points: p.bullets,
+}));
 
 const font: React.CSSProperties = { fontFamily: "Inter, system-ui, sans-serif" };
 

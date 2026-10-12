@@ -15,7 +15,8 @@ import {
   setSubscription,
   startOfDayUtc,
 } from "../src/modules/billing/billing.service.js";
-import { effectivePlan, planAllows } from "../src/modules/billing/plans.js";
+import { PLANS as ApiPlans, effectivePlan, planAllows } from "../src/modules/billing/plans.js";
+import { PLANS as SharedPlans } from "@studyfy/shared-types";
 
 const app = createApp();
 const savedPlatformState = process.env.PLATFORM_STATE;
@@ -38,6 +39,13 @@ async function registerSchool(
 }
 
 describe("billing math (§16.1, pure)", () => {
+  it("uses ONE shared plan config (API re-export === shared-types object)", () => {
+    // §16.1 single source of truth: the landing cards, the API gates and the
+    // invoices all read the same object — a copy would let them drift apart.
+    expect(ApiPlans).toBe(SharedPlans);
+    expect(Object.keys(ApiPlans).sort()).toEqual(["BASIC", "PREMIUM", "STANDARD"]);
+  });
+
   it("resolves financial years April–March", () => {
     expect(financialYear(new Date("2026-01-15T00:00:00Z"))).toBe("2025-26");
     expect(financialYear(new Date("2026-03-31T00:00:00Z"))).toBe("2025-26");

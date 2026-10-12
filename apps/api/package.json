@@ -6,9 +6,10 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run build --workspace=@studyfy/shared-types && tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.tests.json",
+    "typecheck": "npm run build --workspace=@studyfy/shared-types && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.tests.json",
+    "pretest": "npm run build --workspace=@studyfy/shared-types",
     "test": "vitest run",
     "lint": "eslint src --max-warnings=0",
     "db:seed": "tsx ../../prisma/seed.ts",
@@ -16,6 +17,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",
+    "@studyfy/shared-types": "0.1.0",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",

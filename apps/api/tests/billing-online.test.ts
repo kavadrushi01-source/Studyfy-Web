@@ -19,7 +19,7 @@ vi.mock("../src/lib/razorpay.js", async (importOriginal) => {
       status: "created",
       keyId: "rzp_test_fake",
     })),
-    fetchOrderPayments: vi.fn(async (_orderId: string) => []),
+    fetchOrderPayments: vi.fn(async () => []),
   };
 });
 
@@ -27,7 +27,6 @@ const app = createApp();
 const mockedOrder = vi.mocked(createRazorpayOrder);
 const mockedFetch = vi.mocked(fetchOrderPayments);
 
-const SAVED_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 process.env.RAZORPAY_WEBHOOK_SECRET = "wh-billing-secret";
 
 function uid(): string {

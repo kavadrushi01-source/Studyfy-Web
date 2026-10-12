@@ -17,7 +17,7 @@
 //   isDemo schools + the seeded owner, nothing else).
 import { Prisma, PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { PLANS } from "../apps/api/src/modules/billing/plans.js";
+import { PLANS } from "../packages/shared-types/src/plans.js";
 
 // Parallel vitest workers share one database, so every global seed below
 // must survive concurrent identical callers. Two failure modes, both seen
