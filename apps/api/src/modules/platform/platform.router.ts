@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { z } from "zod";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { platformOnlyMiddleware } from "../../middleware/platform-only.js";
@@ -495,6 +496,232 @@ platformRouter.post(
     try {
       const result = await markInvoicePaid(req.prisma, req.params.id ?? "", req.user.userId);
       res.json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Users Management (§7 #23, Chunk 3): account administration ONLY —
+// activate/deactivate, role assignment. Never academic data (no pupil
+// records, marks, fees, or messages here — those live in tenant routes the
+// owner never touches). Every write audited (§13.10 must-list).
+// Hard guardrails (fail closed, tested both directions):
+// - PLATFORM_OWNER accounts are never assigned or unassigned through here
+//   (owner creation stays manual/out-of-band, §13.4 — no public owner
+//   creation, and no privileged escalation path either);
+// - nobody deactivates or re-roles their OWN account (self-lockout).
+// ---------------------------------------------------------------------------
+
+const userListSchema = z.object({
+  schoolId: z.string().trim().min(1).max(64).optional(),
+  role: z.string().trim().min(1).max(32).optional(),
+  take: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+const userActiveSchema = z.object({
+  isActive: z.boolean(),
+});
+
+const userRoleSchema = z.object({
+  role: z.string().trim().min(1).max(32),
+});
+
+// GET /platform/users — cross-tenant account roster (ids, emails, roles,
+// schools, active flags). No academic rows, ever.
+platformRouter.get(
+  "/users",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.users.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = userListSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    const users = await req.prisma.user.findMany({
+      where: {
+        ...(parsed.data.schoolId ? { schoolId: parsed.data.schoolId } : {}),
+        ...(parsed.data.role ? { role: { name: parsed.data.role } } : {}),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        isActive: true,
+        createdAt: true,
+        role: { select: { name: true } },
+        school: { select: { id: true, name: true, slug: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: parsed.data.take,
+    });
+    res.json({ success: true, data: { users }, error: null, meta: null });
+  }),
+);
+
+async function loadManagedUser(db: NonNullable<Request["prisma"]>, id: string) {
+  return db.user.findUnique({
+    where: { id },
+    include: { role: true, school: { select: { id: true, name: true } } },
+  });
+}
+
+function forbidOwnerTouch(res: Response): void {
+  res.status(403).json({
+    success: false,
+    data: null,
+    error: { code: "FORBIDDEN", message: "Platform Owner accounts are managed out-of-band, never through this panel." },
+    meta: null,
+  });
+}
+
+// PATCH /platform/users/:id — deactivate / reactivate. Deactivation locks
+// the account at next login/token use (login checks isActive; live access
+// tokens expire within 15 minutes — the standard short-tail, not a bug).
+platformRouter.patch(
+  "/users/:id",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.users.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = userActiveSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const target = await loadManagedUser(req.prisma, req.params.id ?? "");
+      if (!target) {
+        sendBillingError(res, new AuthError(404, "USER_NOT_FOUND", "User not found."));
+        return;
+      }
+      if (target.role.name === "PLATFORM_OWNER") {
+        forbidOwnerTouch(res);
+        return;
+      }
+      if (target.id === req.user.userId) {
+        sendBillingError(res, new AuthError(403, "FORBIDDEN", "You cannot deactivate your own account."));
+        return;
+      }
+      if (target.isActive === parsed.data.isActive) {
+        res.json({ success: true, data: { user: { id: target.id, isActive: target.isActive }, unchanged: true }, error: null, meta: null });
+        return;
+      }
+      const updated = await req.prisma.user.update({
+        where: { id: target.id },
+        data: { isActive: parsed.data.isActive },
+      });
+      await recordAudit(req.prisma, {
+        schoolId: target.schoolId,
+        actorId: req.user.userId,
+        action: parsed.data.isActive ? "USER_REACTIVATE" : "USER_DEACTIVATE",
+        entity: "User",
+        entityId: target.id,
+        before: { id: target.id, role: target.role.name, isActive: target.isActive },
+        after: { id: updated.id, role: target.role.name, isActive: updated.isActive },
+      });
+      res.json({ success: true, data: { user: { id: updated.id, isActive: updated.isActive } }, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// PATCH /platform/users/:id/role — reassign a role (any non-owner role).
+// Before/after role names are the audited fact (§13.10 role changes).
+platformRouter.patch(
+  "/users/:id/role",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.users.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = userRoleSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const target = await loadManagedUser(req.prisma, req.params.id ?? "");
+      if (!target) {
+        sendBillingError(res, new AuthError(404, "USER_NOT_FOUND", "User not found."));
+        return;
+      }
+      if (target.role.name === "PLATFORM_OWNER" || parsed.data.role === "PLATFORM_OWNER") {
+        forbidOwnerTouch(res);
+        return;
+      }
+      if (target.id === req.user.userId) {
+        sendBillingError(res, new AuthError(403, "FORBIDDEN", "You cannot change your own role."));
+        return;
+      }
+      const role = await req.prisma.role.findUnique({ where: { name: parsed.data.role } });
+      if (!role) {
+        sendBillingError(res, new AuthError(400, "VALIDATION_ERROR", "Unknown role."));
+        return;
+      }
+      if (role.id === target.roleId) {
+        res.json({ success: true, data: { user: { id: target.id, role: target.role.name }, unchanged: true }, error: null, meta: null });
+        return;
+      }
+      const updated = await req.prisma.user.update({
+        where: { id: target.id },
+        data: { roleId: role.id },
+      });
+      await recordAudit(req.prisma, {
+        schoolId: target.schoolId,
+        actorId: req.user.userId,
+        action: "USER_ROLE_CHANGE",
+        entity: "User",
+        entityId: target.id,
+        before: { id: target.id, role: target.role.name, isActive: target.isActive },
+        after: { id: updated.id, role: role.name, isActive: target.isActive },
+      });
+      res.json({ success: true, data: { user: { id: updated.id, role: role.name } }, error: null, meta: null });
     } catch (err) {
       sendBillingError(res, err);
     }
