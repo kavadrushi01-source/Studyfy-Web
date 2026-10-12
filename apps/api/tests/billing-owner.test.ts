@@ -169,4 +169,20 @@ describe("suspended-school exception (§13.4, both directions)", () => {
     // Teacher login itself is refused on a suspended school (admin-only).
     expect(teacherLogin.status).toBe(403);
   });
+
+  it("blocks an expired trial at tenant routes even though no job has run", async () => {
+    const school = await registerSchool(`Billing Trial Lapse School ${uid()}`);
+    await prisma.school.update({
+      where: { id: school.schoolId },
+      data: { subscriptionStatus: "TRIAL", trialEndsAt: new Date(Date.now() - 1000) },
+    });
+    // No billing cycle ran — the gate derives expiry from dates at request
+    // time (§13.4, schoolAccess). The registration token is still a valid
+    // JWT; only the gate stands in the way.
+    const denied = await request(app)
+      .get(`/api/v1/schools/${school.schoolId}/students`)
+      .set({ Authorization: `Bearer ${school.adminToken}` });
+    expect(denied.status).toBe(403);
+    expect(denied.body.error.code).toBe("TRIAL_EXPIRED");
+  });
 });
