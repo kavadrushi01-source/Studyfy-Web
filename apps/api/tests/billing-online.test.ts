@@ -192,6 +192,45 @@ describe("subscription webhook capture (§16.1 shared order flow)", () => {
   });
 });
 
+describe("subscription payment refusals (§16.1, both directions)", () => {
+  it(
+    "a teacher can neither pay nor mark paid; an admin cannot pay another school's invoice",
+    { timeout: 120000 },
+    async () => {
+      const a = await registerSchool(`Billing Refuse A ${uid()}`);
+      const b = await registerSchool(`Billing Refuse B ${uid()}`);
+      const ownerToken = await loginOwner();
+      const { id: aInvoice } = await issueInvoice(ownerToken, a.schoolId, "BASIC");
+      const { id: bInvoice } = await issueInvoice(ownerToken, b.schoolId, "BASIC");
+      const teacherToken = await makeTeacher(a.schoolId);
+
+      // Teacher on the owner mark-paid route: platform-only, 403.
+      const teacherMark = await request(app)
+        .post(`/api/v1/platform/subscription-invoices/${aInvoice}/mark-paid`)
+        .set({ Authorization: `Bearer ${teacherToken}` });
+      expect(teacherMark.status).toBe(403);
+
+      // Teacher on pay-order: already refused (§16.1 test above) — and the
+      // invoice stays PENDING either way.
+      expect((await prisma.subscriptionInvoice.findUniqueOrThrow({ where: { id: aInvoice } })).status).toBe("PENDING");
+
+      // Admin of A paying B's invoice: the tenant-scoped lookup finds no
+      // such invoice for A's school — 404, never cross-tenant.
+      const cross = await request(app)
+        .post(`/api/v1/schools/${a.schoolId}/billing/invoices/${bInvoice}/pay-order`)
+        .set({ Authorization: `Bearer ${a.adminToken}` });
+      expect(cross.status).toBe(404);
+
+      // Own invoice still payable afterwards (refusals changed nothing).
+      const own = await request(app)
+        .post(`/api/v1/schools/${a.schoolId}/billing/invoices/${aInvoice}/pay-order`)
+        .set({ Authorization: `Bearer ${a.adminToken}` })
+        .expect(201);
+      expect(own.body.data.orderId as string).toMatch(/^order_/);
+    },
+  );
+});
+
 describe("subscription pay-verify (§13.8 fallback shape)", () => {
   it("applies a gateway-held capture with the admin as actor, PENDING otherwise", async () => {
     const school = await registerSchool(`Billing Verify School ${uid()}`);
