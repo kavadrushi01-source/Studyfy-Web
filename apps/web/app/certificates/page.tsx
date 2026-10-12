@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Award } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
-import { SkeletonBlocks } from "../../components/ui/shell";
-import { isFailure } from "../../lib/api";
+import { SkeletonBlocks, UpgradeLocked } from "../../components/ui/shell";
+import { isFailure, upgradeLockedMessage } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 
@@ -44,6 +44,10 @@ export default function CertificatesPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Plan-gate locked state (§16.1): a 403 PLAN_UPGRADE_REQUIRED on the main
+  // load parks the server's upgrade message here and the page renders the
+  // locked card instead of content or a bare error.
+  const [locked, setLocked] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [issuing, setIssuing] = useState(false);
   const [query, setQuery] = useState("");
@@ -61,12 +65,18 @@ export default function CertificatesPage() {
       }
       setLoading(true);
       setError("");
+      setLocked(null);
       try {
         const params = new URLSearchParams({ page: String(nextPage), pageSize: "20" });
         const response = await apiFetch(`/api/v1/schools/${schoolId}/certificates?${params}`);
         const body = (await response.json()) as {
           data: { certificates: CertRow[]; total: number; totalPages: number };
         } | ApiError;
+        const upgrade = upgradeLockedMessage(body);
+        if (upgrade) {
+          setLocked(upgrade);
+          return;
+        }
         if (isFailure(response, body)) {
           throw new Error(body.error?.message ?? "Failed to load certificates.");
         }
@@ -197,6 +207,15 @@ export default function CertificatesPage() {
         <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
           Go to login
         </Link>
+      </main>
+    );
+  }
+
+  if (locked) {
+    return (
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Certificates</h1>
+        <UpgradeLocked message={locked} />
       </main>
     );
   }

@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Inbox, UserPlus } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
-import { SkeletonBlocks } from "../../components/ui/shell";
-import { isFailure } from "../../lib/api";
+import { SkeletonBlocks, UpgradeLocked } from "../../components/ui/shell";
+import { isFailure, upgradeLockedMessage } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 
@@ -60,6 +60,10 @@ export default function CrmPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Plan-gate locked state (§16.1): a 403 PLAN_UPGRADE_REQUIRED on the main
+  // load parks the server's upgrade message here and the page renders the
+  // locked card instead of content or a bare error.
+  const [locked, setLocked] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [activeId, setActiveId] = useState("");
   const [detail, setDetail] = useState<CrmDetail | null>(null);
@@ -75,6 +79,7 @@ export default function CrmPage() {
       }
       setLoading(true);
       setError("");
+      setLocked(null);
       try {
         const params = new URLSearchParams({ page: String(next.page), pageSize: "20" });
         if (next.status) {
@@ -87,6 +92,11 @@ export default function CrmPage() {
         const body = (await response.json()) as {
           data: { enquiries: CrmRow[]; totals: Record<string, number>; total: number; totalPages: number };
         } | ApiError;
+        const upgrade = upgradeLockedMessage(body);
+        if (upgrade) {
+          setLocked(upgrade);
+          return;
+        }
         if (isFailure(response, body)) {
           throw new Error(body.error?.message ?? "Failed to load enquiries.");
         }
@@ -270,6 +280,15 @@ export default function CrmPage() {
         <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
           Go to login
         </Link>
+      </main>
+    );
+  }
+
+  if (locked) {
+    return (
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Admissions</h1>
+        <UpgradeLocked message={locked} />
       </main>
     );
   }

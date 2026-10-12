@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Bus } from "lucide-react";
-import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
-import { isFailure } from "../../lib/api";
+import { EmptyState, SkeletonBlocks, UpgradeLocked } from "../../components/ui/shell";
+import { isFailure, upgradeLockedMessage } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, primaryBtn, secondaryBtn } from "@/lib/theme";
 
@@ -39,6 +39,10 @@ export default function TransportPage() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Plan-gate locked state (§16.1): a 403 PLAN_UPGRADE_REQUIRED on the main
+  // load parks the server's upgrade message here and the page renders the
+  // locked card instead of content or a bare error.
+  const [locked, setLocked] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [routeName, setRouteName] = useState("");
   const [addingRoute, setAddingRoute] = useState(false);
@@ -61,9 +65,15 @@ export default function TransportPage() {
     }
     setLoading(true);
     setError("");
+    setLocked(null);
     try {
       const response = await apiFetch(`/api/v1/schools/${schoolId}/transport/routes`);
       const body = (await response.json()) as { data: { routes: Route[] } } | ApiError;
+      const upgrade = upgradeLockedMessage(body);
+      if (upgrade) {
+        setLocked(upgrade);
+        return;
+      }
       if (isFailure(response, body)) {
         throw new Error(body.error?.message ?? "Failed to load routes.");
       }
@@ -269,6 +279,15 @@ export default function TransportPage() {
         <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
           Go to login
         </Link>
+      </main>
+    );
+  }
+
+  if (locked) {
+    return (
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Transport</h1>
+        <UpgradeLocked message={locked} />
       </main>
     );
   }

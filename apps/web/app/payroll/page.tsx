@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Wallet } from "lucide-react";
-import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
-import { isFailure } from "../../lib/api";
+import { EmptyState, SkeletonBlocks, UpgradeLocked } from "../../components/ui/shell";
+import { isFailure, upgradeLockedMessage } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, h2Style, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 
@@ -69,6 +69,10 @@ export default function PayrollPage() {
   const { token, schoolId, ready, apiFetch, user } = useAuth();
   const canManage = user?.role === "SCHOOL_ADMIN" || user?.role === "ACCOUNTANT";
   const [error, setError] = useState("");
+  // Plan-gate locked state (§16.1): a 403 PLAN_UPGRADE_REQUIRED on the main
+  // load parks the server's upgrade message here and the page renders the
+  // locked card instead of content or a bare error.
+  const [locked, setLocked] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [staff, setStaff] = useState<StaffOption[]>([]);
 
@@ -76,9 +80,15 @@ export default function PayrollPage() {
     if (!schoolId || !canManage) {
       return;
     }
+    setLocked(null);
     try {
       const response = await apiFetch(`/api/v1/schools/${schoolId}/payroll/staff`);
       const body = (await response.json()) as { data: { staff: StaffOption[] } } | ApiError;
+      const upgrade = upgradeLockedMessage(body);
+      if (upgrade) {
+        setLocked(upgrade);
+        return;
+      }
       if (!isFailure(response, body)) {
         setStaff(body.data.staff);
       }
@@ -111,6 +121,15 @@ export default function PayrollPage() {
         <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
           Go to login
         </Link>
+      </main>
+    );
+  }
+
+  if (locked) {
+    return (
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Payroll</h1>
+        <UpgradeLocked message={locked} />
       </main>
     );
   }

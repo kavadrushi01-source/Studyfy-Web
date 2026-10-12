@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Package } from "lucide-react";
-import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
-import { isFailure } from "../../lib/api";
+import { EmptyState, SkeletonBlocks, UpgradeLocked } from "../../components/ui/shell";
+import { isFailure, upgradeLockedMessage } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
 
@@ -47,6 +47,10 @@ export default function InventoryPage() {
   const [lowOnly, setLowOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Plan-gate locked state (§16.1): a 403 PLAN_UPGRADE_REQUIRED on the main
+  // load parks the server's upgrade message here and the page renders the
+  // locked card instead of content or a bare error.
+  const [locked, setLocked] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
@@ -68,6 +72,7 @@ export default function InventoryPage() {
       }
       setLoading(true);
       setError("");
+      setLocked(null);
       try {
         const params = new URLSearchParams();
         if (opts.search) {
@@ -82,6 +87,11 @@ export default function InventoryPage() {
         const query = params.toString();
         const response = await apiFetch(`/api/v1/schools/${schoolId}/inventory/items${query ? `?${query}` : ""}`);
         const body = (await response.json()) as { data: { items: StockItem[] } } | ApiError;
+        const upgrade = upgradeLockedMessage(body);
+        if (upgrade) {
+          setLocked(upgrade);
+          return;
+        }
         if (isFailure(response, body)) {
           throw new Error(body.error?.message ?? "Failed to load stock.");
         }
@@ -213,6 +223,15 @@ export default function InventoryPage() {
             Go to login
           </Link>
         </div>
+      </main>
+    );
+  }
+
+  if (locked) {
+    return (
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Inventory</h1>
+        <UpgradeLocked message={locked} />
       </main>
     );
   }

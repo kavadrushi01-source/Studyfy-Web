@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { LogOut, Menu, X } from "lucide-react";
+import { Lock, LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { gradients, shadows } from "@/lib/theme";
 import { ROLE_BOARDS } from "./role-boards";
@@ -277,6 +277,46 @@ export function EmptyState({ icon, title, detail }: { icon: ReactNode; title: st
       </span>
       <span style={{ fontWeight: 600, color: "#1E293B" }}>{title}</span>
       {detail ? <span style={{ maxWidth: 420 }}>{detail}</span> : null}
+    </div>
+  );
+}
+
+// Locked module (§16.1): a gated tier's page stays VISIBLE with an upgrade
+// prompt instead of hiding the module or showing a bare error. The message
+// is the server's (it names the required tier); the hint sends the reader
+// to their administrator. data-testid="module-locked" pins it for e2e.
+export function UpgradeLocked({ message }: { message: string }): ReactNode {
+  return (
+    <div
+      data-testid="module-locked"
+      style={{
+        border: "1px solid rgba(217,119,6,.4)",
+        borderRadius: 14,
+        padding: "28px 24px",
+        textAlign: "center",
+        background: "linear-gradient(180deg, rgba(251,191,36,.12), rgba(251,191,36,.03))",
+        display: "grid",
+        gap: 8,
+        justifyItems: "center",
+      }}
+    >
+      <span
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 14,
+          background: "#FEF3C7",
+          color: "#B45309",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Lock size={20} aria-hidden="true" />
+      </span>
+      <span style={{ fontWeight: 700, fontSize: 16, color: "#92400E" }}>Module locked</span>
+      <span style={{ fontSize: 14, color: "#57534E", maxWidth: 440 }}>{message}</span>
+      <span style={{ fontSize: 13, color: "#78716C" }}>Contact your school administrator to upgrade.</span>
     </div>
   );
 }

@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
-import { SkeletonBlocks } from "../../components/ui/shell";
-import { isFailure } from "../../lib/api";
+import { SkeletonBlocks, UpgradeLocked } from "../../components/ui/shell";
+import { isFailure, upgradeLockedMessage } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 
@@ -63,6 +63,10 @@ export default function LibraryPage() {
   const [availableOnly, setAvailableOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Plan-gate locked state (§16.1): a 403 PLAN_UPGRADE_REQUIRED on the main
+  // load parks the server's upgrade message here and the page renders the
+  // locked card instead of content or a bare error.
+  const [locked, setLocked] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   // Add-book form.
   const [title, setTitle] = useState("");
@@ -113,6 +117,7 @@ export default function LibraryPage() {
       const req = ++booksReq.current;
       setLoading(true);
       setError("");
+      setLocked(null);
       try {
         const params = new URLSearchParams({ page: String(next.page), pageSize: "20" });
         if (next.search.trim()) {
@@ -128,11 +133,16 @@ export default function LibraryPage() {
         const body = (await response.json()) as {
           data: { books: BookRow[]; categories: string[]; total: number; totalPages: number };
         } | ApiError;
-        if (isFailure(response, body)) {
-          throw new Error(body.error?.message ?? "Failed to load catalog.");
-        }
         if (req !== booksReq.current) {
           return;
+        }
+        const upgrade = upgradeLockedMessage(body);
+        if (upgrade) {
+          setLocked(upgrade);
+          return;
+        }
+        if (isFailure(response, body)) {
+          throw new Error(body.error?.message ?? "Failed to load catalog.");
         }
         setBooks(body.data.books);
         setCategories(body.data.categories);
@@ -474,6 +484,15 @@ export default function LibraryPage() {
         <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
           Go to login
         </Link>
+      </main>
+    );
+  }
+
+  if (locked) {
+    return (
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Library</h1>
+        <UpgradeLocked message={locked} />
       </main>
     );
   }

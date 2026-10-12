@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
-import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
-import { isFailure } from "../../lib/api";
+import { EmptyState, SkeletonBlocks, UpgradeLocked } from "../../components/ui/shell";
+import { isFailure, upgradeLockedMessage } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
 
@@ -60,6 +60,10 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Plan-gate locked state (§16.1): a 403 PLAN_UPGRADE_REQUIRED on the main
+  // load parks the server's upgrade message here and the page renders the
+  // locked card instead of content or a bare error.
+  const [locked, setLocked] = useState<string | null>(null);
   const [attendanceDays, setAttendanceDays] = useState("30");
   const [feeMonths, setFeeMonths] = useState("6");
 
@@ -70,10 +74,16 @@ export default function AnalyticsPage() {
       }
       setLoading(true);
       setError("");
+      setLocked(null);
       try {
         const params = new URLSearchParams({ attendanceDays: nextAttendance, feeMonths: nextFees });
         const response = await apiFetch(`/api/v1/schools/${schoolId}/analytics/overview?${params}`);
         const body = (await response.json()) as { data: { analytics: Overview } } | ApiError;
+        const upgrade = upgradeLockedMessage(body);
+        if (upgrade) {
+          setLocked(upgrade);
+          return;
+        }
         if (isFailure(response, body)) {
           throw new Error(body.error?.message ?? "Failed to load analytics.");
         }
@@ -114,6 +124,15 @@ export default function AnalyticsPage() {
             Go to login
           </Link>
         </div>
+      </main>
+    );
+  }
+
+  if (locked) {
+    return (
+      <main style={pageFrame}>
+        <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Reports &amp; Analytics</h1>
+        <UpgradeLocked message={locked} />
       </main>
     );
   }
