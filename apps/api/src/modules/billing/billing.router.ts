@@ -63,6 +63,11 @@ billingRouter.get(
       orderBy: { createdAt: "desc" },
       take: 10,
     });
+    // Student usage vs the plan cap (§16.1): the scoped count needs no
+    // where (the tenant extension pins it); the cap rides the same
+    // effectivePlan() the gate enforces — one tier math, everywhere.
+    const enrolled = await req.prisma.student.count({});
+    const usage = { enrolled, cap: PLANS[effectivePlan(school.subscriptionStatus, school.plan)].studentCap };
     res.json({
       success: true,
       data: {
@@ -71,6 +76,7 @@ billingRouter.get(
         invoices,
         plans: PLANS,
         effectivePlan: effectivePlan(school.subscriptionStatus, school.plan),
+        usage,
       },
       error: null,
       meta: null,

@@ -45,6 +45,7 @@ interface BillingOverview {
   invoices: SubscriptionInvoice[];
   plans: Record<string, PlanDef>;
   effectivePlan: string;
+  usage: { enrolled: number; cap: number | null };
 }
 
 interface ApiError {
@@ -299,6 +300,14 @@ export default function BillingPage() {
           </p>
         </div>
       ) : null}
+      {status === "TRIAL" && overview ? (
+        <div className="sf-card" style={{ padding: 16, marginBottom: 16, borderLeft: `4px solid ${colors.primary}` }}>
+          <strong style={{ color: colors.primary }}>Trial — ends {fmtDay(overview.school.trialEndsAt)}.</strong>
+          <p style={{ ...mutedStyle, fontSize: 14, margin: "6px 0 0" }}>
+            Full access until then; the first invoice issues automatically at expiry.
+          </p>
+        </div>
+      ) : null}
 
       {loading ? (
         <SkeletonBlocks rows={4} />
@@ -331,6 +340,14 @@ export default function BillingPage() {
                 ? `Current period ends ${fmtDay(overview.subscription.currentPeriodEnd)}.`
                 : `Trial ends ${fmtDay(overview.school.trialEndsAt)}.`}{" "}
               Every invoice below is a TEST INVOICE — not a tax invoice.
+            </p>
+            <p style={{ ...mutedStyle, fontSize: 13, margin: "8px 0 0" }} data-testid="plan-usage">
+              {overview.usage.cap === null
+                ? `${overview.usage.enrolled.toLocaleString("en-IN")} students · Unlimited on ${plan}`
+                : `${overview.usage.enrolled.toLocaleString("en-IN")} of ${overview.usage.cap.toLocaleString("en-IN")} students used`}
+              {overview.usage.cap !== null && overview.usage.enrolled >= overview.usage.cap
+                ? " — at capacity: new admissions will be refused until upgrade."
+                : ""}
             </p>
           </section>
 
@@ -379,7 +396,7 @@ export default function BillingPage() {
                       </button>
                     </div>
                     {invoice.status === "PENDING" ? (
-                      <div className="sf-row-wrap" style={{ marginTop: 10 }}>
+                      <div className="sf-row-wrap" style={{ marginTop: 10, alignItems: "center" }}>
                         <button
                           type="button"
                           onClick={() => void payOnline(invoice.id)}
@@ -388,6 +405,7 @@ export default function BillingPage() {
                         >
                           {payingId === invoice.id ? "Starting…" : `Pay ${rupees(total)} online`}
                         </button>
+                        <span style={pill(colors.warning, colors.warningTint)}>TEST MODE</span>
                         {pendingOrders[invoice.id] ? (
                           <button type="button" onClick={() => void checkNow(invoice.id)} className="sf-btn">
                             Check now

@@ -303,4 +303,15 @@ describe("billing overview (§13.4 exception surface)", () => {
     expect(res.body.data.plans.PREMIUM.pricePaise).toBe(999900);
     expect(res.body.data.effectivePlan).toBe("BASIC");
   });
+
+  it("reports student usage against the effective cap", async () => {
+    const school = await registerSchool(`Billing Usage School ${uid()}`);
+    const res = await request(app)
+      .get(`/api/v1/schools/${school.schoolId}/billing/overview`)
+      .set({ Authorization: `Bearer ${school.adminToken}` })
+      .expect(200);
+    // Fresh trial school: Standard tier via effectivePlan, no pupils yet.
+    expect(res.body.data.usage).toEqual({ enrolled: 0, cap: 1500 });
+    expect(res.body.data.effectivePlan).toBe("STANDARD");
+  });
 });

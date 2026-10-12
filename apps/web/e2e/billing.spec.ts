@@ -20,6 +20,7 @@ test.describe("billing", () => {
     await expect(page.getByText("ACTIVE").first()).toBeVisible();
     await expect(page.getByText("TEST INVOICE").first()).toBeVisible();
     await expect(page.getByText(/STY\/\d{2}-\d{2}\//).first()).toBeVisible();
+    await expect(page.getByTestId("plan-usage")).toHaveText(/students · Unlimited on PREMIUM/);
     // The invoice PDF downloads real bytes (§16.1 stamp proven API-side;
     // here the wiring: button → blob download → %PDF- on disk).
     const [download] = await Promise.all([
@@ -58,15 +59,10 @@ test.describe("billing", () => {
       data: { schoolId, plan: "BASIC", periodStart: "2026-11-01", periodEnd: "2026-11-30" },
     });
     expect(issue.ok()).toBe(true);
-    await request.post(`${API}/api/v1/platform/schools/${schoolId}/suspend`, {
-      headers: { Authorization: `Bearer ${ownerToken}` },
-      data: {},
-    });
 
-    // Suspended admins keep working sessions (the §13.4 exception): prove
-    // the API login first, then plant the session and open billing. (The
-    // shared UI login helper only knows the Demo@1234 seed password, so a
-    // custom-password admin signs in over the API here.)
+    // Custom-password admins sign in over the API (the shared UI login
+    // helper only knows the Demo@1234 seed password), then plant the
+    // session and open billing while still TRIAL: banner + usage first.
     const adminApiLogin = await request.post(`${API}/api/v1/auth/login`, {
       data: { schoolSlug: slug, email: adminEmail, password: "password-123" },
     });
@@ -85,6 +81,17 @@ test.describe("billing", () => {
       }),
     );
     await page.goto("/billing");
+    await expect(page.getByText(/trial.*ends/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId("plan-usage")).toHaveText(/0 of 1,500 students used/);
+
+    // Suspended admins keep working sessions (the §13.4 exception): suspend
+    // mid-journey and the same page becomes the suspended screen — banner,
+    // invoices, pay button, all usable.
+    await request.post(`${API}/api/v1/platform/schools/${schoolId}/suspend`, {
+      headers: { Authorization: `Bearer ${ownerToken}` },
+      data: {},
+    });
+    await page.reload();
     await expect(page.getByText("Account suspended").first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByText("TEST INVOICE").first()).toBeVisible();
     await expect(page.getByRole("button", { name: /pay .* online/i }).first()).toBeVisible();
