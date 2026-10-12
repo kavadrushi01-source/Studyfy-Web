@@ -45,6 +45,7 @@ platformRouter.get(
         name: true,
         slug: true,
         subscriptionStatus: true,
+        plan: true,
         trialEndsAt: true,
         createdAt: true,
         _count: { select: { users: true, students: true } },

@@ -11,5 +11,9 @@ export default defineConfig({
     // row-isolated, so this trades ~30s of speed for reliability — no test
     // semantics change. CI (Linux) never showed this; cap is harmless there.
     maxWorkers: 2,
+    // Register/login tests hash bcrypt passwords and can exceed vitest's
+    // 5s default on a loaded Windows box (demo-safety flaked at exactly 5s).
+    // 20s is well under any real hang while absorbing bcrypt variance.
+    testTimeout: 20000,
   },
 });
