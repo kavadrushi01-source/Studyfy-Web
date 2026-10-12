@@ -33,6 +33,24 @@ export interface PasswordResetEmail {
   schoolName: string;
 }
 
+export interface TrialEndingEmail {
+  to: string;
+  name: string;
+  schoolName: string;
+  daysLeft: number;
+  trialEndDate: string;
+}
+
+export interface SubscriptionInvoiceReminderEmail {
+  to: string;
+  name: string;
+  schoolName: string;
+  invoiceNumber: string;
+  amountDue: string;
+  periodLabel: string;
+  daysOverdue: number;
+}
+
 // What one send attempt resolved to. Callers count "sent" for their
 // emailed tallies and treat anything else as skipped — a suppressed demo
 // email must never inflate a sent count (§13.11).
@@ -50,6 +68,8 @@ export interface Mailer {
   sendNoticeEmail(email: NoticeEmail): Promise<EmailDelivery>;
   sendFeeReminder(email: FeeReminderEmail): Promise<EmailDelivery>;
   sendPasswordResetEmail(email: PasswordResetEmail): Promise<EmailDelivery>;
+  sendTrialEndingReminder(email: TrialEndingEmail): Promise<EmailDelivery>;
+  sendSubscriptionInvoiceReminder(email: SubscriptionInvoiceReminderEmail): Promise<EmailDelivery>;
 }
 
 // Brevo free SMTP relay (spec §2: 300/day, forever, no card) — the REAL
@@ -171,6 +191,42 @@ class SmtpMailer implements Mailer {
       }),
     );
   }
+
+  async sendTrialEndingReminder(email: TrialEndingEmail): Promise<EmailDelivery> {
+    return this.dispatch("trial-ending", email.to, () =>
+      this.transporter.sendMail({
+        from: this.from(),
+        to: email.to,
+        subject: `Your Studyfy trial ends in ${email.daysLeft} day${email.daysLeft === 1 ? "" : "s"} — ${email.schoolName}`,
+        text: [
+          `Dear ${email.name},`,
+          ``,
+          `The free trial for ${email.schoolName} ends on ${email.trialEndDate} (${email.daysLeft} day${email.daysLeft === 1 ? "" : "s"} left).`,
+          `To keep full access afterwards, arrange your subscription before that date — the first invoice is issued automatically when the trial ends.`,
+          ``,
+          `— ${email.schoolName} via Studyfy`,
+        ].join("\n"),
+      }),
+    );
+  }
+
+  async sendSubscriptionInvoiceReminder(email: SubscriptionInvoiceReminderEmail): Promise<EmailDelivery> {
+    return this.dispatch("subscription-invoice", email.to, () =>
+      this.transporter.sendMail({
+        from: this.from(),
+        to: email.to,
+        subject: `Subscription invoice ${email.invoiceNumber} — ${email.amountDue} ${email.daysOverdue > 0 ? "overdue" : "due"} (${email.schoolName})`,
+        text: [
+          `Dear ${email.name},`,
+          ``,
+          `Subscription invoice ${email.invoiceNumber} for ${email.schoolName} (${email.periodLabel}) of ${email.amountDue} is ${email.daysOverdue} day${email.daysOverdue === 1 ? "" : "s"} overdue.`,
+          `Please pay from the Billing page of your workspace. Unpaid invoices suspend access after the 7-day grace period.`,
+          ``,
+          `— ${email.schoolName} via Studyfy`,
+        ].join("\n"),
+      }),
+    );
+  }
 }
 
 export class MailerUnconfiguredError extends Error {
@@ -195,6 +251,8 @@ export const stubMailer: Mailer = {
   sendNoticeEmail: async () => "sent",
   sendFeeReminder: async () => "sent",
   sendPasswordResetEmail: async () => "sent",
+  sendTrialEndingReminder: async () => "sent",
+  sendSubscriptionInvoiceReminder: async () => "sent",
 };
 
 // THE single send function (§13.11): every outbound email in the product is
@@ -220,6 +278,8 @@ export function mailerFor(school: MailSchool): Mailer {
     sendNoticeEmail: suppressed("notice"),
     sendFeeReminder: suppressed("fee-reminder"),
     sendPasswordResetEmail: suppressed("password-reset"),
+    sendTrialEndingReminder: suppressed("trial-ending"),
+    sendSubscriptionInvoiceReminder: suppressed("subscription-invoice"),
   };
 }
 

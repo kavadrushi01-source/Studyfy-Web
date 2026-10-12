@@ -2,6 +2,12 @@ import type { PrismaClient } from "@prisma/client";
 import { scopedPrismaClient } from "../../lib/prisma-tenant.js";
 import { schoolHour } from "../../lib/school-time.js";
 import { runFeeReminders } from "../fees/fees.service.js";
+import {
+  runBillingCycle,
+  runBillingReminders,
+  type BillingCycleResult,
+  type BillingRemindersResult,
+} from "../billing/billing.service.js";
 
 // Fee reminders run at 9am in EACH school's own timezone (§12.4, §12.7):
 // the external scheduler fires hourly; this job decides per school whether
@@ -69,4 +75,28 @@ export async function runFeeRemindersJob(
     result.skipped += run.skipped;
   }
   return result;
+}
+
+export interface BillingCycleJobResult {
+  job: "billing-cycle";
+  at: string;
+  cycle: BillingCycleResult;
+  reminders: BillingRemindersResult;
+}
+
+// Subscription billing (§12.4 job list, §16.1): transitions first
+// (trial/period expiry → PAST_DUE → SUSPENDED), then the reminder half
+// (trial-ending + overdue-invoice nudges). Both halves are idempotent
+// (exact-prior-state transitions; audit-as-sent-log reminders), so an
+// hourly trigger — or a manual re-fire — never double-bills, double
+// suspends, or double-mails. Demo schools are excluded inside both loops.
+export async function runBillingCycleJob(
+  db: PrismaClient,
+  now: Date = new Date(),
+  // Code-level targeting only (tests) — the HTTP route never exposes it.
+  opts?: { schoolIds?: string[] },
+): Promise<BillingCycleJobResult> {
+  const cycle = await runBillingCycle(db, now, opts);
+  const reminders = await runBillingReminders(db, now, opts);
+  return { job: "billing-cycle", at: now.toISOString(), cycle, reminders };
 }

@@ -33,3 +33,13 @@ jobs:
           curl --fail --show-error -X POST \
             -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
             "${{ vars.API_URL }}/api/v1/internal/jobs/fee-reminders"
+  # Subscription billing (§16.1): transitions + reminders are date-gated and
+  # idempotent, so the same hourly trigger is correct — a missed run delays
+  # an email, never leaves access open (§13.4 gate checks dates too).
+  billing-cycle:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl --fail --show-error -X POST \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.API_URL }}/api/v1/internal/jobs/billing-cycle"

@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { pickAuditFields, recordAudit } from "../../lib/audit.js";
+import { mailerFor } from "../../lib/mailer.js";
 import { createRazorpayOrder, fetchOrderPayments } from "../../lib/razorpay.js";
 import { AuthError } from "../auth/auth.service.js";
 import { GRACE_DAYS, GST_PERCENT, PLANS, type SchoolPlan } from "./plans.js";
@@ -632,6 +633,172 @@ export async function runBillingCycle(
       );
       result.transitioned.push({ schoolId: school.id, from: "ACTIVE", to: "PAST_DUE" });
     }
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Billing reminders (§12.4 job list: the billing-cycle job's email half).
+// Trial-ending nudges (3 and 1 days out) + overdue-invoice nudges (1 and 7
+// days overdue), mailed to the school's active admins. Date-gated, not
+// hour-gated (unlike fee reminders): at most two touches per trial and two
+// per invoice, so any hourly trigger on the matching DATE is correct.
+// Idempotency is "already reminded for (entity, day-count)": the audit log
+// doubles as the sent-log (TrialReminder/InvoiceReminder rows, NULL actor —
+// the job is a machine). Send-then-audit: a crash between the two re-sends
+// once next run; audit-first would drop mail on crash, which is worse. Demo
+// schools never reach the mailer (isDemo filters below AND the mailerFor
+// double guard — same pattern as fee reminders).
+// ---------------------------------------------------------------------------
+
+export interface BillingRemindersResult {
+  at: string;
+  trialReminded: number;
+  invoiceReminded: number;
+  skipped: number;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function invoiceRupees(amountPaise: number, cgstPaise: number, sgstPaise: number, igstPaise: number): string {
+  return `Rs. ${((amountPaise + cgstPaise + sgstPaise + igstPaise) / 100).toFixed(2)}`;
+}
+
+async function schoolAdmins(db: PrismaClient, schoolId: string): Promise<{ email: string; name: string }[]> {
+  return db.user.findMany({
+    where: { schoolId, isActive: true, role: { name: "SCHOOL_ADMIN" } },
+    select: { email: true, name: true },
+  });
+}
+
+async function alreadyReminded(
+  db: PrismaClient,
+  where: { schoolId: string; action: string; entityId?: string },
+  match: (after: Record<string, unknown>) => boolean,
+): Promise<boolean> {
+  const rows = await db.auditLog.findMany({ where, select: { after: true } });
+  return rows.some((r) => {
+    const after: unknown = r.after;
+    return !!after && typeof after === "object" && match(after as Record<string, unknown>);
+  });
+}
+
+export async function runBillingReminders(
+  db: PrismaClient,
+  now: Date = new Date(),
+  // Code-level targeting only (tests, ops one-offs) — the HTTP route never
+  // exposes it (same lesson as runBillingCycle/runFeeRemindersJob).
+  opts?: { schoolIds?: string[] },
+): Promise<BillingRemindersResult> {
+  const result: BillingRemindersResult = { at: now.toISOString(), trialReminded: 0, invoiceReminded: 0, skipped: 0 };
+  const today = startOfDayUtc(now);
+  const inScope = opts?.schoolIds ? { id: { in: opts.schoolIds } } : {};
+
+  const trials = await db.school.findMany({
+    where: { isDemo: false, subscriptionStatus: "TRIAL", ...inScope },
+    select: { id: true, slug: true, name: true, trialEndsAt: true },
+  });
+  for (const school of trials) {
+    const daysLeft = Math.ceil((school.trialEndsAt.getTime() - now.getTime()) / DAY_MS);
+    if (daysLeft !== 3 && daysLeft !== 1) {
+      result.skipped += 1;
+      continue;
+    }
+    if (
+      await alreadyReminded(
+        db,
+        { schoolId: school.id, action: "SUBSCRIPTION_TRIAL_REMINDER" },
+        (after) => after["daysLeft"] === daysLeft,
+      )
+    ) {
+      result.skipped += 1;
+      continue;
+    }
+    const admins = await schoolAdmins(db, school.id);
+    if (admins.length === 0) {
+      result.skipped += 1;
+      continue;
+    }
+    const mailer = mailerFor({ isDemo: false, slug: school.slug });
+    for (const admin of admins) {
+      await mailer.sendTrialEndingReminder({
+        to: admin.email,
+        name: admin.name,
+        schoolName: school.name,
+        daysLeft,
+        trialEndDate: school.trialEndsAt.toISOString().slice(0, 10),
+      });
+    }
+    await recordAudit(db, {
+      schoolId: school.id,
+      actorId: null,
+      action: "SUBSCRIPTION_TRIAL_REMINDER",
+      entity: "TrialReminder",
+      entityId: school.id,
+      after: { schoolId: school.id, daysLeft },
+    });
+    result.trialReminded += 1;
+  }
+
+  const overdue = await db.subscriptionInvoice.findMany({
+    where: { status: "PENDING", periodEnd: { lt: today }, school: { isDemo: false }, ...(opts?.schoolIds ? { schoolId: { in: opts.schoolIds } } : {}) },
+    select: {
+      id: true,
+      schoolId: true,
+      invoiceNumber: true,
+      amountPaise: true,
+      cgstPaise: true,
+      sgstPaise: true,
+      igstPaise: true,
+      periodStart: true,
+      periodEnd: true,
+      school: { select: { slug: true, name: true } },
+    },
+  });
+  for (const invoice of overdue) {
+    const daysOverdue = Math.floor((today.getTime() - invoice.periodEnd.getTime()) / DAY_MS);
+    if (daysOverdue !== 1 && daysOverdue !== 7) {
+      result.skipped += 1;
+      continue;
+    }
+    if (
+      await alreadyReminded(
+        db,
+        { schoolId: invoice.schoolId, action: "SUBSCRIPTION_INVOICE_REMINDER", entityId: invoice.id },
+        (after) => after["daysOverdue"] === daysOverdue,
+      )
+    ) {
+      result.skipped += 1;
+      continue;
+    }
+    const admins = await schoolAdmins(db, invoice.schoolId);
+    if (admins.length === 0) {
+      result.skipped += 1;
+      continue;
+    }
+    const mailer = mailerFor({ isDemo: false, slug: invoice.school.slug });
+    const periodLabel = `${invoice.periodStart.toISOString().slice(0, 10)} to ${invoice.periodEnd.toISOString().slice(0, 10)}`;
+    const amountDue = invoiceRupees(invoice.amountPaise, invoice.cgstPaise, invoice.sgstPaise, invoice.igstPaise);
+    for (const admin of admins) {
+      await mailer.sendSubscriptionInvoiceReminder({
+        to: admin.email,
+        name: admin.name,
+        schoolName: invoice.school.name,
+        invoiceNumber: invoice.invoiceNumber,
+        amountDue,
+        periodLabel,
+        daysOverdue,
+      });
+    }
+    await recordAudit(db, {
+      schoolId: invoice.schoolId,
+      actorId: null,
+      action: "SUBSCRIPTION_INVOICE_REMINDER",
+      entity: "InvoiceReminder",
+      entityId: invoice.id,
+      after: { schoolId: invoice.schoolId, invoiceId: invoice.id, daysOverdue },
+    });
+    result.invoiceReminded += 1;
   }
   return result;
 }

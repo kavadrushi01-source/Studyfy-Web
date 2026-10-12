@@ -34,6 +34,11 @@ const AUDIT_FIELDS: Record<string, readonly string[]> = {
   // issued one per school per period (see issueInvoice()).
   Subscription: ["id", "plan", "status"],
   SubscriptionInvoice: ["id", "invoiceNumber", "status", "amountPaise", "cgstPaise", "sgstPaise", "igstPaise", "paidMethod"],
+  // Billing reminders (§12.4 job): the audit log doubles as the sent-log —
+  // idempotency is "already reminded for (entity, day-count)", checked in JS
+  // against these rows. No new tables for two bounded reminder types.
+  TrialReminder: ["schoolId", "daysLeft"],
+  InvoiceReminder: ["schoolId", "invoiceId", "daysOverdue"],
 };
 
 export function pickAuditFields(entity: string, row: Record<string, unknown>): AuditSnapshot {

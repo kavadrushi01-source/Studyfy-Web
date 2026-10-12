@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { catchAsync } from "../../lib/async.js";
 import { prisma } from "../../lib/prisma.js";
 import { cronAuthMiddleware } from "../../middleware/cron-auth.js";
-import { runFeeRemindersJob } from "./jobs.service.js";
+import { runBillingCycleJob, runFeeRemindersJob } from "./jobs.service.js";
 
 export const jobsRouter = Router();
 
@@ -14,6 +14,7 @@ export const jobsRouter = Router();
 // endpoint would cause exactly the missed-run pileups §12.4 designs around.
 const JOBS = {
   "fee-reminders": runFeeRemindersJob,
+  "billing-cycle": runBillingCycleJob,
 } as const;
 
 type JobName = keyof typeof JOBS;
