@@ -58,14 +58,24 @@ describe("billing math (§16.1, pure)", () => {
     expect(invoiceNumberFor("2026-27", 42)).toBe("STY/26-27/0042");
   });
 
-  it("computes 18% GST rounded once, splits summing exactly", () => {
-    const same = computeGst(299900, true);
-    expect(same).toEqual({ cgst: 26991, sgst: 26991, igst: 0 });
-    expect(same.cgst + same.sgst + same.igst).toBe(53982);
-    const inter = computeGst(299900, false);
-    expect(inter).toEqual({ cgst: 0, sgst: 0, igst: 53982 });
-    const premium = computeGst(999900, true);
-    expect(premium.cgst + premium.sgst).toBe(Math.round((999900 * 18) / 100));
+  it("computes 18% GST rounded once, exact split for all three plan prices", () => {
+    // BASIC ₹2,999: 53982 paise GST, halved exactly.
+    expect(computeGst(299900, true)).toEqual({ cgst: 26991, sgst: 26991, igst: 0 });
+    expect(computeGst(299900, false)).toEqual({ cgst: 0, sgst: 0, igst: 53982 });
+    // STANDARD ₹5,999: 107982 paise GST, halved exactly.
+    expect(computeGst(599900, true)).toEqual({ cgst: 53991, sgst: 53991, igst: 0 });
+    expect(computeGst(599900, false)).toEqual({ cgst: 0, sgst: 0, igst: 107982 });
+    // PREMIUM ₹9,999: 179982 paise GST, halved exactly.
+    expect(computeGst(999900, true)).toEqual({ cgst: 89991, sgst: 89991, igst: 0 });
+    expect(computeGst(999900, false)).toEqual({ cgst: 0, sgst: 0, igst: 179982 });
+    // Every split sums to the once-rounded total, always.
+    for (const price of [299900, 599900, 999900]) {
+      const total = Math.round((price * 18) / 100);
+      for (const sameState of [true, false]) {
+        const split = computeGst(price, sameState);
+        expect(split.cgst + split.sgst + split.igst).toBe(total);
+      }
+    }
   });
 
   it("resolves effective tiers: trial rides Standard, unknown fails closed to Basic", () => {
@@ -150,6 +160,59 @@ describe("invoices (§16.1, integration)", () => {
           process.env.PLATFORM_STATE = savedPlatformState;
         }
       }
+    },
+  );
+
+  it(
+    "issues 20 invoices in parallel with unique, gap-free numbers",
+    { timeout: 180000 },
+    async () => {
+      // One financial year no other file touches (every other test lives in
+      // FY 2026-27): the counter row below is OURS, so contiguity is
+      // deterministic even with the whole suite running alongside.
+      const tag = uid();
+      const periodStart = startOfDayUtc(new Date("2030-11-01T00:00:00Z"));
+      const periodEnd = startOfDayUtc(new Date("2030-11-30T00:00:00Z"));
+      const fy = financialYear(periodStart);
+      // Pre-create the counter row: the race must serialize on UPDATE row
+      // locks (gap-free increments), never on INSERT races.
+      await prisma.billingCounter.upsert({
+        where: { financialYear: fy },
+        update: {},
+        create: { financialYear: fy, lastNumber: 0 },
+      });
+      // Twenty schools, direct creates (no bcrypt — passwords prove nothing
+      // about numbering). Same period for all: only the counter separates
+      // the twenty transactions.
+      const schools = [];
+      for (let i = 0; i < 20; i += 1) {
+        schools.push(
+          await prisma.school.create({
+            data: {
+              name: `Number Race School ${tag}-${i}`,
+              slug: `number-race-${tag}-${i}`,
+              trialEndsAt: new Date("2031-01-01T00:00:00Z"),
+            },
+          }),
+        );
+      }
+      const input = {
+        plan: "STANDARD" as const,
+        periodStart,
+        periodEnd,
+        schoolState: "Gujarat",
+        platformState: "Gujarat",
+      };
+      const raced = await Promise.allSettled(schools.map((s) => issueInvoice(prisma, s.id, input, null)));
+      expect(raced.every((r) => r.status === "fulfilled")).toBe(true);
+      const numbers = raced.map((r) => (r.status === "fulfilled" ? r.value.invoiceNumber : ""));
+      // Unique ...
+      expect(new Set(numbers).size).toBe(20);
+      // ... and gap-free: the trailing counters form one contiguous range.
+      const counters = numbers.map((n) => Number(n.slice(-4))).sort((a, b) => a - b);
+      const min = Math.min(...counters);
+      expect(counters).toEqual(Array.from({ length: 20 }, (_, i) => min + i));
+      expect(numbers.every((n) => /^STY\/30-31\/\d{4}$/.test(n))).toBe(true);
     },
   );
 
