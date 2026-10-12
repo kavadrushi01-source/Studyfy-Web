@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { Prisma } from "@prisma/client";
+import multer from "multer";
 import { catchAsync } from "../../lib/async.js";
 import { generateStudentIdCard } from "../../lib/id-card.js";
 import { authMiddleware } from "../../middleware/auth.js";
@@ -10,6 +11,7 @@ import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { admitStudentSchema, listStudentsSchema } from "./students.schemas.js";
 import { admitStudent } from "./students.service.js";
+import { CSV_MAX_BYTES, importStudentsCsv } from "./students-csv.js";
 
 function sendStudentError(res: Response, err: unknown): void {
   if (err instanceof AuthError) {
@@ -61,6 +63,79 @@ studentsRouter.post(
     try {
       const result = await admitStudent(req.prisma, parsed.data, req.user.userId);
       res.status(201).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendStudentError(res, err);
+    }
+  }),
+);
+
+// Bulk CSV import (§7 Phase 0, §16.1): same chain as single admission (auth
+// -> tenant -> students.write), then the file. Always 200 with a per-row
+// report — imported rows and refused rows (row number + code + message) so
+// no row ever fails silently and no row is ever half-created. The plan cap
+// applies per row through admitStudent, counting rows imported earlier in
+// the same file.
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  // No multer-level limits: size/type are validated below so every
+  // rejection returns the envelope (400/413/415), never an HTML error page.
+});
+
+function extOf(filename: string): string {
+  const dot = filename.lastIndexOf(".");
+  return dot >= 0 ? filename.slice(dot).toLowerCase() : "";
+}
+
+studentsRouter.post(
+  "/schools/:schoolId/students/import",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("students.write"),
+  csvUpload.single("file"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const file = (req as Request & { file?: Express.Multer.File }).file;
+    if (!file) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: "Attach the CSV as multipart field 'file'." },
+        meta: null,
+      });
+      return;
+    }
+    // MIME and extension must agree (both are client-controlled) — plus a
+    // NUL-byte check in the parser for binaries renamed to .csv.
+    const csvMimes = ["text/csv", "application/csv", "text/plain", "application/vnd.ms-excel"];
+    if (!csvMimes.includes(file.mimetype) || extOf(file.originalname) !== ".csv") {
+      res.status(415).json({
+        success: false,
+        data: null,
+        error: { code: "UNSUPPORTED_FILE_TYPE", message: "Only .csv files are accepted." },
+        meta: null,
+      });
+      return;
+    }
+    if (file.size > CSV_MAX_BYTES) {
+      res.status(413).json({
+        success: false,
+        data: null,
+        error: { code: "FILE_TOO_LARGE", message: "CSV files must be 2 MB or smaller." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const report = await importStudentsCsv(req.prisma, req.schoolId ?? "", req.user.userId, file.buffer);
+      res.json({ success: true, data: report, error: null, meta: null });
     } catch (err) {
       sendStudentError(res, err);
     }

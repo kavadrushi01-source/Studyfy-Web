@@ -151,9 +151,14 @@ export default function StudentsPage() {
         }}
       >
         <h1 style={{ ...pageH1, marginBottom: 0 }}>Students</h1>
-        <Link href="/students/new" className="sf-btn sf-btn-primary">
-          Admit student
-        </Link>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Link href="/students/import" className="sf-btn sf-btn-secondary">
+            Import CSV
+          </Link>
+          <Link href="/students/new" className="sf-btn sf-btn-primary">
+            Admit student
+          </Link>
+        </div>
       </div>
       <form onSubmit={applySearch} className="sf-row-wrap" style={{ marginBottom: 16 }}>
         <input
