@@ -1,9 +1,10 @@
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
+import { setMailer, stubMailer } from "../src/lib/mailer.js";
 
 const app = createApp();
 
@@ -79,14 +80,64 @@ describe("platform users list (§7 #23, account administration only)", () => {
     }
   });
 
-  it("refuses tenant admins and strangers on all three routes", async () => {
+  it("refuses tenant admins and strangers on all four routes", async () => {
     const school = await registerSchool(`Users Refusal School ${uid()}`);
     const adminAuth = { Authorization: `Bearer ${school.adminToken}` };
 
     expect((await request(app).get("/api/v1/platform/users").set(adminAuth)).status).toBe(403);
     expect((await request(app).patch("/api/v1/platform/users/whatever").set(adminAuth).send({ isActive: false })).status).toBe(403);
     expect((await request(app).patch("/api/v1/platform/users/whatever/role").set(adminAuth).send({ role: "TEACHER" })).status).toBe(403);
+    expect((await request(app).post("/api/v1/platform/users/whatever/password-reset").set(adminAuth)).status).toBe(403);
     expect((await request(app).get("/api/v1/platform/users")).status).toBe(401);
+  });
+
+  it("searches by name and email across schools", async () => {
+    const tag = uid();
+    const a = await registerSchool(`Users Search A ${tag}`);
+    await registerSchool(`Users Search B ${tag}`);
+    const { token } = await loginOwner();
+    const auth = { Authorization: `Bearer ${token}` };
+
+    const byEmail = await request(app).get(`/api/v1/platform/users?q=${a.adminEmail}&take=100`).set(auth).expect(200);
+    const emails = (byEmail.body.data.users as { email: string }[]).map((u) => u.email);
+    expect(emails).toContain(a.adminEmail);
+
+    const byName = await request(app).get("/api/v1/platform/users?q=Users%20Admin&take=100").set(auth).expect(200);
+    expect((byName.body.data.users as unknown[]).length).toBeGreaterThan(0);
+
+    const miss = await request(app).get(`/api/v1/platform/users?q=no-such-person-${tag}&take=100`).set(auth).expect(200);
+    expect(miss.body.data.users).toEqual([]);
+  });
+
+  it("returns no academic data on any users endpoint (recursive key scan)", async () => {
+    const school = await registerSchool(`Users Shape School ${uid()}`);
+    const { token } = await loginOwner();
+    const auth = { Authorization: `Bearer ${token}` };
+    const banned = /mark|attendance|fee|invoice|payment|score|grade|homework|exam|message|notice|book|loan|payroll|transport|certificat/i;
+    const keysOf = (value: unknown, out: string[] = []): string[] => {
+      if (Array.isArray(value)) {
+        value.forEach((v) => keysOf(v, out));
+      } else if (value && typeof value === "object") {
+        for (const [k, v] of Object.entries(value)) {
+          out.push(k);
+          keysOf(v, out);
+        }
+      }
+      return out;
+    };
+    const admin = await prisma.user.findFirstOrThrow({ where: { schoolId: school.schoolId } });
+    const responses = [
+      await request(app).get("/api/v1/platform/users?take=100").set(auth).expect(200),
+      // Reset while active (deactivation comes after — a disabled account
+      // 409s the reset by design, proven in the next block).
+      await request(app).post(`/api/v1/platform/users/${admin.id}/password-reset`).set(auth),
+      await request(app).patch(`/api/v1/platform/users/${admin.id}`).set(auth).send({ isActive: false }).expect(200),
+    ];
+    for (const res of responses) {
+      for (const key of keysOf(res.body.data)) {
+        expect(key).not.toMatch(banned);
+      }
+    }
   });
 });
 
@@ -168,5 +219,67 @@ describe("platform user activation + roles (§13.10 must-list)", () => {
 
     // The owner still logs in fine after all refusals (nothing changed).
     await request(app).post("/api/v1/auth/login").send({ email: (await prisma.user.findUniqueOrThrow({ where: { id: ownerId } })).email, password: "owner-pass-123" }).expect(200);
+  });
+});
+
+describe("platform password-reset links (§7 #23, least privilege)", () => {
+  afterAll(() => {
+    setMailer(null);
+  });
+
+  it("sends a single-use link without ever returning it, audited with the id alone", async () => {
+    const school = await registerSchool(`Users Reset School ${uid()}`);
+    const { token } = await loginOwner();
+    const auth = { Authorization: `Bearer ${token}` };
+    const teacher = await makeTeacher(school.schoolId, school.slug);
+    // Deterministic delivery flag: the stub always "sends".
+    setMailer({ ...stubMailer });
+
+    const res = await request(app).post(`/api/v1/platform/users/${teacher.userId}/password-reset`).set(auth).expect(200);
+    expect(res.body.data).toEqual({ emailed: true });
+    // The token travels by email ONLY: no token/link/password-shaped value
+    // anywhere in the response, and no 64-hex string hiding in it either.
+    const flat: string[] = [];
+    const collect = (value: unknown): void => {
+      if (typeof value === "string") {
+        flat.push(value);
+      } else if (Array.isArray(value)) {
+        value.forEach(collect);
+      } else if (value && typeof value === "object") {
+        for (const [k, v] of Object.entries(value)) {
+          expect(k).not.toMatch(/token|link|password|secret|hash/i);
+          collect(v);
+        }
+      }
+    };
+    collect(res.body);
+    expect(flat.some((s) => /^[0-9a-f]{64}$/.test(s))).toBe(false);
+    // ... but a live single-use token row exists for exactly this user.
+    const tokens = await prisma.authToken.findMany({ where: { userId: teacher.userId, type: "PASSWORD_RESET", consumedAt: null } });
+    expect(tokens).toHaveLength(1);
+
+    const rows = await prisma.auditLog.findMany({ where: { schoolId: school.schoolId, action: "USER_PASSWORD_RESET_SENT" } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.entityId).toBe(teacher.userId);
+    expect(JSON.stringify(rows[0])).not.toContain("passwordHash");
+  });
+
+  it("refuses disabled accounts, owner accounts, strangers and unknown ids", async () => {
+    const school = await registerSchool(`Users Reset Refusal School ${uid()}`);
+    const { token, ownerId } = await loginOwner();
+    const auth = { Authorization: `Bearer ${token}` };
+    const teacher = await makeTeacher(school.schoolId, school.slug);
+    // Teacher token while still active: platform-only rejects by role.
+    expect((await request(app).post(`/api/v1/platform/users/${teacher.userId}/password-reset`).set({ Authorization: `Bearer ${teacher.token}` })).status).toBe(403);
+
+    await request(app).patch(`/api/v1/platform/users/${teacher.userId}`).set(auth).send({ isActive: false }).expect(200);
+    const disabled = await request(app).post(`/api/v1/platform/users/${teacher.userId}/password-reset`).set(auth);
+    expect(disabled.status).toBe(409);
+    expect(disabled.body.error.code).toBe("ACCOUNT_DISABLED");
+
+    const ownerTouch = await request(app).post(`/api/v1/platform/users/${ownerId}/password-reset`).set(auth);
+    expect(ownerTouch.status).toBe(403);
+
+    expect((await request(app).post("/api/v1/platform/users/nope/password-reset").set(auth)).status).toBe(404);
   });
 });

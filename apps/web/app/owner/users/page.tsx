@@ -35,6 +35,7 @@ export default function OwnerUsersPage() {
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [schoolId, setSchoolId] = useState("");
   const [role, setRole] = useState("");
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -52,6 +53,9 @@ export default function OwnerUsersPage() {
       if (role) {
         params.set("role", role);
       }
+      if (query.trim()) {
+        params.set("q", query.trim());
+      }
       const response = await apiFetch(`/api/v1/platform/users?${params.toString()}`);
       const body = (await response.json()) as { data: { users: PlatformUser[] } } | ApiError;
       if (isFailure(response, body)) {
@@ -64,7 +68,7 @@ export default function OwnerUsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiFetch, schoolId, role]);
+  }, [apiFetch, schoolId, role, query]);
 
   useEffect(() => {
     if (!ready || !token || !isOwner) {
@@ -89,6 +93,32 @@ export default function OwnerUsersPage() {
       }
       setNotice(isActive ? "Account re-activated." : "Account deactivated — locked at next login.");
       await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setActing("");
+    }
+  }
+
+  // Password-reset link (§7 #23): single-use 1-hour token by email — the
+  // token itself never appears here (only in the mailbox). Disabled
+  // accounts refuse server-side (reactivate first); demo addresses are
+  // suppressed by the mail choke point, reported honestly below.
+  async function sendReset(id: string, email: string): Promise<void> {
+    setActing(`reset-${id}`);
+    setError("");
+    setNotice("");
+    try {
+      const response = await apiFetch(`/api/v1/platform/users/${id}/password-reset`, { method: "POST" });
+      const body = (await response.json()) as { data: { emailed: boolean } } | ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Reset failed.");
+      }
+      setNotice(
+        body.data.emailed
+          ? `Password reset link sent to ${email}.`
+          : `Reset link created for ${email}, but the email could not be delivered (demo address or mail unset).`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
@@ -192,6 +222,16 @@ export default function OwnerUsersPage() {
               <option value="PLATFORM_OWNER">PLATFORM_OWNER</option>
             </select>
           </label>
+          <label style={{ ...labelStyle, flex: 1, minWidth: 140 }}>
+            Search
+            <input
+              className="sf-input"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Name or email"
+              aria-label="Search name or email"
+            />
+          </label>
           <button type="submit" disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.6 : 1 }}>
             {loading ? "Loading…" : "Apply"}
           </button>
@@ -256,6 +296,14 @@ export default function OwnerUsersPage() {
                       className="sf-btn"
                     >
                       {acting === `role-${u.id}` ? "Working…" : "Set role"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void sendReset(u.id, u.email)}
+                      disabled={!!acting}
+                      className="sf-btn"
+                    >
+                      {acting === `reset-${u.id}` ? "Working…" : "Send reset link"}
                     </button>
                   </div>
                 )}

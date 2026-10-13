@@ -163,5 +163,14 @@ test.describe("super admin panel", () => {
     // role word — the word also appears inside selects where getByText
     // matching is unreliable.
     await expect(page.getByText("Role changed to ACCOUNTANT.")).toBeVisible({ timeout: 20000 });
+
+    // Name/email search narrows to the teacher; the reset link reports
+    // honestly either way (sent, or created-but-undelivered when mail is
+    // unset — the audit row lands regardless, proven API-side).
+    await page.getByLabel(/search name or email/i).fill(teacherEmail);
+    await page.getByRole("button", { name: /^apply$/i }).click();
+    await expect(page.getByText(teacherEmail).first()).toBeVisible({ timeout: 20000 });
+    await page.getByRole("button", { name: "Send reset link" }).first().click();
+    await expect(page.getByText(/reset link/i).first()).toBeVisible({ timeout: 20000 });
   });
 });

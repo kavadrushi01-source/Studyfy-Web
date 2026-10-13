@@ -4,7 +4,7 @@ import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { platformOnlyMiddleware } from "../../middleware/platform-only.js";
 import { requirePermission } from "../../middleware/rbac.js";
-import { AuthError } from "../auth/auth.service.js";
+import { AuthError, requestPasswordReset } from "../auth/auth.service.js";
 import { listPlatformAuditSchema } from "../audit/audit.schemas.js";
 import { listAuditLogs } from "../audit/audit.service.js";
 import { recordAudit } from "../../lib/audit.js";
@@ -600,6 +600,10 @@ platformRouter.post(
 const userListSchema = z.object({
   schoolId: z.string().trim().min(1).max(64).optional(),
   role: z.string().trim().min(1).max(32).optional(),
+  // Least-privilege lookup (§7 #23): name/email substring across schools.
+  // The response still carries ids/emails/roles/schools/flags ONLY — the
+  // academic-data test below pins that shape.
+  q: z.string().trim().min(1).max(80).optional(),
   take: z.coerce.number().int().min(1).max(100).default(50),
 });
 
@@ -642,6 +646,7 @@ platformRouter.get(
       where: {
         ...(parsed.data.schoolId ? { schoolId: parsed.data.schoolId } : {}),
         ...(parsed.data.role ? { role: { name: parsed.data.role } } : {}),
+        ...(parsed.data.q ? { OR: [{ name: { contains: parsed.data.q } }, { email: { contains: parsed.data.q } }] } : {}),
       },
       select: {
         id: true,
@@ -805,6 +810,68 @@ platformRouter.patch(
         after: { id: updated.id, role: role.name, isActive: target.isActive },
       });
       res.json({ success: true, data: { user: { id: updated.id, role: role.name } }, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// POST /platform/users/:id/password-reset — owner-triggered recovery link
+// (§7 #23, least privilege): the SAME single-use 1-hour token flow as
+// self-service forgot-password (one live token, best-effort mail,
+// demo-suppressed via the target's school, §13.11). The token NEVER leaves
+// in this response — only by email. The audit row carries the id alone
+// (hashes and tokens never land in logs, §13.10). Deactivated accounts
+// 409 (reactivate first — a link they cannot use helps nobody); owner
+// accounts stay out-of-band like every other user route here.
+platformRouter.post(
+  "/users/:id/password-reset",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.users.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const target = await loadManagedUser(req.prisma, req.params.id ?? "");
+      if (!target) {
+        sendBillingError(res, new AuthError(404, "USER_NOT_FOUND", "User not found."));
+        return;
+      }
+      if (target.role.name === "PLATFORM_OWNER") {
+        forbidOwnerTouch(res);
+        return;
+      }
+      if (!target.isActive) {
+        sendBillingError(res, new AuthError(409, "ACCOUNT_DISABLED", "Reactivate the account first — a reset link it cannot use helps nobody."));
+        return;
+      }
+      if (!target.schoolId) {
+        sendBillingError(res, new AuthError(400, "VALIDATION_ERROR", "This account has no school to route the reset through."));
+        return;
+      }
+      const school = await req.prisma.school.findUnique({ where: { id: target.schoolId }, select: { slug: true } });
+      if (!school) {
+        sendBillingError(res, new AuthError(404, "USER_NOT_FOUND", "User not found."));
+        return;
+      }
+      const result = await requestPasswordReset(req.prisma, { email: target.email, schoolSlug: school.slug });
+      await recordAudit(req.prisma, {
+        schoolId: target.schoolId,
+        actorId: req.user.userId,
+        action: "USER_PASSWORD_RESET_SENT",
+        entity: "User",
+        entityId: target.id,
+        after: { id: target.id },
+      });
+      res.json({ success: true, data: { emailed: result.emailed }, error: null, meta: null });
     } catch (err) {
       sendBillingError(res, err);
     }
