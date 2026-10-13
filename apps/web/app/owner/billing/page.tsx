@@ -16,6 +16,7 @@ interface SchoolOption {
 
 interface SubscriptionInvoice {
   id: string;
+  schoolId: string;
   invoiceNumber: string;
   financialYear: string;
   amountPaise: number;
@@ -26,6 +27,7 @@ interface SubscriptionInvoice {
   periodStart: string;
   periodEnd: string;
   paidMethod: string | null;
+  school?: { name: string; slug: string };
 }
 
 interface ApiError {
@@ -45,7 +47,10 @@ export default function OwnerBillingPage() {
   const isOwner = user?.role === "PLATFORM_OWNER";
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [schoolId, setSchoolId] = useState("");
+  const [status, setStatus] = useState("");
+  const [month, setMonth] = useState("");
   const [invoices, setInvoices] = useState<SubscriptionInvoice[]>([]);
+  const [overdue, setOverdue] = useState<SubscriptionInvoice[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -61,22 +66,38 @@ export default function OwnerBillingPage() {
       throw new Error(body.error?.message ?? "Failed to load schools.");
     }
     setSchools(body.data.schools);
-    if (!schoolId && body.data.schools.length > 0) {
-      setSchoolId(body.data.schools[0]?.id ?? "");
-    }
-  }, [apiFetch, schoolId]);
+  }, [apiFetch]);
 
   const loadInvoices = useCallback(async () => {
-    if (!schoolId) {
-      setInvoices([]);
-      return;
+    const params = new URLSearchParams({ take: "50" });
+    if (schoolId) {
+      params.set("schoolId", schoolId);
     }
-    const response = await apiFetch(`/api/v1/platform/subscription-invoices?schoolId=${schoolId}&take=50`);
+    if (status) {
+      params.set("status", status);
+    }
+    if (month) {
+      params.set("month", month);
+    }
+    const response = await apiFetch(`/api/v1/platform/subscription-invoices?${params}`);
     const body = (await response.json()) as { data: { invoices: SubscriptionInvoice[] } } | ApiError;
     if (isFailure(response, body)) {
       throw new Error(body.error?.message ?? "Failed to load invoices.");
     }
     setInvoices(body.data.invoices);
+  }, [apiFetch, schoolId, status, month]);
+
+  const loadOverdue = useCallback(async () => {
+    const params = new URLSearchParams({ overdue: "true", take: "50" });
+    if (schoolId) {
+      params.set("schoolId", schoolId);
+    }
+    const response = await apiFetch(`/api/v1/platform/subscription-invoices?${params}`);
+    const body = (await response.json()) as { data: { invoices: SubscriptionInvoice[] } } | ApiError;
+    if (isFailure(response, body)) {
+      throw new Error(body.error?.message ?? "Failed to load overdue invoices.");
+    }
+    setOverdue(body.data.invoices);
   }, [apiFetch, schoolId]);
 
   const refresh = useCallback(async () => {
@@ -85,12 +106,13 @@ export default function OwnerBillingPage() {
     try {
       await loadSchools();
       await loadInvoices();
+      await loadOverdue();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
       setLoading(false);
     }
-  }, [loadSchools, loadInvoices]);
+  }, [loadSchools, loadInvoices, loadOverdue]);
 
   useEffect(() => {
     if (!ready || !token || !isOwner) {
@@ -100,14 +122,14 @@ export default function OwnerBillingPage() {
   }, [ready, token, isOwner, refresh]);
 
   useEffect(() => {
-    if (!ready || !token || !isOwner || !schoolId) {
+    if (!ready || !token || !isOwner) {
       return;
     }
     setLoading(true);
-    loadInvoices()
+    Promise.all([loadInvoices(), loadOverdue()])
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Network error."))
       .finally(() => setLoading(false));
-  }, [schoolId, ready, token, isOwner, loadInvoices]);
+  }, [schoolId, status, month, ready, token, isOwner, loadInvoices, loadOverdue]);
 
   async function issue(): Promise<void> {
     if (!schoolId || !periodStart || !periodEnd) {
@@ -129,6 +151,7 @@ export default function OwnerBillingPage() {
       }
       setNotice(`Issued ${body.data.invoice.invoiceNumber}.`);
       await loadInvoices();
+      await loadOverdue();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
@@ -148,6 +171,7 @@ export default function OwnerBillingPage() {
       }
       setNotice("Invoice marked paid — subscription re-activated.");
       await loadInvoices();
+      await loadOverdue();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
@@ -197,6 +221,7 @@ export default function OwnerBillingPage() {
           <label style={{ ...labelStyle, flex: 1, minWidth: 200 }}>
             School
             <select className="sf-select" value={schoolId} onChange={(e) => setSchoolId(e.target.value)} aria-label="School">
+              <option value="">All schools</option>
               {schools.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -204,7 +229,56 @@ export default function OwnerBillingPage() {
               ))}
             </select>
           </label>
+          <label style={labelStyle}>
+            Status
+            <select className="sf-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status filter">
+              <option value="">All statuses</option>
+              <option value="PENDING">Pending</option>
+              <option value="PAID">Paid</option>
+            </select>
+          </label>
+          <label style={labelStyle}>
+            Month
+            <input
+              className="sf-input"
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              aria-label="Month filter"
+            />
+          </label>
+          {(status || month) && (
+            <button
+              type="button"
+              onClick={() => {
+                setStatus("");
+                setMonth("");
+              }}
+              className="sf-btn"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
+
+        <section className="sf-card" style={{ padding: 20, marginBottom: 16, borderLeft: `4px solid ${overdue.length > 0 ? colors.danger : colors.success}` }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 8px" }} data-testid="overdue-heading">
+            Overdue ({overdue.length})
+          </h2>
+          {overdue.length === 0 ? (
+            <p style={{ ...mutedStyle, fontSize: 13, margin: 0 }}>Nothing overdue — every unpaid invoice is inside its period.</p>
+          ) : (
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+              {overdue.map((invoice) => (
+                <li key={invoice.id} style={{ fontSize: 14, color: colors.ink }}>
+                  <strong>{invoice.invoiceNumber}</strong> · {invoice.school?.name ?? invoice.schoolId} ·{" "}
+                  {rupees(invoice.amountPaise + invoice.cgstPaise + invoice.sgstPaise + invoice.igstPaise)} · due{" "}
+                  {invoice.periodEnd.slice(0, 10)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 12px" }}>Issue invoice</h2>
@@ -240,8 +314,8 @@ export default function OwnerBillingPage() {
             detail="Issue the first one above — periods are idempotent, re-issuing returns the existing row."
           />
         ) : (
-          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 12 }}>
-            {invoices.map((invoice) => {
+          <ul data-testid="invoice-list" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 12 }}>
+              {invoices.map((invoice) => {
               const total = invoice.amountPaise + invoice.cgstPaise + invoice.sgstPaise + invoice.igstPaise;
               return (
                 <li key={invoice.id} className="sf-card" style={{ padding: 16 }}>
@@ -262,10 +336,11 @@ export default function OwnerBillingPage() {
                       </button>
                     ) : null}
                   </div>
-                  <p style={{ ...mutedStyle, fontSize: 13, margin: "6px 0 0" }}>
-                    {invoice.periodStart.slice(0, 10)} – {invoice.periodEnd.slice(0, 10)} · {rupees(total)}
-                    {invoice.paidMethod ? ` · via ${invoice.paidMethod}` : ""}
-                  </p>
+                    <p style={{ ...mutedStyle, fontSize: 13, margin: "6px 0 0" }}>
+                      {invoice.school?.name ?? invoice.schoolId} · {invoice.periodStart.slice(0, 10)} –{" "}
+                      {invoice.periodEnd.slice(0, 10)} · {rupees(total)}
+                      {invoice.paidMethod ? ` · via ${invoice.paidMethod}` : ""}
+                    </p>
                 </li>
               );
             })}

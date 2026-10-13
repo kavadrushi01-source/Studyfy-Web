@@ -104,7 +104,28 @@ test.describe("super admin panel", () => {
     await expect(page.getByText(/STY\/\d{2}-\d{2}\//).first()).toBeVisible({ timeout: 20000 });
     await page.getByRole("button", { name: "Mark paid" }).first().click();
     await expect(page.getByText("re-activated").first()).toBeVisible({ timeout: 20000 });
-    await expect(page.getByText("PAID").first()).toBeVisible();
+    // Scoped to the invoice list: the status filter's own "Paid" option
+    // also matches the text but is never visible.
+    await expect(page.getByTestId("invoice-list").getByText("PAID").first()).toBeVisible();
+
+    // A backdated PENDING invoice lands in the school-scoped overdue list;
+    // the PAID filter then hides it again.
+    await page.getByLabel(/^period start$/i).fill("2026-08-01");
+    await page.getByLabel(/^period end$/i).fill("2026-08-31");
+    await page.getByRole("button", { name: "Issue invoice" }).click();
+    // The backdated invoice is overdue the moment the reload lands (the
+    // heading starts at Overdue (0) — textContent never waits, so wait
+    // for the change first).
+    await expect(page.getByTestId("overdue-heading")).not.toContainText("Overdue (0)", { timeout: 20000 });
+    const overdueNumber = await page.getByTestId("overdue-heading").textContent();
+    expect(overdueNumber).toMatch(/Overdue \(([1-9]\d*)\)/);
+    const overdueRow = page.locator("section", { has: page.getByTestId("overdue-heading") }).locator("li").first();
+    await expect(overdueRow).toContainText(/STY\/\d{2}-\d{2}\//);
+    const backdated = (await overdueRow.textContent())?.match(/STY\/\d{2}-\d{2}\/\d+/)?.[0] ?? "";
+    expect(backdated).not.toBe("");
+    await page.getByLabel(/status filter/i).selectOption("PAID");
+    await expect(page.getByTestId("overdue-heading")).toContainText("Overdue (1)");
+    await expect(page.getByTestId("invoice-list").getByText(backdated)).toHaveCount(0);
   });
 
   test("user deactivate/reactivate + role change on a fresh teacher", async ({ page, request }) => {

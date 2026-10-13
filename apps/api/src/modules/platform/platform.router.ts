@@ -8,13 +8,14 @@ import { AuthError } from "../auth/auth.service.js";
 import { listPlatformAuditSchema } from "../audit/audit.schemas.js";
 import { listAuditLogs } from "../audit/audit.service.js";
 import { recordAudit } from "../../lib/audit.js";
-import { markInvoicePaid, issueInvoice, setSubscription } from "../billing/billing.service.js";
+import { markInvoicePaid, issueInvoice, setSubscription, startOfDayUtc } from "../billing/billing.service.js";
 import { PLANS, effectivePlan } from "../billing/plans.js";
 import { listTicketsSchema, ownerMessageSchema } from "../support/support.schemas.js";
 import { ownerPostMessage } from "../support/support.service.js";
 import {
   billingPlanSchema,
   issueSubscriptionInvoiceSchema,
+  monthBoundsUtc,
   reactivateSchoolSchema,
   subscriptionInvoiceListSchema,
   suspendSchoolSchema,
@@ -485,10 +486,21 @@ platformRouter.get(
       });
       return;
     }
+    const bounds = parsed.data.month ? monthBoundsUtc(parsed.data.month) : null;
     const invoices = await req.prisma.subscriptionInvoice.findMany({
-      where: { ...(parsed.data.schoolId ? { schoolId: parsed.data.schoolId } : {}) },
+      where: {
+        ...(parsed.data.schoolId ? { schoolId: parsed.data.schoolId } : {}),
+        ...(parsed.data.status ? { status: parsed.data.status } : {}),
+        ...(bounds ? { periodStart: { gte: bounds.gte, lt: bounds.lt } } : {}),
+        ...(parsed.data.overdue
+          ? { status: "PENDING", periodEnd: { lt: startOfDayUtc(new Date()) } }
+          : {}),
+      },
       orderBy: { createdAt: "desc" },
       take: parsed.data.take,
+      // School names ride along for the cross-school list (additive —
+      // every scalar the route ever returned is still here).
+      include: { school: { select: { name: true, slug: true } } },
     });
     res.json({ success: true, data: { invoices }, error: null, meta: null });
   }),

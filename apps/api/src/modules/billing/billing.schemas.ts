@@ -43,8 +43,24 @@ export const issueSubscriptionInvoiceSchema = z.object({
 
 export const subscriptionInvoiceListSchema = z.object({
   schoolId: z.string().trim().min(1).max(64).optional(),
+  status: z.enum(["PENDING", "PAID"]).optional(),
+  // Calendar month YYYY-MM: invoices whose period STARTS in it.
+  month: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Month must be YYYY-MM.")
+    .optional(),
+  // Overdue: still PENDING past periodEnd (server day, UTC). Combines with
+  // the other filters; with status=PAID it honestly returns nothing.
+  overdue: z.coerce.boolean().default(false),
   take: z.coerce.number().int().min(1).max(100).default(50),
 });
+
+export function monthBoundsUtc(month: string): { gte: Date; lt: Date } {
+  const year = Number(month.slice(0, 4));
+  const mon = Number(month.slice(5, 7));
+  return { gte: new Date(Date.UTC(year, mon - 1, 1)), lt: new Date(Date.UTC(year, mon, 1)) };
+}
 
 // Admin pay-verify (§13.8 fallback shape): reconcile OUR pending order id
 // against what Razorpay holds. Order id only — never an amount.

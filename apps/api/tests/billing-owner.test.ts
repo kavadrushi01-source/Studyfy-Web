@@ -182,6 +182,81 @@ describe("platform billing administration (§16.1)", () => {
   });
 });
 
+describe("platform invoice filters (§7 #24)", () => {
+  async function issue(
+    ownerAuth: { Authorization: string },
+    schoolId: string,
+    periodStart: string,
+    periodEnd: string,
+  ): Promise<string> {
+    const res = await request(app)
+      .post("/api/v1/platform/subscription-invoices")
+      .set(ownerAuth)
+      .send({ schoolId, plan: "BASIC", periodStart, periodEnd })
+      .expect(201);
+    return res.body.data.invoice.invoiceNumber as string;
+  }
+
+  it("filters by status, school and month; overdue is PENDING past-due only", async () => {
+    const a = await registerSchool(`Billing Filter A ${uid()}`);
+    const b = await registerSchool(`Billing Filter B ${uid()}`);
+    const ownerToken = await loginOwner();
+    const auth = { Authorization: `Bearer ${ownerToken}` };
+    // Wall-clock-relative periods (60-day span straddles a month boundary
+    // on ANY run date — fixed 2026 dates would rot as time passes).
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const fmt = (t: number): string => new Date(t).toISOString().slice(0, 10);
+    const pastStart = fmt(now - 57 * day);
+    const pastEnd = fmt(now - 30 * day);
+    const futureStart = fmt(now + 3 * day);
+    const futureEnd = fmt(now + 30 * day);
+    const pastMonth = pastStart.slice(0, 7);
+    const augA = await issue(auth, a.schoolId, pastStart, pastEnd);
+    const novA = await issue(auth, a.schoolId, futureStart, futureEnd);
+    const novB = await issue(auth, b.schoolId, futureStart, futureEnd);
+    const list = async (query: string) =>
+      (await request(app).get(`/api/v1/platform/subscription-invoices${query}`).set(auth).expect(200)).body.data
+        .invoices as { invoiceNumber: string; schoolId: string; status: string; school: { name: string } }[];
+    const numbers = (rows: { invoiceNumber: string }[]): string[] => rows.map((r) => r.invoiceNumber);
+
+    // Status: every row matches; ours are present.
+    const paid = await list("?status=PAID&take=100");
+    expect(paid.every((r) => r.status === "PAID")).toBe(true);
+    const pending = await list("?status=PENDING&take=100");
+    expect(pending.every((r) => r.status === "PENDING")).toBe(true);
+    expect(numbers(pending)).toEqual(expect.arrayContaining([augA, novA, novB]));
+
+    // School + month scoping (shared DB: containment, never exact counts).
+    const onlyA = await list(`?schoolId=${a.schoolId}&take=100`);
+    expect(onlyA.every((r) => r.schoolId === a.schoolId)).toBe(true);
+    expect(numbers(onlyA)).toEqual(expect.arrayContaining([augA, novA]));
+    expect(numbers(onlyA)).not.toContain(novB);
+    const august = await list(`?month=${pastMonth}&take=100`);
+    expect(numbers(august)).toContain(augA);
+    expect(numbers(august)).not.toContain(novA);
+    // Cross-school rows carry their school for the console.
+    expect(august.find((r) => r.invoiceNumber === augA)?.school.name).toBeTruthy();
+
+    // Overdue: past-due PENDING only — future PENDING excluded.
+    const overdue = await list("?overdue=true&take=100");
+    expect(numbers(overdue)).toContain(augA);
+    expect(numbers(overdue)).not.toContain(novA);
+    expect(overdue.every((r) => r.status === "PENDING")).toBe(true);
+
+    // Paid past-due drops out of overdue once settled.
+    const augRow = await prisma.subscriptionInvoice.findFirstOrThrow({ where: { invoiceNumber: augA } });
+    await request(app).post(`/api/v1/platform/subscription-invoices/${augRow.id}/mark-paid`).set(auth).expect(200);
+    expect(numbers(await list("?overdue=true&take=100"))).not.toContain(augA);
+    const paidNow = await list("?status=PAID&take=100");
+    expect(numbers(paidNow)).toContain(augA);
+
+    // Bad filters fail loud.
+    await request(app).get("/api/v1/platform/subscription-invoices?month=2026-13").set(auth).expect(400);
+    await request(app).get("/api/v1/platform/subscription-invoices?status=BOGUS").set(auth).expect(400);
+  });
+});
+
 describe("suspended-school exception (§13.4, both directions)", () => {
   it("lets the suspended admin log in and reach billing paths only; everyone else stays blocked", async () => {
     const school = await registerSchool(`Billing Exception School ${uid()}`);
