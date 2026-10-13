@@ -124,6 +124,7 @@ const PERMISSIONS: { key: string; description: string }[] = [
   { key: "support.write", description: "Open support tickets and reply (School Admin; internal notes stay owner-only)" },
   { key: "platform.tickets.read", description: "Read support tickets across all schools, internal notes included (Platform Owner only)" },
   { key: "platform.tickets.manage", description: "Reply (internal or visible), set status, close support tickets (Platform Owner only)" },
+  { key: "platform.settings.read", description: "Read platform configuration status (Platform Owner only; booleans, never secret values)" },
   { key: "audit.read", description: "Read own school's audit logs (School Admin only; Platform Owner uses platform.audit.read)" },
   { key: "platform.audit.read", description: "Read audit logs across all schools (Platform Owner only)" },
 ];
@@ -139,7 +140,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   PARENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.read", "messages.send", "messages.read", "library.read", "transport.read", "dashboard.read"],
   LIBRARIAN: ["students.read", "library.read", "library.manage", "payroll.read", "dashboard.read"],
   TRANSPORT_MANAGER: ["students.read", "transport.read", "transport.manage", "payroll.read"],
-  PLATFORM_OWNER: ["platform.schools.read", "platform.audit.read", "platform.billing.manage", "platform.users.read", "platform.users.manage", "platform.tickets.read", "platform.tickets.manage"],
+  PLATFORM_OWNER: ["platform.schools.read", "platform.audit.read", "platform.billing.manage", "platform.users.read", "platform.users.manage", "platform.tickets.read", "platform.tickets.manage", "platform.settings.read"],
 };
 
 export async function seedPermissions(db: PrismaClient): Promise<void> {

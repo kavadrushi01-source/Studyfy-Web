@@ -1011,3 +1011,45 @@ platformRouter.post(
     }
   }),
 );
+
+// GET /platform/settings — read-only platform configuration (§7 #23).
+// Booleans and catalog data ONLY: environment mode, payment test-mode,
+// whether PLATFORM_GSTIN / PLATFORM_STATE / DEMO_PASSWORD are configured,
+// demo-school count, and the plan matrix (same shared object the gates
+// enforce). NO secret is ever displayed — not values, not prefixes, not
+// lengths. Key IDs stay server-side (the pay-order response carries the
+// public keyId to checkouts; this screen has no such need).
+platformRouter.get(
+  "/settings",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.settings.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const keyId = process.env.RAZORPAY_KEY_ID ?? "";
+    const testMode = !keyId ? "UNCONFIGURED" : keyId.startsWith("rzp_test_") ? "TEST" : "NON_TEST";
+    const demoSchools = await req.prisma.school.count({ where: { isDemo: true } });
+    res.json({
+      success: true,
+      data: {
+        environment: process.env.NODE_ENV ?? "development",
+        testMode,
+        gstinConfigured: (process.env.PLATFORM_GSTIN ?? "") !== "",
+        platformStateConfigured: (process.env.PLATFORM_STATE ?? "") !== "",
+        demoPasswordConfigured: (process.env.DEMO_PASSWORD ?? "") !== "",
+        demoSchools,
+        plans: PLANS,
+      },
+      error: null,
+      meta: null,
+    });
+  }),
+);

@@ -136,7 +136,7 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
       { label: "Users Management", href: "/owner/users" },
       { label: "Support & Impersonation", href: "/owner/support" },
       { label: "Audit Logs", href: "/owner/audit-logs" },
-      { label: "Settings", href: null },
+      { label: "Settings", href: "/owner/settings" },
     ],
   },
 };

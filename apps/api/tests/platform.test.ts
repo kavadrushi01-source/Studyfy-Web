@@ -73,6 +73,50 @@ describe("platform owner routes (SECURITY_PATTERNS.md §2)", () => {
     expect(res.body.error.code).toBe("UNAUTHENTICATED");
   });
 
+  it("serves read-only settings with booleans, never secrets", async () => {
+    const ownerToken = await loginOwner();
+    const res = await request(app)
+      .get("/api/v1/platform/settings")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(200);
+    const data = res.body.data;
+    expect(typeof data.environment).toBe("string");
+    expect(["TEST", "UNCONFIGURED", "NON_TEST"]).toContain(data.testMode);
+    for (const flag of ["gstinConfigured", "platformStateConfigured", "demoPasswordConfigured"] as const) {
+      expect(typeof data[flag]).toBe("boolean");
+    }
+    expect(typeof data.demoSchools).toBe("number");
+    expect(data.plans.BASIC.pricePaise).toBe(299900);
+    expect(data.plans.STANDARD.pricePaise).toBe(599900);
+    expect(data.plans.PREMIUM.pricePaise).toBe(999900);
+    // No secret ever leaves here: scan every string VALUE (key names like
+    // demoPasswordConfigured legitimately contain the word) for key
+    // material, hashes, tokens, or PEM blocks.
+    const values: string[] = [];
+    const collect = (value: unknown): void => {
+      if (typeof value === "string") {
+        values.push(value);
+      } else if (Array.isArray(value)) {
+        value.forEach(collect);
+      } else if (value && typeof value === "object") {
+        Object.values(value).forEach(collect);
+      }
+    };
+    collect(res.body.data);
+    for (const value of values) {
+      expect(value).not.toMatch(/rzp_test_/);
+      expect(value).not.toMatch(/^[0-9a-f]{32,}$/);
+      expect(value).not.toMatch(/BEGIN /);
+      expect(value).not.toMatch(/sk_live/);
+    }
+  });
+
+  it("refuses tenant admins and strangers on /platform/settings", async () => {
+    const schoolA = await registerSchool(`Platform Settings School ${uid()}`);
+    expect((await request(app).get("/api/v1/platform/settings").set("Authorization", `Bearer ${schoolA.token}`)).status).toBe(403);
+    expect((await request(app).get("/api/v1/platform/settings")).status).toBe(401);
+  });
+
   it("rejects unauthenticated access to tenant routes with 401", async () => {
     const schoolA = await registerSchool(`Platform School D ${uid()}`);
     const res = await request(app).get(`/api/v1/schools/${schoolA.schoolId}/students`);

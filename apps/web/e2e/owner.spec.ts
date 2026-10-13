@@ -8,16 +8,30 @@ const API = process.env.E2E_API_URL ?? "http://localhost:4001";
 // FRESH schools (never seed schools — suspending SOS/RK would break every
 // other spec sharing this database).
 test.describe("super admin panel", () => {
-  test("nav exposes the four pages; platform analytics stays Soon", async ({ page }) => {
+  test("nav exposes the pages; platform analytics stays Soon", async ({ page }) => {
     await login(page, ACCOUNTS.owner, null);
     await page.getByRole("link", { name: /open my board/i }).click();
-    for (const label of ["Schools", "Subscriptions & Billing", "Users Management", "Audit Logs"]) {
+    for (const label of ["Schools", "Subscriptions & Billing", "Users Management", "Audit Logs", "Settings"]) {
       await expect(page.getByRole("link", { name: label })).toBeVisible();
     }
     // Platform Analytics has no page yet: sidebar shows it as dimmed text
     // with a Soon pill, never a dead link.
     await expect(page.getByRole("link", { name: "Platform Analytics" })).toHaveCount(0);
     await expect(page.getByText("Platform Analytics").first()).toBeVisible();
+  });
+
+  test("settings shows config status with no secrets", async ({ page }) => {
+    await login(page, ACCOUNTS.owner, null);
+    await page.getByRole("link", { name: /open my board/i }).click();
+    await page.getByRole("link", { name: "Settings" }).click();
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("Plan matrix").first()).toBeVisible();
+    await expect(page.getByText("BASIC", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Demo mode").first()).toBeVisible();
+    // Either state is honest; neither may leak key material.
+    await expect(page.getByText(/TEST MODE|PAYMENTS UNCONFIGURED/).first()).toBeVisible();
+    const bodyText = (await page.getByRole("main").first().textContent()) ?? "";
+    expect(bodyText).not.toMatch(/rzp_test_/);
   });
 
   test("suspend/reactivate/plan cycle on a fresh school, audited", async ({ page, request }) => {
