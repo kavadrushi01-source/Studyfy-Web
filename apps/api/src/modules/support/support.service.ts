@@ -3,6 +3,39 @@ import { pickAuditFields, recordAudit } from "../../lib/audit.js";
 import { AuthError } from "../auth/auth.service.js";
 import type { CreateTicketInput, ListTicketsInput, OwnerMessageInput } from "./support.schemas.js";
 
+// Uploaded screenshot, already stored (§13.5 whitelist checked at the
+// route; the bytes live in Cloudinary before this runs — external side
+// effects can't join the DB transaction, same as certificate uploads).
+export interface TicketAttachmentUpload {
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+  originalName: string;
+}
+
+// §13.5 file whitelist for ticket screenshots: images + PDF, 5 MB — the
+// same rule as admission documents (MIME *and* extension must agree; both
+// are client-controlled. No content sniffing, same noted hardening gap).
+const ATTACHMENT_MIMES: Record<string, string[]> = {
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/png": [".png"],
+  "image/webp": [".webp"],
+  "application/pdf": [".pdf"],
+};
+export const ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
+
+export function validateAttachmentFile(file: { mimetype: string; originalname: string; size: number }): void {
+  const dot = file.originalname.lastIndexOf(".");
+  const ext = dot >= 0 ? file.originalname.slice(dot).toLowerCase() : "";
+  const allowed = ATTACHMENT_MIMES[file.mimetype];
+  if (!allowed || !allowed.includes(ext)) {
+    throw new AuthError(415, "UNSUPPORTED_FILE_TYPE", "Only JPEG, PNG, WebP images and PDF files are accepted.");
+  }
+  if (file.size > ATTACHMENT_MAX_BYTES) {
+    throw new AuthError(413, "FILE_TOO_LARGE", "Attachments must be 5 MB or smaller.");
+  }
+}
+
 // In-app support tickets (§7 Phase 4 #27): schools open threads to the
 // platform; the Platform Owner works them (replies, internal notes,
 // status). The isInternal boundary is enforced IN THE QUERIES below —
@@ -79,7 +112,14 @@ export async function getTicketDetail(
       messages: {
         where: opts.includeInternal ? {} : { isInternal: false },
         orderBy: { createdAt: "asc" },
-        select: { id: true, authorId: true, body: true, isInternal: true, createdAt: true },
+        select: {
+          id: true,
+          authorId: true,
+          body: true,
+          isInternal: true,
+          createdAt: true,
+          attachments: { select: { id: true, url: true, mimeType: true, sizeBytes: true, originalName: true } },
+        },
       },
     },
   });
@@ -95,6 +135,7 @@ export async function postSchoolMessage(
   ticketId: string,
   authorId: string,
   body: string,
+  attachment?: TicketAttachmentUpload,
 ): Promise<{ id: string }> {
   const ticket = await db.ticket.findFirst({ where: { id: ticketId, schoolId } });
   if (!ticket) {
@@ -108,6 +149,19 @@ export async function postSchoolMessage(
     const message = await tx.ticketMessage.create({
       data: { schoolId, ticketId: ticket.id, authorId, body, isInternal: false },
     });
+    if (attachment) {
+      await tx.ticketAttachment.create({
+        data: {
+          schoolId,
+          ticketId: ticket.id,
+          messageId: message.id,
+          url: attachment.url,
+          mimeType: attachment.mimeType,
+          sizeBytes: attachment.sizeBytes,
+          originalName: attachment.originalName,
+        },
+      });
+    }
     const txClient = tx as unknown as PrismaClient;
     await recordAudit(txClient, {
       schoolId,
@@ -127,6 +181,7 @@ export async function ownerPostMessage(
   ticketId: string,
   authorId: string,
   input: OwnerMessageInput,
+  attachment?: TicketAttachmentUpload,
 ): Promise<{ id: string; status: string }> {
   const ticket = await db.ticket.findFirst({ where: { id: ticketId } });
   if (!ticket) {
@@ -136,6 +191,19 @@ export async function ownerPostMessage(
     const message = await tx.ticketMessage.create({
       data: { schoolId: ticket.schoolId, ticketId: ticket.id, authorId, body: input.body, isInternal: input.isInternal },
     });
+    if (attachment) {
+      await tx.ticketAttachment.create({
+        data: {
+          schoolId: ticket.schoolId,
+          ticketId: ticket.id,
+          messageId: message.id,
+          url: attachment.url,
+          mimeType: attachment.mimeType,
+          sizeBytes: attachment.sizeBytes,
+          originalName: attachment.originalName,
+        },
+      });
+    }
     const txClient = tx as unknown as PrismaClient;
     await recordAudit(txClient, {
       schoolId: ticket.schoolId,

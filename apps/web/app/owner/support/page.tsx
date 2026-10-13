@@ -18,12 +18,21 @@ interface OwnerTicketRow {
   school: { name: string; slug: string };
 }
 
+interface OwnerTicketAttachment {
+  id: string;
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+  originalName: string;
+}
+
 interface OwnerTicketMsg {
   id: string;
   authorId: string;
   body: string;
   isInternal: boolean;
   createdAt: string;
+  attachments: OwnerTicketAttachment[];
 }
 
 interface OwnerTicketDetail extends OwnerTicketRow {
@@ -65,6 +74,7 @@ export default function OwnerSupportPage() {
   const [internal, setInternal] = useState(false);
   const [nextStatus, setNextStatus] = useState("");
   const [sending, setSending] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,17 +144,31 @@ export default function OwnerSupportPage() {
     setError("");
     setNotice("");
     try {
-      const response = await apiFetch(`/api/v1/platform/tickets/${activeId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: reply, isInternal: internal, ...(nextStatus ? { status: nextStatus } : {}) }),
-      });
+      // Screenshot attached → multipart attach endpoint (same internal /
+      // status semantics); otherwise the plain JSON message endpoint.
+      const response = file
+        ? await (() => {
+            const form = new FormData();
+            form.append("file", file, file.name);
+            form.append("message", reply);
+            form.append("isInternal", internal ? "true" : "false");
+            if (nextStatus) {
+              form.append("status", nextStatus);
+            }
+            return apiFetch(`/api/v1/platform/tickets/${activeId}/attachments`, { method: "POST", body: form });
+          })()
+        : await apiFetch(`/api/v1/platform/tickets/${activeId}/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ body: reply, isInternal: internal, ...(nextStatus ? { status: nextStatus } : {}) }),
+          });
       const parsed = (await response.json()) as { data: { id: string } } | ApiError;
       if (isFailure(response, parsed)) {
         throw new Error(parsed.error?.message ?? "Could not send the reply.");
       }
       setReply("");
       setInternal(false);
+      setFile(null);
       setNotice(internal ? "Internal note saved — the school cannot see it." : "Reply sent — the school sees it in their thread.");
       await loadDetail(activeId);
       await load();
@@ -247,6 +271,21 @@ export default function OwnerSupportPage() {
                       <span style={{ ...pill(colors.warning, colors.warningTint), marginRight: 8 }}>INTERNAL</span>
                     ) : null}
                     {m.body}
+                    {(m.attachments ?? []).map((a) => (
+                      <span key={a.id} style={{ display: "block", marginTop: 4 }}>
+                        <a
+                          href={a.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: colors.primary, fontWeight: 600, fontSize: 13, textDecoration: "none" }}
+                        >
+                          {a.originalName}
+                        </a>{" "}
+                        <span style={{ ...mutedStyle, fontSize: 12 }}>
+                          ({a.mimeType}, {(a.sizeBytes / 1024).toFixed(1)} KB)
+                        </span>
+                      </span>
+                    ))}
                   </li>
                 ))}
               </ul>
@@ -277,8 +316,18 @@ export default function OwnerSupportPage() {
                   <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />
                   Internal note
                 </label>
-                <button type="submit" style={primaryBtn} disabled={sending || reply.trim().length === 0}>
-                  {sending ? "Sending…" : "Send"}
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  aria-label="Attach a screenshot"
+                />
+                <button
+                  type="submit"
+                  style={primaryBtn}
+                  disabled={sending || (reply.trim().length === 0 && !file)}
+                >
+                  {sending ? "Sending…" : file ? "Send with screenshot" : "Send"}
                 </button>
               </form>
             </div>

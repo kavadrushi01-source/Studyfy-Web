@@ -12,6 +12,9 @@ export interface DocumentStorage {
     schoolId: string;
     mimeType: string;
     originalName: string;
+    // Override folder (default: documents). Ticket screenshots land under
+    // schools/{schoolId}/tickets (§7 #27) through this same pipe.
+    folder?: string;
   }): Promise<StoredDocument>;
 }
 
@@ -27,16 +30,23 @@ export function documentFolder(schoolId: string): string {
   return `schools/${schoolId}/documents`;
 }
 
+// Ticket-attachment folder (§7 #27): screenshots ride the same pipe under
+// schools/{schoolId}/tickets — never mixed with admission documents.
+export function ticketFolder(schoolId: string): string {
+  return `schools/${schoolId}/tickets`;
+}
+
 class CloudinaryStorage implements DocumentStorage {
   async upload(input: {
     buffer: Buffer;
     schoolId: string;
     mimeType: string;
     originalName: string;
+    folder?: string;
   }): Promise<StoredDocument> {
     const dataUri = `data:${input.mimeType};base64,${input.buffer.toString("base64")}`;
     const uploaded = await cloudinary.uploader.upload(dataUri, {
-      folder: documentFolder(input.schoolId),
+      folder: input.folder ?? documentFolder(input.schoolId),
       public_id: documentPublicId(),
       overwrite: false,
       resource_type: "auto",

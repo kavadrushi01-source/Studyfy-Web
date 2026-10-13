@@ -17,12 +17,21 @@ interface TicketRow {
   _count: { messages: number };
 }
 
+interface TicketAttachment {
+  id: string;
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+  originalName: string;
+}
+
 interface TicketMsg {
   id: string;
   authorId: string;
   body: string;
   isInternal: boolean;
   createdAt: string;
+  attachments: TicketAttachment[];
 }
 
 interface TicketDetail extends TicketRow {
@@ -65,6 +74,7 @@ export default function SupportPage() {
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [reply, setReply] = useState("");
   const [replying, setReplying] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
 
   const load = useCallback(async () => {
     if (!schoolId) {
@@ -160,16 +170,30 @@ export default function SupportPage() {
     setReplying(true);
     setError("");
     try {
-      const response = await apiFetch(`/api/v1/schools/${schoolId}/support/tickets/${activeId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: reply }),
-      });
+      // Screenshot attached → multipart attach endpoint (message rides
+      // along, defaulting server-side to the file name); otherwise the
+      // plain JSON message endpoint.
+      const response = file
+        ? await (() => {
+            const form = new FormData();
+            form.append("file", file, file.name);
+            form.append("message", reply);
+            return apiFetch(`/api/v1/schools/${schoolId}/support/tickets/${activeId}/attachments`, {
+              method: "POST",
+              body: form,
+            });
+          })()
+        : await apiFetch(`/api/v1/schools/${schoolId}/support/tickets/${activeId}/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ body: reply }),
+          });
       const parsed = (await response.json()) as { data: { id: string } } | ApiError;
       if (isFailure(response, parsed)) {
         throw new Error(parsed.error?.message ?? "Could not send the reply.");
       }
       setReply("");
+      setFile(null);
       await loadDetail(activeId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
@@ -278,6 +302,21 @@ export default function SupportPage() {
                 {detail.messages.map((m) => (
                   <li key={m.id} style={{ fontSize: 14, color: colors.ink, borderTop: "1px solid rgba(15,23,42,.08)", paddingTop: 8 }}>
                     {m.body}
+                    {(m.attachments ?? []).map((a) => (
+                      <span key={a.id} style={{ display: "block", marginTop: 4 }}>
+                        <a
+                          href={a.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: colors.primary, fontWeight: 600, fontSize: 13, textDecoration: "none" }}
+                        >
+                          {a.originalName}
+                        </a>{" "}
+                        <span style={{ ...mutedStyle, fontSize: 12 }}>
+                          ({a.mimeType}, {(a.sizeBytes / 1024).toFixed(1)} KB)
+                        </span>
+                      </span>
+                    ))}
                   </li>
                 ))}
               </ul>
@@ -291,8 +330,18 @@ export default function SupportPage() {
                   aria-label="Thread reply"
                   maxLength={4000}
                 />
-                <button type="submit" style={primaryBtn} disabled={replying || reply.trim().length === 0}>
-                  {replying ? "Sending…" : "Reply"}
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  aria-label="Attach a screenshot"
+                />
+                <button
+                  type="submit"
+                  style={primaryBtn}
+                  disabled={replying || (reply.trim().length === 0 && !file)}
+                >
+                  {replying ? "Sending…" : file ? "Reply with screenshot" : "Reply"}
                 </button>
               </form>
             </div>

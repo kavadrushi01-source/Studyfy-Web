@@ -1,9 +1,11 @@
 import { Router, type Request, type Response } from "express";
+import multer from "multer";
 import { z } from "zod";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { platformOnlyMiddleware } from "../../middleware/platform-only.js";
 import { requirePermission } from "../../middleware/rbac.js";
+import { documentStorage, StorageUnconfiguredError, ticketFolder } from "../../lib/storage.js";
 import { AuthError, requestPasswordReset } from "../auth/auth.service.js";
 import { listPlatformAuditSchema } from "../audit/audit.schemas.js";
 import { listAuditLogs } from "../audit/audit.service.js";
@@ -11,7 +13,13 @@ import { recordAudit } from "../../lib/audit.js";
 import { markInvoicePaid, issueInvoice, setSubscription, startOfDayUtc } from "../billing/billing.service.js";
 import { PLANS, effectivePlan } from "../billing/plans.js";
 import { listTicketsSchema, ownerMessageSchema } from "../support/support.schemas.js";
-import { ownerPostMessage } from "../support/support.service.js";
+import { ownerPostMessage, validateAttachmentFile } from "../support/support.service.js";
+
+const platformAttachUpload = multer({
+  storage: multer.memoryStorage(),
+  // No multer-level limits: size/type are validated below so every
+  // rejection returns the envelope (400/413/415), never an HTML error page.
+});
 import {
   billingPlanSchema,
   issueSubscriptionInvoiceSchema,
@@ -963,7 +971,14 @@ platformRouter.get(
           school: { select: { name: true, slug: true } },
           messages: {
             orderBy: { createdAt: "asc" },
-            select: { id: true, authorId: true, body: true, isInternal: true, createdAt: true },
+            select: {
+              id: true,
+              authorId: true,
+              body: true,
+              isInternal: true,
+              createdAt: true,
+              attachments: { select: { id: true, url: true, mimeType: true, sizeBytes: true, originalName: true } },
+            },
           },
         },
       });
@@ -1007,6 +1022,90 @@ platformRouter.post(
       const result = await ownerPostMessage(req.prisma, req.params.id ?? "", req.user.userId, parsed.data);
       res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// POST /platform/tickets/:id/attachments — owner-side screenshot (§7 #27):
+// multipart `file` (required, §13.5 whitelist) + optional text `message`,
+// `isInternal` ("true"/"1") and `status`. Same upload-then-transaction
+// shape as the school route; the folder derives from the ticket's school.
+platformRouter.post(
+  "/tickets/:id/attachments",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.tickets.manage"),
+  platformAttachUpload.single("file"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const file = (req as Request & { file?: Express.Multer.File }).file;
+    if (!file) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: "Attach the screenshot as multipart field 'file'." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      validateAttachmentFile(file);
+      const fields = req.body as Record<string, unknown>;
+      const message = typeof fields.message === "string" ? fields.message : "";
+      if (message.length > 4000) {
+        sendBillingError(res, new AuthError(400, "VALIDATION_ERROR", "Message must be 4000 characters or fewer."));
+        return;
+      }
+      const rawInternal = typeof fields.isInternal === "string" ? fields.isInternal : "";
+      const isInternal = rawInternal === "true" || rawInternal === "1";
+      const rawStatus = typeof fields.status === "string" && fields.status !== "" ? fields.status : undefined;
+      let status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED" | undefined;
+      if (rawStatus !== undefined) {
+        if (rawStatus !== "OPEN" && rawStatus !== "IN_PROGRESS" && rawStatus !== "RESOLVED" && rawStatus !== "CLOSED") {
+          sendBillingError(res, new AuthError(400, "VALIDATION_ERROR", "Unknown status."));
+          return;
+        }
+        status = rawStatus;
+      }
+      const ticket = await req.prisma.ticket.findFirst({ where: { id: req.params.id ?? "" }, select: { id: true, schoolId: true } });
+      if (!ticket) {
+        sendBillingError(res, new AuthError(404, "TICKET_NOT_FOUND", "Support ticket not found."));
+        return;
+      }
+      const stored = await documentStorage().upload({
+        buffer: file.buffer,
+        schoolId: ticket.schoolId,
+        mimeType: file.mimetype,
+        originalName: file.originalname,
+        folder: ticketFolder(ticket.schoolId),
+      });
+      const result = await ownerPostMessage(
+        req.prisma,
+        ticket.id,
+        req.user.userId,
+        { body: message.trim() === "" ? file.originalname.slice(0, 200) : message, isInternal, ...(status ? { status } : {}) },
+        { url: stored.url, mimeType: file.mimetype, sizeBytes: file.size, originalName: file.originalname },
+      );
+      res.status(201).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      if (err instanceof StorageUnconfiguredError) {
+        res.status(503).json({
+          success: false,
+          data: null,
+          error: { code: "STORAGE_UNCONFIGURED", message: err.message },
+          meta: null,
+        });
+        return;
+      }
       sendBillingError(res, err);
     }
   }),

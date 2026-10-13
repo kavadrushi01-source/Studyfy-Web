@@ -220,6 +220,7 @@ model School {
   subscriptionInvoices SubscriptionInvoice[]
   tickets             Ticket[]
   ticketMessages      TicketMessage[]
+  ticketAttachments   TicketAttachment[]
 
   @@map("schools")
 }
@@ -1291,6 +1292,7 @@ model Ticket {
   status      TicketStatus @default(OPEN) @map("status")
   priority    TicketPriority @default(MEDIUM) @map("priority")
   messages    TicketMessage[]
+  attachments TicketAttachment[]
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
@@ -1312,6 +1314,31 @@ model TicketMessage {
 
   @@index([ticketId, createdAt])
   @@map("ticket_messages")
+  attachments TicketAttachment[]
+}
+
+// One screenshot per message (§7 #27 attachments): the message carries the
+// words, the attachment row carries the file (Cloudinary URL, TEXT — URLs
+// exceed 191 chars). messageId UNIQUE enforces exactly one file per
+// message; schoolId denormalized like its siblings so the row sits in
+// TENANT_MODELS. Author/shop identity lives on the message — no duplicate
+// author column to drift.
+model TicketAttachment {
+  id         String        @id @default(cuid()) @map("id")
+  schoolId   String        @map("school_id")
+  school     School        @relation(fields: [schoolId], references: [id])
+  ticketId   String        @map("ticket_id")
+  ticket     Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  messageId  String        @unique @map("message_id")
+  message    TicketMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  url        String        @map("url") @db.Text
+  mimeType   String        @map("mime_type")
+  sizeBytes  Int           @map("size_bytes")
+  originalName String       @map("original_name")
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_attachments")
 }
 
 // ---------------------------------------------------------------------------

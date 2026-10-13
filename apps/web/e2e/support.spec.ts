@@ -1,3 +1,6 @@
+import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { ACCOUNTS, PASSWORD, SOS_SLUG, login, logout } from "./helpers";
 
@@ -47,6 +50,17 @@ test.describe("support tickets", () => {
     await page.reload();
     await expect(page.getByText(`Visible reply ${stamp}`).first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByText(`Hidden note ${stamp}`)).toHaveCount(0);
+
+    // Screenshot attach with storage unconfigured (no CLOUDINARY_URL in any
+    // e2e env, by design): the 503 surfaces honestly, and nothing is
+    // half-created — the thread still shows exactly the one reply.
+    const shotPath = join(tmpdir(), `support-shot-${stamp}.png`);
+    writeFileSync(shotPath, Buffer.alloc(2048, 7));
+    await page.locator('input[type="file"]').setInputFiles(shotPath);
+    await page.getByRole("button", { name: /reply with screenshot/i }).click();
+    await expect(page.getByText(/not configured/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(`Visible reply ${stamp}`).first()).toBeVisible();
+    await expect(page.getByText(`support-shot-${stamp}.png`)).toHaveCount(0);
     await logout(page);
   });
 
