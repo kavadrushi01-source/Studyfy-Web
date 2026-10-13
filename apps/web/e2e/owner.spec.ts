@@ -18,6 +18,14 @@ test.describe("super admin panel", () => {
     // with a Soon pill, never a dead link.
     await expect(page.getByRole("link", { name: "Platform Analytics" })).toHaveCount(0);
     await expect(page.getByText("Platform Analytics").first()).toBeVisible();
+    // Sidebar geometry guard: grid auto-rows once stretched every link to
+    // ~732px on long pages (only the top item stayed visible). Links must
+    // stay compact — visibility asserts alone cannot catch it (Playwright
+    // calls offscreen giants "visible").
+    for (const label of ["Schools", "Audit Logs", "Settings"]) {
+      const box = await page.getByRole("link", { name: label }).boundingBox();
+      expect(box?.height ?? 9999).toBeLessThan(100);
+    }
   });
 
   test("settings shows config status with no secrets", async ({ page }) => {

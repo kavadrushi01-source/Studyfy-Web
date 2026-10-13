@@ -115,7 +115,13 @@ export function Shell({
           ) : null}
           {board.badge}
         </div>
-        <nav className="sf-side-nav" style={{ display: "grid", gap: 3, flex: 1 }}>
+        <nav
+          className="sf-side-nav"
+          // alignContent:start — grid auto-rows stretch to fill free space
+          // by default; on long pages the tall sidebar made every nav link
+          // hundreds of px tall (only the top item stayed visible).
+          style={{ display: "grid", gap: 3, flex: 1, alignContent: "start" }}
+        >
           {board.nav.map((item) => {
             const active = item.href === activeHref;
             if (!item.href) {
