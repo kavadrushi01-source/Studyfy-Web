@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
+import { issueInvoice, markInvoicePaid, recordSubscriptionCapture, startOfDayUtc } from "../src/modules/billing/billing.service.js";
 
 const app = createApp();
 
@@ -44,6 +45,7 @@ interface OwnerBundle {
   activeSchools: number;
   trialPending: number;
   totalRevenue: string;
+  revenueByMethod: { method: string; total: string }[];
   schools: { id: string; name: string; slug: string; subscriptionStatus: string; users: number; students: number }[];
   analytics: { month: string; schools: number }[];
   plans: { plan: string; schools: number }[];
@@ -88,6 +90,50 @@ describe("GET /api/v1/platform/dashboard (§8.3 + sequencing note)", () => {
       const current = board.analytics[board.analytics.length - 1]!;
       expect(current.month).toBe(board.asOf.month);
       expect(current.schools).toBeGreaterThanOrEqual(2);
+    },
+    30000,
+  );
+
+  it(
+    "splits revenue into MANUAL and TEST legs that sum to the total",
+    async () => {
+      const token = await ownerToken();
+      const school = await registerSchool();
+      const admin = await prisma.user.findFirstOrThrow({ where: { schoolId: school.schoolId } });
+      // BASIC ₹2,999 + 18% = 353882 paise → "3538.82", each leg.
+      const manual = await issueInvoice(
+        prisma,
+        school.schoolId,
+        { plan: "BASIC", periodStart: startOfDayUtc(new Date("2026-11-01T00:00:00Z")), periodEnd: startOfDayUtc(new Date("2026-11-30T00:00:00Z")), schoolState: null, platformState: null },
+        admin.id,
+      );
+      await markInvoicePaid(prisma, manual.id, admin.id);
+      const online = await issueInvoice(
+        prisma,
+        school.schoolId,
+        { plan: "BASIC", periodStart: startOfDayUtc(new Date("2026-12-01T00:00:00Z")), periodEnd: startOfDayUtc(new Date("2026-12-31T00:00:00Z")), schoolState: null, platformState: null },
+        admin.id,
+      );
+      const orderId = `order_SPLIT_${uid()}`;
+      await prisma.subscriptionInvoice.update({ where: { id: online.id }, data: { razorpayOrderId: orderId } });
+      await recordSubscriptionCapture(
+        prisma,
+        { razorpayOrderId: orderId, razorpayPaymentId: `pay_SPLIT_${uid()}`, amountPaise: 353882 },
+        null,
+      );
+
+      const res = await request(app)
+        .get("/api/v1/platform/dashboard")
+        .set("Authorization", `Bearer ${token}`)
+        .expect(200);
+      const board = res.body.data.dashboard as OwnerBundle;
+      // Parallel files record their own paid invoices — floors, never exact.
+      const leg = (method: string): number => Number(board.revenueByMethod.find((l) => l.method === method)?.total ?? "0");
+      expect(leg("MANUAL")).toBeGreaterThanOrEqual(3538.82);
+      expect(leg("RAZORPAY")).toBeGreaterThanOrEqual(3538.82);
+      // Same paise math at both levels: legs sum to the total.
+      const legsSum = board.revenueByMethod.reduce((sum, l) => sum + Number(l.total), 0);
+      expect(Math.abs(legsSum - Number(board.totalRevenue))).toBeLessThan(0.02);
     },
     30000,
   );

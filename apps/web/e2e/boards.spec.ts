@@ -45,8 +45,10 @@ test.describe("owner board", () => {
     await expect(page.getByText("Ramakrishna School")).toBeVisible();
     // Revenue is COMPUTED from paid subscription invoices now (Chunk 2) —
     // seed invoices alone total ₹56,632.92, so assert a real formatted
-    // amount, never a frozen zero.
+    // amount, never a frozen zero — plus the TEST/MANUAL split legs.
     await expect(page.getByText(/₹[\d,]+\.\d{2}/).first()).toBeVisible();
+    await expect(page.getByText(/MANUAL ₹[\d,]+\.\d{2}/).first()).toBeVisible();
+    await expect(page.getByText(/TEST ₹[\d,]+\.\d{2}/).first()).toBeVisible();
     await page.screenshot({ path: "e2e/shots/owner-board.png" });
 
     await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);

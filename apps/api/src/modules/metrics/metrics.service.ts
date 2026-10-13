@@ -1005,6 +1005,10 @@ export interface OwnerDashboard {
   // via paidMethod on the invoice rows themselves. Still "0.00" with no
   // paid invoices (honest zero, never a projection).
   totalRevenue: string;
+  // Same total, split by collection channel for the TEST/MANUAL labels
+  // (§16.1): MANUAL = owner-marked, RAZORPAY = online test-mode captures.
+  // Additive — totalRevenue keeps its shape forever.
+  revenueByMethod: { method: string; total: string }[];
   schools: OwnerSchoolRow[];
   analytics: OwnerAnalyticsPoint[];
   // Subscription plan mix, from the schools.plan mirror (single-writer
@@ -1037,7 +1041,7 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
   }
   const windowStart = new Date(Date.UTC(months[0]!.year, months[0]!.month - 1, 1));
 
-  const [statuses, recent, schools, revenue, planMix] = await Promise.all([
+  const [statuses, recent, schools, revenue, methodMix, planMix] = await Promise.all([
     db.school.groupBy({ by: ["subscriptionStatus"], _count: { id: true } }),
     db.school.findMany({
       where: { createdAt: { gte: windowStart } },
@@ -1060,8 +1064,22 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
       where: { status: "PAID" },
       _sum: { amountPaise: true, cgstPaise: true, sgstPaise: true, igstPaise: true },
     }),
+    db.subscriptionInvoice.groupBy({
+      by: ["paidMethod"],
+      where: { status: "PAID" },
+      _sum: { amountPaise: true, cgstPaise: true, sgstPaise: true, igstPaise: true },
+    }),
     db.school.groupBy({ by: ["plan"], _count: { id: true } }),
   ]);
+
+  // Integer paise summed in SQL, formatted once — never floats (§13.6).
+  const fmtMoney = (s: {
+    amountPaise: number | null;
+    cgstPaise: number | null;
+    sgstPaise: number | null;
+    igstPaise: number | null;
+  }): string =>
+    (((s.amountPaise ?? 0) + (s.cgstPaise ?? 0) + (s.sgstPaise ?? 0) + (s.igstPaise ?? 0)) / 100).toFixed(2);
 
   const countOf = (status: string): number => statuses.find((s) => s.subscriptionStatus === status)?._count.id ?? 0;  const perMonth = new Map<string, number>();
   for (const school of recent) {
@@ -1073,14 +1091,13 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
     totalSchools: statuses.reduce((sum, s) => sum + s._count.id, 0),
     activeSchools: countOf("ACTIVE"),
     trialPending: countOf("TRIAL"),
-    // Integer paise summed in SQL, formatted once — never floats (§13.6).
-    totalRevenue: (
-      ((revenue._sum.amountPaise ?? 0) +
-        (revenue._sum.cgstPaise ?? 0) +
-        (revenue._sum.sgstPaise ?? 0) +
-        (revenue._sum.igstPaise ?? 0)) /
-      100
-    ).toFixed(2),
+    totalRevenue: fmtMoney(revenue._sum),
+    // TEST/MANUAL legs, same math per channel. NULL methods (hand-edited
+    // rows only — every writer sets one) surface verbatim, never invented
+    // into a channel. Sorted for a stable response shape.
+    revenueByMethod: methodMix
+      .map((m) => ({ method: m.paidMethod ?? "UNSET", total: fmtMoney(m._sum) }))
+      .sort((a, b) => (a.method < b.method ? -1 : a.method > b.method ? 1 : 0)),
     schools: schools.map((school) => ({
       id: school.id,
       name: school.name,

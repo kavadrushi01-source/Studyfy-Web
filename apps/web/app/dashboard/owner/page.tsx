@@ -29,6 +29,7 @@ interface OwnerBundle {
   activeSchools: number;
   trialPending: number;
   totalRevenue: string;
+  revenueByMethod: { method: string; total: string }[];
   schools: OwnerSchoolRow[];
   analytics: AnalyticsPoint[];
   plans: { plan: string; schools: number }[];
@@ -90,6 +91,23 @@ function inr(amount: string): string {
     return `₹${amount}`;
   }
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// TEST/MANUAL split (§16.1): RAZORPAY legs are online test-mode captures,
+// MANUAL legs owner-marked. Any other method value (hand-edited rows only)
+// prints verbatim — never invented into a channel, never dropped from it.
+function revenueSplitText(legs: { method: string; total: string }[]): string {
+  const leg = (method: string): string => {
+    const found = legs.find((l) => l.method === method);
+    return inr(found?.total ?? "0.00");
+  };
+  const parts = [`MANUAL ${leg("MANUAL")}`, `TEST ${leg("RAZORPAY")}`];
+  for (const extra of legs) {
+    if (extra.method !== "MANUAL" && extra.method !== "RAZORPAY") {
+      parts.push(`${extra.method} ${inr(extra.total)}`);
+    }
+  }
+  return parts.join(" · ");
 }
 
 function AnalyticsChart({ analytics }: { analytics: AnalyticsPoint[] }): ReactNode {
@@ -297,7 +315,7 @@ export default function OwnerDashboardPage() {
     {
       label: "Total Revenue",
       value: inr(bundle.totalRevenue),
-      ...(bundle.totalRevenue === "0.00" ? { sub: "No paid invoices yet" } : { sub: "Paid invoices, test payments labelled" }),
+      ...(bundle.totalRevenue === "0.00" ? { sub: "No paid invoices yet" } : { sub: revenueSplitText(bundle.revenueByMethod) }),
       color: colors.muted,
       tint: colors.lineSoft,
       icon: <IndianRupee size={22} />,
