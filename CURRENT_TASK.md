@@ -10,7 +10,7 @@
 > scratch.
 
 **Status:** IN PROGRESS — Phase 4 Chunk 4 DONE + school-side tickets follow-up DONE (staff keys/ownership scoping/rate limit/emails — FULL gates green, prod migrate pending with a future build)
-**Phase / Module:** Phase 4 — Chunk 4 + school-side support (staff tickets — DONE, about to push)
+**Phase / Module:** Phase 4 — Chunk 4 + school-side support (staff tickets — DONE, pushed `75b064b`)
 **Last updated:** 2026-10-13
 
 ## Standing security decision (founder-ordered 2026-10-11, do not nag)
