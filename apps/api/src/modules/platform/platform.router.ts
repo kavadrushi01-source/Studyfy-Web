@@ -9,6 +9,7 @@ import { listPlatformAuditSchema } from "../audit/audit.schemas.js";
 import { listAuditLogs } from "../audit/audit.service.js";
 import { recordAudit } from "../../lib/audit.js";
 import { markInvoicePaid, issueInvoice, setSubscription } from "../billing/billing.service.js";
+import { PLANS, effectivePlan } from "../billing/plans.js";
 import { listTicketsSchema, ownerMessageSchema } from "../support/support.schemas.js";
 import { ownerPostMessage } from "../support/support.service.js";
 import {
@@ -183,11 +184,11 @@ platformRouter.post(
       const result = await setSubscription(
         req.prisma,
         school.id,
-        { plan: school.plan ?? "BASIC", status: "SUSPENDED" },
+        { plan: school.plan ?? "BASIC", status: "SUSPENDED", reason: parsed.data.reason },
         req.user.userId,
         "SUBSCRIPTION_STATUS_CHANGE",
       );
-      res.json({ success: true, data: { subscription: result, reason: parsed.data.reason ?? null }, error: null, meta: null });
+      res.json({ success: true, data: { subscription: result, reason: parsed.data.reason }, error: null, meta: null });
     } catch (err) {
       sendBillingError(res, err);
     }
@@ -231,6 +232,7 @@ platformRouter.post(
           status: "ACTIVE",
           currentPeriodStart: new Date(`${parsed.data.periodStart}T00:00:00Z`),
           currentPeriodEnd: new Date(`${parsed.data.periodEnd}T00:00:00Z`),
+          reason: parsed.data.reason,
         },
         req.user.userId,
         "SUBSCRIPTION_STATUS_CHANGE",
@@ -286,6 +288,7 @@ platformRouter.post(
           status: (sub?.status ?? school.subscriptionStatus) as "TRIAL" | "ACTIVE" | "PAST_DUE" | "SUSPENDED",
           currentPeriodStart: sub?.currentPeriodStart,
           currentPeriodEnd: sub?.currentPeriodEnd,
+          reason: parsed.data.reason,
         },
         req.user.userId,
         "SUBSCRIPTION_PLAN_CHANGE",
@@ -342,7 +345,7 @@ platformRouter.post(
         action: "SUBSCRIPTION_TRIAL_EXTENDED",
         entity: "School",
         entityId: school.id,
-        after: { id: school.id, trialEndsAt: trialEndsAt.toISOString() },
+        after: { id: school.id, trialEndsAt: trialEndsAt.toISOString(), reason: parsed.data.reason },
       });
       res.json({ success: true, data: { trialEndsAt: updated.trialEndsAt }, error: null, meta: null });
     } catch (err) {
@@ -388,6 +391,71 @@ platformRouter.get(
       take: 20,
     });
     res.json({ success: true, data: { school, subscription, invoices }, error: null, meta: null });
+  }),
+);
+
+// GET /platform/schools/:id/detail — one school's full owner picture for
+// the detail page: profile, plan + usage vs cap, subscription, admin
+// contacts, recent audit entries. Composed from the same readers the
+// roster, billing and audit screens use — no new query shapes.
+platformRouter.get(
+  "/schools/:id/detail",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.schools.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    // NOTE: explicit `where: { id }` — School is the tenant ROOT (see the
+    // overview route's note); never a bare findFirst here.
+    const school = await req.prisma.school.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        city: true,
+        state: true,
+        brandColor: true,
+        subscriptionStatus: true,
+        plan: true,
+        trialEndsAt: true,
+        isDemo: true,
+        createdAt: true,
+        _count: { select: { users: true, students: true } },
+      },
+    });
+    if (!school) {
+      sendBillingError(res, new AuthError(404, "SCHOOL_NOT_FOUND", "School not found."));
+      return;
+    }
+    const subscription = await req.prisma.subscription.findUnique({ where: { schoolId: school.id } });
+    const enrolled = await req.prisma.student.count({ where: { schoolId: school.id } });
+    const admins = await req.prisma.user.findMany({
+      where: { schoolId: school.id, role: { name: "SCHOOL_ADMIN" } },
+      select: { id: true, name: true, email: true, isActive: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const audit = await listAuditLogs(req.prisma, { schoolId: school.id, take: 10 });
+    res.json({
+      success: true,
+      data: {
+        school,
+        subscription,
+        usage: { enrolled, cap: PLANS[effectivePlan(school.subscriptionStatus, school.plan)].studentCap },
+        admins,
+        recentAudit: audit.logs,
+      },
+      error: null,
+      meta: null,
+    });
   }),
 );
 

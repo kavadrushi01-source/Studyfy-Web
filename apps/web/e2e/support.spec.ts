@@ -79,7 +79,7 @@ test.describe("support tickets", () => {
     const ownerToken = ((await ownerLogin.json()) as { data: { accessToken: string } }).data.accessToken;
     await request.post(`${API}/api/v1/platform/schools/${schoolId}/suspend`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: {},
+      data: { reason: "E2E suspension" },
     });
 
     const adminApiLogin = await request.post(`${API}/api/v1/auth/login`, {

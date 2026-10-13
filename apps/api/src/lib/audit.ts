@@ -16,7 +16,7 @@ import type { PrismaClient } from "@prisma/client";
 const AUDIT_FIELDS: Record<string, readonly string[]> = {
   User: ["id", "role", "isActive"],
   BiometricDevice: ["id", "name", "isActive"],
-  School: ["id", "subscriptionStatus", "plan", "isDemo", "trialEndsAt"],
+  School: ["id", "subscriptionStatus", "plan", "isDemo", "trialEndsAt", "reason"],
   // Phase 4 retrofit (§13.10 must-list): marks carry the graded score (never
   // the whole row); attendance edits carry day+status; money rows carry
   // amounts as pre-formatted strings (Decimals are objects, not scalars).
@@ -32,7 +32,7 @@ const AUDIT_FIELDS: Record<string, readonly string[]> = {
   // here is integer paise (scalars, safe). Invoice "count" is NOT here —
   // bulk summaries belong to fee invoices only; subscription invoices are
   // issued one per school per period (see issueInvoice()).
-  Subscription: ["id", "plan", "status"],
+  Subscription: ["id", "plan", "status", "reason"],
   SubscriptionInvoice: ["id", "invoiceNumber", "status", "amountPaise", "cgstPaise", "sgstPaise", "igstPaise", "paidMethod"],
   // Billing reminders (§12.4 job): the audit log doubles as the sent-log —
   // idempotency is "already reminded for (entity, day-count)", checked in JS

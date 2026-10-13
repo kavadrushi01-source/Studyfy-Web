@@ -120,6 +120,10 @@ export interface SetSubscriptionInput {
   status: "TRIAL" | "ACTIVE" | "PAST_DUE" | "SUSPENDED";
   currentPeriodStart?: Date | null;
   currentPeriodEnd?: Date | null;
+  // Owner-supplied reason (§7 #23 — every billing action asks why). Optional
+  // so machine callers (cycle, webhook, mark-paid) keep working; the owner
+  // routes always pass it (their schemas require it).
+  reason?: string;
 }
 
 // Owner-driven create-or-replace (plan purchase, plan change, suspension,
@@ -169,7 +173,12 @@ export async function setSubscription(
       ...(before
         ? { before: pickAuditFields("Subscription", { id: before.id, plan: before.plan, status: before.status }) }
         : {}),
-      after: pickAuditFields("Subscription", { id: row.id, plan: row.plan, status: row.status }),
+      after: pickAuditFields("Subscription", {
+        id: row.id,
+        plan: row.plan,
+        status: row.status,
+        ...(input.reason ? { reason: input.reason } : {}),
+      }),
     });
     return row;
   });

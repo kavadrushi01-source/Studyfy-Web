@@ -89,7 +89,7 @@ test.describe("billing", () => {
     // invoices, pay button, all usable.
     await request.post(`${API}/api/v1/platform/schools/${schoolId}/suspend`, {
       headers: { Authorization: `Bearer ${ownerToken}` },
-      data: {},
+      data: { reason: "E2E suspension" },
     });
     await page.reload();
     await expect(page.getByText("Account suspended").first()).toBeVisible({ timeout: 20000 });

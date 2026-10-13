@@ -44,7 +44,12 @@ test.describe("super admin panel", () => {
     await page.getByLabel(/search schools/i).fill(`Owner Panel School ${stamp}`);
     await expect(page.getByText(`Owner Panel School ${stamp}`).first()).toBeVisible({ timeout: 20000 });
     await page.getByRole("button", { name: "Manage" }).click();
+    // Reasonless first: the arm refuses with the reason error.
     await page.getByRole("button", { name: "Suspend" }).click();
+    await expect(page.getByText(/reason is required/i).first()).toBeVisible();
+    await page.getByLabel(/action reason/i).fill("E2E non-payment");
+    await page.getByRole("button", { name: "Suspend" }).click();
+    await page.getByRole("button", { name: "Confirm suspend" }).click();
     await expect(page.getByText("suspended.").first()).toBeVisible({ timeout: 20000 });
 
     // A successful action closes the panel — reopen it for the next one.
@@ -52,8 +57,18 @@ test.describe("super admin panel", () => {
     await page.getByLabel(/plan for/i).selectOption("PREMIUM");
     await page.getByLabel(/period start for/i).fill("2026-11-01");
     await page.getByLabel(/period end for/i).fill("2026-11-30");
+    await page.getByLabel(/action reason/i).fill("E2E reactivation");
     await page.getByRole("button", { name: "Reactivate" }).click();
+    await page.getByRole("button", { name: "Confirm reactivate" }).click();
     await expect(page.getByText("reactivated.").first()).toBeVisible({ timeout: 20000 });
+
+    // Detail page: profile, usage, admins, and the audit trail carrying
+    // the reasons above.
+    await page.getByRole("link", { name: "Open" }).first().click();
+    await expect(page.getByRole("heading", { name: `Owner Panel School ${stamp}` })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId("detail-usage")).toBeVisible();
+    await expect(page.getByText("E2E non-payment").first()).toBeVisible();
+    await expect(page.getByText("E2E reactivation").first()).toBeVisible();
 
     // The cycle left its trail on the platform audit trail (API-level:
     // the UI board shows the same rows, proven in the audit journey).

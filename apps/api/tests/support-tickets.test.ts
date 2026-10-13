@@ -209,7 +209,7 @@ describe("support tickets, suspended school (§13.4 exception)", () => {
     await request(app)
       .post(`/api/v1/platform/schools/${school.schoolId}/suspend`)
       .set({ Authorization: `Bearer ${owner.token}` })
-      .send({})
+      .send({ reason: "Test suspension" })
       .expect(200);
 
     const adminLogin = await request(app)

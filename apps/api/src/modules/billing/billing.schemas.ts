@@ -8,22 +8,30 @@ const dayField = (name: string) =>
     .regex(DAY, `${name} must be YYYY-MM-DD.`)
     .refine((s) => !Number.isNaN(new Date(`${s}T00:00:00Z`).getTime()), { message: `${name} is not a real calendar date.` });
 
+// Every owner billing action asks for a reason (§7 #23): required, so the
+// audit trail always says WHY — a reasonless suspension/reactivation/plan
+// change/trial move is a 400, never a silent row.
+const ownerReason = z.string().trim().min(1).max(500);
+
 export const billingPlanSchema = z.object({
   plan: z.enum(["BASIC", "STANDARD", "PREMIUM"]),
+  reason: ownerReason,
 });
 
 export const suspendSchoolSchema = z.object({
-  reason: z.string().trim().min(1).max(500).optional(),
+  reason: ownerReason,
 });
 
 export const reactivateSchoolSchema = z.object({
   plan: z.enum(["BASIC", "STANDARD", "PREMIUM"]),
   periodStart: dayField("Period start"),
   periodEnd: dayField("Period end"),
+  reason: ownerReason,
 });
 
 export const trialExtensionSchema = z.object({
   trialEndsAt: dayField("Trial end"),
+  reason: ownerReason,
 });
 
 export const issueSubscriptionInvoiceSchema = z.object({

@@ -52,6 +52,10 @@ export default function OwnerSchoolsPage() {
   const [periodEnd, setPeriodEnd] = useState("");
   const [trialDate, setTrialDate] = useState("");
   const [acting, setActing] = useState("");
+  const [sort, setSort] = useState("name");
+  // Two-step confirm (§7 #23): the first click arms, the second fires. No
+  // browser dialogs — the armed button states exactly what will happen.
+  const [armed, setArmed] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,6 +98,7 @@ export default function OwnerSchoolsPage() {
       }
       setNotice(done);
       setOpenId("");
+      setArmed("");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
@@ -144,12 +149,33 @@ export default function OwnerSchoolsPage() {
     );
   }
 
-  const visible = schools.filter(
-    (s) =>
-      !search.trim() ||
-      s.name.toLowerCase().includes(search.trim().toLowerCase()) ||
-      s.slug.includes(search.trim().toLowerCase()),
-  );
+  function fmtDay(iso: string): string {
+    const parsed = new Date(iso);
+    return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleDateString("en-GB");
+  }
+
+  const visible = schools
+    .filter(
+      (s) =>
+        !search.trim() ||
+        s.name.toLowerCase().includes(search.trim().toLowerCase()) ||
+        s.slug.includes(search.trim().toLowerCase()),
+    )
+    .sort((a, b) => {
+      if (sort === "students") {
+        return b._count.students - a._count.students;
+      }
+      if (sort === "joined") {
+        return b.createdAt.localeCompare(a.createdAt);
+      }
+      if (sort === "plan") {
+        return (a.plan ?? "").localeCompare(b.plan ?? "");
+      }
+      if (sort === "status") {
+        return a.subscriptionStatus.localeCompare(b.subscriptionStatus);
+      }
+      return a.name.localeCompare(b.name);
+    });
 
   return (
     <Shell role="PLATFORM_OWNER" activeHref="/owner/schools">
@@ -169,6 +195,16 @@ export default function OwnerSchoolsPage() {
               aria-label="Search schools"
             />
           </label>
+          <label style={labelStyle}>
+            Sort
+            <select className="sf-select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort schools">
+              <option value="name">Name</option>
+              <option value="plan">Plan</option>
+              <option value="status">Status</option>
+              <option value="students">Students</option>
+              <option value="joined">Joined</option>
+            </select>
+          </label>
         </div>
 
         {loading ? (
@@ -187,34 +223,76 @@ export default function OwnerSchoolsPage() {
                   <strong style={{ color: colors.ink, fontSize: 15, flex: 1 }}>{school.name}</strong>
                   <span style={statusPill(school.subscriptionStatus)}>{school.subscriptionStatus}</span>
                   <span style={pill(colors.primary, colors.primaryGhost)}>{school.plan ?? "no plan"}</span>
-                  <button type="button" onClick={() => setOpenId((prev) => (prev === school.id ? "" : school.id))} className="sf-btn" aria-expanded={openId === school.id}>
+                  <Link href={`/owner/schools/${school.id}`} className="sf-btn">
+                    Open
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenId((prev) => (prev === school.id ? "" : school.id));
+                      setArmed("");
+                    }}
+                    className="sf-btn"
+                    aria-expanded={openId === school.id}
+                  >
                     {openId === school.id ? "Close" : "Manage"}
                   </button>
                 </div>
                 <p style={{ ...mutedStyle, fontSize: 13, margin: "6px 0 0" }}>
-                  {school.slug} · {school._count.students} pupils · {school._count.users} accounts
+                  {school.slug} · {school._count.students} pupils · {school._count.users} accounts · joined{" "}
+                  {fmtDay(school.createdAt)}
                 </p>
                 {openId === school.id ? (
                   <div style={{ marginTop: 10, borderTop: "1px solid #F1F5F9", paddingTop: 10, display: "grid", gap: 10 }}>
                     <div className="sf-row-wrap" style={{ alignItems: "flex-end" }}>
                       <label style={{ ...labelStyle, flex: 1, minWidth: 160 }}>
-                        Suspend reason (optional)
+                        Reason (required — written to the audit trail)
                         <input
                           className="sf-input"
                           value={reason}
                           onChange={(e) => setReason(e.target.value)}
                           placeholder="Non-payment"
-                          aria-label={`Suspend reason for ${school.name}`}
+                          aria-label={`Action reason for ${school.name}`}
                         />
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => void act(`/platform/schools/${school.id}/suspend`, reason.trim() ? { reason: reason.trim() } : {}, `suspend-${school.id}`, `${school.name} suspended.`)}
-                        disabled={!!acting}
-                        className="sf-btn"
-                      >
-                        {acting === `suspend-${school.id}` ? "Working…" : "Suspend"}
-                      </button>
+                      {armed === `suspend-${school.id}` ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setArmed("");
+                              void act(
+                                `/platform/schools/${school.id}/suspend`,
+                                { reason: reason.trim() },
+                                `suspend-${school.id}`,
+                                `${school.name} suspended.`,
+                              );
+                            }}
+                            disabled={!!acting}
+                            className="sf-btn"
+                          >
+                            {acting === `suspend-${school.id}` ? "Working…" : "Confirm suspend"}
+                          </button>
+                          <button type="button" onClick={() => setArmed("")} className="sf-btn">
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!reason.trim()) {
+                              setError("A reason is required — it is written to the audit trail.");
+                              return;
+                            }
+                            setArmed(`suspend-${school.id}`);
+                          }}
+                          disabled={!!acting}
+                          className="sf-btn"
+                        >
+                          Suspend
+                        </button>
+                      )}
                     </div>
                     <div className="sf-row-wrap" style={{ alignItems: "flex-end" }}>
                       <label style={labelStyle}>
@@ -233,36 +311,126 @@ export default function OwnerSchoolsPage() {
                         Period end
                         <input className="sf-input" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} aria-label={`Period end for ${school.name}`} />
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => void act(`/platform/schools/${school.id}/reactivate`, { plan, periodStart, periodEnd }, `reactivate-${school.id}`, `${school.name} reactivated.`)}
-                        disabled={!!acting}
-                        className="sf-btn"
-                      >
-                        {acting === `reactivate-${school.id}` ? "Working…" : "Reactivate"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void act(`/platform/schools/${school.id}/plan`, { plan }, `plan-${school.id}`, `${school.name} moved to ${plan}.`)}
-                        disabled={!!acting}
-                        className="sf-btn"
-                      >
-                        {acting === `plan-${school.id}` ? "Working…" : "Set plan"}
-                      </button>
+                      {armed === `reactivate-${school.id}` ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setArmed("");
+                              void act(
+                                `/platform/schools/${school.id}/reactivate`,
+                                { plan, periodStart, periodEnd, reason: reason.trim() },
+                                `reactivate-${school.id}`,
+                                `${school.name} reactivated.`,
+                              );
+                            }}
+                            disabled={!!acting}
+                            className="sf-btn"
+                          >
+                            {acting === `reactivate-${school.id}` ? "Working…" : "Confirm reactivate"}
+                          </button>
+                          <button type="button" onClick={() => setArmed("")} className="sf-btn">
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!reason.trim()) {
+                              setError("A reason is required — it is written to the audit trail.");
+                              return;
+                            }
+                            setArmed(`reactivate-${school.id}`);
+                          }}
+                          disabled={!!acting}
+                          className="sf-btn"
+                        >
+                          Reactivate
+                        </button>
+                      )}
+                      {armed === `plan-${school.id}` ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setArmed("");
+                              void act(
+                                `/platform/schools/${school.id}/plan`,
+                                { plan, reason: reason.trim() },
+                                `plan-${school.id}`,
+                                `${school.name} moved to ${plan}.`,
+                              );
+                            }}
+                            disabled={!!acting}
+                            className="sf-btn"
+                          >
+                            {acting === `plan-${school.id}` ? "Working…" : "Confirm plan change"}
+                          </button>
+                          <button type="button" onClick={() => setArmed("")} className="sf-btn">
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!reason.trim()) {
+                              setError("A reason is required — it is written to the audit trail.");
+                              return;
+                            }
+                            setArmed(`plan-${school.id}`);
+                          }}
+                          disabled={!!acting}
+                          className="sf-btn"
+                        >
+                          Set plan
+                        </button>
+                      )}
                     </div>
                     <div className="sf-row-wrap" style={{ alignItems: "flex-end" }}>
                       <label style={labelStyle}>
                         Trial ends
                         <input className="sf-input" type="date" value={trialDate} onChange={(e) => setTrialDate(e.target.value)} aria-label={`Trial end for ${school.name}`} />
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => void act(`/platform/schools/${school.id}/trial-extension`, { trialEndsAt: trialDate }, `trial-${school.id}`, `Trial extended for ${school.name}.`)}
-                        disabled={!!acting}
-                        className="sf-btn"
-                      >
-                        {acting === `trial-${school.id}` ? "Working…" : "Extend trial"}
-                      </button>
+                      {armed === `trial-${school.id}` ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setArmed("");
+                              void act(
+                                `/platform/schools/${school.id}/trial-extension`,
+                                { trialEndsAt: trialDate, reason: reason.trim() },
+                                `trial-${school.id}`,
+                                `Trial extended for ${school.name}.`,
+                              );
+                            }}
+                            disabled={!!acting}
+                            className="sf-btn"
+                          >
+                            {acting === `trial-${school.id}` ? "Working…" : "Confirm trial extension"}
+                          </button>
+                          <button type="button" onClick={() => setArmed("")} className="sf-btn">
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!reason.trim()) {
+                              setError("A reason is required — it is written to the audit trail.");
+                              return;
+                            }
+                            setArmed(`trial-${school.id}`);
+                          }}
+                          disabled={!!acting}
+                          className="sf-btn"
+                        >
+                          Extend trial
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : null}

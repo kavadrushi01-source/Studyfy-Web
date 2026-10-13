@@ -280,7 +280,7 @@ describe("billing overview (§13.4 exception surface)", () => {
     await request(app)
       .post(`/api/v1/platform/schools/${school.schoolId}/suspend`)
       .set({ Authorization: `Bearer ${ownerToken}` })
-      .send({})
+      .send({ reason: "Test suspension" })
       .expect(200);
     const login = await request(app)
       .post("/api/v1/auth/login")

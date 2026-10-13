@@ -63,6 +63,7 @@ describe("platform billing administration (§16.1)", () => {
     const rows = await prisma.auditLog.findMany({ where: { schoolId: school.schoolId, action: "SUBSCRIPTION_STATUS_CHANGE" } });
     expect(rows).toHaveLength(1);
     expect(rows[0]?.actorId).not.toBeNull();
+    expect((rows[0]?.after as { reason?: string } | null)?.reason).toBe("Non-payment");
 
     // Tenant access dies with data retained.
     await request(app).get(`/api/v1/schools/${school.schoolId}/students`).set({ Authorization: `Bearer ${school.adminToken}` }).expect(403);
@@ -70,7 +71,7 @@ describe("platform billing administration (§16.1)", () => {
     // Demo schools are immune.
     const demo = await registerSchool(`Billing Demo School ${uid()}`);
     await prisma.school.update({ where: { id: demo.schoolId }, data: { isDemo: true } });
-    const refused = await request(app).post(`/api/v1/platform/schools/${demo.schoolId}/suspend`).set(auth).send({});
+    const refused = await request(app).post(`/api/v1/platform/schools/${demo.schoolId}/suspend`).set(auth).send({ reason: "Test" });
     expect(refused.status).toBe(403);
   });
 
@@ -79,11 +80,11 @@ describe("platform billing administration (§16.1)", () => {
     const ownerToken = await loginOwner();
     const auth = { Authorization: `Bearer ${ownerToken}` };
 
-    await request(app).post(`/api/v1/platform/schools/${school.schoolId}/suspend`).set(auth).send({}).expect(200);
+    await request(app).post(`/api/v1/platform/schools/${school.schoolId}/suspend`).set(auth).send({ reason: "Test suspension" }).expect(200);
     const re = await request(app)
       .post(`/api/v1/platform/schools/${school.schoolId}/reactivate`)
       .set(auth)
-      .send({ plan: "STANDARD", periodStart: "2026-11-01", periodEnd: "2026-11-30" })
+      .send({ plan: "STANDARD", periodStart: "2026-11-01", periodEnd: "2026-11-30", reason: "Test reactivation" })
       .expect(200);
     expect(re.body.data.subscription.status).toBe("ACTIVE");
     expect((await prisma.school.findUniqueOrThrow({ where: { id: school.schoolId } })).subscriptionStatus).toBe("ACTIVE");
@@ -91,7 +92,7 @@ describe("platform billing administration (§16.1)", () => {
     const plan = await request(app)
       .post(`/api/v1/platform/schools/${school.schoolId}/plan`)
       .set(auth)
-      .send({ plan: "PREMIUM" })
+      .send({ plan: "PREMIUM", reason: "Test plan change" })
       .expect(200);
     expect(plan.body.data.subscription.plan).toBe("PREMIUM");
     expect((await prisma.school.findUniqueOrThrow({ where: { id: school.schoolId } })).plan).toBe("PREMIUM");
@@ -101,26 +102,83 @@ describe("platform billing administration (§16.1)", () => {
     const ext = await request(app)
       .post(`/api/v1/platform/schools/${school.schoolId}/trial-extension`)
       .set(auth)
-      .send({ trialEndsAt: "2027-01-31" })
+      .send({ trialEndsAt: "2027-01-31", reason: "Test trial extension" })
       .expect(200);
+    const extAudit = await prisma.auditLog.findMany({ where: { schoolId: school.schoolId, action: "SUBSCRIPTION_TRIAL_EXTENDED" } });
+    expect((extAudit[0]?.after as { reason?: string } | null)?.reason).toBe("Test trial extension");
     expect(new Date(ext.body.data.trialEndsAt as string).toISOString().slice(0, 10)).toBe("2027-01-31");
     const past = await request(app)
       .post(`/api/v1/platform/schools/${school.schoolId}/trial-extension`)
       .set(auth)
-      .send({ trialEndsAt: "2020-01-01" });
+      .send({ trialEndsAt: "2020-01-01", reason: "Test" });
     expect(past.status).toBe(400);
 
-    const missing = await request(app).post("/api/v1/platform/schools/nope/suspend").set(auth).send({});
+    const missing = await request(app).post("/api/v1/platform/schools/nope/suspend").set(auth).send({ reason: "Test" });
     expect(missing.status).toBe(404);
   });
 
-  it("refuses tenant admins on platform billing routes", async () => {
+  it("refuses tenant admins on every platform billing route", async () => {
     const school = await registerSchool(`Billing Refusal School ${uid()}`);
-    const res = await request(app)
+    const auth = { Authorization: `Bearer ${school.adminToken}` };
+    // platformOnlyMiddleware rejects before any handler runs — no reason
+    // needed to prove the door stays shut.
+    const calls = [
+      request(app).post(`/api/v1/platform/schools/${school.schoolId}/suspend`).set(auth).send({}),
+      request(app).post(`/api/v1/platform/schools/${school.schoolId}/reactivate`).set(auth).send({}),
+      request(app).post(`/api/v1/platform/schools/${school.schoolId}/plan`).set(auth).send({}),
+      request(app).post(`/api/v1/platform/schools/${school.schoolId}/trial-extension`).set(auth).send({}),
+      request(app).get(`/api/v1/platform/schools/${school.schoolId}/detail`).set(auth),
+    ];
+    for (const call of calls) {
+      expect((await call).status).toBe(403);
+    }
+  });
+
+  it("refuses reasonless billing actions with 400 (every action asks why)", async () => {
+    const school = await registerSchool(`Billing Reason School ${uid()}`);
+    const ownerToken = await loginOwner();
+    const auth = { Authorization: `Bearer ${ownerToken}` };
+    const id = school.schoolId;
+    await request(app).post(`/api/v1/platform/schools/${id}/suspend`).set(auth).send({}).expect(400);
+    await request(app)
+      .post(`/api/v1/platform/schools/${id}/reactivate`)
+      .set(auth)
+      .send({ plan: "STANDARD", periodStart: "2026-11-01", periodEnd: "2026-11-30" })
+      .expect(400);
+    await request(app).post(`/api/v1/platform/schools/${id}/plan`).set(auth).send({ plan: "PREMIUM" }).expect(400);
+    await request(app)
+      .post(`/api/v1/platform/schools/${id}/trial-extension`)
+      .set(auth)
+      .send({ trialEndsAt: "2027-01-31" })
+      .expect(400);
+    // Nothing changed without a reason: still TRIAL, no audit rows.
+    expect((await prisma.school.findUniqueOrThrow({ where: { id } })).subscriptionStatus).toBe("TRIAL");
+    expect(await prisma.auditLog.count({ where: { schoolId: id } })).toBe(0);
+  });
+
+  it("serves the school detail picture (profile, usage, subscription, admins, audit)", async () => {
+    const school = await registerSchool(`Billing Detail School ${uid()}`);
+    const ownerToken = await loginOwner();
+    const auth = { Authorization: `Bearer ${ownerToken}` };
+    await request(app)
       .post(`/api/v1/platform/schools/${school.schoolId}/suspend`)
-      .set({ Authorization: `Bearer ${school.adminToken}` })
-      .send({});
-    expect(res.status).toBe(403);
+      .set(auth)
+      .send({ reason: "Detail check" })
+      .expect(200);
+
+    const res = await request(app).get(`/api/v1/platform/schools/${school.schoolId}/detail`).set(auth).expect(200);
+    const data = res.body.data;
+    expect(data.school.slug).toBe(school.slug);
+    expect(data.school.subscriptionStatus).toBe("SUSPENDED");
+    expect(data.school._count).toBeDefined();
+    // Suspended + planless fails closed to Basic (cap 500) — same tier math
+    // as the gate and the billing page.
+    expect(data.usage).toEqual({ enrolled: 0, cap: 500 });
+    expect(data.admins.map((a: { email: string }) => a.email)).toContain(school.adminEmail);
+    const actions = (data.recentAudit as { action: string }[]).map((r) => r.action);
+    expect(actions).toContain("SUBSCRIPTION_STATUS_CHANGE");
+
+    await request(app).get("/api/v1/platform/schools/nope/detail").set(auth).expect(404);
   });
 });
 
@@ -132,7 +190,7 @@ describe("suspended-school exception (§13.4, both directions)", () => {
     await request(app)
       .post(`/api/v1/platform/schools/${school.schoolId}/suspend`)
       .set({ Authorization: `Bearer ${ownerToken}` })
-      .send({})
+      .send({ reason: "Test suspension" })
       .expect(200);
 
     // Admin logs in (the exception); teacher and strangers do not.
