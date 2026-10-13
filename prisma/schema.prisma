@@ -77,6 +77,22 @@ enum SubscriptionInvoiceStatus {
   PAID
 }
 
+// Support ticket lifecycle (§7 Phase 4 #27): schools open, the platform
+// works, either side closes. Narrow on purpose — triage states multiply
+// into workflow nobody asked for.
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 enum PaymentMethod {
   CASH
   UPI
@@ -202,6 +218,8 @@ model School {
   auditLogs           AuditLog[]
   subscription        Subscription?
   subscriptionInvoices SubscriptionInvoice[]
+  tickets             Ticket[]
+  ticketMessages      TicketMessage[]
 
   @@map("schools")
 }
@@ -240,6 +258,8 @@ model User {
   enquiryNotes      EnquiryNote[]    @relation("EnquiryNoteAuthor")
   issuedCertificates Certificate[]   @relation("CertificateIssuer")
   issuedLoans       BookLoan[]       @relation("LoanIssuer")
+  createdTickets    Ticket[]         @relation("TicketCreator")
+  ticketMessages    TicketMessage[]  @relation("TicketMessageAuthor")
   inventoryMovements InventoryMovement[]
   auditActions       AuditLog[]        @relation("AuditActor")
   auditImpersonations AuditLog[]       @relation("AuditImpersonator")
@@ -1247,6 +1267,51 @@ model BillingCounter {
   lastNumber    Int    @default(0) @map("last_number")
 
   @@map("billing_counters")
+}
+
+// ---------------------------------------------------------------------------
+// In-app support tickets (§7 Phase 4 #27, §13.9's launch point —
+// impersonation itself stays a later chunk). A school opens tickets to the
+// platform; the owner works them. Trust design: every row carries its
+// own schoolId (TicketMessage too — the tenant extension can only pin
+// direct schoolId columns, and spec §9.1's table omits it; the column is a
+// documented superset, stamped by the extension on create and re-checked
+// against the ticket in service code). isInternal messages are owner-only:
+// NO school-facing query may return them, enforced in the queries, not the
+// UI (proved both directions by test).
+// ---------------------------------------------------------------------------
+
+model Ticket {
+  id          String       @id @default(cuid()) @map("id")
+  schoolId    String       @map("school_id")
+  school      School       @relation(fields: [schoolId], references: [id])
+  createdById String       @map("created_by_id")
+  createdBy   User         @relation("TicketCreator", fields: [createdById], references: [id])
+  subject     String       @map("subject")
+  status      TicketStatus @default(OPEN) @map("status")
+  priority    TicketPriority @default(MEDIUM) @map("priority")
+  messages    TicketMessage[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([schoolId, status, createdAt])
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id         String   @id @default(cuid()) @map("id")
+  schoolId   String   @map("school_id")
+  school     School   @relation(fields: [schoolId], references: [id])
+  ticketId   String   @map("ticket_id")
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId   String   @map("author_id")
+  author     User     @relation("TicketMessageAuthor", fields: [authorId], references: [id])
+  body       String   @map("body") @db.Text
+  isInternal Boolean  @default(false) @map("is_internal")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
 }
 
 // ---------------------------------------------------------------------------

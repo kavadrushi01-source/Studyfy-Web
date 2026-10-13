@@ -39,6 +39,10 @@ const AUDIT_FIELDS: Record<string, readonly string[]> = {
   // against these rows. No new tables for two bounded reminder types.
   TrialReminder: ["schoolId", "daysLeft"],
   InvoiceReminder: ["schoolId", "invoiceId", "daysOverdue"],
+  // Phase 4 Chunk 4 (§7 #27): ticket metadata only — bodies are unbounded
+  // user text and stay out of the log (same rule as message bodies).
+  Ticket: ["id", "subject", "status", "priority"],
+  TicketMessage: ["id", "isInternal"],
 };
 
 export function pickAuditFields(entity: string, row: Record<string, unknown>): AuditSnapshot {

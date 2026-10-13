@@ -120,6 +120,10 @@ const PERMISSIONS: { key: string; description: string }[] = [
   { key: "platform.users.read", description: "List user accounts across schools (Platform Owner only; account administration, never academic data)" },
   { key: "platform.users.manage", description: "Deactivate/reactivate accounts and change roles (Platform Owner only; never Platform Owner assignments)" },
   { key: "billing.read", description: "Read own school subscription and invoices; pay outstanding invoices (School Admin)" },
+  { key: "support.read", description: "Read own school's support tickets (School Admin; internal notes never shown)" },
+  { key: "support.write", description: "Open support tickets and reply (School Admin; internal notes stay owner-only)" },
+  { key: "platform.tickets.read", description: "Read support tickets across all schools, internal notes included (Platform Owner only)" },
+  { key: "platform.tickets.manage", description: "Reply (internal or visible), set status, close support tickets (Platform Owner only)" },
   { key: "audit.read", description: "Read own school's audit logs (School Admin only; Platform Owner uses platform.audit.read)" },
   { key: "platform.audit.read", description: "Read audit logs across all schools (Platform Owner only)" },
 ];
@@ -128,14 +132,14 @@ const PERMISSIONS: { key: string; description: string }[] = [
 // PERMISSION grants access while self-scope narrows ROWS — holding the key
 // never means seeing everyone.
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.read", "homework.submit", "homework.grade", "messages.read", "documents.read", "documents.write", "crm.read", "crm.manage", "certificates.read", "certificates.manage", "library.read", "library.manage", "transport.read", "transport.manage", "payroll.read", "payroll.manage", "inventory.read", "inventory.manage", "dashboard.read", "audit.read", "billing.read"],
+  SCHOOL_ADMIN: ["students.read", "students.write", "sections.read", "sections.write", "attendance.mark", "attendance.read", "notices.read", "notices.write", "fees.manage", "fees.read", "exams.manage", "exams.read", "staff.manage", "timetable.manage", "timetable.read", "homework.manage", "homework.read", "homework.submit", "homework.grade", "messages.read", "documents.read", "documents.write", "crm.read", "crm.manage", "certificates.read", "certificates.manage", "library.read", "library.manage", "transport.read", "transport.manage", "payroll.read", "payroll.manage", "inventory.read", "inventory.manage", "dashboard.read", "audit.read", "billing.read", "support.read", "support.write"],
   TEACHER: ["students.read", "sections.read", "attendance.mark", "attendance.read", "notices.read", "notices.write", "exams.manage", "exams.read", "timetable.read", "homework.manage", "homework.read", "homework.grade", "messages.send", "messages.read", "documents.read", "library.read", "transport.read", "payroll.read", "inventory.read", "dashboard.read"],
   ACCOUNTANT: ["students.read", "students.write", "sections.read", "attendance.read", "notices.read", "fees.manage", "fees.read", "exams.read", "timetable.read", "documents.read", "documents.write", "crm.read", "certificates.read", "certificates.manage", "payroll.read", "payroll.manage", "inventory.read", "dashboard.read"],
   STUDENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.submit", "homework.read", "messages.send", "messages.read", "library.read", "transport.read", "dashboard.read"],
   PARENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.read", "messages.send", "messages.read", "library.read", "transport.read", "dashboard.read"],
   LIBRARIAN: ["students.read", "library.read", "library.manage", "payroll.read", "dashboard.read"],
   TRANSPORT_MANAGER: ["students.read", "transport.read", "transport.manage", "payroll.read"],
-  PLATFORM_OWNER: ["platform.schools.read", "platform.audit.read", "platform.billing.manage", "platform.users.read", "platform.users.manage"],
+  PLATFORM_OWNER: ["platform.schools.read", "platform.audit.read", "platform.billing.manage", "platform.users.read", "platform.users.manage", "platform.tickets.read", "platform.tickets.manage"],
 };
 
 export async function seedPermissions(db: PrismaClient): Promise<void> {

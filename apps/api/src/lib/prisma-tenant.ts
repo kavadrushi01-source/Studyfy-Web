@@ -50,6 +50,11 @@ export const TENANT_MODELS = [
   // school_id — same reasoning as roles/permissions, §9.1).
   "Subscription",
   "SubscriptionInvoice",
+  // Phase 4 Chunk 4 (§7 #27): support tickets. TicketMessage carries its
+  // OWN schoolId (denormalized from the ticket) because the extension below
+  // can only pin direct schoolId columns — see the schema comment.
+  "Ticket",
+  "TicketMessage",
   // Phase 4 Chunk 1 (§13.10): nullable schoolId — NULL means a
   // platform-level action, which the forced schoolId pin below hides from
   // every school's scoped reads. Exactly the fail-closed behavior §9.1

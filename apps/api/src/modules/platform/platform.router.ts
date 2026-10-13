@@ -9,6 +9,8 @@ import { listPlatformAuditSchema } from "../audit/audit.schemas.js";
 import { listAuditLogs } from "../audit/audit.service.js";
 import { recordAudit } from "../../lib/audit.js";
 import { markInvoicePaid, issueInvoice, setSubscription } from "../billing/billing.service.js";
+import { listTicketsSchema, ownerMessageSchema } from "../support/support.schemas.js";
+import { ownerPostMessage } from "../support/support.service.js";
 import {
   billingPlanSchema,
   issueSubscriptionInvoiceSchema,
@@ -723,6 +725,140 @@ platformRouter.patch(
         after: { id: updated.id, role: role.name, isActive: target.isActive },
       });
       res.json({ success: true, data: { user: { id: updated.id, role: role.name } }, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Support tickets (§7 Phase 4 #27): the platform side of the school
+// threads — every school's tickets with internal notes INCLUDED, replies
+// (visible or internal), and status. Read vs manage split like users mgmt.
+// Impersonation (§13.9) stays a later chunk; these routes only talk.
+// ---------------------------------------------------------------------------
+
+platformRouter.get(
+  "/tickets",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.tickets.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = listTicketsSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid query." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      // Raw client, cross-tenant by design (platformOnly): no school pin.
+      const tickets = await req.prisma.ticket.findMany({
+        where: { ...(parsed.data.status ? { status: parsed.data.status } : {}) },
+        orderBy: { createdAt: "desc" },
+        take: parsed.data.take,
+        select: {
+          id: true,
+          schoolId: true,
+          subject: true,
+          status: true,
+          priority: true,
+          createdAt: true,
+          updatedAt: true,
+          school: { select: { name: true, slug: true } },
+        },
+      });
+      res.json({ success: true, data: { tickets }, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+platformRouter.get(
+  "/tickets/:id",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.tickets.read"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const ticket = await req.prisma.ticket.findFirst({
+        where: { id: req.params.id ?? "" },
+        select: {
+          id: true,
+          schoolId: true,
+          subject: true,
+          status: true,
+          priority: true,
+          createdAt: true,
+          updatedAt: true,
+          school: { select: { name: true, slug: true } },
+          messages: {
+            orderBy: { createdAt: "asc" },
+            select: { id: true, authorId: true, body: true, isInternal: true, createdAt: true },
+          },
+        },
+      });
+      if (!ticket) {
+        sendBillingError(res, new AuthError(404, "TICKET_NOT_FOUND", "Support ticket not found."));
+        return;
+      }
+      res.json({ success: true, data: { ticket }, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+platformRouter.post(
+  "/tickets/:id/messages",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.tickets.manage"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = ownerMessageSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await ownerPostMessage(req.prisma, req.params.id ?? "", req.user.userId, parsed.data);
+      res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendBillingError(res, err);
     }
