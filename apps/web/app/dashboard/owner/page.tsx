@@ -28,8 +28,10 @@ interface OwnerBundle {
   totalSchools: number;
   activeSchools: number;
   trialPending: number;
+  suspendedSchools: number;
   totalRevenue: string;
   revenueByMethod: { method: string; total: string }[];
+  revenueTrend: { month: string; total: string }[];
   schools: OwnerSchoolRow[];
   analytics: AnalyticsPoint[];
   plans: { plan: string; schools: number }[];
@@ -110,17 +112,31 @@ function revenueSplitText(legs: { method: string; total: string }[]): string {
   return parts.join(" · ");
 }
 
-function AnalyticsChart({ analytics }: { analytics: AnalyticsPoint[] }): ReactNode {
+// Monthly bars, shared by both owner charts (signups + revenue) — one grid,
+// one month axis, values formatted by the caller. The admin Phase-3 screens
+// keep their own inline charts (different data shapes, stable and e2e-pinned;
+// churning them for visual sameness would risk tested screens for nothing).
+function MonthBars({
+  points,
+  formatValue,
+  ariaLabel,
+  barColor,
+}: {
+  points: { month: string; value: number }[];
+  formatValue: (n: number) => string;
+  ariaLabel: string;
+  barColor: string;
+}): ReactNode {
   const width = 600;
   const height = 220;
   const padLeft = 36;
   const padBottom = 28;
   const padTop = 12;
-  const max = Math.max(1, ...analytics.map((p) => p.schools));
-  const stepX = analytics.length > 1 ? (width - padLeft - 8) / (analytics.length - 1) : 0;
+  const max = Math.max(1, ...points.map((p) => p.value));
+  const stepX = points.length > 1 ? (width - padLeft - 8) / (points.length - 1) : 0;
   const barW = Math.min(48, Math.max(12, stepX * 0.5));
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="New schools per month">
+    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label={ariaLabel}>
       {[0, 0.5, 1].map((f) => {
         const t = Math.round(max * f);
         const y = padTop + (height - padTop - padBottom) * (1 - t / max);
@@ -128,20 +144,20 @@ function AnalyticsChart({ analytics }: { analytics: AnalyticsPoint[] }): ReactNo
           <g key={t}>
             <line x1={padLeft} y1={y} x2={width - 8} y2={y} stroke={colors.lineSoft} strokeWidth="1" />
             <text x={padLeft - 6} y={y + 4} textAnchor="end" fontSize="11" fill={colors.muted}>
-              {t}
+              {t.toLocaleString("en-IN")}
             </text>
           </g>
         );
       })}
-      {analytics.map((p, i) => {
-        const barH = (height - padTop - padBottom) * (p.schools / max);
+      {points.map((p, i) => {
+        const barH = (height - padTop - padBottom) * (p.value / max);
         const x = padLeft + i * stepX - barW / 2;
         const y = height - padBottom - barH;
         return (
           <g key={p.month}>
-            <rect x={x} y={y} width={barW} height={Math.max(barH, 2)} rx="6" fill={colors.warning} />
+            <rect x={x} y={y} width={barW} height={Math.max(barH, 2)} rx="6" fill={barColor} />
             <text x={padLeft + i * stepX} y={y - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill={colors.ink}>
-              {p.schools}
+              {formatValue(p.value)}
             </text>
             <text x={padLeft + i * stepX} y={height - 8} textAnchor="middle" fontSize="11" fill={colors.muted}>
               {monthLabel(p.month)}
@@ -323,6 +339,7 @@ export default function OwnerDashboardPage() {
   ];
 
   const analyticsEmpty = bundle.analytics.length === 0 || bundle.analytics.every((p) => p.schools === 0);
+  const revenueEmpty = bundle.revenueTrend.length === 0 || bundle.revenueTrend.every((p) => Number(p.total) <= 0);
 
   return (
     <Shell role="PLATFORM_OWNER" activeHref="/dashboard/owner">
@@ -423,12 +440,39 @@ export default function OwnerDashboardPage() {
           {analyticsEmpty ? (
             <EmptyState icon={<ChartNoAxesColumn size={22} />} title="No analytics yet" detail="New schools per month will appear here once schools join." />
           ) : (
-            <AnalyticsChart analytics={bundle.analytics} />
+            <MonthBars
+              points={bundle.analytics.map((p) => ({ month: p.month, value: p.schools }))}
+              formatValue={(n) => String(n)}
+              ariaLabel="New schools per month"
+              barColor={colors.warning}
+            />
           )}
         </Card>
         <Card>
           <SectionTitle>Subscription Plans</SectionTitle>
           <PlansDonut plans={bundle.plans} />
+          <div data-testid="status-mix" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+            <span style={pill(colors.warning, colors.warningTint)}>Trial {bundle.trialPending}</span>
+            <span style={pill(colors.success, colors.successTint)}>Active {bundle.activeSchools}</span>
+            <span style={pill(colors.danger, colors.dangerTint)}>Suspended {bundle.suspendedSchools}</span>
+          </div>
+        </Card>
+      </section>
+
+      <section style={{ marginTop: 20 }}>
+        <Card>
+          <SectionTitle>Revenue trend</SectionTitle>
+          <p style={{ fontSize: 13, color: colors.muted, margin: "0 0 12px" }}>Paid invoices by month, last 6 months</p>
+          {revenueEmpty ? (
+            <EmptyState icon={<IndianRupee size={22} />} title="No revenue yet" detail="Paid subscription invoices will appear here month by month." />
+          ) : (
+            <MonthBars
+              points={bundle.revenueTrend.map((p) => ({ month: p.month, value: Number(p.total) }))}
+              formatValue={(n) => `₹${n.toLocaleString("en-IN")}`}
+              ariaLabel="Paid subscription revenue per month"
+              barColor={colors.success}
+            />
+          )}
         </Card>
       </section>
     </Shell>

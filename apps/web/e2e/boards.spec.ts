@@ -49,6 +49,10 @@ test.describe("owner board", () => {
     await expect(page.getByText(/₹[\d,]+\.\d{2}/).first()).toBeVisible();
     await expect(page.getByText(/MANUAL ₹[\d,]+\.\d{2}/).first()).toBeVisible();
     await expect(page.getByText(/TEST ₹[\d,]+\.\d{2}/).first()).toBeVisible();
+    // Platform Analytics (§16.1): revenue trend chart + status mix strip.
+    await expect(page.getByRole("img", { name: /paid subscription revenue per month/i })).toBeVisible();
+    await expect(page.getByTestId("status-mix")).toContainText(/Active/);
+    await expect(page.getByTestId("status-mix")).toContainText(/Suspended/);
     await page.screenshot({ path: "e2e/shots/owner-board.png" });
 
     await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);

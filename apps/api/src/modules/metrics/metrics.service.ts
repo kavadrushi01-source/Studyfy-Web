@@ -1000,6 +1000,7 @@ export interface OwnerDashboard {
   // TRIAL schools (= "pending" conversion). No PENDING status exists in the
   // schema — when one does, it belongs in this count too.
   trialPending: number;
+  suspendedSchools: number;
   // Revenue (§16.1, Phase 4 Chunk 2): computed ONLY from recorded PAID
   // subscription invoices — test/manual payments included, labelled as such
   // via paidMethod on the invoice rows themselves. Still "0.00" with no
@@ -1015,6 +1016,10 @@ export interface OwnerDashboard {
   // rule — always in sync with the subscriptions rows). Unplanned schools
   // (trial, pre-billing) carry NULL and are excluded, not invented.
   plans: { plan: string; schools: number }[];
+  // Revenue trend (§16.1): PAID invoices bucketed by paidAt month over the
+  // same 6-month window as the signups chart. Money-in month, not period
+  // month — a late payment lands when it lands.
+  revenueTrend: { month: string; total: string }[];
   asOf: { month: string };
 }
 
@@ -1041,7 +1046,7 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
   }
   const windowStart = new Date(Date.UTC(months[0]!.year, months[0]!.month - 1, 1));
 
-  const [statuses, recent, schools, revenue, methodMix, planMix] = await Promise.all([
+  const [statuses, recent, schools, revenue, methodMix, paidInvoices, planMix] = await Promise.all([
     db.school.groupBy({ by: ["subscriptionStatus"], _count: { id: true } }),
     db.school.findMany({
       where: { createdAt: { gte: windowStart } },
@@ -1069,6 +1074,13 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
       where: { status: "PAID" },
       _sum: { amountPaise: true, cgstPaise: true, sgstPaise: true, igstPaise: true },
     }),
+    // Revenue trend input: paidAt + amounts of paid invoices (portfolio
+    // scale — one row per school per month; revisit take-bounding if a
+    // school count ever makes this list heavy).
+    db.subscriptionInvoice.findMany({
+      where: { status: "PAID" },
+      select: { paidAt: true, amountPaise: true, cgstPaise: true, sgstPaise: true, igstPaise: true },
+    }),
     db.school.groupBy({ by: ["plan"], _count: { id: true } }),
   ]);
 
@@ -1087,10 +1099,30 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
     perMonth.set(k, (perMonth.get(k) ?? 0) + 1);
   }
 
+  // Revenue buckets keyed by paidAt month over the same window as the
+  // signups chart (paidAt NULL — hand-edited rows only — falls outside
+  // every bucket, never into a wrong one).
+  const revenueByMonth = new Map<string, number>();
+  for (const invoice of paidInvoices) {
+    if (!invoice.paidAt) {
+      continue;
+    }
+    const k = `${invoice.paidAt.getUTCFullYear()}-${String(invoice.paidAt.getUTCMonth() + 1).padStart(2, "0")}`;
+    revenueByMonth.set(
+      k,
+      (revenueByMonth.get(k) ?? 0) +
+        invoice.amountPaise +
+        invoice.cgstPaise +
+        invoice.sgstPaise +
+        invoice.igstPaise,
+    );
+  }
+
   const board: OwnerDashboard = {
     totalSchools: statuses.reduce((sum, s) => sum + s._count.id, 0),
     activeSchools: countOf("ACTIVE"),
     trialPending: countOf("TRIAL"),
+    suspendedSchools: countOf("SUSPENDED"),
     totalRevenue: fmtMoney(revenue._sum),
     // TEST/MANUAL legs, same math per channel. NULL methods (hand-edited
     // rows only — every writer sets one) surface verbatim, never invented
@@ -1111,6 +1143,10 @@ export async function getOwnerDashboard(db: PrismaClient, now: Date = new Date()
     analytics: months.map((m) => {
       const k = `${m.year}-${String(m.month).padStart(2, "0")}`;
       return { month: k, schools: perMonth.get(k) ?? 0 };
+    }),
+    revenueTrend: months.map((m) => {
+      const k = `${m.year}-${String(m.month).padStart(2, "0")}`;
+      return { month: k, total: ((revenueByMonth.get(k) ?? 0) / 100).toFixed(2) };
     }),
     plans: planMix
       .filter((p) => p.plan !== null)

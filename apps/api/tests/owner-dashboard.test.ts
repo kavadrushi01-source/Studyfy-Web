@@ -46,6 +46,8 @@ interface OwnerBundle {
   trialPending: number;
   totalRevenue: string;
   revenueByMethod: { method: string; total: string }[];
+  suspendedSchools: number;
+  revenueTrend: { month: string; total: string }[];
   schools: { id: string; name: string; slug: string; subscriptionStatus: string; users: number; students: number }[];
   analytics: { month: string; schools: number }[];
   plans: { plan: string; schools: number }[];
@@ -134,6 +136,60 @@ describe("GET /api/v1/platform/dashboard (§8.3 + sequencing note)", () => {
       // Same paise math at both levels: legs sum to the total.
       const legsSum = board.revenueByMethod.reduce((sum, l) => sum + Number(l.total), 0);
       expect(Math.abs(legsSum - Number(board.totalRevenue))).toBeLessThan(0.02);
+    },
+    30000,
+  );
+
+  it(
+    "reports suspended counts and a monthly revenue trend (explicit clock)",
+    async () => {
+      // Explicit May-2027 clock: the board caches per calendar month, so a
+      // far-future instant gets a cold cache entry no other test can warm —
+      // deterministic even with the whole suite running alongside.
+      const now = new Date("2027-05-15T00:00:00Z");
+      const token = await ownerToken();
+      const school = await registerSchool();
+      await prisma.school.update({ where: { id: school.schoolId }, data: { subscriptionStatus: "SUSPENDED" } });
+      const admin = await prisma.user.findFirstOrThrow({ where: { schoolId: school.schoolId } });
+      // BASIC ₹2,999 + 18% = 353882 paise ("3538.82") paid in March, twice
+      // that stock in April — both land in their paidAt months.
+      for (const [month, count] of [[3, 1], [4, 2]] as const) {
+        for (let i = 0; i < count; i += 1) {
+          const start = `2027-0${month}-0${1 + i}T00:00:00Z`;
+          const end = `2027-0${month}-2${i}T00:00:00Z`;
+          const issued = await issueInvoice(
+            prisma,
+            school.schoolId,
+            { plan: "BASIC", periodStart: new Date(start), periodEnd: new Date(end), schoolState: null, platformState: null },
+            admin.id,
+          );
+          await prisma.subscriptionInvoice.update({
+            where: { id: issued.id },
+            data: { status: "PAID", paidAt: new Date(`2027-0${month}-15T00:00:00Z`), paidMethod: "MANUAL" },
+          });
+        }
+      }
+
+      const { getOwnerDashboard } = await import("../src/modules/metrics/metrics.service.js");
+      const board = await getOwnerDashboard(prisma, now);
+      expect(board.suspendedSchools).toBeGreaterThanOrEqual(1);
+      const bucket = (month: string): number =>
+        Number(board.revenueTrend.find((p) => p.month === month)?.total ?? "0");
+      expect(bucket("2027-03")).toBeGreaterThanOrEqual(3538.82);
+      expect(bucket("2027-04")).toBeGreaterThanOrEqual(7077.64);
+      expect(bucket("2027-05")).toBe(0);
+      // Six-month window ending at the clock month, newest last.
+      expect(board.revenueTrend).toHaveLength(6);
+      expect(board.revenueTrend[5]?.month).toBe("2027-05");
+
+      // Same shape over HTTP.
+      const res = await request(app)
+        .get("/api/v1/platform/dashboard")
+        .set("Authorization", `Bearer ${token}`)
+        .expect(200);
+      const http = res.body.data.dashboard as OwnerBundle;
+      expect(typeof http.suspendedSchools).toBe("number");
+      expect(http.revenueTrend).toHaveLength(6);
     },
     30000,
   );
