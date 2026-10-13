@@ -110,6 +110,9 @@ export function Shell({
             width: "fit-content",
           }}
         >
+          {board.icon ? (
+            <board.icon size={11} aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 6 }} />
+          ) : null}
           {board.badge}
         </div>
         <nav className="sf-side-nav" style={{ display: "grid", gap: 3, flex: 1 }}>

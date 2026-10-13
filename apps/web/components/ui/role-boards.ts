@@ -1,8 +1,10 @@
 // Canonical role boards config — §8.2 badges + §8.4 nav, single source of
 // truth. Every dashboard sidebar renders from here, so nav order, labels,
-// badge colors, and "coming soon" treatment can never drift per page.
-// href: null = page not built yet → rendered as dimmed text + "Soon" pill,
-// never a dead link to a 404.
+// badge colors, role icons, and "coming soon" treatment can never drift per
+// page. href: null = page not built yet → rendered as dimmed text + "Soon"
+// pill, never a dead link to a 404.
+import { Crown, GraduationCap, PersonStanding, Shield, Wallet, type LucideIcon } from "lucide-react";
+
 export interface NavItem {
   label: string;
   href: string | null;
@@ -12,12 +14,15 @@ export interface RoleBoard {
   badge: string;
   badgeBg: string;
   badgeAccent?: string;
+  // §8.2 role icon (component reference, not JSX — this file is .ts).
+  icon?: LucideIcon;
   nav: NavItem[];
 }
 
 export const ROLE_BOARDS: Record<string, RoleBoard> = {
   SCHOOL_ADMIN: {
     badge: "School Admin",
+    icon: Crown,
     badgeBg: "#2563EB",
     nav: [
       { label: "Dashboard", href: "/dashboard" },
@@ -39,11 +44,13 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
       { label: "Reports", href: "/analytics" },
       { label: "Billing", href: "/billing" },
       { label: "Audit Logs", href: "/audit-logs" },
+      { label: "Support", href: "/support" },
       { label: "Settings", href: null },
     ],
   },
   TEACHER: {
     badge: "Teacher",
+    icon: GraduationCap,
     badgeBg: "#059669",
     nav: [
       { label: "Dashboard", href: "/dashboard/teacher" },
@@ -62,6 +69,7 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
   },
   ACCOUNTANT: {
     badge: "Accountant",
+    icon: Wallet,
     badgeBg: "#7C3AED",
     nav: [
       { label: "Dashboard", href: "/dashboard/accountant" },
@@ -79,6 +87,7 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
   },
   STUDENT: {
     badge: "Student",
+    icon: GraduationCap,
     badgeBg: "#0D9488",
     nav: [
       { label: "Dashboard", href: "/dashboard/student" },
@@ -97,6 +106,7 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
   },
   PARENT: {
     badge: "Parent",
+    icon: PersonStanding,
     badgeBg: "#DB2777",
     nav: [
       { label: "Dashboard", href: "/dashboard/parent" },
@@ -115,6 +125,7 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
   },
   PLATFORM_OWNER: {
     badge: "Platform Owner",
+    icon: Shield,
     badgeBg: "#0F172A",
     badgeAccent: "#F59E0B",
     nav: [
@@ -123,7 +134,7 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
       { label: "Subscriptions & Billing", href: "/owner/billing" },
       { label: "Platform Analytics", href: null },
       { label: "Users Management", href: "/owner/users" },
-      { label: "Support & Impersonation", href: null },
+      { label: "Support & Impersonation", href: "/owner/support" },
       { label: "Audit Logs", href: "/owner/audit-logs" },
       { label: "Settings", href: null },
     ],
