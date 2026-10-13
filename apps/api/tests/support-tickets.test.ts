@@ -1,8 +1,9 @@
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import { setMailer, stubMailer, type TicketOpenedEmail, type TicketReplyEmail } from "../src/lib/mailer.js";
 import { prisma } from "../src/lib/prisma.js";
 
 const app = createApp();
@@ -24,17 +25,17 @@ async function registerSchool(
   return { schoolId, slug: res.body.data.school.slug as string, adminToken: res.body.data.accessToken as string, adminEmail, adminId: admin.id };
 }
 
-async function loginOwner(): Promise<{ token: string; userId: string }> {
+async function loginOwner(): Promise<{ token: string; userId: string; email: string }> {
   const email = `support-owner-${uid()}@example.com`;
   const role = await prisma.role.findUniqueOrThrow({ where: { name: "PLATFORM_OWNER" } });
   const user = await prisma.user.create({
     data: { schoolId: null, roleId: role.id, email, passwordHash: await bcrypt.hash("owner-pass-123", 4), name: "Support Owner" },
   });
   const res = await request(app).post("/api/v1/auth/login").send({ email, password: "owner-pass-123" }).expect(200);
-  return { token: res.body.data.accessToken as string, userId: user.id };
+  return { token: res.body.data.accessToken as string, userId: user.id, email };
 }
 
-async function makeTeacher(schoolId: string, slug: string): Promise<string> {
+async function makeTeacher(schoolId: string, slug: string): Promise<{ token: string; userId: string }> {
   const role = await prisma.role.findUniqueOrThrow({ where: { name: "TEACHER" } });
   const email = `support-teacher-${uid()}@example.com`;
   const password = "teacher-pass-123";
@@ -46,7 +47,7 @@ async function makeTeacher(schoolId: string, slug: string): Promise<string> {
     .post("/api/v1/auth/login")
     .send({ schoolSlug: slug, email, password })
     .expect(200);
-  return login.body.data.accessToken as string;
+  return { token: login.body.data.accessToken as string, userId: user.id };
 }
 
 async function openTicket(auth: { Authorization: string }, schoolId: string, subject = "Printer jam in office"): Promise<string> {
@@ -59,7 +60,7 @@ async function openTicket(auth: { Authorization: string }, schoolId: string, sub
 }
 
 describe("support tickets, school side (§7 #27)", () => {
-  it("opens, lists, threads, and audits — teacher refused", async () => {
+  it("opens, lists, threads, and audits — staff scoped to their own", async () => {
     const school = await registerSchool(`Support School ${uid()}`);
     const auth = { Authorization: `Bearer ${school.adminToken}` };
 
@@ -97,12 +98,48 @@ describe("support tickets, school side (§7 #27)", () => {
       .send({ body: "Closing myself.", status: "CLOSED" });
     expect(statusGrab.status).toBe(400);
 
-    // Teacher holds no support key.
+    // Staff (teacher/accountant/…) now hold the same support keys: they
+    // open threads and reply, but see ONLY their own — the admin keeps the
+    // whole-school view.
+    const teacher = await makeTeacher(school.schoolId, school.slug);
+    const teacherAuth = { Authorization: `Bearer ${teacher.token}` };
+    const teacherTicket = await openTicket(teacherAuth, school.schoolId, "Projector bulb gone");
+
+    const teacherList = await request(app).get(`/api/v1/schools/${school.schoolId}/support/tickets`).set(teacherAuth).expect(200);
+    expect(teacherList.body.data.tickets.map((t: { id: string }) => t.id)).toEqual([teacherTicket]);
+
+    // The admin's thread is scoped 404 for staff — read and reply alike,
+    // indistinguishable from an id that never existed.
+    await request(app).get(`/api/v1/schools/${school.schoolId}/support/tickets/${ticketId}`).set(teacherAuth).expect(404);
     await request(app)
-      .post(`/api/v1/schools/${school.schoolId}/support/tickets`)
-      .set({ Authorization: `Bearer ${await makeTeacher(school.schoolId, school.slug)}` })
-      .send({ subject: "Nope", priority: "LOW" })
-      .expect(403);
+      .post(`/api/v1/schools/${school.schoolId}/support/tickets/${ticketId}/messages`)
+      .set(teacherAuth)
+      .send({ body: "Not mine to touch." })
+      .expect(404);
+
+    // …while threading their own works, audited under their id.
+    await request(app)
+      .post(`/api/v1/schools/${school.schoolId}/support/tickets/${teacherTicket}/messages`)
+      .set(teacherAuth)
+      .send({ body: "It flickers before dying." })
+      .expect(201);
+    const teacherAudit = await prisma.auditLog.findMany({ where: { schoolId: school.schoolId, action: "TICKET_CREATED" } });
+    expect(teacherAudit).toHaveLength(2);
+    expect(teacherAudit.find((r) => r.entityId === teacherTicket)?.actorId).toBe(teacher.userId);
+
+    // Admin sees BOTH threads — whole-school scope unchanged.
+    const adminList = await request(app).get(`/api/v1/schools/${school.schoolId}/support/tickets`).set(auth).expect(200);
+    expect(adminList.body.data.tickets.map((t: { id: string }) => t.id).sort()).toEqual([ticketId, teacherTicket].sort());
+
+    // Students and parents hold no support key AT ALL — they go through
+    // their school (admin/staff), so there is no row to grant them.
+    for (const roleName of ["STUDENT", "PARENT"]) {
+      const keyless = await prisma.role.findUniqueOrThrow({ where: { name: roleName } });
+      const grants = await prisma.rolePermission.count({
+        where: { roleId: keyless.id, permission: { key: { startsWith: "support." } } },
+      });
+      expect(grants).toBe(0);
+    }
 
     // Validation + unknown ids fail loud.
     await request(app).post(`/api/v1/schools/${school.schoolId}/support/tickets`).set(auth).send({ subject: "x", priority: "URGENT" }).expect(400);
@@ -229,5 +266,106 @@ describe("support tickets, suspended school (§13.4 exception)", () => {
       .send({ schoolSlug: school.slug, email: teacherEmail, password: "teacher-pass-123" });
     expect(teacherLogin.status).toBe(403);
     expect(teacherLogin.body.error.code).toBe("SCHOOL_SUSPENDED");
+  });
+});
+
+describe("ticket notifications (§7 #27)", () => {
+  const opened: TicketOpenedEmail[] = [];
+  const replies: TicketReplyEmail[] = [];
+
+  beforeAll(() => {
+    setMailer({
+      ...stubMailer,
+      sendTicketOpened: async (email: TicketOpenedEmail) => {
+        opened.push(email);
+        return "sent";
+      },
+      sendTicketReply: async (email: TicketReplyEmail) => {
+        replies.push(email);
+        return "sent";
+      },
+    });
+  });
+
+  afterAll(() => {
+    setMailer(null);
+  });
+
+  function openedFor(subject: string): TicketOpenedEmail[] {
+    return opened.filter((e) => e.subject === subject);
+  }
+  function repliesFor(subject: string): TicketReplyEmail[] {
+    return replies.filter((e) => e.subject === subject);
+  }
+
+  it("emails the owners on open and the creator on reply — never the author themselves", async () => {
+    const stamp = uid();
+    const school = await registerSchool(`Notify School ${stamp}`);
+    const adminAuth = { Authorization: `Bearer ${school.adminToken}` };
+    const subject = `Notify open ${stamp}`;
+    const owner = await loginOwner();
+
+    // Open: every ACTIVE platform owner is notified about the new thread.
+    const openedRow = await request(app)
+      .post(`/api/v1/schools/${school.schoolId}/support/tickets`)
+      .set(adminAuth)
+      .send({ subject, priority: "HIGH" })
+      .expect(201);
+    const realId = openedRow.body.data.id as string;
+    const ownerRecipients = openedFor(subject);
+    expect(ownerRecipients.map((e) => e.to)).toContain(owner.email);
+    expect(ownerRecipients[0]?.schoolName).toContain(stamp);
+    expect(ownerRecipients[0]?.priority).toBe("HIGH");
+
+    // Creator replies to their OWN thread: no self-mail.
+    await request(app)
+      .post(`/api/v1/schools/${school.schoolId}/support/tickets/${realId}/messages`)
+      .set(adminAuth)
+      .send({ body: "Adding detail." })
+      .expect(201);
+    expect(repliesFor(subject)).toHaveLength(0);
+
+    // Someone else replies (platform owner, public): the creator is emailed.
+    await request(app)
+      .post(`/api/v1/platform/tickets/${realId}/messages`)
+      .set({ Authorization: `Bearer ${owner.token}` })
+      .send({ body: "We are on it.", isInternal: false })
+      .expect(201);
+    const creatorMail = repliesFor(subject);
+    expect(creatorMail).toHaveLength(1);
+    expect(creatorMail[0]?.to).toBe(school.adminEmail);
+
+    // Internal notes stay silent — no creator mail for owner-only chatter.
+    await request(app)
+      .post(`/api/v1/platform/tickets/${realId}/messages`)
+      .set({ Authorization: `Bearer ${owner.token}` })
+      .send({ body: "Internal triage note.", isInternal: true })
+      .expect(201);
+    expect(repliesFor(subject)).toHaveLength(1);
+  });
+
+  it("suppresses both notifications for a demo school (§13.11)", async () => {
+    const stamp = uid();
+    const school = await registerSchool(`Notify Demo ${stamp}`);
+    await prisma.school.update({ where: { id: school.schoolId }, data: { isDemo: true } });
+    const adminAuth = { Authorization: `Bearer ${school.adminToken}` };
+    const subject = `Notify demo ${stamp}`;
+
+    const created = await request(app)
+      .post(`/api/v1/schools/${school.schoolId}/support/tickets`)
+      .set(adminAuth)
+      .send({ subject, priority: "LOW" })
+      .expect(201);
+
+    // The mailerFor demo guard wraps the test override itself: nothing
+    // lands in the capture arrays even with a recorder installed.
+    expect(openedFor(subject)).toHaveLength(0);
+    const owner = await loginOwner();
+    await request(app)
+      .post(`/api/v1/platform/tickets/${created.body.data.id as string}/messages`)
+      .set({ Authorization: `Bearer ${owner.token}` })
+      .send({ body: "Reply to demo.", isInternal: false })
+      .expect(201);
+    expect(repliesFor(subject)).toHaveLength(0);
   });
 });

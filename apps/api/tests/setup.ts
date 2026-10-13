@@ -18,6 +18,16 @@ if (!process.env.JWT_ACCESS_SECRET) {
   throw new Error("Set JWT_ACCESS_SECRET (local .env or CI env) to run API tests.");
 }
 
+// Tests NEVER touch real SMTP. dotenv just loaded apps/api/.env, which
+// holds live credentials locally — CI has no .env, so its suite has always
+// run unconfigured (callers treat MailerUnconfiguredError as log-and-
+// continue). Strip the creds here so both environments match and no test
+// can ever deliver mail for real: the test DB accumulates 1000+ throwaway
+// platform-owner accounts, and every ticket open notifies all of them.
+for (const key of ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_FROM"] as const) {
+  delete process.env[key];
+}
+
 // Deterministic CORS origin for tests (mirrors .env.example's local value).
 // Set BEFORE any test file builds the app, since applyCors reads it at
 // createApp() time.

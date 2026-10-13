@@ -4,6 +4,7 @@ import multer from "multer";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
+import { ticketCreateLimiter } from "../../middleware/security.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { documentStorage, StorageUnconfiguredError, ticketFolder } from "../../lib/storage.js";
 import { AuthError } from "../auth/auth.service.js";
@@ -63,6 +64,7 @@ supportRouter.post(
   authMiddleware,
   tenantMiddleware,
   requirePermission("support.write"),
+  ticketCreateLimiter(),
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma || !req.user) {
       res.status(500).json({
@@ -118,7 +120,10 @@ supportRouter.get(
       return;
     }
     try {
-      const tickets = await listTickets(req.prisma, req.schoolId ?? "", parsed.data);
+      const tickets = await listTickets(req.prisma, req.schoolId ?? "", parsed.data, {
+        userId: req.user?.userId ?? "",
+        isAdmin: req.user?.role === "SCHOOL_ADMIN",
+      });
       res.json({ success: true, data: { tickets }, error: null, meta: null });
     } catch (err) {
       sendSupportError(res, err);
@@ -146,6 +151,7 @@ supportRouter.get(
       // they never leave the database toward a school (§9.1).
       const ticket = await getTicketDetail(req.prisma, req.schoolId ?? "", req.params.ticketId ?? "", {
         includeInternal: false,
+        requester: { userId: req.user?.userId ?? "", isAdmin: req.user?.role === "SCHOOL_ADMIN" },
       });
       res.json({ success: true, data: { ticket }, error: null, meta: null });
     } catch (err) {
@@ -182,7 +188,15 @@ supportRouter.post(
       return;
     }
     try {
-      const result = await postSchoolMessage(req.prisma, req.schoolId ?? "", req.params.ticketId ?? "", req.user.userId, parsed.data.body);
+      const result = await postSchoolMessage(
+        req.prisma,
+        req.schoolId ?? "",
+        req.params.ticketId ?? "",
+        req.user.userId,
+        parsed.data.body,
+        undefined,
+        { userId: req.user.userId, isAdmin: req.user.role === "SCHOOL_ADMIN" },
+      );
       res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendSupportError(res, err);
@@ -245,6 +259,7 @@ supportRouter.post(
         req.user.userId,
         message.trim() === "" ? file.originalname.slice(0, 200) : message,
         { url: stored.url, mimeType: file.mimetype, sizeBytes: file.size, originalName: file.originalname },
+        { userId: req.user.userId, isAdmin: req.user.role === "SCHOOL_ADMIN" },
       );
       res.status(201).json({ success: true, data: result, error: null, meta: null });
     } catch (err) {

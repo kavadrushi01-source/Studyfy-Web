@@ -136,6 +136,36 @@ function enquiryLimit(): number {
   }
   return 5;
 }
+
+// Ticket creation (§7 #27): 20 / hour / ACCOUNT, keyed on the user id
+// (authenticated route — the founder's proxy decision rules out IP buckets
+// here exactly as for login). Tickets are rare and human; 20 absorbs any
+// legitimate burst (a school onboarding week) while capping scripted spam.
+// Mounts AFTER auth+tenant+permission so unauthenticated and unpermitted
+// hits never consume budget. TICKET_CREATE_LIMIT_MAX is the LOCAL-ONLY
+// override (same convention as the knobs above).
+function ticketCreateLimit(): number {
+  const raw = Number(process.env.TICKET_CREATE_LIMIT_MAX);
+  if (Number.isInteger(raw) && raw > 0) {
+    return raw;
+  }
+  return 20;
+}
+export const ticketCreateLimiter = () =>
+  maybeLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: ticketCreateLimit(),
+    standardHeaders: false,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const userId = (req as { user?: unknown } as { user?: { userId?: unknown } }).user?.userId;
+      return typeof userId === "string" && userId ? userId : "no-user";
+    },
+    handler: (_req, res) => {
+      const body = limited("Too many tickets opened. Try again later.");
+      res.status(body.statusCode).type("application/json").send(body.message);
+    },
+  });
 export const enquiryLimiter = () =>
   maybeLimit({
     windowMs: 15 * 60 * 1000,

@@ -64,6 +64,35 @@ test.describe("support tickets", () => {
     await logout(page);
   });
 
+  test("staff desk: teacher opens a thread, sees only their own", async ({ page }) => {
+    const stamp = Date.now().toString(36);
+    await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
+
+    // Staff nav board carries Support now (§8.4 canonical nav)…
+    await page.goto("/dashboard/teacher");
+    await page.getByRole("link", { name: "Support" }).click();
+    await expect(page).toHaveURL(/\/support$/);
+    // …and the desk says the list is the staff member's own, not the
+    // whole school's (the API scopes list+detail to createdById).
+    await expect(page.getByText(/threads you opened/i)).toBeVisible({ timeout: 20000 });
+
+    const subject = `Teacher thread ${stamp}`;
+    await page.getByLabel(/ticket subject/i).fill(subject);
+    await page.getByRole("button", { name: /open ticket/i }).click();
+    await expect(page.getByText("Ticket opened").first()).toBeVisible({ timeout: 20000 });
+
+    // Own thread listed and auto-selected…
+    await expect(page.getByRole("button", { name: new RegExp(subject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })).toBeVisible();
+    // …while the admin's thread from the test above never appears here.
+    await expect(page.getByText(/Support E2E Subject/)).toHaveCount(0);
+
+    // Reply inside the own thread (list auto-selects the newest/only row).
+    await page.getByLabel(/thread reply/i).fill(`From the lab ${stamp}`);
+    await page.getByRole("button", { name: /^reply$/i }).click();
+    await expect(page.getByText(`From the lab ${stamp}`).first()).toBeVisible({ timeout: 20000 });
+    await logout(page);
+  });
+
   test("suspended admin keeps the support desk", async ({ page, request }) => {
     const stamp = Date.now().toString(36);
     const adminEmail = `support-e2e-${stamp}@example.com`;

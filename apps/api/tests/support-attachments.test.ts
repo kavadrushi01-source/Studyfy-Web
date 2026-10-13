@@ -151,7 +151,9 @@ describe("ticket attachments (§7 #27, §13.5)", () => {
       .attach("file", file.buffer, { filename: file.filename, contentType: file.mime });
     expect(cross.status).toBe(404);
 
-    // Teacher holds no support key.
+    // Staff hold support keys but only inside THEIR OWN threads — the
+    // admin's ticket is scoped 404 (not 403), indistinguishable from an
+    // id that never existed. Nothing stored on the refusal.
     const role = await prisma.role.findUniqueOrThrow({ where: { name: "TEACHER" } });
     const teacherEmail = `support-attach-teacher-${uid()}@example.com`;
     const teacher = await prisma.user.create({
@@ -167,8 +169,23 @@ describe("ticket attachments (§7 #27, §13.5)", () => {
       .set({ Authorization: `Bearer ${login.body.data.accessToken as string}` })
       .field("message", "Nope.")
       .attach("file", file.buffer, { filename: file.filename, contentType: file.mime });
-    expect(denied.status).toBe(403);
+    expect(denied.status).toBe(404);
     expect(await prisma.ticketAttachment.count({ where: { schoolId: a.schoolId } })).toBe(0);
+
+    // …while their OWN thread accepts the attach (same staff token).
+    const teacherAuth = { Authorization: `Bearer ${login.body.data.accessToken as string}` };
+    const ownTicket = await request(app)
+      .post(`/api/v1/schools/${a.schoolId}/support/tickets`)
+      .set(teacherAuth)
+      .send({ subject: "My own projector", priority: "MEDIUM" })
+      .expect(201);
+    const ownAttach = await request(app)
+      .post(`/api/v1/schools/${a.schoolId}/support/tickets/${ownTicket.body.data.id as string}/attachments`)
+      .set(teacherAuth)
+      .field("message", "From my classroom.")
+      .attach("file", file.buffer, { filename: file.filename, contentType: file.mime });
+    expect(ownAttach.status).toBe(201);
+    expect(await prisma.ticketAttachment.count({ where: { schoolId: a.schoolId } })).toBe(1);
   });
 
   it("serves a suspended admin's attachment; hides owner-internal ones", async () => {

@@ -1,7 +1,81 @@
 import type { PrismaClient } from "@prisma/client";
 import { pickAuditFields, recordAudit } from "../../lib/audit.js";
+import { MailerUnconfiguredError, mailerFor } from "../../lib/mailer.js";
+// RAW client, deliberately: Platform Owners have schoolId = NULL, and the
+// tenant extension force-pins every User read to the request's school
+// (scopedPrismaClient) — the owners query would match 0 rows on the
+// scoped client. Same reasoning as AuditLog's NULL note in prisma-tenant.
+import { prisma as rawPrisma } from "../../lib/prisma.js";
 import { AuthError } from "../auth/auth.service.js";
 import type { CreateTicketInput, ListTicketsInput, OwnerMessageInput } from "./support.schemas.js";
+
+// Ticket notifications (§7 #27): the Platform Owner learns about new
+// threads; the thread creator learns about replies (never the author
+// themselves — no self-mail). Best-effort like every mail path: a send
+// failure logs and the request still succeeds (the thread row is the
+// source of truth, not the inbox). Demo-suppressed via the ticket's
+// school — the single mailerFor choke point, no second guard to diverge.
+async function ticketSchoolCtx(db: PrismaClient, schoolId: string): Promise<{ isDemo: boolean; slug: string; name: string } | null> {
+  return db.school.findUnique({ where: { id: schoolId }, select: { isDemo: true, slug: true, name: true } });
+}
+
+async function notifyOwnersTicketOpened(
+  school: { isDemo: boolean; slug: string; name: string },
+  subject: string,
+  priority: string,
+): Promise<void> {
+  const owners = await rawPrisma.user.findMany({
+    where: { schoolId: null, isActive: true, role: { name: "PLATFORM_OWNER" } },
+    select: { email: true, name: true },
+  });
+  if (owners.length === 0) {
+    return;
+  }
+  for (const owner of owners) {
+    try {
+      await mailerFor({ isDemo: school.isDemo, slug: school.slug }).sendTicketOpened({ to: owner.email, name: owner.name, schoolName: school.name, subject, priority });
+    } catch (err) {
+      // Unconfigured SMTP is expected locally — same guard as password
+      // reset and fee reminders (they log-only for real failures). It
+      // throws for EVERY owner, so stop the loop rather than 1000×.
+      if (err instanceof MailerUnconfiguredError) {
+        return;
+      }
+      console.error("Ticket-opened email delivery failed:", err);
+    }
+  }
+}
+
+async function notifyCreatorTicketReply(
+  db: PrismaClient,
+  school: { isDemo: boolean; slug: string; name: string },
+  ticketId: string,
+  excludeUserId: string,
+  subject: string,
+  body: string,
+): Promise<void> {
+  const ticket = await db.ticket.findUnique({ where: { id: ticketId }, select: { createdById: true } });
+  if (!ticket || ticket.createdById === excludeUserId) {
+    return;
+  }
+  const creator = await db.user.findUnique({ where: { id: ticket.createdById }, select: { id: true, email: true, name: true, isActive: true } });
+  if (!creator || !creator.isActive) {
+    return;
+  }
+  try {
+    await mailerFor({ isDemo: school.isDemo, slug: school.slug }).sendTicketReply({
+      to: creator.email,
+      name: creator.name,
+      schoolName: school.name,
+      subject,
+      body,
+    });
+  } catch (err) {
+    if (!(err instanceof MailerUnconfiguredError)) {
+      console.error("Ticket-reply email delivery failed:", err);
+    }
+  }
+}
 
 // Uploaded screenshot, already stored (§13.5 whitelist checked at the
 // route; the bytes live in Cloudinary before this runs — external side
@@ -71,12 +145,32 @@ export async function createTicket(
     });
     return ticket;
   });
+  const school = await ticketSchoolCtx(db, schoolId);
+  if (school) {
+    await notifyOwnersTicketOpened(school, created.subject, created.priority);
+  }
   return { id: created.id, status: created.status };
 }
 
-export async function listTickets(db: PrismaClient, schoolId: string, input: ListTicketsInput) {
+export interface TicketRequester {
+  userId: string;
+  // School Admins see every thread of their school; staff see only threads
+  // they opened (createdBy). Students/parents hold no support key at all.
+  isAdmin: boolean;
+}
+
+export async function listTickets(
+  db: PrismaClient,
+  schoolId: string,
+  input: ListTicketsInput,
+  requester: TicketRequester,
+) {
   return db.ticket.findMany({
-    where: { schoolId, ...(input.status ? { status: input.status } : {}) },
+    where: {
+      schoolId,
+      ...(input.status ? { status: input.status } : {}),
+      ...(requester.isAdmin ? {} : { createdById: requester.userId }),
+    },
     orderBy: { createdAt: "desc" },
     take: input.take,
     select: {
@@ -97,10 +191,16 @@ export async function getTicketDetail(
   db: PrismaClient,
   schoolId: string,
   ticketId: string,
-  opts: { includeInternal: boolean },
+  opts: { includeInternal: boolean; requester?: TicketRequester },
 ) {
   const ticket = await db.ticket.findFirst({
-    where: { id: ticketId, schoolId },
+    // Non-admins must own the thread: same 404 as a foreign id, so staff
+    // can never probe whether another thread exists.
+    where: {
+      id: ticketId,
+      schoolId,
+      ...(opts.requester && !opts.requester.isAdmin ? { createdById: opts.requester.userId } : {}),
+    },
     select: {
       id: true,
       schoolId: true,
@@ -136,8 +236,15 @@ export async function postSchoolMessage(
   authorId: string,
   body: string,
   attachment?: TicketAttachmentUpload,
+  requester?: TicketRequester,
 ): Promise<{ id: string }> {
-  const ticket = await db.ticket.findFirst({ where: { id: ticketId, schoolId } });
+  const ticket = await db.ticket.findFirst({
+    where: {
+      id: ticketId,
+      schoolId,
+      ...(requester && !requester.isAdmin ? { createdById: requester.userId } : {}),
+    },
+  });
   if (!ticket) {
     throw new AuthError(404, "TICKET_NOT_FOUND", "Support ticket not found in this school.");
   }
@@ -173,6 +280,10 @@ export async function postSchoolMessage(
     });
     return message;
   });
+  const school = await ticketSchoolCtx(db, schoolId);
+  if (school) {
+    await notifyCreatorTicketReply(db, school, ticket.id, authorId, ticket.subject, body);
+  }
   return { id: created.id };
 }
 
@@ -229,5 +340,13 @@ export async function ownerPostMessage(
     }
     return { id: message.id, status };
   });
+  // Internal notes are owner-only — emailing them to the creator would
+  // leak the note itself. Only PUBLIC replies notify the thread creator.
+  if (!input.isInternal) {
+    const school = await ticketSchoolCtx(db, ticket.schoolId);
+    if (school) {
+      await notifyCreatorTicketReply(db, school, ticket.id, authorId, ticket.subject, input.body);
+    }
+  }
   return result;
 }

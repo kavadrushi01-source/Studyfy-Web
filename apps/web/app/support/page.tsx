@@ -59,10 +59,16 @@ function statusPill(status: string): React.CSSProperties {
 // read the platform's visible replies. Internal notes NEVER reach this
 // screen — the API filters them in the query, so there is nothing here to
 // accidentally render. Suspended schools keep this page (§13.4): asking
-// for help must work especially when billing broke.
+// for help must work especially when billing broke. School Admin sees the
+// whole school's threads; staff open their own and see only those (API
+// enforces the split — this gate just mirrors it).
+const STAFF_ROLES = new Set(["SCHOOL_ADMIN", "TEACHER", "ACCOUNTANT", "LIBRARIAN", "TRANSPORT_MANAGER"]);
 export default function SupportPage() {
   const { token, schoolId, ready, apiFetch, user } = useAuth();
-  const canView = user?.role === "SCHOOL_ADMIN";
+  const canView = STAFF_ROLES.has(user?.role ?? "");
+  // Staff list is scoped API-side to tickets they opened — say so, so the
+  // shorter list never reads as "the rest vanished".
+  const isStaff = canView && user?.role !== "SCHOOL_ADMIN";
   const [rows, setRows] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -216,7 +222,7 @@ export default function SupportPage() {
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Support</h1>
         <div className="sf-card" style={{ padding: 20 }}>
-          <p style={{ color: colors.inkSoft, fontSize: 14, margin: 0 }}>Support tickets live with the School Admin.</p>
+          <p style={{ color: colors.inkSoft, fontSize: 14, margin: 0 }}>Support tickets open from your school's admin or staff desk — students and parents go through their school.</p>
         </div>
       </main>
     );
@@ -225,7 +231,9 @@ export default function SupportPage() {
   return (
     <main style={pageFrame}>
       <h1 style={h1Style}>Support</h1>
-      <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>Threads with the platform team.</p>
+      <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
+        {isStaff ? "Threads you opened with the platform team." : "Threads with the platform team."}
+      </p>
 
       <div className="sf-card" style={{ ...cardStyle, marginBottom: 16 }}>
         <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 8px", color: colors.ink }}>Open a ticket</p>

@@ -51,6 +51,22 @@ export interface SubscriptionInvoiceReminderEmail {
   daysOverdue: number;
 }
 
+export interface TicketOpenedEmail {
+  to: string;
+  name: string;
+  schoolName: string;
+  subject: string;
+  priority: string;
+}
+
+export interface TicketReplyEmail {
+  to: string;
+  name: string;
+  schoolName: string;
+  subject: string;
+  body: string;
+}
+
 // What one send attempt resolved to. Callers count "sent" for their
 // emailed tallies and treat anything else as skipped — a suppressed demo
 // email must never inflate a sent count (§13.11).
@@ -70,6 +86,8 @@ export interface Mailer {
   sendPasswordResetEmail(email: PasswordResetEmail): Promise<EmailDelivery>;
   sendTrialEndingReminder(email: TrialEndingEmail): Promise<EmailDelivery>;
   sendSubscriptionInvoiceReminder(email: SubscriptionInvoiceReminderEmail): Promise<EmailDelivery>;
+  sendTicketOpened(email: TicketOpenedEmail): Promise<EmailDelivery>;
+  sendTicketReply(email: TicketReplyEmail): Promise<EmailDelivery>;
 }
 
 // Brevo free SMTP relay (spec §2: 300/day, forever, no card) — the REAL
@@ -210,6 +228,35 @@ class SmtpMailer implements Mailer {
     );
   }
 
+  async sendTicketOpened(email: TicketOpenedEmail): Promise<EmailDelivery> {
+    return this.dispatch("ticket-opened", email.to, () =>
+      this.transporter.sendMail({
+        from: this.from(),
+        to: email.to,
+        subject: `New support ticket [${email.priority}]: ${email.subject} — ${email.schoolName}`,
+        text: [
+          `Dear ${email.name},`,
+          ``,
+          `${email.schoolName} opened a support ticket ("${email.subject}", priority ${email.priority}).`,
+          `Reply from the platform support console.`,
+          ``,
+          `— Studyfy platform`,
+        ].join("\n"),
+      }),
+    );
+  }
+
+  async sendTicketReply(email: TicketReplyEmail): Promise<EmailDelivery> {
+    return this.dispatch("ticket-reply", email.to, () =>
+      this.transporter.sendMail({
+        from: this.from(),
+        to: email.to,
+        subject: `Re: ${email.subject} — ${email.schoolName}`,
+        text: [`Dear ${email.name},`, ``, `New reply on "${email.subject}" (${email.schoolName}):`, ``, email.body, ``, `— Studyfy platform`].join("\n"),
+      }),
+    );
+  }
+
   async sendSubscriptionInvoiceReminder(email: SubscriptionInvoiceReminderEmail): Promise<EmailDelivery> {
     return this.dispatch("subscription-invoice", email.to, () =>
       this.transporter.sendMail({
@@ -253,6 +300,8 @@ export const stubMailer: Mailer = {
   sendPasswordResetEmail: async () => "sent",
   sendTrialEndingReminder: async () => "sent",
   sendSubscriptionInvoiceReminder: async () => "sent",
+  sendTicketOpened: async () => "sent",
+  sendTicketReply: async () => "sent",
 };
 
 // THE single send function (§13.11): every outbound email in the product is
@@ -280,6 +329,8 @@ export function mailerFor(school: MailSchool): Mailer {
     sendPasswordResetEmail: suppressed("password-reset"),
     sendTrialEndingReminder: suppressed("trial-ending"),
     sendSubscriptionInvoiceReminder: suppressed("subscription-invoice"),
+    sendTicketOpened: suppressed("ticket-opened"),
+    sendTicketReply: suppressed("ticket-reply"),
   };
 }
 
