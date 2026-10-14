@@ -5,6 +5,7 @@ import request from "supertest";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
 import { runDemoResetJob } from "../src/modules/jobs/jobs.service.js";
+import { buildExportFiles } from "../src/modules/exports/exports.service.js";
 
 const app = createApp();
 
@@ -69,6 +70,119 @@ async function childCounts(schoolId: string): Promise<{ users: number; notices: 
   ]);
   return { users, notices, tickets };
 }
+
+// ---------------------------------------------------------------------------
+// The two tests that matter most (§13.10): the ALLOWLISTED demo schools'
+// exports isolate both ways, and scan clean for secrets. They live in THIS
+// file — and run FIRST — because these literal slugs are owned here:
+// parallel workers running another file with the same slugs would collide
+// on the global unique constraint (or worse, wipe each other's fixtures).
+// Same-file order is sequential, so no coordination is needed. Full
+// cleanup at the end leaves the slugs free for the reset tests below.
+// ---------------------------------------------------------------------------
+
+async function makeDemoExportFixture(
+  slug: string,
+  tag: string,
+): Promise<{ schoolId: string; adminId: string; adminEmail: string; notice: string; ticket: string }> {
+  const role = await prisma.role.findUniqueOrThrow({ where: { name: "SCHOOL_ADMIN" } });
+  const school = await prisma.school.create({
+    data: { slug, name: `Demo Export ${tag} ${uid()}`, trialEndsAt: new Date("2027-10-27T00:00:00Z"), isDemo: true },
+  });
+  const adminEmail = `demo-export-${tag}-${uid()}@example.com`;
+  const admin = await prisma.user.create({
+    data: {
+      schoolId: school.id,
+      roleId: role.id,
+      email: adminEmail,
+      passwordHash: await bcrypt.hash("x", 4),
+      name: `Demo Export ${tag}`,
+    },
+  });
+  const notice = `Demo export notice ${tag} ${uid()}`;
+  await prisma.notice.create({
+    data: { schoolId: school.id, title: notice, body: "Marker body.", target: "SCHOOL", createdById: admin.id },
+  });
+  const ticket = `Demo export ticket ${tag} ${uid()}`;
+  await prisma.ticket.create({
+    data: { schoolId: school.id, createdById: admin.id, subject: ticket, priority: "LOW" },
+  });
+  return { schoolId: school.id, adminId: admin.id, adminEmail, notice, ticket };
+}
+
+async function deleteExportFixture(schoolId: string): Promise<void> {
+  await prisma.$transaction([
+    prisma.ticket.deleteMany({ where: { schoolId } }),
+    prisma.notice.deleteMany({ where: { schoolId } }),
+    prisma.auditLog.deleteMany({ where: { schoolId } }),
+    prisma.user.deleteMany({ where: { schoolId } }),
+    prisma.school.delete({ where: { id: schoolId } }),
+  ]);
+}
+
+describe("allowlisted demo schools: export isolation + secrets (§13.10)", () => {
+  it("(1) School of Science export holds no Ramakrishna row or ID, and the reverse", async () => {
+    const sos = await makeDemoExportFixture("school-of-science", "SOS");
+    const rk = await makeDemoExportFixture("ramakrishna-school", "RK");
+    try {
+      const builtSos = await buildExportFiles(prisma, sos.schoolId);
+      const blobSos = Object.values(builtSos.files).join("\n");
+      expect(blobSos).toContain(sos.notice);
+      expect(blobSos).toContain(sos.ticket);
+      expect(blobSos).toContain(sos.adminEmail);
+      expect(blobSos).toContain(sos.schoolId);
+      expect(blobSos).not.toContain(rk.notice);
+      expect(blobSos).not.toContain(rk.ticket);
+      expect(blobSos).not.toContain(rk.adminEmail);
+      expect(blobSos).not.toContain(rk.schoolId);
+      expect(blobSos).not.toContain(rk.adminId);
+
+      const builtRk = await buildExportFiles(prisma, rk.schoolId);
+      const blobRk = Object.values(builtRk.files).join("\n");
+      expect(blobRk).toContain(rk.notice);
+      expect(blobRk).toContain(rk.ticket);
+      expect(blobRk).toContain(rk.adminEmail);
+      expect(blobRk).toContain(rk.schoolId);
+      expect(blobRk).not.toContain(sos.notice);
+      expect(blobRk).not.toContain(sos.ticket);
+      expect(blobRk).not.toContain(sos.adminEmail);
+      expect(blobRk).not.toContain(sos.schoolId);
+      expect(blobRk).not.toContain(sos.adminId);
+    } finally {
+      await deleteExportFixture(sos.schoolId);
+      await deleteExportFixture(rk.schoolId);
+    }
+    expect(await prisma.school.count({ where: { slug: { in: ["school-of-science", "ramakrishna-school"] } } })).toBe(0);
+  });
+
+  it("(2) the finished export scans clean for password, token, and key hashes", async () => {
+    const sos = await makeDemoExportFixture("school-of-science", "SOS");
+    try {
+      const built = await buildExportFiles(prisma, sos.schoolId);
+      const blob = Object.values(built.files).join("\n");
+      for (const needle of [
+        "passwordHash",
+        "password_hash",
+        "tokenHash",
+        "token_hash",
+        "apiKeyHash",
+        "api_key_hash",
+        "$2b$",
+        "$2a$",
+        "auth_tokens",
+        "refresh_tokens",
+      ]) {
+        expect(blob).not.toContain(needle);
+      }
+      expect(Object.keys(built.files).some((n) => n.includes("token"))).toBe(false);
+      const users = JSON.parse(built.files["users.json"] as string) as Record<string, unknown>[];
+      expect(users.length).toBeGreaterThan(0);
+      expect(Object.keys(users[0] ?? {})).not.toContain("passwordHash");
+    } finally {
+      await deleteExportFixture(sos.schoolId);
+    }
+  });
+});
 
 describe("nightly demo reset (§13.11)", () => {
   it("wipes allowlisted demo schools and reseeds", async () => {
