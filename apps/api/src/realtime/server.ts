@@ -8,6 +8,7 @@ interface AccessJwt {
   schoolId: string | null;
   role: string;
   type: string;
+  impersonatedBy?: unknown;
 }
 
 function accessSecret(): string {
@@ -26,6 +27,12 @@ function verifyHandshakeToken(raw: unknown): AuthUser {
   const payload = jwt.verify(token, accessSecret()) as AccessJwt;
   if (payload.type !== "access" || typeof payload.sub !== "string") {
     throw new Error("Not an access token.");
+  }
+  // HTTP verbs are not the only way to write (§13.9): an impersonation
+  // token on the socket could send messages as a teacher to a child, so
+  // it dies in the handshake like every other refusal here.
+  if (typeof payload.impersonatedBy === "string" && payload.impersonatedBy) {
+    throw new Error("READ_ONLY_SESSION");
   }
   return { userId: payload.sub, schoolId: payload.schoolId ?? null, role: payload.role };
 }
@@ -86,8 +93,10 @@ export function initRealtime(httpServer: HttpServer): Server {
       }
       socket.data.user = user;
       next();
-    } catch {
-      next(new Error("Invalid or expired token."));
+    } catch (err) {
+      // Pass the refusal reason through when it is one (READ_ONLY_SESSION)
+      // — anything else stays the generic handshake failure.
+      next(err instanceof Error && err.message === "READ_ONLY_SESSION" ? err : new Error("Invalid or expired token."));
     }
   });
 

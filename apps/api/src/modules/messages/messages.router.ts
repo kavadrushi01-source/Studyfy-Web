@@ -144,7 +144,7 @@ messagesRouter.get(
     try {
       const messages = await readThread(
         req.prisma,
-        { userId: req.user.userId, role: req.user.role },
+        { userId: req.user.userId, role: req.user.role, ...(req.user.impersonatedBy ? { impersonatedBy: req.user.impersonatedBy } : {}) },
         parsed.data.with,
       );
       res.json({ success: true, data: { messages }, error: null, meta: null });

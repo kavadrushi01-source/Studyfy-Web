@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
+import { blockWritesWhenReadOnlySession } from "./read-only.js";
 
 // The Platform Owner sits OUTSIDE the tenant model (spec §5, §13.4):
 // school_id IS NULL, so tenantMiddleware (which requires a school_id) can
@@ -16,6 +17,16 @@ export function platformOnlyMiddleware(req: Request, res: Response, next: NextFu
       error: { code: "FORBIDDEN", message: "Platform access only." },
       meta: null,
     });
+    return;
+  }
+  // Read-only sessions (§13.9, §5.3): same guard as the tenant side, so an
+  // impersonation token is refused on platform writes too (it fails the
+  // role check above first in practice — this is the belt for suspenders).
+  let continued = false;
+  blockWritesWhenReadOnlySession(req, res, () => {
+    continued = true;
+  });
+  if (!continued) {
     return;
   }
   req.prisma = prisma;

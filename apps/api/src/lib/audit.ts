@@ -43,6 +43,10 @@ const AUDIT_FIELDS: Record<string, readonly string[]> = {
   // user text and stay out of the log (same rule as message bodies).
   Ticket: ["id", "subject", "status", "priority"],
   TicketMessage: ["id", "isInternal"],
+  // Impersonation sessions (§13.9): who (owner), as whom (target + role),
+  // where (school via the row's schoolId), why (reason), from where (IP),
+  // and the window (endsAt/endedAt ISO strings — scalars, safe).
+  Impersonation: ["id", "targetUserId", "targetRole", "ownerId", "reason", "ipAddress", "endsAt", "endedAt"],
 };
 
 export function pickAuditFields(entity: string, row: Record<string, unknown>): AuditSnapshot {

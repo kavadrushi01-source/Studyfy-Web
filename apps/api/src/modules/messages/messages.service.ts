@@ -260,6 +260,9 @@ export async function messageableContacts(
 export interface ThreadViewer {
   userId: string;
   role: string;
+  // Set on impersonation sessions (§13.9): reading the thread must NOT
+  // record read receipts — observing must leave zero trace.
+  impersonatedBy?: string;
 }
 
 export interface ThreadSummary {
@@ -432,5 +435,15 @@ export async function readThread(db: PrismaClient, viewer: ThreadViewer, otherUs
     where: { threadId: threadKey(viewer.userId, other.id) },
     ...messageSelect,
   });
+  // Reading your own thread records the receipt (incoming messages become
+  // read) — EXCEPT under impersonation, where observing must leave zero
+  // trace (§13.9). The admin oversight branch above returns before this
+  // line: surveillance never marks.
+  if (!viewer.impersonatedBy) {
+    await db.message.updateMany({
+      where: { threadId: threadKey(viewer.userId, other.id), receiverId: viewer.userId, readAt: null },
+      data: { readAt: new Date() },
+    });
+  }
   return rows.reverse();
 }

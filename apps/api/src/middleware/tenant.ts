@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { scopedPrismaClient } from "../lib/prisma-tenant.js";
 import { schoolAccess } from "../modules/billing/billing.service.js";
 import { featureForPath, planGateAllows, planGateMessage } from "./plan-gate.js";
+import { blockWritesWhenReadOnlySession } from "./read-only.js";
 
 function reject(res: Response, status: number, code: string, message: string): void {
   res.status(status).json({ success: false, data: null, error: { code, message }, meta: null });
@@ -23,6 +24,19 @@ export function tenantMiddleware(req: Request, res: Response, next: NextFunction
   const schoolId = req.user?.schoolId;
   if (!schoolId) {
     reject(res, 401, "UNAUTHENTICATED", "Missing school context.");
+    return;
+  }
+
+  // Read-only sessions (§13.9, §5.3): this middleware follows
+  // authMiddleware on EVERY tenant route, so invoking the single guard
+  // implementation here mounts it right after auth everywhere — new routes
+  // are covered automatically. The continuation probe reuses the guard
+  // instead of duplicating its method/claim check where it could drift.
+  let continued = false;
+  blockWritesWhenReadOnlySession(req, res, () => {
+    continued = true;
+  });
+  if (!continued) {
     return;
   }
 

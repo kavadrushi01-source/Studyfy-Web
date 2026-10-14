@@ -5,6 +5,9 @@ export interface AuthUser {
   userId: string;
   schoolId: string | null;
   role: string;
+  // Present only on impersonation sessions (§13.9): the Platform Owner
+  // behind the wheel. Every read-only guard keys on this claim.
+  impersonatedBy?: string;
 }
 
 interface AccessJwt {
@@ -12,6 +15,7 @@ interface AccessJwt {
   schoolId: string | null;
   role: string;
   type: string;
+  impersonatedBy?: unknown;
 }
 
 function accessSecret(): string {
@@ -41,7 +45,14 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
       unauthorized(res);
       return;
     }
-    req.user = { userId: payload.sub, schoolId: payload.schoolId ?? null, role: payload.role };
+    req.user = {
+      userId: payload.sub,
+      schoolId: payload.schoolId ?? null,
+      role: payload.role,
+      // Claim is owner-set at issue; a forged non-string is dropped, never
+      // trusted (a forged valid signature is impossible without the secret).
+      ...(typeof payload.impersonatedBy === "string" && payload.impersonatedBy ? { impersonatedBy: payload.impersonatedBy } : {}),
+    };
     next();
   } catch {
     unauthorized(res, "Invalid or expired token.");

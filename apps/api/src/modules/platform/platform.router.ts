@@ -13,6 +13,8 @@ import { recordAudit } from "../../lib/audit.js";
 import { markInvoicePaid, issueInvoice, setSubscription, startOfDayUtc } from "../billing/billing.service.js";
 import { PLANS, effectivePlan } from "../billing/plans.js";
 import { ownerListTicketsSchema, ownerMessageSchema } from "../support/support.schemas.js";
+import { endImpersonationSchema, impersonateSchema } from "./impersonation.schemas.js";
+import { endImpersonation, startImpersonation } from "./impersonation.service.js";
 import { ownerPostMessage, validateAttachmentFile } from "../support/support.service.js";
 
 const platformAttachUpload = multer({
@@ -1121,6 +1123,88 @@ platformRouter.post(
         });
         return;
       }
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Impersonation (§13.9): read-only, 30-minute support sessions as staff.
+// Start mints the token (no refresh, ever) and writes START; end writes
+// END. The token itself is a normal tenant token for the target plus the
+// impersonatedBy claim — tenantMiddleware, self-scope, the read-only
+// guard, the socket handshake, and receipt-skipping all key on the claim.
+// ---------------------------------------------------------------------------
+
+platformRouter.post(
+  "/impersonate",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.impersonate"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    // No nested sessions, ever (defense in depth — the role check above
+    // already rejects every non-owner token first).
+    if (req.user.impersonatedBy) {
+      sendBillingError(res, new AuthError(403, "IMPERSONATION_NESTED", "A session cannot start another session."));
+      return;
+    }
+    const parsed = impersonateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await startImpersonation(req.prisma, req.user.userId, req.ip ?? "unknown", parsed.data);
+      res.status(200).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+platformRouter.post(
+  "/impersonate/end",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.impersonate"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = endImpersonationSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await endImpersonation(req.prisma, req.user.userId, parsed.data);
+      res.status(200).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
       sendBillingError(res, err);
     }
   }),

@@ -27,6 +27,7 @@ import { timetableRouter } from "./modules/timetable/timetable.router.js";
 import { transportRouter } from "./modules/transport/transport.router.js";
 import { studentsRouter } from "./modules/students/students.router.js";
 import { applyCors, applyHelmet } from "./middleware/security.js";
+import { requestLogger } from "./middleware/request-log.js";
 
 export function createApp(): Express {
   const app = express();
@@ -46,6 +47,10 @@ export function createApp(): Express {
     }),
   );
   app.use(cookieParser());
+  // Request log (§13.9): method/path/status/duration/actor/impersonator on
+  // every line. Mounted before the routers; it reads req.user at response
+  // finish, so per-route auth has already run by log time.
+  app.use(requestLogger);
 
   // Blank hello-world route — real modules mount under /api/v1/... per spec §10.
   app.get("/api/v1/hello", (_req, res) => {

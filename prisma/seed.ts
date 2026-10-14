@@ -140,7 +140,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   PARENT: ["students.read", "documents.read", "attendance.read", "notices.read", "fees.read", "exams.read", "timetable.read", "homework.read", "messages.send", "messages.read", "library.read", "transport.read", "dashboard.read"],
   LIBRARIAN: ["students.read", "library.read", "library.manage", "payroll.read", "dashboard.read", "support.read", "support.write"],
   TRANSPORT_MANAGER: ["students.read", "transport.read", "transport.manage", "payroll.read", "support.read", "support.write"],
-  PLATFORM_OWNER: ["platform.schools.read", "platform.audit.read", "platform.billing.manage", "platform.users.read", "platform.users.manage", "platform.tickets.read", "platform.tickets.manage", "platform.settings.read"],
+  PLATFORM_OWNER: ["platform.schools.read", "platform.audit.read", "platform.billing.manage", "platform.users.read", "platform.users.manage", "platform.tickets.read", "platform.tickets.manage", "platform.settings.read", "platform.impersonate"],
 };
 
 export async function seedPermissions(db: PrismaClient): Promise<void> {
