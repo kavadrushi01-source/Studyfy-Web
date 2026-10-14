@@ -9,8 +9,8 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS — Phase 4 DONE, PROD MIGRATED, IMPERSONATION APPROVED (rotation still queued last)
-**Phase / Module:** Phase 4 — close-out (approval stamped, about to push)
+**Status:** IDLE — Chunk 4 of 5 complete (tickets, school-side, owner queue, impersonation: all built, gated green, migrated, impersonation approved). Chunk 5 = export + demo hygiene + final close-out — export and demo hygiene are ALREADY built, green, and migrated (e66c051); genuinely remaining: (a) Aiven backup confirmation (founder, dashboard), (b) ROTATE EVERYTHING (founder-led, last).
+**Phase / Module:** Phase 4 — IDLE (Chunk 5 scope reconciled, about to push)
 **Last updated:** 2026-10-13
 
 ## Standing security decision (founder-ordered 2026-10-11, do not nag)
