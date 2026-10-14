@@ -293,7 +293,7 @@ export async function ownerPostMessage(
   authorId: string,
   input: OwnerMessageInput,
   attachment?: TicketAttachmentUpload,
-): Promise<{ id: string; status: string }> {
+): Promise<{ id: string; status: string; priority: string }> {
   const ticket = await db.ticket.findFirst({ where: { id: ticketId } });
   if (!ticket) {
     throw new AuthError(404, "TICKET_NOT_FOUND", "Support ticket not found.");
@@ -338,7 +338,24 @@ export async function ownerPostMessage(
         after: pickAuditFields("Ticket", { id: ticket.id, subject: ticket.subject, status: updated.status, priority: ticket.priority }),
       });
     }
-    return { id: message.id, status };
+    // Priority rides the same message (body required, never a bare flag
+    // flip): its own audit action, so the trail reads "status moved" vs
+    // "priority moved" instead of one blurred row.
+    let priority = ticket.priority;
+    if (input.priority && input.priority !== ticket.priority) {
+      const updated = await tx.ticket.update({ where: { id: ticket.id }, data: { priority: input.priority } });
+      priority = updated.priority;
+      await recordAudit(txClient, {
+        schoolId: ticket.schoolId,
+        actorId: authorId,
+        action: "TICKET_PRIORITY_CHANGE",
+        entity: "Ticket",
+        entityId: ticket.id,
+        before: pickAuditFields("Ticket", { id: ticket.id, subject: ticket.subject, status: ticket.status, priority: ticket.priority }),
+        after: pickAuditFields("Ticket", { id: ticket.id, subject: ticket.subject, status, priority: updated.priority }),
+      });
+    }
+    return { id: message.id, status, priority };
   });
   // Internal notes are owner-only — emailing them to the creator would
   // leak the note itself. Only PUBLIC replies notify the thread creator.

@@ -151,4 +151,130 @@ test.describe("support tickets", () => {
     await expect(page.getByText(`Still stuck ${stamp}`).first()).toBeVisible({ timeout: 20000 });
     await logout(page);
   });
+
+  test("owner console: queue filters, priority move, both message kinds — school sees none of the internal", async ({
+    page,
+    request,
+  }) => {
+    const stamp = Date.now().toString(36);
+    const adminEmail = `queue-e2e-${stamp}@example.com`;
+    const reg = await request.post(`${API}/api/v1/auth/register`, {
+      data: {
+        schoolName: `Queue E2E School ${stamp}`,
+        adminName: "Queue E2E Admin",
+        adminEmail,
+        adminPassword: "password-123",
+      },
+    });
+    expect(reg.ok()).toBe(true);
+    const regBody = (await reg.json()) as { data: { accessToken: string; school: { id: string; slug: string } } };
+    const schoolId = regBody.data.school.id;
+    const slug = regBody.data.school.slug;
+    const adminHeaders = { Authorization: `Bearer ${regBody.data.accessToken}` };
+    const highSubject = `Queue console high ${stamp}`;
+    const lowSubject = `Queue console low ${stamp}`;
+    const highRes = await request.post(`${API}/api/v1/schools/${schoolId}/support/tickets`, {
+      headers: adminHeaders,
+      data: { subject: highSubject, priority: "HIGH" },
+    });
+    expect(highRes.ok()).toBe(true);
+    const highId = ((await highRes.json()) as { data: { id: string } }).data.id;
+    const lowRes = await request.post(`${API}/api/v1/schools/${schoolId}/support/tickets`, {
+      headers: adminHeaders,
+      data: { subject: lowSubject, priority: "LOW" },
+    });
+    expect(lowRes.ok()).toBe(true);
+
+    const ownerLogin = await request.post(`${API}/api/v1/auth/login`, {
+      data: { email: ACCOUNTS.owner, password: PASSWORD },
+    });
+    expect(ownerLogin.ok()).toBe(true);
+    const ownerToken = ((await ownerLogin.json()) as { data: { accessToken: string } }).data.accessToken;
+    const ownerHeaders = { Authorization: `Bearer ${ownerToken}` };
+    const noteBody = `Queue triage note ${stamp}`;
+    const replyBody = `Queue visible reply ${stamp}`;
+    await request
+      .post(`${API}/api/v1/platform/tickets/${highId}/messages`, {
+        headers: ownerHeaders,
+        data: { body: noteBody, isInternal: true },
+      })
+      .then((r) => expect(r.ok()).toBe(true));
+    await request
+      .post(`${API}/api/v1/platform/tickets/${highId}/messages`, {
+        headers: ownerHeaders,
+        data: { body: replyBody, isInternal: false },
+      })
+      .then((r) => expect(r.ok()).toBe(true));
+
+    // Owner console: both rows, then the queue filters narrow them.
+    await login(page, ACCOUNTS.owner, null);
+    await page.goto("/owner/support");
+    const esc = (s: string) => new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    await expect(page.getByRole("button", { name: esc(highSubject) })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole("button", { name: esc(lowSubject) })).toBeVisible();
+
+    // Owner sees BOTH kinds inside the thread: amber INTERNAL pill + reply.
+    await page.getByRole("button", { name: esc(highSubject) }).click();
+    await expect(page.getByText("INTERNAL").first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(noteBody).first()).toBeVisible();
+    await expect(page.getByText(replyBody).first()).toBeVisible();
+
+    // Priority filter: HIGH hides the LOW thread (and older runs' LOWs).
+    await page.getByLabel(/filter priority/i).selectOption("HIGH");
+    await expect(page.getByRole("button", { name: esc(highSubject) })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole("button", { name: esc(lowSubject) })).toHaveCount(0);
+    await page.getByLabel(/filter priority/i).selectOption("");
+
+    // School-slug filter: bogus slug empties the queue honestly…
+    await page.getByLabel(/filter school slug/i).fill(`no-such-school-${stamp}`);
+    await page.getByRole("button", { name: /apply school/i }).click();
+    await expect(page.getByText("No tickets").first()).toBeVisible({ timeout: 20000 });
+    // …the run's own slug shows exactly its two threads…
+    await page.getByLabel(/filter school slug/i).fill(slug);
+    await page.getByRole("button", { name: /apply school/i }).click();
+    await expect(page.getByRole("button", { name: esc(highSubject) })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole("button", { name: esc(lowSubject) })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Support E2E Subject/ })).toHaveCount(0);
+    await page.getByRole("button", { name: /clear filters/i }).click();
+    await expect(page.getByRole("button", { name: esc(lowSubject) })).toBeVisible({ timeout: 20000 });
+
+    // Priority move rides a reply: LOW → HIGH, notice confirms.
+    await page.getByRole("button", { name: esc(lowSubject) }).click();
+    await page.getByLabel(/move priority/i).selectOption("HIGH");
+    await page.getByLabel(/owner reply/i).fill(`Escalated for exams ${stamp}`);
+    await page.getByRole("button", { name: /^send$/i }).click();
+    await expect(page.getByText("Priority moved to HIGH").first()).toBeVisible({ timeout: 20000 });
+    await logout(page);
+
+    // School desk, same threads: both visible, ZERO internal surface —
+    // no pill, no note body, only the public reply. Real admin login (like
+    // the suspended test): the desk gates on user.role, a hand-built
+    // session without it would land on the locked note instead.
+    const adminApiLogin = await request.post(`${API}/api/v1/auth/login`, {
+      data: { schoolSlug: slug, email: adminEmail, password: "password-123" },
+    });
+    expect(adminApiLogin.ok()).toBe(true);
+    const adminBody = (await adminApiLogin.json()) as {
+      data: { accessToken: string; user: { schoolId: string } };
+    };
+    await page.goto("/login");
+    await page.evaluate(
+      (session: string) => window.localStorage.setItem("studyfy-session", session),
+      JSON.stringify({
+        token: adminBody.data.accessToken,
+        schoolSlug: slug,
+        issuedAt: Date.now(),
+        user: adminBody.data.user,
+      }),
+    );
+    await page.goto("/support");
+    await expect(page.getByRole("button", { name: esc(highSubject) }).first()).toBeVisible({ timeout: 20000 });
+    // The list auto-selects the newest thread (the LOW one here) — open
+    // the HIGH thread before asserting its contents.
+    await page.getByRole("button", { name: esc(highSubject) }).first().click();
+    await expect(page.getByText("INTERNAL")).toHaveCount(0);
+    await expect(page.getByText(noteBody)).toHaveCount(0);
+    await expect(page.getByText(replyBody).first()).toBeVisible();
+    await logout(page);
+  });
 });

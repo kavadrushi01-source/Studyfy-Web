@@ -237,6 +237,41 @@ describe("ticket attachments (§7 #27, §13.5)", () => {
     expect(ownerView.body.data.ticket.messages).toHaveLength(2);
   });
 
+  it("moves priority through the owner attach path; bad priority stores nothing", async () => {
+    const school = await registerSchool(`Support Attach Priority ${uid()}`);
+    const auth = { Authorization: `Bearer ${school.adminToken}` };
+    const ownerAuth = { Authorization: `Bearer ${await loginOwner()}` };
+    const ticket = await request(app)
+      .post(`/api/v1/schools/${school.schoolId}/support/tickets`)
+      .set(auth)
+      .send({ subject: "Priority via attach", priority: "LOW" })
+      .expect(201);
+    const ticketId = ticket.body.data.id as string;
+
+    const file = png();
+    const moved = await request(app)
+      .post(`/api/v1/platform/tickets/${ticketId}/attachments`)
+      .set(ownerAuth)
+      .field("message", "Escalating with proof.")
+      .field("priority", "HIGH")
+      .attach("file", file.buffer, { filename: file.filename, contentType: file.mime })
+      .expect(201);
+    expect(moved.body.data.priority).toBe("HIGH");
+    expect((await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } })).priority).toBe("HIGH");
+    const audit = await prisma.auditLog.findMany({ where: { schoolId: school.schoolId, action: "TICKET_PRIORITY_CHANGE" } });
+    expect(audit).toHaveLength(1);
+
+    const bad = await request(app)
+      .post(`/api/v1/platform/tickets/${ticketId}/attachments`)
+      .set(ownerAuth)
+      .field("message", "Nope.")
+      .field("priority", "URGENT")
+      .attach("file", file.buffer, { filename: file.filename, contentType: file.mime });
+    expect(bad.status).toBe(400);
+    // Rejected before any row exists: same message + attachment count.
+    expect(await prisma.ticketMessage.count({ where: { ticketId } })).toBe(1);
+  });
+
   it("returns 503 when storage is unconfigured", async () => {
     const school = await registerSchool(`Support Attach Unconfigured ${uid()}`);
     const auth = { Authorization: `Bearer ${school.adminToken}` };

@@ -58,8 +58,10 @@ function statusPill(status: string): React.CSSProperties {
 
 // Platform support console (§7 Phase 4 #27): every school's threads with
 // internal notes INCLUDED (amber INTERNAL pills — these never render on the
-// school side by API construction). Reply visible or internal, move status,
-// close. Impersonation (§13.9) stays a later chunk — this console only talks.
+// school side by API construction). Queue filters (status pills, priority,
+// school slug), reply visible or internal, move status AND priority (each
+// audited under its own action), close. Impersonation (§13.9) stays a later
+// chunk — this console only talks.
 export default function OwnerSupportPage() {
   const { token, ready, apiFetch, user } = useAuth();
   const isOwner = user?.role === "PLATFORM_OWNER";
@@ -68,13 +70,24 @@ export default function OwnerSupportPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  // Slug filter applies on button press (not keystroke): every keystroke
+  // would refetch the queue. appliedSlug is what the API sees.
+  const [slugInput, setSlugInput] = useState("");
+  const [appliedSlug, setAppliedSlug] = useState("");
   const [activeId, setActiveId] = useState("");
   const [detail, setDetail] = useState<OwnerTicketDetail | null>(null);
   const [reply, setReply] = useState("");
   const [internal, setInternal] = useState(false);
   const [nextStatus, setNextStatus] = useState("");
+  const [nextPriority, setNextPriority] = useState("");
   const [sending, setSending] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+
+  function resetSelection(): void {
+    setActiveId("");
+    setDetail(null);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,6 +96,12 @@ export default function OwnerSupportPage() {
       const params = new URLSearchParams();
       if (statusFilter) {
         params.set("status", statusFilter);
+      }
+      if (priorityFilter) {
+        params.set("priority", priorityFilter);
+      }
+      if (appliedSlug.trim()) {
+        params.set("schoolSlug", appliedSlug.trim());
       }
       const query = params.toString();
       const response = await apiFetch(`/api/v1/platform/tickets${query ? `?${query}` : ""}`);
@@ -99,7 +118,7 @@ export default function OwnerSupportPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiFetch, statusFilter, activeId]);
+  }, [apiFetch, statusFilter, priorityFilter, appliedSlug, activeId]);
 
   const loadDetail = useCallback(
     async (ticketId: string) => {
@@ -114,6 +133,7 @@ export default function OwnerSupportPage() {
         }
         setDetail(body.data.ticket);
         setNextStatus("");
+        setNextPriority("");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Network error.");
       }
@@ -145,7 +165,10 @@ export default function OwnerSupportPage() {
     setNotice("");
     try {
       // Screenshot attached → multipart attach endpoint (same internal /
-      // status semantics); otherwise the plain JSON message endpoint.
+      // status / priority semantics); otherwise the plain JSON message
+      // endpoint.
+      const moveStatus = nextStatus ? { status: nextStatus } : {};
+      const movePriority = nextPriority ? { priority: nextPriority } : {};
       const response = file
         ? await (() => {
             const form = new FormData();
@@ -155,12 +178,15 @@ export default function OwnerSupportPage() {
             if (nextStatus) {
               form.append("status", nextStatus);
             }
+            if (nextPriority) {
+              form.append("priority", nextPriority);
+            }
             return apiFetch(`/api/v1/platform/tickets/${activeId}/attachments`, { method: "POST", body: form });
           })()
         : await apiFetch(`/api/v1/platform/tickets/${activeId}/messages`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ body: reply, isInternal: internal, ...(nextStatus ? { status: nextStatus } : {}) }),
+            body: JSON.stringify({ body: reply, isInternal: internal, ...moveStatus, ...movePriority }),
           });
       const parsed = (await response.json()) as { data: { id: string } } | ApiError;
       if (isFailure(response, parsed)) {
@@ -169,7 +195,15 @@ export default function OwnerSupportPage() {
       setReply("");
       setInternal(false);
       setFile(null);
-      setNotice(internal ? "Internal note saved — the school cannot see it." : "Reply sent — the school sees it in their thread.");
+      setNotice(
+        [
+          internal ? "Internal note saved — the school cannot see it." : "Reply sent — the school sees it in their thread.",
+          nextPriority ? ` Priority moved to ${nextPriority}.` : "",
+          nextStatus ? ` Status moved to ${nextStatus}.` : "",
+        ].join(""),
+      );
+      setNextStatus("");
+      setNextPriority("");
       await loadDetail(activeId);
       await load();
     } catch (err) {
@@ -211,8 +245,7 @@ export default function OwnerSupportPage() {
             type="button"
             onClick={() => {
               setStatusFilter(s);
-              setActiveId("");
-              setDetail(null);
+              resetSelection();
             }}
             className="sf-btn"
             style={s === statusFilter ? { borderColor: colors.primary, fontWeight: 700 } : undefined}
@@ -220,6 +253,53 @@ export default function OwnerSupportPage() {
             {s || "All"}
           </button>
         ))}
+        <select
+          className="sf-input"
+          style={{ flex: 0 }}
+          value={priorityFilter}
+          onChange={(e) => {
+            setPriorityFilter(e.target.value);
+            resetSelection();
+          }}
+          aria-label="Filter priority"
+        >
+          <option value="">All priorities</option>
+          <option value="LOW">Low</option>
+          <option value="MEDIUM">Medium</option>
+          <option value="HIGH">High</option>
+        </select>
+        <input
+          className="sf-input"
+          style={{ flex: 1, minWidth: 160 }}
+          value={slugInput}
+          onChange={(e) => setSlugInput(e.target.value)}
+          placeholder="School slug — e.g. school-of-science"
+          aria-label="Filter school slug"
+          maxLength={120}
+        />
+        <button
+          type="button"
+          className="sf-btn"
+          onClick={() => {
+            setAppliedSlug(slugInput.trim());
+            resetSelection();
+          }}
+        >
+          Apply school
+        </button>
+        <button
+          type="button"
+          className="sf-btn"
+          onClick={() => {
+            setStatusFilter("");
+            setPriorityFilter("");
+            setSlugInput("");
+            setAppliedSlug("");
+            resetSelection();
+          }}
+        >
+          Clear filters
+        </button>
       </div>
 
       {error ? (
@@ -311,6 +391,18 @@ export default function OwnerSupportPage() {
                   <option value="IN_PROGRESS">In progress</option>
                   <option value="RESOLVED">Resolved</option>
                   <option value="CLOSED">Closed</option>
+                </select>
+                <select
+                  className="sf-input"
+                  style={{ flex: 0 }}
+                  value={nextPriority}
+                  onChange={(e) => setNextPriority(e.target.value)}
+                  aria-label="Move priority"
+                >
+                  <option value="">Keep priority</option>
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
                 </select>
                 <label style={{ fontSize: 13, color: colors.inkSoft, display: "flex", gap: 6, alignItems: "center" }}>
                   <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />

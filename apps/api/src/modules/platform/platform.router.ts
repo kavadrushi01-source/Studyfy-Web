@@ -12,7 +12,7 @@ import { listAuditLogs } from "../audit/audit.service.js";
 import { recordAudit } from "../../lib/audit.js";
 import { markInvoicePaid, issueInvoice, setSubscription, startOfDayUtc } from "../billing/billing.service.js";
 import { PLANS, effectivePlan } from "../billing/plans.js";
-import { listTicketsSchema, ownerMessageSchema } from "../support/support.schemas.js";
+import { ownerListTicketsSchema, ownerMessageSchema } from "../support/support.schemas.js";
 import { ownerPostMessage, validateAttachmentFile } from "../support/support.service.js";
 
 const platformAttachUpload = multer({
@@ -908,7 +908,7 @@ platformRouter.get(
       });
       return;
     }
-    const parsed = listTicketsSchema.safeParse(req.query);
+    const parsed = ownerListTicketsSchema.safeParse(req.query);
     if (!parsed.success) {
       res.status(400).json({
         success: false,
@@ -921,7 +921,12 @@ platformRouter.get(
     try {
       // Raw client, cross-tenant by design (platformOnly): no school pin.
       const tickets = await req.prisma.ticket.findMany({
-        where: { ...(parsed.data.status ? { status: parsed.data.status } : {}) },
+        where: {
+          ...(parsed.data.status ? { status: parsed.data.status } : {}),
+          ...(parsed.data.priority ? { priority: parsed.data.priority } : {}),
+          ...(parsed.data.schoolId ? { schoolId: parsed.data.schoolId } : {}),
+          ...(parsed.data.schoolSlug ? { school: { is: { slug: parsed.data.schoolSlug } } } : {}),
+        },
         orderBy: { createdAt: "desc" },
         take: parsed.data.take,
         select: {
@@ -1029,8 +1034,9 @@ platformRouter.post(
 
 // POST /platform/tickets/:id/attachments — owner-side screenshot (§7 #27):
 // multipart `file` (required, §13.5 whitelist) + optional text `message`,
-// `isInternal` ("true"/"1") and `status`. Same upload-then-transaction
-// shape as the school route; the folder derives from the ticket's school.
+// `isInternal` ("true"/"1"), `status` and `priority`. Same upload-then-
+// transaction shape as the school route; the folder derives from the
+// ticket's school.
 platformRouter.post(
   "/tickets/:id/attachments",
   authMiddleware,
@@ -1076,6 +1082,15 @@ platformRouter.post(
         }
         status = rawStatus;
       }
+      const rawPriority = typeof fields.priority === "string" && fields.priority !== "" ? fields.priority : undefined;
+      let priority: "LOW" | "MEDIUM" | "HIGH" | undefined;
+      if (rawPriority !== undefined) {
+        if (rawPriority !== "LOW" && rawPriority !== "MEDIUM" && rawPriority !== "HIGH") {
+          sendBillingError(res, new AuthError(400, "VALIDATION_ERROR", "Unknown priority."));
+          return;
+        }
+        priority = rawPriority;
+      }
       const ticket = await req.prisma.ticket.findFirst({ where: { id: req.params.id ?? "" }, select: { id: true, schoolId: true } });
       if (!ticket) {
         sendBillingError(res, new AuthError(404, "TICKET_NOT_FOUND", "Support ticket not found."));
@@ -1092,7 +1107,7 @@ platformRouter.post(
         req.prisma,
         ticket.id,
         req.user.userId,
-        { body: message.trim() === "" ? file.originalname.slice(0, 200) : message, isInternal, ...(status ? { status } : {}) },
+        { body: message.trim() === "" ? file.originalname.slice(0, 200) : message, isInternal, ...(status ? { status } : {}), ...(priority ? { priority } : {}) },
         { url: stored.url, mimeType: file.mimetype, sizeBytes: file.size, originalName: file.originalname },
       );
       res.status(201).json({ success: true, data: result, error: null, meta: null });

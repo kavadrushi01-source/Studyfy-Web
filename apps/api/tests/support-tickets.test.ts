@@ -228,6 +228,105 @@ describe("support tickets, platform side (§7 #27)", () => {
     await request(app).post(`/api/v1/platform/tickets/${ticketId}/messages`).set(ownerAuth).send({ body: "x", status: "ARCHIVED" }).expect(400);
     await request(app).post("/api/v1/platform/tickets/nope/messages").set(ownerAuth).send({ body: "x" }).expect(404);
   });
+
+  it("filters the owner queue by priority and school; bad enums fail loud", async () => {
+    const a = await registerSchool(`Queue School A ${uid()}`);
+    const b = await registerSchool(`Queue School B ${uid()}`);
+    const owner = await loginOwner();
+    const ownerAuth = { Authorization: `Bearer ${owner.token}` };
+
+    const aHigh = await openTicket({ Authorization: `Bearer ${a.adminToken}` }, a.schoolId, `Queue A high ${uid()}`);
+    // Same priority, other school — must not leak into A's filters.
+    await openTicket({ Authorization: `Bearer ${b.adminToken}` }, b.schoolId, `Queue B high ${uid()}`);
+    // Same school, other priority.
+    const lowRes = await request(app)
+      .post(`/api/v1/schools/${a.schoolId}/support/tickets`)
+      .set({ Authorization: `Bearer ${a.adminToken}` })
+      .send({ subject: `Queue A low ${uid()}`, priority: "LOW" })
+      .expect(201);
+    const aLow = lowRes.body.data.id as string;
+
+    const byPriority = await request(app).get("/api/v1/platform/tickets?priority=HIGH").set(ownerAuth).expect(200);
+    const highIds = (byPriority.body.data.tickets as { id: string }[]).map((t) => t.id);
+    expect(highIds).toContain(aHigh);
+    expect(highIds).not.toContain(aLow);
+
+    const bySchoolId = await request(app).get(`/api/v1/platform/tickets?schoolId=${b.schoolId}`).set(ownerAuth).expect(200);
+    const bIds = (bySchoolId.body.data.tickets as { id: string; schoolId: string }[]).map((t) => t.id);
+    expect(bIds.length).toBeGreaterThan(0);
+    expect((bySchoolId.body.data.tickets as { schoolId: string }[]).every((t) => t.schoolId === b.schoolId)).toBe(true);
+    expect(bIds).not.toContain(aHigh);
+
+    const bySlug = await request(app).get(`/api/v1/platform/tickets?schoolSlug=${a.slug}`).set(ownerAuth).expect(200);
+    const slugIds = (bySlug.body.data.tickets as { id: string }[]).map((t) => t.id);
+    expect(slugIds).toContain(aHigh);
+    expect(slugIds).toContain(aLow);
+
+    // Combined: status + priority + school narrow to one row.
+    const combo = await request(app)
+      .get(`/api/v1/platform/tickets?status=OPEN&priority=HIGH&schoolSlug=${a.slug}`)
+      .set(ownerAuth)
+      .expect(200);
+    expect((combo.body.data.tickets as { id: string }[]).map((t) => t.id)).toContain(aHigh);
+
+    // Bad enums fail loud, never silently unfiltered.
+    await request(app).get("/api/v1/platform/tickets?priority=URGENT").set(ownerAuth).expect(400);
+    await request(app).get("/api/v1/platform/tickets?status=BOGUS").set(ownerAuth).expect(400);
+  });
+
+  it("moves priority with its own audit; schools cannot set priority at all", async () => {
+    const school = await registerSchool(`Priority School ${uid()}`);
+    const auth = { Authorization: `Bearer ${school.adminToken}` };
+    const owner = await loginOwner();
+    const ownerAuth = { Authorization: `Bearer ${owner.token}` };
+    const ticketId = await openTicket(auth, school.schoolId, "Routine follow-up");
+    // The helper opens HIGH; drop to MEDIUM first so the HIGH move below
+    // is a real change with a real audit row.
+    await request(app)
+      .post(`/api/v1/platform/tickets/${ticketId}/messages`)
+      .set(ownerAuth)
+      .send({ body: "Triage: routine.", isInternal: false, priority: "MEDIUM" })
+      .expect(201);
+    expect(await prisma.auditLog.count({ where: { schoolId: school.schoolId, action: "TICKET_PRIORITY_CHANGE" } })).toBe(1);
+
+    // School-side strict schema rejects the owner-only field (like
+    // isInternal/status before it) — never silently dropped.
+    await request(app)
+      .post(`/api/v1/schools/${school.schoolId}/support/tickets/${ticketId}/messages`)
+      .set(auth)
+      .send({ body: "Bumping myself.", priority: "HIGH" })
+      .expect(400);
+
+    const moved = await request(app)
+      .post(`/api/v1/platform/tickets/${ticketId}/messages`)
+      .set(ownerAuth)
+      .send({ body: "Escalating — exam week.", isInternal: false, priority: "HIGH" })
+      .expect(201);
+    expect(moved.body.data.priority).toBe("HIGH");
+    expect((await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } })).priority).toBe("HIGH");
+
+    const rows = await prisma.auditLog.findMany({ where: { schoolId: school.schoolId, action: "TICKET_PRIORITY_CHANGE" } });
+    expect(rows).toHaveLength(2);
+    const escalation = rows.find((r) => (r.after as { priority: string } | null)?.priority === "HIGH");
+    expect(escalation?.actorId).toBe(owner.userId);
+    expect((escalation?.before as { priority: string } | null)?.priority).toBe("MEDIUM");
+    expect((escalation?.after as { priority: string } | null)?.priority).toBe("HIGH");
+
+    // Same priority is a silent no-op (mirrors the status-move rule).
+    await request(app)
+      .post(`/api/v1/platform/tickets/${ticketId}/messages`)
+      .set(ownerAuth)
+      .send({ body: "Still high.", priority: "HIGH" })
+      .expect(201);
+    expect(await prisma.auditLog.count({ where: { schoolId: school.schoolId, action: "TICKET_PRIORITY_CHANGE" } })).toBe(2);
+
+    // Unknown priority fails loud on the JSON path too.
+    await request(app)
+      .post(`/api/v1/platform/tickets/${ticketId}/messages`)
+      .set(ownerAuth)
+      .send({ body: "x", priority: "URGENT" })
+      .expect(400);
+  });
 });
 
 describe("support tickets, suspended school (§13.4 exception)", () => {
