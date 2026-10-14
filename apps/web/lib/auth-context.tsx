@@ -39,6 +39,7 @@ interface AuthContextValue {
   // page gates and fetches as the target, exactly like their own login.
   token: string | null;
   schoolId: string | null;
+  schoolSlug: string;
   user: SessionUser | null;
   ready: boolean;
   login: (input: { email: string; password: string; schoolSlug?: string }) => Promise<void>;
@@ -441,6 +442,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     () => ({
       token: impersonation?.token ?? session?.token ?? null,
       schoolId: impersonation ? impersonation.target.schoolId : (session?.user.schoolId ?? null),
+      schoolSlug: session?.schoolSlug ?? "",
       // Target identity while impersonating (email unknown to the overlay
       // response — blank, never the owner's).
       user: impersonation

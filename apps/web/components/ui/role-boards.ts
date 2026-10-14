@@ -45,7 +45,7 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
       { label: "Billing", href: "/billing" },
       { label: "Audit Logs", href: "/audit-logs" },
       { label: "Support", href: "/support" },
-      { label: "Settings", href: null },
+      { label: "Settings", href: "/settings" },
     ],
   },
   TEACHER: {

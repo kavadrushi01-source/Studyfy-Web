@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { ACCOUNTS, SOS_SLUG, RK_SLUG, login, logout } from "./helpers";
 
@@ -104,6 +105,58 @@ test.describe("must-fail paths", () => {
     await page.goto("/dashboard");
     await expect(page.getByText(/Billing|Students|Dashboard/).first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByText(/data resets nightly/i)).toHaveCount(0);
+    await logout(page);
+  });
+
+  test("school settings hosts the export action; staff get the gate note", async ({ page, request }) => {
+    const stamp = Date.now().toString(36);
+    const adminEmail = `settings-${stamp}@example.com`;
+    const reg = await request.post(`${API}/api/v1/auth/register`, {
+      data: {
+        schoolName: `Settings School ${stamp}`,
+        adminName: "Settings Admin",
+        adminEmail,
+        adminPassword: "password-123",
+      },
+    });
+    expect(reg.ok()).toBe(true);
+    const regBody = (await reg.json()) as { data: { school: { slug: string } } };
+    const slug = regBody.data.school.slug;
+    const adminApiLogin = await request.post(`${API}/api/v1/auth/login`, {
+      data: { schoolSlug: slug, email: adminEmail, password: "password-123" },
+    });
+    expect(adminApiLogin.ok()).toBe(true);
+    const adminBody = (await adminApiLogin.json()) as {
+      data: { accessToken: string; user: { schoolId: string } };
+    };
+    await page.goto("/login");
+    await page.evaluate(
+      (session: string) => window.localStorage.setItem("studyfy-session", session),
+      JSON.stringify({
+        token: adminBody.data.accessToken,
+        schoolSlug: slug,
+        issuedAt: Date.now(),
+        user: adminBody.data.user,
+      }),
+    );
+    // Sidebar links in; the page gates itself.
+    await page.goto("/dashboard");
+    await expect(page.getByRole("link", { name: "Settings" })).toBeVisible({ timeout: 20000 });
+    await page.goto("/settings");
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(slug).first()).toBeVisible();
+    const [download] = await Promise.all([
+      page.waitForEvent("download", { timeout: 30000 }),
+      page.getByRole("button", { name: /download export/i }).click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/\.zip$/);
+    const path = await download.path();
+    expect(readFileSync(path).subarray(0, 2).toString()).toBe("PK");
+    await logout(page);
+
+    await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
+    await page.goto("/settings");
+    await expect(page.getByText(/live with the school admin/i).first()).toBeVisible({ timeout: 20000 });
     await logout(page);
   });
 
