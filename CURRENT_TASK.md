@@ -10,7 +10,7 @@
 > scratch.
 
 **Status:** IN PROGRESS — Phase 4 Chunk 4 DONE + school-side tickets DONE + owner queue filters/priority DONE (FULL gates green, prod migrate pending with a future build)
-**Phase / Module:** Phase 4 — Chunk 4 + owner queue (priority/school filters, priority change — DONE, about to push)
+**Phase / Module:** Phase 4 — Chunk 4 + owner queue (priority/school filters, priority change — DONE, pushed `73471ac`)
 **Last updated:** 2026-10-13
 
 ## Standing security decision (founder-ordered 2026-10-11, do not nag)
