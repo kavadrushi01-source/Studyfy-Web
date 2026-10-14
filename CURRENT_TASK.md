@@ -10,7 +10,7 @@
 > scratch.
 
 **Status:** IN PROGRESS — Phase 4 DONE (all modules incl. export + demo close-out; FULL gates green, prod migrate pending with a future build)
-**Phase / Module:** Phase 4 — Data export + demo hygiene (DONE, about to push)
+**Phase / Module:** Phase 4 — Data export + demo hygiene (DONE, pushed `e66c051`)
 **Last updated:** 2026-10-13
 
 ## Standing security decision (founder-ordered 2026-10-11, do not nag)
