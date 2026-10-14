@@ -10,7 +10,7 @@
 > scratch.
 
 **Status:** IN PROGRESS — Phase 4 Chunk 4 + school-side + owner queue + IMPERSONATION DONE (FULL gates green, prod migrate pending with a future build)
-**Phase / Module:** Phase 4 — Impersonation §13.9 (DONE, pushed `7ddb7c1`)
+**Phase / Module:** Phase 4 — Impersonation §13.9 incl. UI (DONE, pushed `102957e`)
 **Last updated:** 2026-10-13
 
 ## Standing security decision (founder-ordered 2026-10-11, do not nag)
