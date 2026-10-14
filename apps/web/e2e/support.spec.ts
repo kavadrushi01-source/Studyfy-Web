@@ -277,4 +277,77 @@ test.describe("support tickets", () => {
     await expect(page.getByText(replyBody).first()).toBeVisible();
     await logout(page);
   });
+
+  test("owner impersonates the reporter, banner shows, write blocked, exit writes END", async ({ page, request }) => {
+    const stamp = Date.now().toString(36);
+    const adminName = `Imp Journey Admin ${stamp}`;
+    const adminEmail = `imp-journey-${stamp}@example.com`;
+    const reg = await request.post(`${API}/api/v1/auth/register`, {
+      data: {
+        schoolName: `Imp Journey School ${stamp}`,
+        adminName,
+        adminEmail,
+        adminPassword: "password-123",
+      },
+    });
+    expect(reg.ok()).toBe(true);
+    const regBody = (await reg.json()) as { data: { accessToken: string; school: { id: string; slug: string } } };
+    const schoolId = regBody.data.school.id;
+    const subject = `Impersonate me ${stamp}`;
+    await request
+      .post(`${API}/api/v1/schools/${schoolId}/support/tickets`, {
+        headers: { Authorization: `Bearer ${regBody.data.accessToken}` },
+        data: { subject, priority: "MEDIUM" },
+      })
+      .then((r) => expect(r.ok()).toBe(true));
+
+    const ownerLogin = await request.post(`${API}/api/v1/auth/login`, {
+      data: { email: ACCOUNTS.owner, password: PASSWORD },
+    });
+    expect(ownerLogin.ok()).toBe(true);
+    const ownerToken = ((await ownerLogin.json()) as { data: { accessToken: string } }).data.accessToken;
+    const ownerHeaders = { Authorization: `Bearer ${ownerToken}` };
+
+    // Console: open the thread, reason comes pre-filled with the reference.
+    await login(page, ACCOUNTS.owner, null);
+    await page.goto("/owner/support");
+    const esc = (s: string) => new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    await expect(page.getByRole("button", { name: esc(subject) })).toBeVisible({ timeout: 20000 });
+    await page.getByRole("button", { name: esc(subject) }).click();
+    await expect(page.getByLabel(/impersonation reason/i)).toHaveValue(
+      new RegExp(subject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      { timeout: 20000 },
+    );
+
+    // Start: lands on the school desk wearing the admin's identity.
+    // (Exact label — the thread subject itself contains "impersonate".)
+    const impLabel = new RegExp(`Impersonate ${adminName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+    await page.getByRole("button", { name: impLabel }).click();
+    await expect(page).toHaveURL(/\/support$/, { timeout: 20000 });
+    await expect(page.getByText(/Viewing as/).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/read-only/).first()).toBeVisible();
+    await expect(page.getByText(adminName).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: esc(subject) }).first()).toBeVisible({ timeout: 20000 });
+
+    // A write attempt surfaces the read-only refusal (API 403 → page error).
+    await page.getByRole("button", { name: esc(subject) }).first().click();
+    await page.getByLabel(/thread reply/i).fill(`Sneaky owner write ${stamp}`);
+    await page.getByRole("button", { name: /^reply$/i }).click();
+    await expect(page.getByText(/read-only/i).first()).toBeVisible({ timeout: 20000 });
+
+    // Exit: END is written, overlay discarded, back on the console.
+    await page.getByRole("button", { name: /^exit$/i }).click();
+    await expect(page).toHaveURL(/\/owner\/support$/, { timeout: 20000 });
+    await expect(page.getByText(/Viewing as/)).toHaveCount(0);
+
+    const logs = await request.get(`${API}/api/v1/platform/audit-logs?action=IMPERSONATION_END&schoolId=${schoolId}`, {
+      headers: ownerHeaders,
+    });
+    expect(logs.ok()).toBe(true);
+    const rows = ((await logs.json()) as { data: { logs: { action: string; entityId: string }[] } }).data.logs;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.action).toBe("IMPERSONATION_END");
+    expect(typeof rows[0]?.entityId).toBe("string");
+    await logout(page);
+  });
 });

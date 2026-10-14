@@ -970,6 +970,11 @@ platformRouter.get(
         select: {
           id: true,
           schoolId: true,
+          // The reporter: the console's "impersonate this thread's author"
+          // button targets exactly this user (§13.9 staff-only targets —
+          // only staff can open tickets, so this is always staff).
+          createdById: true,
+          createdBy: { select: { name: true } },
           subject: true,
           status: true,
           priority: true,

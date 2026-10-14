@@ -37,6 +37,8 @@ interface OwnerTicketMsg {
 
 interface OwnerTicketDetail extends OwnerTicketRow {
   messages: OwnerTicketMsg[];
+  createdById: string;
+  createdBy: { name: string };
 }
 
 interface ApiError {
@@ -63,7 +65,7 @@ function statusPill(status: string): React.CSSProperties {
 // audited under its own action), close. Impersonation (§13.9) stays a later
 // chunk — this console only talks.
 export default function OwnerSupportPage() {
-  const { token, ready, apiFetch, user } = useAuth();
+  const { token, ready, apiFetch, user, startImpersonation } = useAuth();
   const isOwner = user?.role === "PLATFORM_OWNER";
   const [rows, setRows] = useState<OwnerTicketRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -83,6 +85,11 @@ export default function OwnerSupportPage() {
   const [nextPriority, setNextPriority] = useState("");
   const [sending, setSending] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  // Impersonation starter (§13.9): reason pre-filled with the ticket
+  // reference when a thread opens; the founder can extend it before
+  // starting. The reporter is always staff (only staff open tickets).
+  const [impReason, setImpReason] = useState("");
+  const [impStarting, setImpStarting] = useState(false);
 
   function resetSelection(): void {
     setActiveId("");
@@ -111,7 +118,11 @@ export default function OwnerSupportPage() {
       }
       setRows(body.data.tickets);
       if (body.data.tickets.length > 0 && !activeId) {
-        setActiveId(body.data.tickets[0]?.id ?? "");
+        const first = body.data.tickets[0];
+        setActiveId(first?.id ?? "");
+        if (first) {
+          setImpReason(`Ticket ${first.id} — ${first.subject}`.slice(0, 500));
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
@@ -210,6 +221,26 @@ export default function OwnerSupportPage() {
       setError(err instanceof Error ? err.message : "Network error.");
     } finally {
       setSending(false);
+    }
+  }
+
+  // Impersonate this thread's reporter (§13.9): read-only, 30 minutes,
+  // reason pre-filled with the ticket reference. Lands on the school
+  // desk as the reporter; the banner there offers the exit.
+  async function impersonateReporter(): Promise<void> {
+    if (!detail || impStarting) {
+      return;
+    }
+    setImpStarting(true);
+    setError("");
+    setNotice("");
+    try {
+      await startImpersonation({ targetUserId: detail.createdById, reason: impReason });
+      window.location.href = "/support";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start impersonation.");
+    } finally {
+      setImpStarting(false);
     }
   }
 
@@ -328,6 +359,7 @@ export default function OwnerSupportPage() {
                 type="button"
                 onClick={() => {
                   setActiveId(t.id);
+                  setImpReason(`Ticket ${t.id} — ${t.subject}`.slice(0, 500));
                   void loadDetail(t.id);
                 }}
                 className="sf-btn"
@@ -422,6 +454,30 @@ export default function OwnerSupportPage() {
                   {sending ? "Sending…" : file ? "Send with screenshot" : "Send"}
                 </button>
               </form>
+              <div style={{ marginTop: 12, borderTop: "1px solid rgba(15,23,42,.08)", paddingTop: 12 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px", color: colors.ink }}>
+                  Impersonate the reporter — read-only, 30 minutes
+                </p>
+                <div className="sf-row-wrap">
+                  <input
+                    className="sf-input"
+                    style={{ flex: 2, minWidth: 200 }}
+                    value={impReason}
+                    onChange={(e) => setImpReason(e.target.value)}
+                    placeholder="Reason — ticket reference pre-filled"
+                    aria-label="Impersonation reason"
+                    maxLength={500}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void impersonateReporter()}
+                    disabled={impStarting || impReason.trim().length < 8}
+                    style={primaryBtn}
+                  >
+                    {impStarting ? "Starting…" : `Impersonate ${detail.createdBy.name}`}
+                  </button>
+                </div>
+              </div>
             </div>
           ) : null}
         </div>

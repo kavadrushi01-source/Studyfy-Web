@@ -175,6 +175,9 @@ describe("support tickets, school side (§7 #27)", () => {
     const ownerView = await request(app).get(`/api/v1/platform/tickets/${ticketId}`).set(ownerAuth).expect(200);
     expect(ownerView.body.data.ticket.messages).toHaveLength(2);
     expect(ownerView.body.data.ticket.messages.some((m: { isInternal: boolean }) => m.isInternal === true)).toBe(true);
+    // The console's impersonation starter targets exactly this reporter.
+    expect(ownerView.body.data.ticket.createdById).toBe(school.adminId);
+    expect(ownerView.body.data.ticket.createdBy?.name).toBe("Support Admin");
   });
 
   it("is tenant-isolated both directions", async () => {
