@@ -47,6 +47,12 @@ const AUDIT_FIELDS: Record<string, readonly string[]> = {
   // where (school via the row's schoolId), why (reason), from where (IP),
   // and the window (endsAt/endedAt ISO strings — scalars, safe).
   Impersonation: ["id", "targetUserId", "targetRole", "ownerId", "reason", "ipAddress", "endsAt", "endedAt"],
+  // Data exports (§13.10): who exported, why (owner reason; null for a
+  // school exporting itself), and how many files — never the data itself.
+  Export: ["id", "exporterId", "reason", "fileCount"],
+  // Read-only demo sessions (§13.11): who minted, window end. schoolId is
+  // NULL (platform-level, like owner logins) — tenant reads never see it.
+  ReadOnlySession: ["id", "ownerId", "endsAt"],
 };
 
 export function pickAuditFields(entity: string, row: Record<string, unknown>): AuditSnapshot {

@@ -42,6 +42,42 @@ export default function AuditLogsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [openId, setOpenId] = useState("");
+  // Data export (§13.10): whole-school ZIP, one per hour, audited. The
+  // export rows land in this same trail (filter DATA_EXPORT to see them).
+  const [exporting, setExporting] = useState(false);
+  const [expNotice, setExpNotice] = useState("");
+  const [expError, setExpError] = useState("");
+
+  async function exportSchool(): Promise<void> {
+    if (!schoolId || exporting) {
+      return;
+    }
+    setExporting(true);
+    setExpNotice("");
+    setExpError("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/exports`, { method: "POST" });
+      if (!response.ok) {
+        const body = (await response.json()) as ApiError;
+        throw new Error(body.error?.message ?? "Export failed.");
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download =
+        response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "studyfy-export.zip";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+      setExpNotice("Export downloaded — filter DATA_EXPORT to see its audit row.");
+    } catch (err) {
+      setExpError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const buildQuery = useCallback(
     (cursor: string | null) => {
@@ -148,6 +184,22 @@ export default function AuditLogsPage() {
       <p style={{ ...mutedStyle, margin: "8px 0 20px" }}>
         Who changed what, newest first — admissions, marks, attendance edits, fees, devices and certificates.
       </p>
+      <div className="sf-card" style={{ padding: 16, marginBottom: 12 }}>
+        <div className="sf-row-wrap" style={{ alignItems: "center" }}>
+          <p style={{ fontSize: 14, fontWeight: 700, margin: 0, color: colors.ink, flex: 1, minWidth: 200 }}>
+            Data export — whole-school ZIP, one per hour
+          </p>
+          <button type="button" onClick={() => void exportSchool()} disabled={exporting} style={primaryBtn}>
+            {exporting ? "Exporting…" : "Download export"}
+          </button>
+        </div>
+        {expNotice ? <p style={{ color: colors.success, fontSize: 14, margin: "8px 0 0" }}>{expNotice}</p> : null}
+        {expError ? (
+          <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "8px 0 0" }}>
+            {expError}
+          </p>
+        ) : null}
+      </div>
       <form
         onSubmit={(e) => {
           e.preventDefault();

@@ -6,16 +6,22 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { platformOnlyMiddleware } from "../../middleware/platform-only.js";
 import { requirePermission } from "../../middleware/rbac.js";
 import { documentStorage, StorageUnconfiguredError, ticketFolder } from "../../lib/storage.js";
+import { assertDemoUploadAllowed } from "../../lib/upload-caps.js";
 import { AuthError, requestPasswordReset } from "../auth/auth.service.js";
 import { listPlatformAuditSchema } from "../audit/audit.schemas.js";
 import { listAuditLogs } from "../audit/audit.service.js";
-import { recordAudit } from "../../lib/audit.js";
+import { pickAuditFields, recordAudit } from "../../lib/audit.js";
+import { signAccessToken } from "../../lib/jwt.js";
 import { markInvoicePaid, issueInvoice, setSubscription, startOfDayUtc } from "../billing/billing.service.js";
 import { PLANS, effectivePlan } from "../billing/plans.js";
 import { ownerListTicketsSchema, ownerMessageSchema } from "../support/support.schemas.js";
 import { endImpersonationSchema, impersonateSchema } from "./impersonation.schemas.js";
 import { endImpersonation, startImpersonation } from "./impersonation.service.js";
 import { ownerPostMessage, validateAttachmentFile } from "../support/support.service.js";
+import { buildExportFiles, recordExportAudit, type ExportManifest } from "../exports/exports.service.js";
+import { streamZip } from "../exports/exports.router.js";
+import { exportLimiter } from "../../middleware/security.js";
+import { randomUUID } from "node:crypto";
 
 const platformAttachUpload = multer({
   storage: multer.memoryStorage(),
@@ -1103,6 +1109,8 @@ platformRouter.post(
         sendBillingError(res, new AuthError(404, "TICKET_NOT_FOUND", "Support ticket not found."));
         return;
       }
+      // Demo quota guard (§13.11): the file lands in the ticket's school.
+      await assertDemoUploadAllowed(req.prisma, ticket.schoolId, file.size);
       const stored = await documentStorage().upload({
         buffer: file.buffer,
         schoolId: ticket.schoolId,
@@ -1209,6 +1217,119 @@ platformRouter.post(
     try {
       const result = await endImpersonation(req.prisma, req.user.userId, parsed.data);
       res.status(200).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// POST /platform/schools/:id/exports — the Platform Owner exports ANY
+// school, with a RECORDED reason (§13.10). Same builder, same audit, same
+// rate limit as the school route; the reason is what makes it lawful.
+platformRouter.post(
+  "/schools/:id/exports",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.schools.read"),
+  exportLimiter(),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = z.object({ reason: z.string().trim().min(8).max(500) }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "A reason is required." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const schoolId = req.params.id ?? "";
+      const built = await buildExportFiles(req.prisma, schoolId);
+      const exportId = randomUUID();
+      const manifest: ExportManifest = {
+        school: built.school,
+        exportedAt: new Date().toISOString(),
+        exportId,
+        exporterId: req.user.userId,
+        exporterRole: req.user.role,
+        reason: parsed.data.reason,
+        files: [...Object.keys(built.files), "manifest.json"],
+        counts: built.counts,
+      };
+      await recordExportAudit(req.prisma, {
+        schoolId,
+        exporterId: req.user.userId,
+        reason: parsed.data.reason,
+        exportId,
+        fileCount: Object.keys(built.files).length + 1,
+      });
+      streamZip(res, `studyfy-export-${built.school.slug}-${new Date().toISOString().slice(0, 10)}.zip`, built.files, manifest);
+    } catch (err) {
+      sendBillingError(res, err);
+    }
+  }),
+);
+
+// POST /platform/read-only-session — mint a read-only Platform Owner
+// token for demo browsers and screenshots (§13.11: never publish a
+// writable owner login). 30 minutes, no refresh row (refresh 401s, same
+// as impersonation), START audited at platform level. The read-only guard
+// and the socket handshake enforce it exactly like an impersonation
+// session — reads work, every write is 403, sockets die in the handshake.
+platformRouter.post(
+  "/read-only-session",
+  authMiddleware,
+  platformOnlyMiddleware,
+  requirePermission("platform.readonly"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma || !req.user) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    if (req.user.impersonatedBy) {
+      sendBillingError(res, new AuthError(403, "IMPERSONATION_NESTED", "A session cannot start another session."));
+      return;
+    }
+    try {
+      const sessionId = randomUUID();
+      const endsAt = new Date(Date.now() + 30 * 60 * 1000);
+      const accessToken = signAccessToken(
+        { sub: req.user.userId, schoolId: null, role: "PLATFORM_OWNER", readOnly: true },
+        "30m",
+      );
+      await recordAudit(req.prisma, {
+        schoolId: null,
+        actorId: req.user.userId,
+        action: "READONLY_SESSION_START",
+        entity: "ReadOnlySession",
+        entityId: sessionId,
+        after: pickAuditFields("ReadOnlySession", {
+          id: sessionId,
+          ownerId: req.user.userId,
+          endsAt: endsAt.toISOString(),
+        }),
+      });
+      res.status(200).json({
+        success: true,
+        data: { accessToken, expiresAt: endsAt.toISOString() },
+        error: null,
+        meta: null,
+      });
     } catch (err) {
       sendBillingError(res, err);
     }

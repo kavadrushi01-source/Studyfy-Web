@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { ACCOUNTS, SOS_SLUG, RK_SLUG, login } from "./helpers";
+import { ACCOUNTS, SOS_SLUG, RK_SLUG, login, logout } from "./helpers";
+
+const API = process.env.E2E_API_URL ?? "http://localhost:4001";
 
 test.describe("student + parent boards", () => {
   test("Aditya sees own numbers; Suresh sees only Aditya", async ({ page }) => {
@@ -62,6 +64,49 @@ test.describe("owner board", () => {
 });
 
 test.describe("must-fail paths", () => {
+  test("demo banner shows on demo schools, never on real ones", async ({ page, request }) => {
+    await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
+    await page.goto("/dashboard");
+    await expect(page.getByText(/data resets nightly/i).first()).toBeVisible({ timeout: 20000 });
+    await logout(page);
+
+    // Fresh (real) school: no banner.
+    const stamp = Date.now().toString(36);
+    const adminEmail = `banner-${stamp}@example.com`;
+    const reg = await request.post(`${API}/api/v1/auth/register`, {
+      data: {
+        schoolName: `Banner School ${stamp}`,
+        adminName: "Banner Admin",
+        adminEmail,
+        adminPassword: "password-123",
+      },
+    });
+    expect(reg.ok()).toBe(true);
+    const regBody = (await reg.json()) as { data: { school: { slug: string } } };
+    const slug = regBody.data.school.slug;
+    const adminApiLogin = await request.post(`${API}/api/v1/auth/login`, {
+      data: { schoolSlug: slug, email: adminEmail, password: "password-123" },
+    });
+    expect(adminApiLogin.ok()).toBe(true);
+    const adminBody = (await adminApiLogin.json()) as {
+      data: { accessToken: string; user: { schoolId: string } };
+    };
+    await page.goto("/login");
+    await page.evaluate(
+      (session: string) => window.localStorage.setItem("studyfy-session", session),
+      JSON.stringify({
+        token: adminBody.data.accessToken,
+        schoolSlug: slug,
+        issuedAt: Date.now(),
+        user: adminBody.data.user,
+      }),
+    );
+    await page.goto("/dashboard");
+    await expect(page.getByText(/Billing|Students|Dashboard/).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/data resets nightly/i)).toHaveCount(0);
+    await logout(page);
+  });
+
   test("signed-out boards show the gate, never data", async ({ page }) => {
     await page.goto("/dashboard");
     await expect(page.getByText(/please sign in/i)).toBeVisible({ timeout: 15000 });

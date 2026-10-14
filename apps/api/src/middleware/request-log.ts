@@ -9,13 +9,14 @@ import type { NextFunction, Request, Response } from "express";
 export interface LoggedRequest {
   method: string;
   path: string;
-  user?: { userId?: string; impersonatedBy?: string };
+  user?: { userId?: string; impersonatedBy?: string; readOnly?: boolean };
 }
 
 export function formatRequestLog(req: LoggedRequest, statusCode: number, durationMs: number): string {
   const userId = req.user?.userId ?? "-";
   const imp = req.user?.impersonatedBy ?? "-";
-  return `[api] ${req.method} ${req.path} ${statusCode} ${durationMs}ms user=${userId} imp=${imp}`;
+  const ro = req.user?.readOnly === true ? "1" : "-";
+  return `[api] ${req.method} ${req.path} ${statusCode} ${durationMs}ms user=${userId} imp=${imp} ro=${ro}`;
 }
 
 export function requestLogger(req: Request, res: Response, next: NextFunction): void {

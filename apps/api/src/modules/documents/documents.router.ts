@@ -7,6 +7,7 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { documentStorage, StorageUnconfiguredError } from "../../lib/storage.js";
+import { assertDemoUploadAllowed } from "../../lib/upload-caps.js";
 import { AuthError } from "../auth/auth.service.js";
 
 export const documentsRouter = Router();
@@ -129,6 +130,8 @@ documentsRouter.post(
     }
     try {
       const schoolId = req.schoolId ?? "";
+      // Demo quota guard (§13.11): before bytes reach storage.
+      await assertDemoUploadAllowed(req.prisma, schoolId, file.size);
       const stored = await documentStorage().upload({
         buffer: file.buffer,
         schoolId,

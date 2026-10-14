@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Settings2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { cardStyle, colors, h1Style, mutedStyle, pageFrame, pill } from "@/lib/theme";
+import { cardStyle, colors, h1Style, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
 import { isFailure } from "../../../lib/api";
 import { EmptyState, Shell, SkeletonBlocks } from "../../../components/ui/shell";
 
@@ -48,6 +48,47 @@ export default function OwnerSettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Read-only demo session (§13.11): the token itself is held in state just
+  // long enough to copy — it is NEVER rendered as text (screenshots leak).
+  const [roToken, setRoToken] = useState("");
+  const [roExpiry, setRoExpiry] = useState("");
+  const [roWorking, setRoWorking] = useState(false);
+  const [roError, setRoError] = useState("");
+  const [roCopied, setRoCopied] = useState(false);
+
+  async function mintReadOnly(): Promise<void> {
+    if (roWorking) {
+      return;
+    }
+    setRoWorking(true);
+    setRoError("");
+    setRoCopied(false);
+    try {
+      const response = await apiFetch("/api/v1/platform/read-only-session", { method: "POST" });
+      const body = (await response.json()) as { data: { accessToken: string; expiresAt: string } } | ApiError;
+      if (isFailure(response, body)) {
+        throw new Error(body.error?.message ?? "Could not mint the token.");
+      }
+      setRoToken(body.data.accessToken);
+      setRoExpiry(body.data.expiresAt);
+    } catch (err) {
+      setRoError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setRoWorking(false);
+    }
+  }
+
+  async function copyToken(): Promise<void> {
+    if (!roToken) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(roToken);
+      setRoCopied(true);
+    } catch {
+      setRoError("Copy failed — clipboard unavailable in this browser.");
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -184,6 +225,37 @@ export default function OwnerSettingsPage() {
                 <span style={{ fontSize: 14, color: colors.inkSoft }}>
                   {data.demoSchools} demo school{data.demoSchools === 1 ? "" : "s"}
                 </span>
+              </div>
+            </section>
+
+            <section className="sf-card" style={{ ...cardStyle }}>
+              <p style={sectionTitle}>Read-only demo view</p>
+              <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 8px" }}>
+                Mints a 30-minute Platform Owner token that cannot write anything — for demo browsers, screenshots,
+                and screen-sharing. Never publish a writable owner login.
+              </p>
+              {roError ? (
+                <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "0 0 8px" }}>
+                  {roError}
+                </p>
+              ) : null}
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button type="button" onClick={() => void mintReadOnly()} disabled={roWorking} style={primaryBtn}>
+                  {roWorking ? "Minting…" : "Mint read-only token"}
+                </button>
+                {roToken ? (
+                  <>
+                    <span style={{ fontSize: 13, color: colors.inkSoft }}>
+                      Valid until{" "}
+                      {Number.isNaN(Date.parse(roExpiry))
+                        ? roExpiry
+                        : new Date(roExpiry).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <button type="button" onClick={() => void copyToken()} className="sf-btn">
+                      {roCopied ? "Copied" : "Copy token"}
+                    </button>
+                  </>
+                ) : null}
               </div>
             </section>
           </div>

@@ -8,6 +8,8 @@ export interface AuthUser {
   // Present only on impersonation sessions (§13.9): the Platform Owner
   // behind the wheel. Every read-only guard keys on this claim.
   impersonatedBy?: string;
+  // True only on read-only demo sessions (§13.11). Same guard as above.
+  readOnly?: boolean;
 }
 
 interface AccessJwt {
@@ -16,6 +18,7 @@ interface AccessJwt {
   role: string;
   type: string;
   impersonatedBy?: unknown;
+  readOnly?: unknown;
 }
 
 function accessSecret(): string {
@@ -52,6 +55,8 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
       // Claim is owner-set at issue; a forged non-string is dropped, never
       // trusted (a forged valid signature is impossible without the secret).
       ...(typeof payload.impersonatedBy === "string" && payload.impersonatedBy ? { impersonatedBy: payload.impersonatedBy } : {}),
+      // Strict boolean only — truthy strings never count (§13.11).
+      ...(payload.readOnly === true ? { readOnly: true } : {}),
     };
     next();
   } catch {

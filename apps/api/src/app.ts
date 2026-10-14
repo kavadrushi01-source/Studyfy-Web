@@ -23,6 +23,7 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.router.js";
 import { sectionsRouter } from "./modules/sections/sections.router.js";
 import { staffRouter } from "./modules/staff/staff.router.js";
 import { supportRouter } from "./modules/support/support.router.js";
+import { exportsRouter } from "./modules/exports/exports.router.js";
 import { timetableRouter } from "./modules/timetable/timetable.router.js";
 import { transportRouter } from "./modules/transport/transport.router.js";
 import { studentsRouter } from "./modules/students/students.router.js";
@@ -83,6 +84,7 @@ export function createApp(): Express {
   app.use("/api/v1", payrollRouter);
   app.use("/api/v1", staffRouter);
   app.use("/api/v1", supportRouter);
+  app.use("/api/v1", exportsRouter);
   app.use("/api/v1", timetableRouter);
   app.use("/api/v1", transportRouter);
   app.use("/api/v1", feesRouter);

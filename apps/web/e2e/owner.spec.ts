@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { ACCOUNTS, login } from "./helpers";
+import { ACCOUNTS, login, logout } from "./helpers";
 
 const API = process.env.E2E_API_URL ?? "http://localhost:4001";
 
@@ -40,6 +40,18 @@ test.describe("super admin panel", () => {
     await expect(page.getByText(/TEST MODE|PAYMENTS UNCONFIGURED/).first()).toBeVisible();
     const bodyText = (await page.getByRole("main").first().textContent()) ?? "";
     expect(bodyText).not.toMatch(/rzp_test_/);
+  });
+
+  test("read-only demo session mints from settings, token never rendered", async ({ page }) => {
+    await login(page, ACCOUNTS.owner, null);
+    await page.goto("/owner/settings");
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("Read-only demo view").first()).toBeVisible();
+    await page.getByRole("button", { name: /mint read-only token/i }).click();
+    // Expiry shows; the token itself is copy-only, never page text.
+    await expect(page.getByText(/valid until/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole("button", { name: /copy token/i })).toBeVisible();
+    await logout(page);
   });
 
   test("suspend/reactivate/plan cycle on a fresh school, audited", async ({ page, request }) => {

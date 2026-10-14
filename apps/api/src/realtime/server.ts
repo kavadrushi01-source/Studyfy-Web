@@ -9,6 +9,7 @@ interface AccessJwt {
   role: string;
   type: string;
   impersonatedBy?: unknown;
+  readOnly?: unknown;
 }
 
 function accessSecret(): string {
@@ -30,8 +31,9 @@ function verifyHandshakeToken(raw: unknown): AuthUser {
   }
   // HTTP verbs are not the only way to write (§13.9): an impersonation
   // token on the socket could send messages as a teacher to a child, so
-  // it dies in the handshake like every other refusal here.
-  if (typeof payload.impersonatedBy === "string" && payload.impersonatedBy) {
+  // it dies in the handshake like every other refusal here. Read-only
+  // demo sessions (§13.11) die the same way, same reason.
+  if ((typeof payload.impersonatedBy === "string" && payload.impersonatedBy) || payload.readOnly === true) {
     throw new Error("READ_ONLY_SESSION");
   }
   return { userId: payload.sub, schoolId: payload.schoolId ?? null, role: payload.role };

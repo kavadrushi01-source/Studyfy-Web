@@ -1,8 +1,9 @@
 import { Router, type Request, type Response } from "express";
+import type { PrismaClient } from "@prisma/client";
 import { catchAsync } from "../../lib/async.js";
 import { prisma } from "../../lib/prisma.js";
 import { cronAuthMiddleware } from "../../middleware/cron-auth.js";
-import { runBillingCycleJob, runFeeRemindersJob } from "./jobs.service.js";
+import { runBillingCycleJob, runDemoResetJob, runFeeRemindersJob } from "./jobs.service.js";
 
 export const jobsRouter = Router();
 
@@ -15,6 +16,7 @@ export const jobsRouter = Router();
 const JOBS = {
   "fee-reminders": runFeeRemindersJob,
   "billing-cycle": runBillingCycleJob,
+  "demo-reset": (db: PrismaClient) => runDemoResetJob(db),
 } as const;
 
 type JobName = keyof typeof JOBS;

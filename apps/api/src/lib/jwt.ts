@@ -7,6 +7,10 @@ export interface AccessTokenPayload {
   // Set ONLY on impersonation sessions (§13.9): the Platform Owner behind
   // the wheel. Absent on every normal login — the guard keys on presence.
   impersonatedBy?: string;
+  // Set ONLY on read-only demo sessions (§13.11): a Platform Owner token
+  // the read-only guard refuses for every write. Strict boolean — the
+  // middleware only honors `true`, never truthy strings.
+  readOnly?: boolean;
 }
 
 function accessSecret(): string {
@@ -20,9 +24,9 @@ function accessSecret(): string {
 // Short-lived (15m) bearer token. schoolId is re-derived from THIS on every
 // request by tenantMiddleware — never from client input (spec §13.4).
 // NULL schoolId belongs only to the Platform Owner (spec §5).
-export function signAccessToken(payload: AccessTokenPayload): string {
+export function signAccessToken(payload: AccessTokenPayload, expiresIn: "15m" | "30m" = "15m"): string {
   return jwt.sign({ ...payload, type: "access" }, accessSecret(), {
-    expiresIn: "15m",
+    expiresIn,
   });
 }
 

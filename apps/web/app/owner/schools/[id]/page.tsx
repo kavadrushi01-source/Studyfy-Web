@@ -6,7 +6,7 @@ import { Building2 } from "lucide-react";
 import { EmptyState, Shell, SkeletonBlocks } from "../../../../components/ui/shell";
 import { isFailure } from "../../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { cardStyle, colors, h1Style, mutedStyle, pageFrame, pill } from "@/lib/theme";
+import { cardStyle, colors, h1Style, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
 
 interface DetailSchool {
   id: string;
@@ -88,6 +88,46 @@ export default function OwnerSchoolDetailPage({ params }: { params: Promise<{ id
   const [detail, setDetail] = useState<SchoolDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Data export (§13.10): owner exports any school with a recorded reason.
+  const [expReason, setExpReason] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [expNotice, setExpNotice] = useState("");
+  const [expError, setExpError] = useState("");
+
+  async function exportSchool(): Promise<void> {
+    if (exporting) {
+      return;
+    }
+    setExporting(true);
+    setExpNotice("");
+    setExpError("");
+    try {
+      const response = await apiFetch(`/api/v1/platform/schools/${id}/exports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: expReason }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as ApiError;
+        throw new Error(body.error?.message ?? "Export failed.");
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      const filename = response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ?? `studyfy-export-${id}.zip`;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+      setExpNotice("Export downloaded — the run is in the audit trail below.");
+    } catch (err) {
+      setExpError(err instanceof Error ? err.message : "Network error.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -216,8 +256,7 @@ export default function OwnerSchoolDetailPage({ params }: { params: Promise<{ id
             </section>
 
             <section className="sf-card" style={{ ...cardStyle }}>
-              <p style={sectionTitle}>Recent audit entries</p>
-              {detail.recentAudit.length === 0 ? (
+              <p style={sectionTitle}>Recent audit entries</p>              {detail.recentAudit.length === 0 ? (
                 <p style={rowText}>No audit rows yet.</p>
               ) : (
                 <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
@@ -232,6 +271,41 @@ export default function OwnerSchoolDetailPage({ params }: { params: Promise<{ id
                   ))}
                 </ul>
               )}
+            </section>
+
+            <section className="sf-card" style={{ ...cardStyle }}>
+              <p style={sectionTitle}>Export school data</p>
+              <p style={{ ...rowText, margin: "0 0 8px" }}>
+                Full-school ZIP (secrets excluded, rate-limited, audited). A reason is required — it lands in the
+                audit row.
+              </p>
+              {expError ? (
+                <p role="alert" style={{ color: colors.danger, fontSize: 14, margin: "0 0 8px" }}>
+                  {expError}
+                </p>
+              ) : null}
+              {expNotice ? (
+                <p style={{ color: colors.success, fontSize: 14, margin: "0 0 8px" }}>{expNotice}</p>
+              ) : null}
+              <div className="sf-row-wrap">
+                <input
+                  className="sf-input"
+                  style={{ flex: 2, minWidth: 200 }}
+                  value={expReason}
+                  onChange={(e) => setExpReason(e.target.value)}
+                  placeholder="Reason — e.g. founder support case SUP-2201"
+                  aria-label="Export reason"
+                  maxLength={500}
+                />
+                <button
+                  type="button"
+                  onClick={() => void exportSchool()}
+                  disabled={exporting || expReason.trim().length < 8}
+                  style={primaryBtn}
+                >
+                  {exporting ? "Exporting…" : "Export ZIP"}
+                </button>
+              </div>
             </section>
           </div>
         )}

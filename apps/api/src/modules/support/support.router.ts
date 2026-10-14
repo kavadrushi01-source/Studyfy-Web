@@ -7,6 +7,7 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { ticketCreateLimiter } from "../../middleware/security.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { documentStorage, StorageUnconfiguredError, ticketFolder } from "../../lib/storage.js";
+import { assertDemoUploadAllowed } from "../../lib/upload-caps.js";
 import { AuthError } from "../auth/auth.service.js";
 import { createTicketSchema, listTicketsSchema, schoolMessageSchema } from "./support.schemas.js";
 import {
@@ -239,6 +240,8 @@ supportRouter.post(
     }
     try {
       validateAttachmentFile(file);
+      // Demo quota guard (§13.11): before bytes reach storage.
+      await assertDemoUploadAllowed(req.prisma, req.schoolId ?? "", file.size);
       const message = textField((req.body as Record<string, unknown>).message);
       if (message.length > 4000) {
         sendSupportError(res, new AuthError(400, "VALIDATION_ERROR", "Message must be 4000 characters or fewer."));

@@ -1,0 +1,19 @@
+name: demo-reset
+
+# Nightly demo reset (§13.11): wipe-and-reseed the two portfolio demo
+# schools ONLY. The job itself double-guards (slug allowlist + isDemo) and
+# refuses otherwise — this schedule is just the trigger. Runs off-peak for
+# every timezone the demo serves; manual trigger for verifying the wiring.
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  demo-reset:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl --fail --show-error -X POST \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.API_URL }}/api/v1/internal/jobs/demo-reset"

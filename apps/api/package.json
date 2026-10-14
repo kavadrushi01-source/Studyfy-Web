@@ -6,10 +6,10 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "npm run build --workspace=@studyfy/shared-types && tsc -p tsconfig.json",
+    "build": "npm run build --workspace=@studyfy/shared-types && npm run build --workspace=@studyfy/demo-seed && tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "typecheck": "npm run build --workspace=@studyfy/shared-types && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.tests.json",
-    "pretest": "npm run build --workspace=@studyfy/shared-types",
+    "typecheck": "npm run build --workspace=@studyfy/shared-types && npm run build --workspace=@studyfy/demo-seed && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.tests.json",
+    "pretest": "npm run build --workspace=@studyfy/shared-types && npm run build --workspace=@studyfy/demo-seed",
     "test": "vitest run",
     "lint": "eslint src --max-warnings=0",
     "db:seed": "tsx ../../prisma/seed.ts",
@@ -18,6 +18,8 @@
   "dependencies": {
     "@prisma/client": "^6.12.0",
     "@studyfy/shared-types": "0.1.0",
+    "@studyfy/demo-seed": "0.1.0",
+    "archiver": "8.0.0",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
@@ -35,6 +37,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/archiver": "8.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
@@ -45,6 +48,7 @@
     "@types/nodemailer": "^8.0.2",
     "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^6.0.2",
+    "jszip": "3.10.2",
     "socket.io-client": "^4.8.3",
     "supertest": "^7.0.0",
     "tsx": "^4.19.1",

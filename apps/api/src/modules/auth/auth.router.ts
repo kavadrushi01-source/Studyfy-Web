@@ -40,7 +40,14 @@ authRouter.get(
   catchAsync(async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { id: req.user?.userId ?? "" },
-      select: { id: true, name: true, email: true, schoolId: true, role: { select: { name: true } } },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        schoolId: true,
+        role: { select: { name: true } },
+        school: { select: { isDemo: true } },
+      },
     });
     if (!user) {
       res.status(401).json({
@@ -55,6 +62,9 @@ authRouter.get(
       success: true,
       data: {
         user: { id: user.id, name: user.name, email: user.email, schoolId: user.schoolId, role: user.role.name },
+        // Demo banner (§13.11): the UI shows "data resets nightly" for
+        // demo-school sessions. Owners (no school) are never demo.
+        schoolIsDemo: user.school?.isDemo ?? false,
         identity: await identityExtras(user.id, user.role.name),
       },
       error: null,

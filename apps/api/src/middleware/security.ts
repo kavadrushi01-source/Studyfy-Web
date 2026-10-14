@@ -137,6 +137,38 @@ function enquiryLimit(): number {
   return 5;
 }
 
+// Data export (§13.10): one per HOUR per SCHOOL — the export is the
+// highest-blast-radius read in the product, so the budget is shared by the
+// whole school (keyed on the URL schoolId, which both export routes carry),
+// not per account. EXPORT_RATE_LIMIT_MAX is the LOCAL-ONLY override (same
+// convention as the knobs above).
+function exportLimit(): number {
+  const raw = Number(process.env.EXPORT_RATE_LIMIT_MAX);
+  if (Number.isInteger(raw) && raw > 0) {
+    return raw;
+  }
+  return 1;
+}
+export const exportLimiter = () =>
+  maybeLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: exportLimit(),
+    standardHeaders: false,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const params = (req as { params?: unknown } as { params?: { schoolId?: unknown } }).params;
+      const schoolId = params?.schoolId;
+      // Owner route uses :id instead of :schoolId — same school either way.
+      const id = (params as { id?: unknown } | undefined)?.id;
+      const key = typeof schoolId === "string" && schoolId ? schoolId : typeof id === "string" && id ? id : "no-school";
+      return `export:${key}`;
+    },
+    handler: (_req, res) => {
+      const body = limited("An export was already generated for this school within the hour. Try again later.");
+      res.status(body.statusCode).type("application/json").send(body.message);
+    },
+  });
+
 // Ticket creation (§7 #27): 20 / hour / ACCOUNT, keyed on the user id
 // (authenticated route — the founder's proxy decision rules out IP buckets
 // here exactly as for login). Tickets are rare and human; 20 absorbs any
