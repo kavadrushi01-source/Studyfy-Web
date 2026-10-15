@@ -1,6 +1,6 @@
 import cors from "cors";
 import type { Express } from "express";
-import { rateLimit } from "express-rate-limit";
+import { MemoryStore, rateLimit } from "express-rate-limit";
 import helmet from "helmet";
 
 // helmet: standard secure headers (spec §13.5). Defaults are API-safe.
@@ -112,10 +112,17 @@ function registerLimit(): number {
 }
 
 // 10 schools / hour / IP: registrations are rare and human.
+// Register/forgot/reset share ONE bucket (10/hour/IP): the three routes
+// mount separate registerLimiter() calls, so without a shared store each
+// would get its own 10/hour budget (30/hour total — the documented
+// property would be false and a test asserting it would fail). One
+// module-level MemoryStore makes the factory shape harmless.
+const registerBucket = new MemoryStore();
 export const registerLimiter = () =>
   maybeLimit({
     windowMs: 60 * 60 * 1000,
     limit: registerLimit(),
+    store: registerBucket,
     standardHeaders: true,
     legacyHeaders: false,
     handler: (_req, res) => {
@@ -149,10 +156,15 @@ function exportLimit(): number {
   }
   return 1;
 }
+// Same shared-bucket shape as register: the tenant + owner export routes
+// mount separate exportLimiter() calls, but the budget is one per hour
+// per SCHOOL (§13.10), so they share one store keyed on the school id.
+const exportBucket = new MemoryStore();
 export const exportLimiter = () =>
   maybeLimit({
     windowMs: 60 * 60 * 1000,
     limit: exportLimit(),
+    store: exportBucket,
     standardHeaders: false,
     legacyHeaders: false,
     keyGenerator: (req) => {

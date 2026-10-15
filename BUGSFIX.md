@@ -617,6 +617,24 @@ npm audit --audit-level=high
     catches layout bugs the suite cannot (same lesson as the sidebar
     stretch, #25fb8fe).
 
+61. **Rate-limiter factories minted a separate budget per route (2026-10-15,
+    caught by a new test — the serious kind).** `registerLimiter()` is a
+    factory, and register/forgot-password/reset each mount their own call —
+    since every `rateLimit()` instance owns a private in-memory store, the
+    three routes each had a SEPARATE 10/hour budget (30/hour combined) while
+    the comment and the security model promised ONE shared bucket. The new
+    `rate-limits.test.ts` proved it: 10 registers consumed, yet
+    forgot-password still returned 200. Same shape on `exportLimiter()`:
+    tenant + owner routes would have granted 1/hour EACH instead of the
+    spec'd one per hour per school. Fix: one module-level shared
+    `MemoryStore` per budget, passed as `store:` so the factory shape stays
+    harmless (`security.ts`: `registerBucket`, `exportBucket`). The test
+    failed before the fix and passes after — it is the regression test.
+    Standing rule earned: a factory that constructs stateful middleware is
+    a fresh-isolation footgun — shared budgets need a shared store, stated
+    in code, pinned by a test that spends one route's budget and asserts on
+    another's.
+
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.
 - Check API logs and the network response before changing UI selectors.
