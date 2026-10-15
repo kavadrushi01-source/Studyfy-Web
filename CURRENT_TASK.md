@@ -115,7 +115,7 @@
 - [x] Prod migrate for `20261011120001_chunk3_users_keys` — DONE 2026-10-12 (deploy exit 0, 34/34 in-sync, live probes green).
 - [x] Chunk 4 (support/tickets + icons + designs pack) — DONE 2026-10-13, pushed, gates green (see top bullet).
 - [ ] Prod: run `migrate deploy` for the 2 Chunk-4 migrations (tables + keys) with a future build (founder — same node-direct recipe; new tables, pre-migration prod 404s ticket routes only, nothing else affected).
-- [ ] Phase 4 remaining rows (each = a chunk when founder says go): Impersonation (§13.9 read-only + reason + audit), Data export/backup (tenant-isolation + secrets-excluded tests), Public demo hygiene remainder (nightly reset job + read-only owner demo + upload caps).
+- [x] Phase 4 remaining rows — all DONE 2026-10-14: Impersonation (§13.9, approved), Data export/backup (tests green), Public demo hygiene remainder (reset job, read-only demo, caps, banner). Was the chunk queue; now history.
 - [x] Chunk 3 gates: FULL API 84/84 + 367/367, FULL e2e 84/84 (1 retry-flake), owner e2e 4/4, STATUS.md row updated — DONE 2026-10-12.
 - CLOSED 2026-10-10 (Chunk 1 items — kept one session then fold): password docs sweep, baseline, audit logs, demo safety, scheduled jobs, Chunk 1 gates. Full record in STATUS.md Phase 4 rows.
 
@@ -125,7 +125,7 @@
 - Chunk 1 step 3 DONE 2026-10-07: `POST /schools/:schoolId/exams/:examId/remarks/generate` — exams.manage + class-teacher-or-admin (via pupil's own section); gathers marks + exam-window attendance (same rule as reportCard, never recomputed); de-identified prompt (name never SELECTED; "this student" + subject scores + optional attendance line; wrapper scrub second layer); saves AI + reviewed=false; Groq missing → 503 AI_UNCONFIGURED, provider failure → 502. Tests `exam-remarks-generate.test.ts` 5/5 (201 + row shape + prompt PII asserts, admin + attendance-window prompt, pupil/parent/other-teacher/stranger-school refusals, 404/400 paths, fail-closed 503 with zero rows). Gates: tsc×2 + eslint 0.
 
 ## Exact next action
-- Chunk 4 fully closed (pushed, gates green — see top bullet). Founder items: (1) prod `migrate deploy` for the 2 Chunk-4 migrations whenever the next build goes out (tables are new; until then prod 404s ticket routes, everything else unaffected); (2) next Phase 4 chunk whenever the founder says go — Impersonation (§13.9) is the next NOT STARTED row, then Data export/backup, then Public demo hygiene remainder. Deferred rotation close-out (Aiven DB pw, demo pw, Cloudinary, Brevo) happens once, last, after the full build.
+- Nothing buildable remains. Founder items only: (1) confirm Aiven free-plan backup contents + restore steps in dashboard; (2) ROTATE EVERYTHING last (Aiven DB pw, demo pw, Cloudinary, Brevo — regenerate, Render env, redeploy, verify logins); (3) confirm CI green in GitHub UI (gh keyring broken on this box). Deferred rotation close-out stands.
 
 ## History (previous handoff detail — kept for context, not active work)
   - `d066f8d` — premium UI redesign every route (spec 8.2–8.5) + e2e hardening.
