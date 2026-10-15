@@ -221,6 +221,10 @@ test.describe("support tickets", () => {
 
     // Priority filter: HIGH hides the LOW thread (and older runs' LOWs).
     await page.getByLabel(/filter priority/i).selectOption("HIGH");
+    // Geometry guard (BUGSFIX-60): the select must show its label, not a
+    // bare chevron — flex-basis:0 collapsed it once, screenshots caught it.
+    const filterBox = await page.getByLabel(/filter priority/i).boundingBox();
+    expect(filterBox?.width).toBeGreaterThan(80);
     await expect(page.getByRole("button", { name: esc(highSubject) })).toBeVisible({ timeout: 20000 });
     await expect(page.getByRole("button", { name: esc(lowSubject) })).toHaveCount(0);
     await page.getByLabel(/filter priority/i).selectOption("");

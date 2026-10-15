@@ -249,7 +249,7 @@ export default function SupportPage() {
           />
           <select
             className="sf-input"
-            style={{ flex: 0 }}
+            style={{ flex: "0 0 auto", width: "auto" }}
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
             aria-label="Ticket priority"

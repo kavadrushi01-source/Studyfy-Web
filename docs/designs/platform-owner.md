@@ -6,7 +6,7 @@
   (`/owner/schools`) · Subscriptions & Billing (`/owner/billing`) ·
   Platform Analytics (Soon) · Users Management (`/owner/users`) · Support &
   Impersonation (`/owner/support`; impersonation UI arrives with §13.9) ·
-  Audit Logs (`/owner/audit-logs`) · Settings (Soon).
+  Audit Logs (`/owner/audit-logs`) · Settings (`/owner/settings`, live: env/test-mode/plan matrix/tax/demo pills + read-only demo mint).
 - **Dashboard (`/dashboard/owner`):** greeting header; 4 KPI cards (Total
   Schools, Active Schools, Trial/Pending, Total Revenue with MANUAL/TEST
   split); searchable schools table (newest-first); signups-per-month chart;

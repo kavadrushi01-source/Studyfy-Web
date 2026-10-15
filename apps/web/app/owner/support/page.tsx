@@ -286,7 +286,7 @@ export default function OwnerSupportPage() {
         ))}
         <select
           className="sf-input"
-          style={{ flex: 0 }}
+          style={{ flex: "0 0 auto", width: "auto" }}
           value={priorityFilter}
           onChange={(e) => {
             setPriorityFilter(e.target.value);
@@ -413,7 +413,7 @@ export default function OwnerSupportPage() {
                 />
                 <select
                   className="sf-input"
-                  style={{ flex: 0 }}
+                  style={{ flex: "0 0 auto", width: "auto" }}
                   value={nextStatus}
                   onChange={(e) => setNextStatus(e.target.value)}
                   aria-label="Move status"
@@ -426,7 +426,7 @@ export default function OwnerSupportPage() {
                 </select>
                 <select
                   className="sf-input"
-                  style={{ flex: 0 }}
+                  style={{ flex: "0 0 auto", width: "auto" }}
                   value={nextPriority}
                   onChange={(e) => setNextPriority(e.target.value)}
                   aria-label="Move priority"

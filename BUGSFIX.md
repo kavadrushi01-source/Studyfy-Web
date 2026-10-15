@@ -602,6 +602,21 @@ npm audit --audit-level=high
     the whole plan gate open; fixed with mount-agnostic regexes + a
     path-shape regression test).
 
+60. **Support-console selects collapsed to chevron-only (2026-10-14,
+    caught by screenshot review, not by tests).** The four priority/status
+    `<select>`s on `/support` + `/owner/support` carried inline
+    `style={{ flex: 0 }}` (`flex: 0 1 0%`) against the `.sf-input` class
+    (`display: block; width: 100%`): flex-basis 0% won and every select
+    rendered ~30px wide showing only its chevron — "All priorities" etc.
+    invisible. E2e visibility asserts could not see it (options exist in
+    the DOM either way). Fix: `flex: "0 0 auto"` alone swung too far the
+    other way (full-row width, proven by second screenshot), so the final
+    shape is `flex: "0 0 auto"` + `width: "auto"` — compact, content-sized.
+    Regression: owner-console e2e pins the filter's bounding box width >
+    80px. Standing rule earned: visibility ≠ paint — screenshot review
+    catches layout bugs the suite cannot (same lesson as the sidebar
+    stretch, #25fb8fe).
+
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.
 - Check API logs and the network response before changing UI selectors.
