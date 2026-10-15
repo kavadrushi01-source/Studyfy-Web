@@ -9,9 +9,9 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IDLE — Phase 4 COMPLETE (every module row walked against the Definition of Done 2026-10-14, all four boxes true on every row; only founder-side close-out remains)
-**Phase / Module:** Phase 4 — COMPLETE (tagged phase-4-complete, about to push)
-**Last updated:** 2026-10-13
+**Status:** IDLE — Layer 1 testing IN PROGRESS (local only, no live touch, no keys; Phase 4 COMPLETE stands, tagged)
+**Phase / Module:** Layer 1 of 2 — full local verification (IN PROGRESS, Stage 0)
+**Last updated:** 2026-10-15
 
 ## Standing security decision (founder-ordered 2026-10-11, do not nag)
 - ALL credential rotations (chat-exposed DB password, demo password, any future paste) happen ONCE, LAST, after the full build completes — not per chunk. The founder explicitly accepted the interim risk (demo-only data at stake; no real pupils). Rotation list lives here until then: (1) Aiven DB password (exposed twice in chat screenshots), (2) live demo password if ever pasted, (3) Cloudinary key + Brevo SMTP key (older exposures, still open). Single "ROTATE EVERYTHING" close-out runs after Chunk 5: regenerate each, update Render env, redeploy, verify, re-verify logins.
@@ -225,4 +225,3 @@
    `RULES.md` §6.1) — `STATUS.md` tracks *finished* features at the phase
    level; this file tracks the *one task in progress* at the step level.
    Don't let detail pile up in both places.
-
