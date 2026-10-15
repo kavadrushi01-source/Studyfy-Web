@@ -318,106 +318,118 @@ export interface RecordPaymentResult {
 // Prisma.Decimal — never floats (§13.6). Paid-in-full flips PENDING (or
 // PARTIAL) to PAID; anything short stays PARTIAL. Overpayment is rejected:
 // the counter cannot collect more than owed.
+// Lost-update guard for invoice balances: recording is read-modify-write,
+// so concurrent recorders compare-and-swap instead of blindly overwriting
+// (see BUGSFIX-62). A lost update rolls the whole attempt back — the hidden
+// payment row included — and retries with a fresh read, which also
+// re-checks the overpayment ceiling against the moved balance. Three tries,
+// then an honest 409; money is never silently lost.
+class ConcurrentPaymentError extends Error {}
+
 export async function recordPayment(
   db: PrismaClient,
   invoiceId: string,
   receivedById: string,
   input: RecordPaymentInput,
 ): Promise<RecordPaymentResult> {
-  const invoice = await db.feeInvoice.findFirst({ where: { id: invoiceId } });
-  if (!invoice) {
-    throw new AuthError(404, "INVOICE_NOT_FOUND", "Invoice not found in this school.");
-  }
-  if (invoice.status === "PAID" || invoice.status === "REFUNDED") {
-    throw new AuthError(409, "INVOICE_SETTLED", `Invoice is already ${invoice.status.toLowerCase()}.`);
-  }
-  const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
-  const paying = new Prisma.Decimal(input.amount);
-  if (paying.greaterThan(outstanding)) {
-    throw new AuthError(
-      400,
-      "OVERPAYMENT",
-      `Amount exceeds the outstanding balance of ${outstanding.toFixed(2)}.`,
-    );
-  }
-  const newPaid = new Prisma.Decimal(invoice.amountPaid).plus(paying);
-  const settled = newPaid.greaterThanOrEqualTo(new Prisma.Decimal(invoice.amount));
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const invoice = await db.feeInvoice.findFirst({ where: { id: invoiceId } });
+    if (!invoice) {
+      throw new AuthError(404, "INVOICE_NOT_FOUND", "Invoice not found in this school.");
+    }
+    if (invoice.status === "PAID" || invoice.status === "REFUNDED") {
+      throw new AuthError(409, "INVOICE_SETTLED", `Invoice is already ${invoice.status.toLowerCase()}.`);
+    }
+    const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
+    const paying = new Prisma.Decimal(input.amount);
+    if (paying.greaterThan(outstanding)) {
+      throw new AuthError(
+        400,
+        "OVERPAYMENT",
+        `Amount exceeds the outstanding balance of ${outstanding.toFixed(2)}.`,
+      );
+    }
+    const newPaid = new Prisma.Decimal(invoice.amountPaid).plus(paying);
+    const settled = newPaid.greaterThanOrEqualTo(new Prisma.Decimal(invoice.amount));
 
-  const [payment, updated] = await db.$transaction(async (tx) => {
-    const created = await tx.feePayment.create({
-      data: {
-        schoolId: invoice.schoolId,
-        invoiceId: invoice.id,
-        amount: paying,
-        method: input.method,
-        receivedById,
-      },
-    });
-    const updatedInvoice = await tx.feeInvoice.update({
-      where: { id: invoice.id },
-      data: { amountPaid: newPaid, status: settled ? "PAID" : "PARTIAL" },
-    });
-    // Audit (§13.10 PAYMENT_RECORDED, manual counter money): BOTH rows join
-    // the money movement in one transaction — the payment row (real id, now
-    // knowable) and the invoice's before/after balances. The actor is
-    // receivedById: the router passes req.user.userId, i.e. the staffer at
-    // the counter, never a client-supplied id.
-    const txClient = tx as unknown as PrismaClient;
-    await recordAudit(txClient, {
-      schoolId: invoice.schoolId,
-      actorId: receivedById,
-      action: "PAYMENT_RECORDED",
-      entity: "FeePayment",
-      entityId: created.id,
-      after: {
-        id: created.id,
-        invoiceId: invoice.id,
-        amount: paying.toFixed(2),
-        method: input.method,
-        status: "CAPTURED",
-      },
-    });
-    await recordAudit(txClient, {
-      schoolId: invoice.schoolId,
-      actorId: receivedById,
-      action: "PAYMENT_RECORDED",
-      entity: "FeeInvoice",
-      entityId: invoice.id,
-      before: {
-        id: invoice.id,
-        studentId: invoice.studentId,
-        status: invoice.status,
-        amount: new Prisma.Decimal(invoice.amount).toFixed(2),
-        amountPaid: new Prisma.Decimal(invoice.amountPaid).toFixed(2),
-      },
-      after: {
-        id: invoice.id,
-        studentId: invoice.studentId,
-        status: settled ? "PAID" : "PARTIAL",
-        amount: new Prisma.Decimal(invoice.amount).toFixed(2),
-        amountPaid: newPaid.toFixed(2),
-      },
-    });
-    return [created, updatedInvoice] as const;
-  });
-  // Money moved → this month's cached collection for this school is stale
-  // (§12.3 invalidate on write). Payments also appear in the activities
-  // feed, so that goes too (teacher boards surface recent payments only
-  // indirectly — no tboard clear needed here).
-  invalidateFeeKpis(invoice.schoolId);
-  invalidateActivityFeed(invoice.schoolId);
-  invalidateAccountantBoards(invoice.schoolId);
-  invalidateAnalytics(invoice.schoolId);
-  invalidateStudentBoards(invoice.schoolId);
-  return {
-    invoice: {
-      id: updated.id,
-      amount: updated.amount.toString(),
-      amountPaid: updated.amountPaid.toString(),
-      status: updated.status,
-    },
-    payment: { id: payment.id, amount: payment.amount.toString(), method: payment.method },
-  };
+    try {
+      const created = await db.$transaction(async (tx) => {
+        const payment = await tx.feePayment.create({
+          data: {
+            schoolId: invoice.schoolId,
+            invoiceId: invoice.id,
+            amount: paying,
+            method: input.method,
+            receivedById,
+          },
+        });
+        const bumped = await tx.feeInvoice.updateMany({
+          where: { id: invoice.id, amountPaid: invoice.amountPaid },
+          data: { amountPaid: newPaid, status: settled ? "PAID" : "PARTIAL" },
+        });
+        if (bumped.count === 0) {
+          throw new ConcurrentPaymentError();
+        }
+        const txClient = tx as unknown as PrismaClient;
+        await recordAudit(txClient, {
+          schoolId: invoice.schoolId,
+          actorId: receivedById,
+          action: "PAYMENT_RECORDED",
+          entity: "FeePayment",
+          entityId: payment.id,
+          after: {
+            id: payment.id,
+            invoiceId: invoice.id,
+            amount: paying.toFixed(2),
+            method: input.method,
+            status: "CAPTURED",
+          },
+        });
+        await recordAudit(txClient, {
+          schoolId: invoice.schoolId,
+          actorId: receivedById,
+          action: "PAYMENT_RECORDED",
+          entity: "FeeInvoice",
+          entityId: invoice.id,
+          before: {
+            id: invoice.id,
+            studentId: invoice.studentId,
+            status: invoice.status,
+            amount: new Prisma.Decimal(invoice.amount).toFixed(2),
+            amountPaid: new Prisma.Decimal(invoice.amountPaid).toFixed(2),
+          },
+          after: {
+            id: invoice.id,
+            studentId: invoice.studentId,
+            status: settled ? "PAID" : "PARTIAL",
+            amount: new Prisma.Decimal(invoice.amount).toFixed(2),
+            amountPaid: newPaid.toFixed(2),
+          },
+        });
+        return payment;
+      });
+      invalidateFeeKpis(invoice.schoolId);
+      invalidateActivityFeed(invoice.schoolId);
+      invalidateAccountantBoards(invoice.schoolId);
+      invalidateAnalytics(invoice.schoolId);
+      invalidateStudentBoards(invoice.schoolId);
+      return {
+        invoice: {
+          id: invoice.id,
+          amount: new Prisma.Decimal(invoice.amount).toString(),
+          amountPaid: newPaid.toFixed(2),
+          status: settled ? "PAID" : "PARTIAL",
+        },
+        payment: { id: created.id, amount: paying.toFixed(2), method: created.method },
+      };
+    } catch (err) {
+      if (err instanceof ConcurrentPaymentError) {
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new AuthError(409, "INVOICE_CONCURRENT_UPDATE", "The invoice changed while recording; please retry.");
 }
 
 export interface RunRemindersResult {
@@ -697,63 +709,62 @@ export async function recordOnlineCapture(
   const newPaid = new Prisma.Decimal(invoice.amountPaid).plus(amount);
   const settled = newPaid.greaterThanOrEqualTo(new Prisma.Decimal(invoice.amount));
   try {
-    const [payment, updated] = await db.$transaction(async (tx) => {
-      const captured = await tx.feePayment.update({
-        where: { id: pending.id },
-        data: { razorpayPaymentId: input.razorpayPaymentId, amount, status: "CAPTURED" },
+      const captured = await db.$transaction(async (tx) => {
+        const payment = await tx.feePayment.update({
+          where: { id: pending.id },
+          data: { razorpayPaymentId: input.razorpayPaymentId, amount, status: "CAPTURED" },
+        });
+        const bumped = await tx.feeInvoice.updateMany({
+          where: { id: invoice.id, amountPaid: invoice.amountPaid },
+          data: { amountPaid: newPaid, status: settled ? "PAID" : "PARTIAL" },
+        });
+        if (bumped.count === 0) {
+          throw new ConcurrentPaymentError();
+        }
+        const txClient = tx as unknown as PrismaClient;
+        await recordAudit(txClient, {
+          schoolId: invoice.schoolId,
+          actorId,
+          action: "PAYMENT_CAPTURED",
+          entity: "FeePayment",
+          entityId: payment.id,
+          after: {
+            id: payment.id,
+            invoiceId: invoice.id,
+            amount: amount.toFixed(2),
+            method: payment.method,
+            status: "CAPTURED",
+          },
+        });
+        await recordAudit(txClient, {
+          schoolId: invoice.schoolId,
+          actorId,
+          action: "PAYMENT_CAPTURED",
+          entity: "FeeInvoice",
+          entityId: invoice.id,
+          before: {
+            id: invoice.id,
+            studentId: invoice.studentId,
+            status: invoice.status,
+            amount: new Prisma.Decimal(invoice.amount).toFixed(2),
+            amountPaid: new Prisma.Decimal(invoice.amountPaid).toFixed(2),
+          },
+          after: {
+            id: invoice.id,
+            studentId: invoice.studentId,
+            status: settled ? "PAID" : "PARTIAL",
+            amount: new Prisma.Decimal(invoice.amount).toFixed(2),
+            amountPaid: newPaid.toFixed(2),
+          },
+        });
+        return payment;
       });
-      const settledInvoice = await tx.feeInvoice.update({
-        where: { id: invoice.id },
-        data: { amountPaid: newPaid, status: settled ? "PAID" : "PARTIAL" },
-      });
-      // Audit (§13.10 PAYMENT_CAPTURED, online money): same transaction as
-      // the money movement. Idempotent callers (redelivered webhooks) return
-      // before this point, so a repeated delivery never writes a second
-      // log row for the same capture.
-      const txClient = tx as unknown as PrismaClient;
-      await recordAudit(txClient, {
-        schoolId: invoice.schoolId,
-        actorId,
-        action: "PAYMENT_CAPTURED",
-        entity: "FeePayment",
-        entityId: captured.id,
-        after: {
-          id: captured.id,
-          invoiceId: invoice.id,
-          amount: amount.toFixed(2),
-          method: captured.method,
-          status: "CAPTURED",
-        },
-      });
-      await recordAudit(txClient, {
-        schoolId: invoice.schoolId,
-        actorId,
-        action: "PAYMENT_CAPTURED",
-        entity: "FeeInvoice",
-        entityId: invoice.id,
-        before: {
-          id: invoice.id,
-          studentId: invoice.studentId,
-          status: invoice.status,
-          amount: new Prisma.Decimal(invoice.amount).toFixed(2),
-          amountPaid: new Prisma.Decimal(invoice.amountPaid).toFixed(2),
-        },
-        after: {
-          id: invoice.id,
-          studentId: invoice.studentId,
-          status: settled ? "PAID" : "PARTIAL",
-          amount: new Prisma.Decimal(invoice.amount).toFixed(2),
-          amountPaid: newPaid.toFixed(2),
-        },
-      });
-      return [captured, settledInvoice] as const;
-    });
-    invalidateFeeKpis(invoice.schoolId);
-    invalidateActivityFeed(invoice.schoolId);
-    invalidateAccountantBoards(invoice.schoolId);
-    invalidateAnalytics(invoice.schoolId);
-    invalidateStudentBoards(invoice.schoolId);
-    return { paymentId: payment.id, invoiceId: updated.id, status: payment.status, alreadyProcessed: false };
+      invalidateFeeKpis(invoice.schoolId);
+      invalidateActivityFeed(invoice.schoolId);
+      invalidateAccountantBoards(invoice.schoolId);
+      invalidateAnalytics(invoice.schoolId);
+      invalidateStudentBoards(invoice.schoolId);
+      return { paymentId: captured.id, invoiceId: invoice.id, status: captured.status, alreadyProcessed: false };
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       const raced = await db.feePayment.findUnique({ where: { razorpayPaymentId: input.razorpayPaymentId } });

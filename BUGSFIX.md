@@ -635,6 +635,7 @@ npm audit --audit-level=high
     in code, pinned by a test that spends one route's budget and asserts on
     another's.
 
+62. **Concurrent payment recorders could lose an update on invoice balances (2026-10-15)** - `recordPayment` (counter) and `recordOnlineCapture` did read-modify-write on `FeeInvoice.amountPaid` through `update` keyed only on `id`, so two simultaneous recorders could overwrite each other's increments and silently vanish a payment from the running balance. Fix: compare-and-swap using `updateMany` keyed on `amountPaid = snapshot`; a miss rolls back the whole transaction (hidden `FeePayment` row included) and retries with a fresh read (re-checking the overpayment ceiling as well), up to 3 attempts, then an honest 409 `INVOICE_CONCURRENT_UPDATE`. Same shape on the online/webhook capture path. Existing fees/payments tests (19/19) green.
 ## Debugging Rules
 - Reproduce the failure with the narrowest test or endpoint first.
 - Check API logs and the network response before changing UI selectors.
