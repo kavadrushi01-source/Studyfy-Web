@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { generateKeyPairSync, randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import { afterAll, describe, expect, it } from "vitest";
 import request from "supertest";
@@ -55,7 +55,7 @@ async function registerSchool(
 }
 
 describe("JWT attacks (§13.3)", () => {
-  it("rejects forged, expiry-tampered and algorithm-swapped tokens; honors a valid one", async () => {
+  it("rejects forged, expiry-tampered, algorithm-swapped, and refresh tokens; honors a valid one", async () => {
     const school = await registerSchool(`Secin JWT School ${uid()}`);
     const auth = { Authorization: `Bearer ${school.adminToken}` };
     const secret = process.env.JWT_ACCESS_SECRET ?? "";
@@ -93,6 +93,34 @@ describe("JWT attacks (§13.3)", () => {
     await request(app)
       .get(`/api/v1/schools/${school.schoolId}/notices`)
       .set({ Authorization: `Bearer ${noneToken}` })
+      .expect(401);
+
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const rsaToken = jwt.sign(
+      { sub: school.adminId, schoolId: school.schoolId, role: "SCHOOL_ADMIN", type: "access" },
+      privateKey,
+      { algorithm: "RS256", expiresIn: "15m" },
+    );
+    await request(app)
+      .get(`/api/v1/schools/${school.schoolId}/notices`)
+      .set({ Authorization: `Bearer ${rsaToken}` })
+      .expect(401);
+
+    const login = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: school.adminEmail, password: "password-123", schoolSlug: school.slug })
+      .expect(200);
+    const cookies = login.headers["set-cookie"] as unknown as string | string[] | undefined;
+    const cookieList = Array.isArray(cookies) ? cookies : cookies ? [cookies] : [];
+    const refreshCookie = cookieList.find((cookie) => cookie.startsWith("studyfy_refresh=")) ?? "";
+    const refreshToken = refreshCookie.split(";")[0]?.split("=")[1] ?? "";
+    expect(refreshToken.length).toBeGreaterThan(0);
+    expect(refreshCookie).toContain("HttpOnly");
+    expect(refreshCookie).toContain("Path=/api/v1/auth");
+    expect(refreshCookie).toContain("SameSite=Lax");
+    await request(app)
+      .get(`/api/v1/schools/${school.schoolId}/notices`)
+      .set({ Authorization: `Bearer ${refreshToken}` })
       .expect(401);
   });
 });

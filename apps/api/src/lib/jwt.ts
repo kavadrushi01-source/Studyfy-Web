@@ -26,6 +26,7 @@ function accessSecret(): string {
 // NULL schoolId belongs only to the Platform Owner (spec §5).
 export function signAccessToken(payload: AccessTokenPayload, expiresIn: "15m" | "30m" = "15m"): string {
   return jwt.sign({ ...payload, type: "access" }, accessSecret(), {
+    algorithm: "HS256",
     expiresIn,
   });
 }
@@ -47,6 +48,6 @@ export function signImpersonationToken(input: ImpersonationTokenInput): string {
   return jwt.sign(
     { sub: input.sub, schoolId: input.schoolId, role: input.role, impersonatedBy: input.impersonatedBy, type: "access" },
     accessSecret(),
-    { expiresIn: "30m", jwtid: input.sessionId },
+    { algorithm: "HS256", expiresIn: "30m", jwtid: input.sessionId },
   );
 }

@@ -31,30 +31,41 @@ keys. Every number below is from a real command run, not memory.
 - FULL e2e run 2: 97/97 passed, zero flakes, ~3min.
 - STAGE 0 VERDICT: clean baseline, no flakes across 4 full runs.
 
-## Stage 2 — Security at API level (2026-10-15, in progress)
+## Stage 2 — Security at API level (2026-10-15, complete)
 
 - Route audit + TENANT_MODELS drift: permanent `route-auth-audit.test.ts`
   (154 routes classified: tenant 118, platform 25, device 1, cron 1,
   bare-auth 1, public 8 — every one in exactly one auth path; no drift).
+  Re-ran 2/2.
 - FINDING #61 (S2, fixed at root): rate-limiter factories minted per-route
   budgets — register/forgot/reset had 3×10/hour instead of one shared
   bucket (proven by the new test: budget spent, forgot still 200), same
   shape on exportLimiter. Fix: shared module-level MemoryStores. Test
-  failed before, passes after. BUGSFIX-61 logged.
-- New: `security-input.test.ts` (6/6 green first run) — JWT forgery/expiry/
-  alg:none rejected; mass assignment ignored on register+admit; sort/
-  pagination injection → 400; CRLF/unicode/SQLi stored verbatim with no
-  header reflection; MIME spoof both directions 415; traversal filename
-  neutralized; live Razorpay keys refused (500), unset clean (503).
+  failed before, passes after. BUGSFIX-61 logged. The export test now also
+  proves tenant and owner exports share one per-school hourly budget.
+- JWT hardening: access and impersonation tokens explicitly sign HS256, and
+  verification explicitly accepts only HS256. Expanded JWT coverage rejects
+  wrong-secret forgeries, expired tokens, `alg:none`, RS256-signed tokens,
+  and opaque refresh tokens used as bearer tokens; refresh cookies are
+  asserted HttpOnly, path-scoped, and SameSite=Lax.
+- New: `security-input.test.ts` (6/6 green) — JWT forgery/expiry/alg:none/
+  RS256/refresh-token misuse rejected; mass assignment ignored on
+  register+admit; sort/pagination injection → 400; CRLF/unicode/SQLi stored
+  verbatim with no header reflection; MIME spoof both directions 415;
+  traversal filename neutralized; live Razorpay keys refused (500), unset
+  clean (503).
 - New: `rate-limits.test.ts` (shared bucket) + `enquiry-limiter.test.ts`
   (5+1) — production defaults proven, not just bypass behavior.
-- Verified by reading (suite-green, behavior unchanged): impersonation 19,
-  read-only 5, self-scope/parent/payroll colleague denials, biometric
-  cross-school, cron unset-503 + double-run, gating/suspended, webhook
-  idempotency, honeypot, sort-enum gating.
-- Secrets: repo+history scans clean (only fake `rzp_live_fake` canaries);
-  `.env` ignored, `.env.example` placeholders only; client bundle has zero
-  server-secret names.
+- Security regression sweep, all green: auth cluster 20/20, impersonation
+  19/19, read-only 5/5, realtime/message-realtime 5/5, fees-webhook 5/5,
+  fees-online 5/5, fees-verify 3/3, security-matrix 6/6, hardening 5/5,
+  tenant-isolation 2/2, register/enquiry/login/ticket/export limiter tests
+  green.
+- Secrets: repo+history scans clean (only intentionally invalid
+  `rzp_live_fake` / `rzp_live_accident` test canaries); `.env` ignored,
+  `.env.example` placeholders only; no private keys tracked.
+- STAGE 2 VERDICT: complete. No open security-matrix item remains at API
+  level.
 
 ## Stage 1 — Matrix + gaps (2026-10-15)
 

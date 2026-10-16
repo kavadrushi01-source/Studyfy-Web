@@ -43,7 +43,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     return;
   }
   try {
-    const payload = jwt.verify(header.slice("Bearer ".length), accessSecret()) as AccessJwt;
+    const payload = jwt.verify(header.slice("Bearer ".length), accessSecret(), { algorithms: ["HS256"] }) as AccessJwt;
     if (payload.type !== "access" || typeof payload.sub !== "string") {
       unauthorized(res);
       return;

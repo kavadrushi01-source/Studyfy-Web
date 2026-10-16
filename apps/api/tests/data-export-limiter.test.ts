@@ -1,6 +1,8 @@
+import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import request from "supertest";
+import { prisma } from "../src/lib/prisma.js";
 
 // Export limiter (§13.10): one per HOUR per SCHOOL by default. This file
 // exercises REAL limiter behavior, so it opts out of the NODE_ENV=test
@@ -57,14 +59,32 @@ async function newSchool(): Promise<{ schoolId: string; auth: { Authorization: s
   };
 }
 
+async function loginOwner(): Promise<{ Authorization: string }> {
+  const email = `export-limiter-owner-${uid()}@example.com`;
+  const role = await prisma.role.findUniqueOrThrow({ where: { name: "PLATFORM_OWNER" } });
+  await prisma.user.create({
+    data: { schoolId: null, roleId: role.id, email, passwordHash: await bcrypt.hash("owner-pass-123", 4), name: "Export Limiter Owner" },
+  });
+  const res = await request(app).post("/api/v1/auth/login").send({ email, password: "owner-pass-123" }).expect(200);
+  return { Authorization: `Bearer ${res.body.data.accessToken as string}` };
+}
+
 describe("POST /api/v1/schools/:id/exports limiter (§13.10)", () => {
-  it("allows one export per hour per school, then 429s; other schools stay open", async () => {
+  it("allows one export per hour per school across tenant and owner routes, then 429s; other schools stay open", async () => {
     const school = await newSchool();
     const url = `/api/v1/schools/${school.schoolId}/exports`;
 
     await request(app).post(url).set(school.auth).expect(200);
     const blocked = await request(app).post(url).set(school.auth).expect(429);
     expect(blocked.body.error.code).toBe("RATE_LIMITED");
+
+    const ownerAuth = await loginOwner();
+    const ownerBlocked = await request(app)
+      .post(`/api/v1/platform/schools/${school.schoolId}/exports`)
+      .set(ownerAuth)
+      .send({ reason: "Shared export budget verification for the same school." })
+      .expect(429);
+    expect(ownerBlocked.body.error.code).toBe("RATE_LIMITED");
 
     // Budget is per school: a different school exports freely.
     const other = await newSchool();
