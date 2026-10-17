@@ -86,4 +86,22 @@ describe("hardening (spec §13.5, RULES.md §4)", () => {
       .expect(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
   });
+
+  it("returns 400 for malformed JSON bodies, never 500 (BUGSFIX-82)", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .set("Content-Type", "application/json")
+      .send('{"email": "broken"');
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 413 for oversized JSON bodies, never 500 (BUGSFIX-82)", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .set("Content-Type", "application/json")
+      .send(JSON.stringify({ email: `${"x".repeat(120_000)}@example.com`, password: "password-123" }));
+    expect(res.status).toBe(413);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
 });

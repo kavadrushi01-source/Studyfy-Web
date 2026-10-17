@@ -122,3 +122,15 @@ prod `migrate deploy` stays a founder step): `20261016050321`
 uniqueness), `20261016113000` (teacher slot uniqueness). Migrations count
 local: 45; prod remains at 42.
 - STAGE 3 VERDICT: complete. 18/18 findings fixed and pinned.
+
+## Stage 4 — Resilience, performance and grace (2026-10-16, complete)
+
+Local probes against the running local API (studyfy_layer1) — nothing touched prod:
+
+- DB kill mid-session: sandbox mysqld (3307) stopped while the API served requests → authenticated reads returned 500 INTERNAL_ERROR envelopes in ~25ms (honest fast-fail, no hang, no crash), API process stayed alive, /health stayed 200 (liveness-only probe by design — spec §13.5). mysqld restarted per the documented recipe → API recovered on its own (pool reconnects), reads back to 200, no API restart needed. Zero rows lost or partially written.
+- API kill mid-write: 25 concurrent POST /api/v1/public/enquiries, API SIGKILLed ~100–200ms in → every in-flight client got ECONNRESET (client-visible failure; never silent success or fake 201). Afterwards the DB held zero rows for the probe marker and all pre-existing rows intact — no commit anomalies.
+- Graceful shutdown: external SIGTERM can't be delivered on Windows (Node maps process.kill to TerminateProcess), so the drain path was verified by injecting CTRL+C into the API's own console group: "Received SIGINT, shutting down gracefully..." logged, listener closed, process exited, port released; in-flight requests completed or failed fast — nothing hung.
+- Perf smoke (10 iterations each): GET /health avg ~15 ms (max ~117 ms), POST /auth/login avg ~278 ms (bcrypt cost), GET /schools/:id/students avg ~35 ms (max ~93 ms) — no pathological latency.
+- Fixes landed alongside: BUGSFIX-81 silenced express-rate-limit's advisory ERR_ERL_STORE_REUSE on the two deliberate shared buckets (validate: { unsharedStore: false }); prod-boot repro went from 3 error lines to 0. BUGSFIX-82 made malformed/oversized JSON bodies answer 400 VALIDATION_ERROR / 413 instead of 500 (hardening.test.ts 7/7, red-first).
+- Gates: typecheck 0/0, lint 0, npm audit 0, FULL API green except the known 3221226505 Windows worker-crash class (sections.test.ts solo-green).
+- STAGE 4 VERDICT: complete. Honest failures, no silent successes, recovery without intervention.

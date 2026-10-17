@@ -99,12 +99,36 @@ export function createApp(): Express {
 
   // Minimal JSON fallback until the centralized errorMiddleware lands
   // (hardening box, spec §13.2). Never leaks stack traces (RULES.md §4).
+  // Body-parser failures are CLIENT faults: malformed or oversized JSON
+  // must answer 4xx with the standard envelope, or callers/support chase a
+  // phantom server error for a request that can never succeed
+  // (BUGSFIX-82). These are not console.error material — they are normal
+  // hostile/broken-client traffic, not server faults.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    console.error(err);
     if (res.headersSent) {
       return;
     }
+    const type = (err as { type?: string } | null)?.type;
+    if (type === "entity.parse.failed") {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: "Invalid JSON body." },
+        meta: null,
+      });
+      return;
+    }
+    if (type === "entity.too.large") {
+      res.status(413).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: "Request body too large." },
+        meta: null,
+      });
+      return;
+    }
+    console.error(err);
     res.status(500).json({
       success: false,
       data: null,

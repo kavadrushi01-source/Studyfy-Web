@@ -117,12 +117,19 @@ function registerLimit(): number {
 // would get its own 10/hour budget (30/hour total — the documented
 // property would be false and a test asserting it would fail). One
 // module-level MemoryStore makes the factory shape harmless.
+// The deliberate sharing trips express-rate-limit's advisory
+// `unsharedStore` validation on every production boot (3 frames at
+// import, caught and logged by the library — never fatal, but noise that
+// looks like a real error in logs). BUGSFIX-81: silence exactly that
+// validation — every other check stays on — because here the store IS the
+// budget and sharing is the point.
 const registerBucket = new MemoryStore();
 export const registerLimiter = () =>
   maybeLimit({
     windowMs: 60 * 60 * 1000,
     limit: registerLimit(),
     store: registerBucket,
+    validate: { unsharedStore: false },
     standardHeaders: true,
     legacyHeaders: false,
     handler: (_req, res) => {
@@ -159,12 +166,14 @@ function exportLimit(): number {
 // Same shared-bucket shape as register: the tenant + owner export routes
 // mount separate exportLimiter() calls, but the budget is one per hour
 // per SCHOOL (§13.10), so they share one store keyed on the school id.
+// Same BUGSFIX-81 silencing: sharing here is the documented behavior.
 const exportBucket = new MemoryStore();
 export const exportLimiter = () =>
   maybeLimit({
     windowMs: 60 * 60 * 1000,
     limit: exportLimit(),
     store: exportBucket,
+    validate: { unsharedStore: false },
     standardHeaders: false,
     legacyHeaders: false,
     keyGenerator: (req) => {
