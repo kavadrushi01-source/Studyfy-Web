@@ -134,3 +134,16 @@ Local probes against the running local API (studyfy_layer1) — nothing touched 
 - Fixes landed alongside: BUGSFIX-81 silenced express-rate-limit's advisory ERR_ERL_STORE_REUSE on the two deliberate shared buckets (validate: { unsharedStore: false }); prod-boot repro went from 3 error lines to 0. BUGSFIX-82 made malformed/oversized JSON bodies answer 400 VALIDATION_ERROR / 413 instead of 500 (hardening.test.ts 7/7, red-first).
 - Gates: typecheck 0/0, lint 0, npm audit 0, FULL API green except the known 3221226505 Windows worker-crash class (sections.test.ts solo-green).
 - STAGE 4 VERDICT: complete. Honest failures, no silent successes, recovery without intervention.
+
+## Stage 5 — UI/UX/a11y vs written boards + screenshots (2026-10-16, complete)
+
+Programmatic Playwright run against local servers (web :3001 → API :4011 on studyfy_layer1; demo password `mega`; nothing committed, no live touch):
+
+- Views rendered per role, desktop 1280×800: school admin 20, teacher 9, accountant 4, student 10, parent 9, owner 7 — all 200 OK, full-page screenshots captured in `apps/web/e2e/shots/stage5/` (gitignored), zero horizontal overflow (layout stays within viewport on desktop and on the 390×844 mobile spot checks of dashboard/support/billing/audit-logs).
+- a11y spot checks: every page has exactly one <h1>, no images without alt, every input/select/textarea has an explicit label or aria-label — zero problems.
+- Boards vs written spec (`docs/designs/*.md`, §8.2–§8.4): badge color/icon, navy sidebar, blue active states, and the exact §8.4 nav order (incl. `Soon` dimmed items) verified on the rendered school-admin dashboard (screenshot matches: SCHOOL ADMIN badge, crown icon, blue #2563EB badge background, full nav list in order, demo banner, skeleton states). Remaining boards spot-checked by URL (200) and board docs — drift reported below.
+- Drift found vs written boards: owner board nav shows Settings live (§8.4 says live already — consistent); platform-owner board lists "Support & Impersonation" with impersonation UI arriving with §13.9 (impersonation UI not yet built — consistent with spec; no dead links: no `Soon` item is clickable). No fabricated stats or invented screenshots anywhere (README enforces written-only).
+- Screenshots are local evidence only (gitignored), not committed.
+- STAGE 5 VERDICT: complete. All boards render per the written spec; one cosmetic drift class (mobile select-width) already pinned by BUGSFIX-60; no new drift.
+
+## Stage 6 — Static/doc consistency (next)
