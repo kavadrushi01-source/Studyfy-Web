@@ -88,7 +88,26 @@ export function schoolMonthBoundsUtc(timezone: string, year: number, month: numb
   return { start: resolve(year, month), end: resolve(nextMonth.year, nextMonth.month) };
 }
 
-// UTC [start, end) covering a school-local calendar day (YYYY-MM-DD).
+// Strict YYYY-MM-DD validation: JavaScript's Date rolls 2026-02-30 over
+// to March 2 instead of rejecting it, so range/query validators must check
+// the components round-trip exactly.
+export function isRealCalendarDate(day: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!match) {
+    return false;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const date = Number(match[3]);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(date)) {
+    return false;
+  }
+  const parsed = new Date(Date.UTC(year, month - 1, date));
+  return (
+    parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === date
+  );
+}
+
 // Same two-pass resolution as months — correct across DST spring-forward
 // days that are 23 hours long.
 export function schoolDayBoundsUtc(timezone: string, day: string): { start: Date; end: Date } {

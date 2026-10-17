@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import type { PrismaClient } from "@prisma/client";
-import { recordAudit } from "../../lib/audit.js";
+import { pickAuditFields, recordAudit } from "../../lib/audit.js";
 import { planAllows } from "../billing/plans.js";
 import { schoolDay } from "../../lib/school-time.js";
 import { AuthError } from "../auth/auth.service.js";
-import { invalidateAttendanceKpis } from "../metrics/metrics.service.js";
+import { invalidateAnalytics } from "../metrics/analytics.service.js";
+import { invalidateAttendanceKpis, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
 import type { MapDeviceInput, RegisterDeviceInput, SyncAttendanceInput } from "./biometric.schemas.js";
 
 export interface DeviceInfo {
@@ -172,8 +173,19 @@ export async function syncAttendance(
     latest.set(`${m.studentId}@${m.date.toISOString()}`, m);
   }
   const writes = [...latest.values()];
-  await db.$transaction(
-    writes.map((w) =>
+  const today = schoolDay(school.timezone, new Date());
+  const previous = await db.attendance.findMany({
+    where: {
+      schoolId: device.schoolId,
+      studentId: { in: writes.map((w) => w.studentId) },
+      date: { in: writes.map((w) => w.date) },
+    },
+    select: { studentId: true, date: true, status: true },
+  });
+  const beforeByStudentDay = new Map(previous.map((r) => [`${r.studentId}@${r.date.toISOString()}`, r.status]));
+  const ops = [];
+  for (const w of writes) {
+    ops.push(
       db.attendance.upsert({
         where: { studentId_date: { studentId: w.studentId, date: w.date } },
         update: { status: w.status, sectionId: w.sectionId, markedById: null },
@@ -186,10 +198,35 @@ export async function syncAttendance(
           markedById: null,
         },
       }),
-    ),
-  );
+    );
+    // Same audit contract as manual marking: overwrites and past-day marks
+    // are logged with a NULL machine actor; routine same-day first taps are
+    // not. The log rows join the same transaction as the attendance writes.
+    const day = w.date.toISOString().slice(0, 10);
+    const old = beforeByStudentDay.get(`${w.studentId}@${w.date.toISOString()}`);
+    if (old !== undefined || day < today) {
+      const snapshot = { studentId: w.studentId, sectionId: w.sectionId, date: day, status: w.status };
+      ops.push(
+        db.auditLog.create({
+          data: {
+            schoolId: device.schoolId,
+            actorId: null,
+            action: "ATTENDANCE_EDIT",
+            entity: "Attendance",
+            entityId: w.studentId,
+            ...(old !== undefined ? { before: pickAuditFields("Attendance", { ...snapshot, status: old }) } : {}),
+            after: pickAuditFields("Attendance", snapshot),
+          },
+        }),
+      );
+    }
+  }
+  await db.$transaction(ops);
   await db.biometricDevice.update({ where: { id: device.id }, data: { lastSyncAt: new Date() } });
   invalidateAttendanceKpis(device.schoolId);
+  invalidateAnalytics(device.schoolId);
+  invalidateTeacherBoards(device.schoolId);
+  invalidateStudentBoards(device.schoolId);
   const dates = [...new Set(writes.map((w) => w.date.toISOString().slice(0, 10)))].sort();
   return { marked: writes.length, unknown, dates };
 }

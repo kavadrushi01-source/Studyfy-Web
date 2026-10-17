@@ -78,3 +78,47 @@ keys. Every number below is from a real command run, not memory.
   of my own test bugs first (path-vs-auth counting, schema path), 0 real
   holes — no drift exists.
 - Committed `1fbbc8d`, pushed.
+
+## Stage 3 — Functional bug sweep (2026-10-16, complete)
+
+18 confirmed functional bugs, each fixed with a red-first regression test and
+logged in BUGSFIX.md as #63–#80:
+
+- Privacy/leaks: data export shipped INTERNAL support-note attachments to
+  the student (#65); `message:new` socket events carried full message
+  content to same-school non-participants (#66).
+- Status/derivation: OVERDUE was never written by anything (#63); failed
+  reminder sends consumed the reminder slot forever (#64); partial payment
+  on an OVERDUE invoice silently downgraded it to PARTIAL (#63).
+- Validation: `??` vs `||` let an enquiry through with no usable contact
+  (#67); guardian could be the student's own email (#68); bulk
+  attendance/marks accepted duplicate studentIds (#69); impossible rollover
+  dates (Feb 30) passed `Number.isNaN(new Date(...))` across six schema
+  families (#70); future-dated attendance inflated percentages (#71).
+- Timezone: attendance summary defaulted "this month" to the UTC month, not
+  the school's calendar month — wrong dashboard totals for UTC+14/UTC
+  schools (#72).
+- Idempotency/audit: absentee alerts re-spammed on every re-mark (#73);
+  biometric device overwrites were unaudited and left stale boards (#74);
+  owner boards went stale after trial extension and demo reset (#77).
+- Rendering: report cards crashed or printed `Rank: 0` for unranked pupils;
+  dateless exam windows silently defaulted to a UTC month (#75).
+- Billing: subscription invoices didn't record the purchased plan, so
+  capture could mirror the wrong tier (#76); demo upload caps missed
+  homework submissions and certificates (#78).
+- Concurrency (DB backstops, not app-level checks): timetable replace was
+  non-atomic and a teacher could be double-booked (#79); concurrent invoice
+  generation double-billed every pupil for the same structure; certificate
+  serials could duplicate or orphan uploads under a race (#80).
+- BUGSFIX-62 (fee payment lost updates, CAS + 3-attempt retry + honest 409)
+  also proven here by reverting the CAS and watching both tests fail.
+
+Gates: FULL API 101 files / 485 tests — 484 green, the one failure is the
+known Windows Prisma worker-crash class (3221226505, `sections.test.ts`,
+solo 5/5 green). Typecheck 0/0, root lint exit 0. Three new local-only
+migrations applied to dev/test/e2e/layer1 (NOT prod — Layer 1 is local;
+prod `migrate deploy` stays a founder step): `20261016050321`
+(subscription invoice plan), `20261016111500` (invoice structure
+uniqueness), `20261016113000` (teacher slot uniqueness). Migrations count
+local: 45; prod remains at 42.
+- STAGE 3 VERDICT: complete. 18/18 findings fixed and pinned.

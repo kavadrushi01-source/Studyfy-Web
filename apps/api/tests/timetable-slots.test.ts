@@ -119,6 +119,33 @@ describe("manual timetable slots (post-generation adjustments)", () => {
     expect(gone.body.error.code).toBe("SLOT_NOT_FOUND");
   });
 
+  it("concurrent adds never double-book the same teacher", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    const sectionA = await makeSection(schoolId, "A");
+    const sectionB = await makeSection(schoolId, "B");
+    const math = await makeSubject(schoolId);
+    const teacher = await makeTeacher(schoolId, slug, [math]);
+    const auth = { Authorization: `Bearer ${adminToken}` };
+
+    const [first, second] = await Promise.all([
+      request(app)
+        .post(`/api/v1/schools/${schoolId}/timetable/slots`)
+        .set(auth)
+        .send({ sectionId: sectionA, subjectId: math, teacherId: teacher.staffId, dayOfWeek: 3, period: 2 }),
+      request(app)
+        .post(`/api/v1/schools/${schoolId}/timetable/slots`)
+        .set(auth)
+        .send({ sectionId: sectionB, subjectId: math, teacherId: teacher.staffId, dayOfWeek: 3, period: 2 }),
+    ]);
+    const statuses = [first.status, second.status].sort();
+    expect(statuses).toEqual([201, 409]);
+    const loser = first.status === 409 ? first : second;
+    expect(loser.body.error.code).toBe("TEACHER_BUSY");
+    expect(
+      await prisma.timetableSlot.count({ where: { schoolId, teacherId: teacher.staffId, dayOfWeek: 3, period: 2 } }),
+    ).toBe(1);
+  });
+
   it("rejects foreign ids, teacher callers, and strangers", async () => {
     const schoolA = await registerSchool();
     const schoolB = await registerSchool();

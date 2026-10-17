@@ -123,6 +123,73 @@ describe("student report card PDF (§7 Phase 1 #4)", () => {
     expect(pdf.length).toBeGreaterThan(1024);
   });
 
+  it("renders an honest rank when the pupil did not sit the exam", async () => {
+    const unranked = await generateReportCard({
+      schoolName: "Report School",
+      brandColor: "#2563EB",
+      examName: "Unit Test 1",
+      studentName: "Report Student",
+      admissionNo: "R-001",
+      className: "Grade 9",
+      sectionName: "A",
+      subjects: [{ name: "Mathematics", max: 50, obtained: 0, percent: 0, grade: "F" }],
+      total: 0,
+      max: 50,
+      percent: 0,
+      grade: "F",
+      rank: 0,
+      rankedOutOf: 0,
+      attendancePercent: null,
+      attendanceRange: null,
+      remark: null,
+    });
+    const text = pdfText(unranked);
+    expect(text).not.toContain("Rank: 0 of 0");
+    expect(text).toMatch(/Rank: \D/);
+  });
+
+  it("uses trailing-30-day attendance when the exam has no dates", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    const sectionId = await makeSection(schoolId);
+    const owner = await makeStudent(schoolId, sectionId);
+    const math = await prisma.subject.create({ data: { schoolId, name: `Mathematics ${uid()}`, group: "Core" } });
+    const exam = await request(app)
+      .post(`/api/v1/schools/${schoolId}/exams`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ name: "Dateless Test 1", subjects: [{ subjectId: math.id, maxMarks: 50 }] })
+      .expect(201);
+    const examId = exam.body.data.exam.id as string;
+    const today = new Date().toISOString().slice(0, 10);
+    await prisma.attendance.create({
+      data: { schoolId, studentId: owner.studentId, sectionId, date: new Date(`${today}T00:00:00Z`), status: "PRESENT" },
+    });
+    const res = await request(app)
+      .get(`/api/v1/schools/${schoolId}/exams/${examId}/report-cards/${owner.studentId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    expect(pdfText(res.body as Buffer)).toContain("Attendance:");
+  });
+
+  it("shows no rank for a pupil who did not sit the exam", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    const sectionId = await makeSection(schoolId);
+    const owner = await makeStudent(schoolId, sectionId);
+    const math = await prisma.subject.create({ data: { schoolId, name: `Mathematics ${uid()}`, group: "Core" } });
+    const exam = await request(app)
+      .post(`/api/v1/schools/${schoolId}/exams`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ name: "Untaken Test 1", subjects: [{ subjectId: math.id, maxMarks: 50 }] })
+      .expect(201);
+    const examId = exam.body.data.exam.id as string;
+    const res = await request(app)
+      .get(`/api/v1/schools/${schoolId}/exams/${examId}/report-cards/${owner.studentId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    const text = pdfText(res.body as Buffer);
+    expect(text).not.toContain("Rank: 0 of 0");
+    expect(text).toMatch(/Rank: \D/);
+  });
+
   it("prints the saved remark when present, and no remark section otherwise", async () => {
     const base = {
       schoolName: "Report School",

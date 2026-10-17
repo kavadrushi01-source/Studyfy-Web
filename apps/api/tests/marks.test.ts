@@ -170,6 +170,18 @@ describe("POST /api/v1/schools/:schoolId/exams/:examId/marks", () => {
       .expect(400);
     expect(outsider.body.error.code).toBe("STUDENT_NOT_IN_SECTION");
 
+    const duplicate = await request(app)
+      .post(`/api/v1/schools/${schoolId}/exams/${exam.examId}/marks`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send(
+        payload([
+          { studentId: studentA, marksObtained: 40 },
+          { studentId: studentA, marksObtained: 41 },
+        ]),
+      )
+      .expect(400);
+    expect(duplicate.body.error.code).toBe("VALIDATION_ERROR");
+
     // Wrong subject link for this exam.
     const wrongExam = await request(app)
       .post(`/api/v1/schools/${schoolId}/exams/${exam.examId}/marks`)

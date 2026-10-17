@@ -63,6 +63,14 @@ describe("POST /api/v1/public/enquiries (§7 Phase 1 #10)", () => {
     expect(denied.body.error.code).toBe("VALIDATION_ERROR");
   });
 
+  it("treats an empty phone string as missing when a valid email is present", async () => {
+    const { slug } = await registerSchool();
+    await request(app)
+      .post("/api/v1/public/enquiries")
+      .send({ ...enquiryBody(slug), phone: "" })
+      .expect(201);
+  });
+
   it("404s unknown school slugs and validates shape", async () => {
     const missing = await request(app)
       .post("/api/v1/public/enquiries")

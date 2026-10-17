@@ -107,6 +107,26 @@ describe("POST /api/v1/schools/:schoolId/fees/invoices/generate", () => {
     expect(await prisma.feeInvoice.count({ where: { schoolId, structureId } })).toBe(2);
   });
 
+  it("concurrent runs never double-bill the same pupil", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    const room = await makeClassroom(schoolId, "Grade 11", 3);
+    const structureId = await makeStructure(schoolId, adminToken, room.classId);
+    const auth = { Authorization: `Bearer ${adminToken}` };
+    const body = { structureId, classId: room.classId, dueDate: "2026-10-15" };
+
+    const [first, second] = await Promise.all([
+      request(app).post(`/api/v1/schools/${schoolId}/fees/invoices/generate`).set(auth).send(body),
+      request(app).post(`/api/v1/schools/${schoolId}/fees/invoices/generate`).set(auth).send(body),
+    ]);
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(first.body.data.generated + second.body.data.generated).toBe(3);
+
+    const invoices = await prisma.feeInvoice.findMany({ where: { schoolId, structureId } });
+    expect(invoices).toHaveLength(3);
+    expect(new Set(invoices.map((i) => i.studentId)).size).toBe(3);
+  });
+
   it("targets one section or an explicit list, and rejects mixed modes + foreign ids", async () => {
     const schoolA = await registerSchool();
     const schoolB = await registerSchool();

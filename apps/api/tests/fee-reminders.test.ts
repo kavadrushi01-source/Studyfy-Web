@@ -101,11 +101,48 @@ describe("fee reminders (§7 Phase 1 #3, §12.7 timezones)", () => {
     expect(first.body.data.emailed).toBe(1);
     expect(emailed.map((e) => e.to)).toEqual([overdue.guardianEmail]);
 
+    // Past-due unpaid rows are marked OVERDUE by the run; settled rows stay PAID.
+    expect((await prisma.feeInvoice.findFirstOrThrow({ where: { schoolId, amountPaid: 0 } })).status).toBe("OVERDUE");
+    expect((await prisma.feeInvoice.findFirstOrThrow({ where: { schoolId, amountPaid: 5000 } })).status).toBe("PAID");
+
     const second = await request(app)
       .post(`/api/v1/schools/${schoolId}/fees/reminders/run`)
       .set("Authorization", `Bearer ${adminToken}`)
       .expect(200);
     expect(second.body.data.emailed).toBe(0);
+    expect(emailed).toHaveLength(1);
+  });
+
+  it("does not stamp failed sends, so the next run can retry them", async () => {
+    const { schoolId } = await registerSchool();
+    await invoiceFor(schoolId, "2000-01-01");
+    emailed.length = 0;
+    setMailer({
+      ...stubMailer,
+      sendFeeReminder: async () => {
+        throw new Error("SMTP relay down");
+      },
+    });
+    try {
+      const failed = await runFeeReminders(prisma, schoolId);
+      expect(failed.emailed).toBe(0);
+      const invoices = await prisma.feeInvoice.findMany({ where: { schoolId } });
+      expect(invoices.length).toBeGreaterThan(0);
+      for (const invoice of invoices) {
+        expect(invoice.lastReminderAt).toBeNull();
+      }
+    } finally {
+      setMailer({
+        ...stubMailer,
+        sendFeeReminder: async (email: FeeReminderEmail) => {
+          emailed.push(email);
+          return "sent";
+        },
+      });
+    }
+
+    const retried = await runFeeReminders(prisma, schoolId);
+    expect(retried.emailed).toBe(1);
     expect(emailed).toHaveLength(1);
   });
 

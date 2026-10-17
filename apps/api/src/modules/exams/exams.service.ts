@@ -4,6 +4,7 @@ import { gradeLetter, percentOf, rankAll, topK } from "../../lib/grades.js";
 import { GroqApiError, GroqUnconfiguredError, groq } from "../../lib/groq.js";
 import type { ReportCardData } from "../../lib/report-card.js";
 import { AuthError } from "../auth/auth.service.js";
+import { schoolDay } from "../../lib/school-time.js";
 import { attendanceSummary } from "../attendance/attendance.service.js";
 import { invalidateActivityFeed, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
 import { invalidateAnalytics } from "../metrics/analytics.service.js";
@@ -310,6 +311,14 @@ export async function examResults(
   return { exam: { id: exam.id, name: exam.name }, results };
 }
 
+// Trailing-30-day fallback for dateless exams: the current school day and
+// the 29 school days before it, inclusive.
+function trailingThirtyDays(timezone: string, now: Date = new Date()): { from: string; to: string } {
+  const to = schoolDay(timezone, now);
+  const from = schoolDay(timezone, new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000));
+  return { from, to };
+}
+
 // Single-student report card (§7 Phase 1 #4): per-subject marks + grades,
 // totals, competition rank (over everyone who sat the exam), and attendance
 // % pulled from the ATTENDANCE module's own summary — never recomputed
@@ -323,7 +332,7 @@ export async function reportCard(
   const exam = await db.exam.findFirst({
     where: { id: examId },
     include: {
-      school: { select: { name: true, brandColor: true } },
+      school: { select: { name: true, brandColor: true, timezone: true } },
       examSubjects: { include: { subject: { select: { name: true } } }, orderBy: { subject: { name: "asc" } } },
     },
   });
@@ -370,15 +379,19 @@ export async function reportCard(
 
   let attendancePercent: number | null = null;
   let attendanceRange: string | null = null;
-  if (exam.startDate && exam.endDate) {
+  {
+    const window =
+      exam.startDate && exam.endDate
+        ? {
+            from: exam.startDate.toISOString().slice(0, 10),
+            to: exam.endDate.toISOString().slice(0, 10),
+          }
+        : trailingThirtyDays(exam.school.timezone);
     const range = await attendanceSummary(
       db,
-      {
-        from: exam.startDate.toISOString().slice(0, 10),
-        to: exam.endDate.toISOString().slice(0, 10),
-        studentId,
-      },
+      { ...window, studentId },
       [studentId],
+      { timezone: exam.school.timezone },
     );
     const row = range.summary.find((r) => r.studentId === studentId);
     if (row && row.total > 0) {
@@ -400,7 +413,7 @@ export async function reportCard(
     max: maxTotal,
     percent,
     grade: gradeLetter(percent),
-    rank: ranks.get(studentId) ?? 0,
+    rank: ranks.get(studentId) ?? null,
     rankedOutOf: totals.size,
     attendancePercent,
     attendanceRange,
@@ -456,7 +469,10 @@ export async function generateRemark(
 ): Promise<{ remark: { id: string; remark: string; generatedBy: string; reviewed: boolean } }> {
   const exam = await db.exam.findFirst({
     where: { id: examId },
-    include: { examSubjects: { include: { subject: { select: { name: true } } } } },
+    include: {
+      examSubjects: { include: { subject: { select: { name: true } } } },
+      school: { select: { timezone: true } },
+    },
   });
   if (!exam) {
     throw new AuthError(404, "EXAM_NOT_FOUND", "Exam not found in this school.");
@@ -494,15 +510,19 @@ export async function generateRemark(
   // Attendance comes from the attendance module's own summary — same exam
   // window rule as the report card, never recomputed here.
   let attendancePercent: number | null = null;
-  if (exam.startDate && exam.endDate) {
+  {
+    const window =
+      exam.startDate && exam.endDate
+        ? {
+            from: exam.startDate.toISOString().slice(0, 10),
+            to: exam.endDate.toISOString().slice(0, 10),
+          }
+        : trailingThirtyDays(exam.school.timezone);
     const range = await attendanceSummary(
       db,
-      {
-        from: exam.startDate.toISOString().slice(0, 10),
-        to: exam.endDate.toISOString().slice(0, 10),
-        studentId: student.id,
-      },
+      { ...window, studentId: student.id },
       [student.id],
+      { timezone: exam.school.timezone },
     );
     const row = range.summary.find((r) => r.studentId === student.id);
     if (row && row.total > 0) {

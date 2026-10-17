@@ -171,12 +171,33 @@ describe("POST /api/v1/schools/:schoolId/attendance (bulk marking)", () => {
       .expect(400);
     expect(badDate.body.error.code).toBe("VALIDATION_ERROR");
 
+    const futureDate = await request(app)
+      .post(`/api/v1/schools/${schoolId}/attendance`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ sectionId: sectionA, date: "2999-01-01", records: [{ studentId: insider, status: "PRESENT" }] })
+      .expect(400);
+    expect(futureDate.body.error.code).toBe("VALIDATION_ERROR");
+
     const noKey = await request(app)
       .post(`/api/v1/schools/${schoolId}/attendance`)
       .set("Authorization", `Bearer ${accountant}`)
       .send({ sectionId: sectionA, date: DAY, records: [{ studentId: insider, status: "PRESENT" }] })
       .expect(403);
     expect(noKey.body.error.code).toBe("PERMISSION_DENIED");
+
+    const duplicate = await request(app)
+      .post(`/api/v1/schools/${schoolId}/attendance`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        sectionId: sectionA,
+        date: DAY,
+        records: [
+          { studentId: insider, status: "PRESENT" },
+          { studentId: insider, status: "ABSENT" },
+        ],
+      })
+      .expect(400);
+    expect(duplicate.body.error.code).toBe("VALIDATION_ERROR");
 
     await request(app)
       .post(`/api/v1/schools/${schoolId}/attendance`)

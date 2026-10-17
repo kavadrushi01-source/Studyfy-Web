@@ -120,6 +120,20 @@ describe("POST /api/v1/schools/:schoolId/fees/invoices/:invoiceId/pay", () => {
     expect(Number(part2.body.data.invoice.amountPaid)).toBe(10000);
   });
 
+  it("keeps OVERDUE on a partial payment of a past-due invoice", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    const { invoiceId } = await setupInvoice(schoolId, adminToken, "10000");
+    await prisma.feeInvoice.update({ where: { id: invoiceId }, data: { status: "OVERDUE" } });
+
+    const part = await request(app)
+      .post(`/api/v1/schools/${schoolId}/fees/invoices/${invoiceId}/pay`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ amount: "1000", method: "CASH" })
+      .expect(200);
+    expect(part.body.data.invoice.status).toBe("OVERDUE");
+    expect(Number(part.body.data.invoice.amountPaid)).toBe(1000);
+  });
+
   it("rejects overpayment, bad amounts, RAZORPAY method, and wrong roles/tenants", async () => {
     const schoolA = await registerSchool();
     const schoolB = await registerSchool();

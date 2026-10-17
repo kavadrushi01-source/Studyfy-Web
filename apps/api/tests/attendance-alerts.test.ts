@@ -105,6 +105,21 @@ describe("absentee alerts (§7 Phase 1 #2, Brevo SMTP)", () => {
     expect(recipients).toEqual([...absent.guardianEmails].sort());
     expect(sent[0]?.studentName).toBe("Alert Student");
     expect(sent[0]?.date).toBe("2026-09-11");
+
+    sent.length = 0;
+    await request(app)
+      .post(`/api/v1/schools/${schoolId}/attendance`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        sectionId,
+        date: "2026-09-11",
+        records: [
+          { studentId: absent.studentId, status: "ABSENT" },
+          { studentId: present.studentId, status: "PRESENT" },
+        ],
+      })
+      .expect(200);
+    expect(sent).toHaveLength(0);
   });
 
   it("stays silent when nobody is absent", async () => {

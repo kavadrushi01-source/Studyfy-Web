@@ -165,6 +165,31 @@ describe("homework submissions + grading (§7 Phase 1 #6)", () => {
     expect(count).toBe(1);
   });
 
+  it("refuses a submission file once a demo school hits the stored-file cap", async () => {
+    const { schoolId, slug, adminToken } = await registerSchool();
+    await prisma.school.update({ where: { id: schoolId }, data: { isDemo: true } });
+    const sectionId = await makeSection(schoolId);
+    const math = await makeSubject(schoolId);
+    const pupil = await makeStudent(schoolId, slug, sectionId);
+    const homeworkId = await postHomework(schoolId, adminToken, sectionId, math);
+    const pupilUser = await prisma.student.findUniqueOrThrow({ where: { id: pupil.studentId }, select: { userId: true } });
+    await prisma.document.createMany({
+      data: Array.from({ length: 50 }, (_, i) => ({
+        schoolId,
+        ownerId: pupilUser.userId,
+        url: `https://cdn.example/cap-${i}.pdf`,
+        type: "OTHER",
+      })),
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/schools/${schoolId}/homework/${homeworkId}/submissions`)
+      .set("Authorization", `Bearer ${pupil.token}`)
+      .attach("file", Buffer.from("%PDF-1.4 scan"), { filename: "scan.pdf", contentType: "application/pdf" });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("DEMO_UPLOAD_CAP");
+  });
+
   it("blocks other sections, bad files, and keyless roles", async () => {
     const { schoolId, slug, adminToken } = await registerSchool();
     const sectionA = await makeSection(schoolId);

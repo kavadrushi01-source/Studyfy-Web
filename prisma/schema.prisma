@@ -563,6 +563,10 @@ model FeeInvoice {
   payments FeePayment[]
 
   @@index([schoolId, studentId, status, dueDate])
+  // One live invoice per pupil per fee structure: the unique backstop that
+  // makes concurrent bulk generation skip (not double-bill). structureId is
+  // nullable for legacy rows; every generated row carries one.
+  @@unique([schoolId, structureId, studentId])
   @@map("fee_invoices")
 }
 
@@ -702,6 +706,9 @@ model TimetableSlot {
   endTime   String? @map("end_time")
 
   @@unique([sectionId, dayOfWeek, period])
+  // One teacher, one classroom at a time: the DB backstop for the manual
+  // addSlot race (check-then-insert can double-book without it).
+  @@unique([teacherId, dayOfWeek, period])
   @@index([schoolId, sectionId])
   @@map("timetable_slots")
 }
@@ -1226,6 +1233,10 @@ model SubscriptionInvoice {
   id          String                    @id @default(cuid()) @map("id")
   schoolId    String                    @map("school_id")
   school      School                    @relation(fields: [schoolId], references: [id])
+  // The purchased plan, recorded on the paper itself: payment capture and
+  // manual collection mirror THIS tier onto subscriptions/schools, never a
+  // default. Nullable only for invoices issued before this column existed.
+  plan        SchoolPlan?               @map("plan")
   // Sequential per financial year (April–March), from an atomic counter
   // incremented in the SAME transaction that creates the invoice (never
   // count()+1 — two invoices created at once would collide). UNIQUE at the

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isRealCalendarDate } from "../../lib/school-time.js";
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const dayField = (name: string) =>
@@ -6,7 +7,7 @@ const dayField = (name: string) =>
     .string()
     .trim()
     .regex(DAY, `${name} must be YYYY-MM-DD.`)
-    .refine((s) => !Number.isNaN(new Date(`${s}T00:00:00Z`).getTime()), { message: `${name} is not a real calendar date.` });
+    .refine((s) => isRealCalendarDate(s), { message: `${name} is not a real calendar date.` });
 
 // Every owner billing action asks for a reason (§7 #23): required, so the
 // audit trail always says WHY — a reasonless suspension/reactivation/plan

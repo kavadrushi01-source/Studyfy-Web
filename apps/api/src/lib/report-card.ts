@@ -21,7 +21,7 @@ export interface ReportCardData {
   max: number;
   percent: number;
   grade: string;
-  rank: number;
+  rank: number | null;
   rankedOutOf: number;
   attendancePercent: number | null;
   attendanceRange: string | null;
@@ -90,7 +90,9 @@ export function generateReportCard(data: ReportCardData): Promise<Buffer> {
     doc.moveDown(0.5);
     doc.fontSize(11).font("Helvetica-Bold");
     doc.text(`Total: ${data.total} / ${data.max}    ${data.percent}%    Grade ${data.grade}`);
-    doc.text(`Rank: ${data.rank} of ${data.rankedOutOf}`);
+    // A pupil with no marks has no rank. Printing "0 of N" would invent a
+    // finishing position below every taker.
+    doc.text(data.rank === null || data.rankedOutOf === 0 ? "Rank: —" : `Rank: ${data.rank} of ${data.rankedOutOf}`);
     if (data.attendancePercent !== null) {
       doc.fontSize(10).font("Helvetica").fillColor("#334155");
       doc.text(

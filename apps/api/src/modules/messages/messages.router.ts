@@ -53,13 +53,11 @@ messagesRouter.post(
         parsed.data.receiverId,
         parsed.data.body,
       );
-      // Live delivery: everyone in the school room gets the event and
-      // filters by threadId client-side (payload carries no extra data
-      // beyond what the thread read would return — no leak by broadcast).
-      emitToSchool(req.schoolId ?? "", "message:new", {
-        threadId: message.threadId,
-        message: { id: message.id, senderId: message.senderId, body: message.body, createdAt: message.createdAt },
-      });
+      // Live delivery: everyone in the school room gets a thread-changed
+      // ping and refetches through the authorized HTTP thread read. The
+      // payload carries no message content because every socket in the
+      // school room receives it — including users outside the thread.
+      emitToSchool(req.schoolId ?? "", "message:new", { threadId: message.threadId });
       res.status(201).json({ success: true, data: { message }, error: null, meta: null });
     } catch (err) {
       sendMessagesError(res, err);

@@ -150,7 +150,15 @@ export async function buildExportFiles(
     "ticket_messages.json",
     await db.ticketMessage.findMany({ where: { ...bySchool, isInternal: false }, orderBy: { createdAt: "asc" } }),
   );
-  await put("ticket_attachments.json", await db.ticketAttachment.findMany({ where: bySchool }));
+  // Attachments inherit their message's privacy: owner-internal screenshots
+  // stay out of a school's archive, exactly like internal message bodies.
+  await put(
+    "ticket_attachments.json",
+    await db.ticketAttachment.findMany({
+      where: { ...bySchool, message: { isInternal: false } },
+      orderBy: { createdAt: "asc" },
+    }),
+  );
   await put("books.json", await db.book.findMany({ where: bySchool, orderBy: { title: "asc" } }));
   await put("book_loans.json", await db.bookLoan.findMany({ where: bySchool }));
   await put("vehicles.json", await db.vehicle.findMany({ where: bySchool }));

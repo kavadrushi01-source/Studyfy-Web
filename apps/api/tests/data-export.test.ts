@@ -179,6 +179,25 @@ describe("school data export, builder (§13.10)", () => {
     const messages = JSON.parse(built.files["ticket_messages.json"] as string) as { body: string }[];
     expect(messages.some((m) => m.body === note)).toBe(false);
     expect(messages.some((m) => m.body === reply)).toBe(true);
+
+    const stored = await prisma.ticketMessage.findMany({ where: { ticketId: ticketRow.id } });
+    const internalMessage = stored.find((m) => m.body === note);
+    const visibleMessage = stored.find((m) => m.body === reply);
+    if (!internalMessage || !visibleMessage) {
+      throw new Error("Ticket messages must exist before checking attachment privacy");
+    }
+    const internalUrl = `https://cdn.example/internal-${uid()}.png`;
+    const visibleUrl = `https://cdn.example/visible-${uid()}.png`;
+    await prisma.ticketAttachment.create({
+      data: { schoolId: a.schoolId, ticketId: ticketRow.id, messageId: internalMessage.id, url: internalUrl, mimeType: "image/png", sizeBytes: 1024, originalName: "internal.png" },
+    });
+    await prisma.ticketAttachment.create({
+      data: { schoolId: a.schoolId, ticketId: ticketRow.id, messageId: visibleMessage.id, url: visibleUrl, mimeType: "image/png", sizeBytes: 1024, originalName: "visible.png" },
+    });
+    const rebuilt = await buildExportFiles(prisma, a.schoolId);
+    const attachments = JSON.parse(rebuilt.files["ticket_attachments.json"] as string) as { url: string }[];
+    expect(attachments.some((attachment) => attachment.url === internalUrl)).toBe(false);
+    expect(attachments.some((attachment) => attachment.url === visibleUrl)).toBe(true);
   });
 
   it("404s an unknown school instead of exporting the void", async () => {

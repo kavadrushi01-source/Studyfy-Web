@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { isRealCalendarDate } from "../../lib/school-time.js";
 
 const dayString = z
   .string()
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD.")
-  .refine((s) => !Number.isNaN(new Date(`${s}T00:00:00Z`).getTime()), {
+  .refine((s) => isRealCalendarDate(s), {
     message: "Date is not a real calendar date.",
   });
 
@@ -40,20 +41,26 @@ export type CreateExamInput = z.infer<typeof createExamSchema>;
 // Bulk marks entry (§7 Phase 1 #4): one subject, one section, many
 // students — a whole section in one action, never one student at a time.
 // Re-entry overwrites (same upsert contract as attendance marking).
-export const enterMarksSchema = z.object({
-  examSubjectId: z.string().trim().min(1).max(40),
-  sectionId: z.string().trim().min(1).max(40),
-  records: z
-    .array(
-      z.object({
-        studentId: z.string().trim().min(1).max(40),
-        marksObtained: z.number().min(0).max(10000),
-        grade: z.string().trim().max(10).optional(),
-      }),
-    )
-    .min(1)
-    .max(500),
-});
+export const enterMarksSchema = z
+  .object({
+    examSubjectId: z.string().trim().min(1).max(40),
+    sectionId: z.string().trim().min(1).max(40),
+    records: z
+      .array(
+        z.object({
+          studentId: z.string().trim().min(1).max(40),
+          marksObtained: z.number().min(0).max(10000),
+          grade: z.string().trim().max(10).optional(),
+        }),
+      )
+      .min(1)
+      .max(500),
+  })
+  // One score per pupil per subject: duplicates would inflate the entered
+  // count and write duplicate audit rows for the same upsert.
+  .refine((v) => new Set(v.records.map((r) => r.studentId)).size === v.records.length, {
+    message: "Each student may appear only once per marks submission.",
+  });
 
 export type EnterMarksInput = z.infer<typeof enterMarksSchema>;
 

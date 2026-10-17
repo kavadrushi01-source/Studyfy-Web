@@ -89,13 +89,13 @@ function connect(namespace: string, token: string): Promise<ClientSocket> {
   });
 }
 
-function waitForMessageNew(socket: ClientSocket): Promise<{ threadId: string; message: { senderId: string; body: string } }> {
+function waitForMessageNew(socket: ClientSocket): Promise<{ threadId: string; message?: { senderId: string; body: string } }> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       socket.removeAllListeners("message:new");
       reject(new Error("timed out waiting for message:new"));
     }, 8000);
-    socket.on("message:new", (payload: { threadId: string; message: { senderId: string; body: string } }) => {
+    socket.on("message:new", (payload: { threadId: string; message?: { senderId: string; body: string } }) => {
       clearTimeout(timer);
       socket.removeAllListeners("message:new");
       resolve(payload);
@@ -117,11 +117,15 @@ describe("live message:new delivery (§12.5 + §13.7)", () => {
 
     const pupil = await makeUser(schoolId, slug, "STUDENT");
     await prisma.student.create({ data: { schoolId, userId: pupil.userId, sectionId: section.id } });
+    const outsider = await makeUser(schoolId, slug, "STUDENT");
+    await prisma.student.create({ data: { schoolId, userId: outsider.userId, sectionId: section.id } });
 
     // Teacher's live client joins the school room; the pupil sends over HTTP.
     const socket = await connect(schoolNamespaceOf(schoolId), teacher.token);
+    const outsiderSocket = await connect(schoolNamespaceOf(schoolId), outsider.token);
     try {
       const delivered = waitForMessageNew(socket);
+      const outsiderDelivered = waitForMessageNew(outsiderSocket);
       const sent = await request(app)
         .post(`/api/v1/schools/${schoolId}/messages`)
         .set("Authorization", `Bearer ${pupil.token}`)
@@ -129,10 +133,13 @@ describe("live message:new delivery (§12.5 + §13.7)", () => {
         .expect(201);
       const event = await delivered;
       expect(event.threadId).toBe(sent.body.data.message.threadId as string);
-      expect(event.message.senderId).toBe(pupil.userId);
-      expect(event.message.body).toBe("Live check: chapter 3 done.");
+      expect(event.message).toBeUndefined();
+      const outsiderEvent = await outsiderDelivered;
+      expect(outsiderEvent.threadId).toBe(sent.body.data.message.threadId as string);
+      expect(outsiderEvent.message).toBeUndefined();
     } finally {
       socket.disconnect();
+      outsiderSocket.disconnect();
     }
   }, 30000);
 });

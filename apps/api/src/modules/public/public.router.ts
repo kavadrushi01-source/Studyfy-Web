@@ -17,7 +17,7 @@ const enquirySchema = z
     // they get a fake success and the spam is silently dropped.
     website: z.string().max(200).optional(),
   })
-  .refine((v) => v.phone ?? v.email, {
+  .refine((v) => v.phone || v.email, {
     message: "Provide at least one contact: phone or email.",
   });
 

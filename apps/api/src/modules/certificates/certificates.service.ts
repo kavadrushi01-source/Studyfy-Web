@@ -1,5 +1,7 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { recordAudit } from "../../lib/audit.js";
+import { assertDemoUploadAllowed } from "../../lib/upload-caps.js";
 import { AuthError } from "../auth/auth.service.js";
 import { documentStorage, StorageUnconfiguredError } from "../../lib/storage.js";
 import { generateCertificate, type CertificatePayload, type CertificateType } from "../../lib/certificates.js";
@@ -112,8 +114,7 @@ export async function issueCertificate(
   if (!school || !issuer) {
     throw new AuthError(500, "INTERNAL_ERROR", "Something went wrong.");
   }
-  const serial = await nextSerial(db, student.schoolId);
-  const payload: CertificatePayload = {
+  const buildPayload = (serial: string): CertificatePayload => ({
     schoolName: school.name,
     brandColor: school.brandColor ?? "#2563EB",
     studentName: student.user.name,
@@ -123,13 +124,60 @@ export async function issueCertificate(
     serial,
     issuedDate: new Date().toISOString().slice(0, 10),
     issuerName: issuer.name,
-  };
+  });
+  // Serial race: two simultaneous issues can compute the same next serial.
+  // The record is created BEFORE the upload so a lost race retries with a
+  // fresh serial — no duplicate serials, no orphaned document rows, no 500.
+  let serial = await nextSerial(db, student.schoolId);
+  let payload = buildPayload(serial);
+  let pdf = await generateCertificate(input.type, payload);
+  let record: {
+    id: string;
+    type: string;
+    serial: string;
+    createdAt: Date;
+    student: { id: string; user: { name: string } };
+  } | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      record = await db.certificate.create({
+        data: {
+          schoolId: student.schoolId,
+          studentId: student.id,
+          type: input.type,
+          serial,
+          payload: payload as unknown as Prisma.InputJsonValue,
+          issuedBy: callerUserId,
+          documentId: null,
+        },
+        select: {
+          id: true,
+          type: true,
+          serial: true,
+          createdAt: true,
+          student: { select: { id: true, user: { select: { name: true } } } },
+        },
+      });
+      break;
+    } catch (err) {
+      if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) {
+        throw err;
+      }
+      serial = await nextSerial(db, student.schoolId);
+      payload = buildPayload(serial);
+      pdf = await generateCertificate(input.type, payload);
+    }
+  }
+  if (!record) {
+    throw new AuthError(409, "SERIAL_CONFLICT", "Could not assign a certificate number, please retry.");
+  }
   // Store-once (founder direction): the issued PDF is uploaded immediately
   // and kept as a documents row (type CERTIFICATE, owned by the pupil);
   // downloads serve those stored bytes, never a regeneration. Where
   // storage is unconfigured (local dev by design) the record is still
   // created and downloads fall back to the snapshot below.
-  const pdf = await generateCertificate(input.type, payload);
+  // Demo quota guard (§13.11): before bytes reach storage.
+  await assertDemoUploadAllowed(db, student.schoolId, pdf.length);
   let documentId: string | null = null;
   try {
     const stored = await documentStorage().upload({
@@ -148,29 +196,12 @@ export async function issueCertificate(
       select: { id: true },
     });
     documentId = document.id;
+    await db.certificate.update({ where: { id: record.id }, data: { documentId } });
   } catch (err) {
     if (!(err instanceof StorageUnconfiguredError)) {
       throw err;
     }
   }
-  const record = await db.certificate.create({
-    data: {
-      schoolId: student.schoolId,
-      studentId: student.id,
-      type: input.type,
-      serial,
-      payload: payload as unknown as Prisma.InputJsonValue,
-      issuedBy: callerUserId,
-      documentId,
-    },
-    select: {
-      id: true,
-      type: true,
-      serial: true,
-      createdAt: true,
-      student: { select: { id: true, user: { select: { name: true } } } },
-    },
-  });
   // Audit (§13.10 CERTIFICATE_ISSUED): sequential same-client write right
   // after the record — the storage upload above is an external side effect
   // that can never join a database transaction, so same-tx is impossible

@@ -279,35 +279,57 @@ export async function generateInvoices(
   // row per invoice (a 500-pupil run must not write 500 log rows). It joins
   // the creates in the same array transaction. A zero-generate run still
   // logs (who ran it, on what structure) with count 0.
-  await db.$transaction([
-    ...fresh.map((studentId) =>
-      db.feeInvoice.create({
-        data: {
-          schoolId: structure.schoolId,
-          studentId,
-          structureId: structure.id,
-          amount: structure.amount,
-          amountPaid: 0,
-          status: "PENDING",
-          dueDate,
-        },
-      }),
-    ),
+  const auditSummary = (count: number) =>
     db.auditLog.create({
       data: {
         schoolId: structure.schoolId,
         actorId,
         action: "INVOICES_GENERATED",
         entity: "FeeInvoice",
-        after: pickAuditFields("FeeInvoice", { structureId: structure.id, count: fresh.length }),
+        after: pickAuditFields("FeeInvoice", { structureId: structure.id, count }),
       },
-    }),
-  ]);
+    });
+  const createRow = (studentId: string) =>
+    db.feeInvoice.create({
+      data: {
+        schoolId: structure.schoolId,
+        studentId,
+        structureId: structure.id,
+        amount: structure.amount,
+        amountPaid: 0,
+        status: "PENDING",
+        dueDate,
+      },
+    });
+  let generated = fresh.length;
+  try {
+    await db.$transaction([...fresh.map((studentId) => createRow(studentId)), auditSummary(fresh.length)]);
+  } catch (err) {
+    if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) {
+      throw err;
+    }
+    // A concurrent generation won the race for some of these rows: the
+    // unique backstop rejected the whole batch, so insert one by one and
+    // report the losers as skipped instead of double-billing or 500ing.
+    generated = 0;
+    for (const studentId of fresh) {
+      try {
+        await createRow(studentId);
+        generated += 1;
+      } catch (rowErr) {
+        if (!(rowErr instanceof Prisma.PrismaClientKnownRequestError && rowErr.code === "P2002")) {
+          throw rowErr;
+        }
+        skipped.push({ studentId, reason: "Already has an invoice for this structure (concurrent run)." });
+      }
+    }
+    await auditSummary(generated);
+  }
   // New money owed → pending totals and the status donut are stale (§12.3).
   invalidateAccountantBoards(structure.schoolId);
   invalidateAnalytics(structure.schoolId);
   invalidateStudentBoards(structure.schoolId);
-  return { generated: fresh.length, skipped };
+  return { generated, skipped };
 }
 
 export interface RecordPaymentResult {
@@ -351,10 +373,11 @@ export async function recordPayment(
     }
     const newPaid = new Prisma.Decimal(invoice.amountPaid).plus(paying);
     const settled = newPaid.greaterThanOrEqualTo(new Prisma.Decimal(invoice.amount));
+    const nextStatus = settled ? "PAID" : invoice.status === "OVERDUE" ? "OVERDUE" : "PARTIAL";
 
     try {
-      const created = await db.$transaction(async (tx) => {
-        const payment = await tx.feePayment.create({
+      const [payment, updated] = await db.$transaction(async (tx) => {
+        const created = await tx.feePayment.create({
           data: {
             schoolId: invoice.schoolId,
             invoiceId: invoice.id,
@@ -365,9 +388,13 @@ export async function recordPayment(
         });
         const bumped = await tx.feeInvoice.updateMany({
           where: { id: invoice.id, amountPaid: invoice.amountPaid },
-          data: { amountPaid: newPaid, status: settled ? "PAID" : "PARTIAL" },
+          data: { amountPaid: newPaid, status: nextStatus },
         });
         if (bumped.count === 0) {
+          throw new ConcurrentPaymentError();
+        }
+        const refreshed = await tx.feeInvoice.findFirst({ where: { id: invoice.id } });
+        if (!refreshed) {
           throw new ConcurrentPaymentError();
         }
         const txClient = tx as unknown as PrismaClient;
@@ -376,9 +403,9 @@ export async function recordPayment(
           actorId: receivedById,
           action: "PAYMENT_RECORDED",
           entity: "FeePayment",
-          entityId: payment.id,
+          entityId: created.id,
           after: {
-            id: payment.id,
+            id: created.id,
             invoiceId: invoice.id,
             amount: paying.toFixed(2),
             method: input.method,
@@ -401,12 +428,12 @@ export async function recordPayment(
           after: {
             id: invoice.id,
             studentId: invoice.studentId,
-            status: settled ? "PAID" : "PARTIAL",
+            status: nextStatus,
             amount: new Prisma.Decimal(invoice.amount).toFixed(2),
             amountPaid: newPaid.toFixed(2),
           },
         });
-        return payment;
+        return [created, refreshed] as const;
       });
       invalidateFeeKpis(invoice.schoolId);
       invalidateActivityFeed(invoice.schoolId);
@@ -415,12 +442,12 @@ export async function recordPayment(
       invalidateStudentBoards(invoice.schoolId);
       return {
         invoice: {
-          id: invoice.id,
-          amount: new Prisma.Decimal(invoice.amount).toString(),
-          amountPaid: newPaid.toFixed(2),
-          status: settled ? "PAID" : "PARTIAL",
+          id: updated.id,
+          amount: updated.amount.toString(),
+          amountPaid: updated.amountPaid.toString(),
+          status: updated.status,
         },
-        payment: { id: created.id, amount: paying.toFixed(2), method: created.method },
+        payment: { id: payment.id, amount: payment.amount.toString(), method: payment.method },
       };
     } catch (err) {
       if (err instanceof ConcurrentPaymentError) {
@@ -490,6 +517,20 @@ export async function runFeeReminders(
     },
   });
 
+  // Overdue is derived, not just representable: unpaid rows past their due
+  // date flip to OVERDUE on the daily run, so status-driven boards and
+  // totals reflect reality without a human editing statuses.
+  const todayStart = new Date(`${today}T00:00:00Z`);
+  const overdueIds = invoices
+    .filter((invoice) => {
+      const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
+      return outstanding.greaterThan(0) && invoice.dueDate < todayStart && invoice.status !== "OVERDUE";
+    })
+    .map((invoice) => invoice.id);
+  if (overdueIds.length > 0) {
+    await db.feeInvoice.updateMany({ where: { id: { in: overdueIds } }, data: { status: "OVERDUE" } });
+  }
+
   // Single choke point (§13.11): the demo guard lives in mailerFor(), so
   // the old bespoke demo-suppression block here is gone — one guard for the
   // whole product can't silently diverge. Demo sends resolve fulfilled but
@@ -546,10 +587,13 @@ export async function runFeeReminders(
     }
     emailed += delivered;
     // A fully suppressed invoice (demo school) counts as skipped, never
-    // emailed — the aggregate stays honest. Genuinely failed sends keep
-    // their historical shape (counted nowhere, still stamped).
+    // emailed — the aggregate stays honest. Failed sends are not stamped:
+    // lastReminderAt means a reminder went out (or was deliberately
+    // suppressed), so a transient failure stays retryable on the next run.
     if (delivered === 0 && suppressed > 0 && suppressed === results.length) {
       skipped += 1;
+    } else if (delivered === 0 && suppressed === 0) {
+      continue;
     }
     await db.feeInvoice.update({ where: { id: invoice.id }, data: { lastReminderAt: now } });
   }
@@ -678,6 +722,9 @@ export interface OnlineCaptureResult {
 //   capture is refused (server-side amount discipline, same as initiation).
 // - A simultaneous redelivery racing this transaction hits the UNIQUE
 //   constraint (P2002) and is treated as already-processed, not an error.
+// - A different capture moving the same invoice between read and write does
+//   not lose an update: the balance write is compare-and-swap, then the
+//   capture retries against the moved balance (BUGSFIX-62).
 export async function recordOnlineCapture(
   db: PrismaClient,
   input: { razorpayOrderId: string; razorpayPaymentId: string; amountPaise: number },
@@ -686,29 +733,31 @@ export async function recordOnlineCapture(
   // pay-verify caller (parent or office).
   actorId: string | null,
 ): Promise<OnlineCaptureResult> {
-  const existing = await db.feePayment.findUnique({ where: { razorpayPaymentId: input.razorpayPaymentId } });
-  if (existing) {
-    return { paymentId: existing.id, invoiceId: existing.invoiceId, status: existing.status, alreadyProcessed: true };
-  }
-  const pending = await db.feePayment.findUnique({ where: { razorpayOrderId: input.razorpayOrderId } });
-  if (!pending) {
-    throw new AuthError(404, "ORDER_NOT_FOUND", "No payment initiation matches this order.");
-  }
-  if (pending.status === "CAPTURED") {
-    return { paymentId: pending.id, invoiceId: pending.invoiceId, status: pending.status, alreadyProcessed: true };
-  }
-  const invoice = await db.feeInvoice.findFirst({ where: { id: pending.invoiceId } });
-  if (!invoice) {
-    throw new AuthError(404, "INVOICE_NOT_FOUND", "Invoice not found in this school.");
-  }
-  const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
-  if (Math.round(outstanding.toNumber() * 100) !== input.amountPaise) {
-    throw new AuthError(400, "AMOUNT_MISMATCH", "Paid amount does not match the outstanding balance.");
-  }
-  const amount = new Prisma.Decimal(input.amountPaise).dividedBy(100);
-  const newPaid = new Prisma.Decimal(invoice.amountPaid).plus(amount);
-  const settled = newPaid.greaterThanOrEqualTo(new Prisma.Decimal(invoice.amount));
-  try {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const existing = await db.feePayment.findUnique({ where: { razorpayPaymentId: input.razorpayPaymentId } });
+    if (existing) {
+      return { paymentId: existing.id, invoiceId: existing.invoiceId, status: existing.status, alreadyProcessed: true };
+    }
+    const pending = await db.feePayment.findUnique({ where: { razorpayOrderId: input.razorpayOrderId } });
+    if (!pending) {
+      throw new AuthError(404, "ORDER_NOT_FOUND", "No payment initiation matches this order.");
+    }
+    if (pending.status === "CAPTURED") {
+      return { paymentId: pending.id, invoiceId: pending.invoiceId, status: pending.status, alreadyProcessed: true };
+    }
+    const invoice = await db.feeInvoice.findFirst({ where: { id: pending.invoiceId } });
+    if (!invoice) {
+      throw new AuthError(404, "INVOICE_NOT_FOUND", "Invoice not found in this school.");
+    }
+    const outstanding = new Prisma.Decimal(invoice.amount).minus(new Prisma.Decimal(invoice.amountPaid));
+    if (Math.round(outstanding.toNumber() * 100) !== input.amountPaise) {
+      throw new AuthError(400, "AMOUNT_MISMATCH", "Paid amount does not match the outstanding balance.");
+    }
+    const amount = new Prisma.Decimal(input.amountPaise).dividedBy(100);
+    const newPaid = new Prisma.Decimal(invoice.amountPaid).plus(amount);
+    const settled = newPaid.greaterThanOrEqualTo(new Prisma.Decimal(invoice.amount));
+    const nextStatus = settled ? "PAID" : invoice.status === "OVERDUE" ? "OVERDUE" : "PARTIAL";
+    try {
       const captured = await db.$transaction(async (tx) => {
         const payment = await tx.feePayment.update({
           where: { id: pending.id },
@@ -716,7 +765,7 @@ export async function recordOnlineCapture(
         });
         const bumped = await tx.feeInvoice.updateMany({
           where: { id: invoice.id, amountPaid: invoice.amountPaid },
-          data: { amountPaid: newPaid, status: settled ? "PAID" : "PARTIAL" },
+          data: { amountPaid: newPaid, status: nextStatus },
         });
         if (bumped.count === 0) {
           throw new ConcurrentPaymentError();
@@ -752,7 +801,7 @@ export async function recordOnlineCapture(
           after: {
             id: invoice.id,
             studentId: invoice.studentId,
-            status: settled ? "PAID" : "PARTIAL",
+            status: nextStatus,
             amount: new Prisma.Decimal(invoice.amount).toFixed(2),
             amountPaid: newPaid.toFixed(2),
           },
@@ -765,18 +814,23 @@ export async function recordOnlineCapture(
       invalidateAnalytics(invoice.schoolId);
       invalidateStudentBoards(invoice.schoolId);
       return { paymentId: captured.id, invoiceId: invoice.id, status: captured.status, alreadyProcessed: false };
-  } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      const raced = await db.feePayment.findUnique({ where: { razorpayPaymentId: input.razorpayPaymentId } });
-      return {
-        paymentId: raced?.id ?? pending.id,
-        invoiceId: pending.invoiceId,
-        status: raced?.status ?? "CAPTURED",
-        alreadyProcessed: true,
-      };
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        const raced = await db.feePayment.findUnique({ where: { razorpayPaymentId: input.razorpayPaymentId } });
+        return {
+          paymentId: raced?.id ?? pending.id,
+          invoiceId: pending.invoiceId,
+          status: raced?.status ?? "CAPTURED",
+          alreadyProcessed: true,
+        };
+      }
+      if (err instanceof ConcurrentPaymentError) {
+        continue;
+      }
+      throw err;
     }
-    throw err;
   }
+  throw new AuthError(409, "INVOICE_CONCURRENT_UPDATE", "The invoice changed while capturing; please retry.");
 }
 
 export interface VerifyOnlineResult {

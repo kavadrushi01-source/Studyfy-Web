@@ -105,6 +105,21 @@ describe("POST /api/v1/schools/:schoolId/students (admission)", () => {
     expect((list.body.data.students as { id: string }[]).map((s) => s.id)).toEqual([studentId]);
   });
 
+  it("rejects a guardian using the student's own email with 400", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    const sectionId = await createSection(schoolId);
+    const email = `self-guardian-${uid()}@example.com`;
+    const res = await request(app)
+      .post(`/api/v1/schools/${schoolId}/students`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        ...admissionBody(sectionId, email),
+        guardians: [{ name: "Same Person", email, relationship: "Father" }],
+      })
+      .expect(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
   it("rejects a teacher (read but no write) with 403 PERMISSION_DENIED", async () => {
     const { schoolId, slug } = await registerSchool();
     const sectionId = await createSection(schoolId);

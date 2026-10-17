@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isRealCalendarDate } from "../../lib/school-time.js";
 
 const CATEGORIES = ["TUITION", "TRANSPORT", "LAB", "EXAM", "ACTIVITY", "OTHER"] as const;
 
@@ -37,7 +38,7 @@ export const generateInvoicesSchema = z
       .string()
       .trim()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Due date must be YYYY-MM-DD.")
-      .refine((s) => !Number.isNaN(new Date(`${s}T00:00:00Z`).getTime()), {
+      .refine((s) => isRealCalendarDate(s), {
         message: "Due date is not a real calendar date.",
       }),
   })

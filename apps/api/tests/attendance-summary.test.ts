@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
+import { attendanceSummary } from "../src/modules/attendance/attendance.service.js";
 
 const app = createApp();
 
@@ -148,9 +149,35 @@ describe("GET /api/v1/schools/:schoolId/attendance/summary", () => {
       .expect(400);
     expect(badRange.body.error.code).toBe("VALIDATION_ERROR");
 
+    const impossible = await request(app)
+      .get(`/api/v1/schools/${schoolId}/attendance/summary?from=2026-02-30&to=2026-03-05`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(400);
+    expect(impossible.body.error.code).toBe("VALIDATION_ERROR");
+
     await request(app)
       .get(`/api/v1/schools/${schoolId}/attendance/summary?month=2026-13`)
       .set("Authorization", `Bearer ${adminToken}`)
       .expect(400);
+  });
+
+  it("defaults an omitted month to the school's calendar month, not UTC", async () => {
+    const { schoolId } = await registerSchool();
+    await prisma.school.update({ where: { id: schoolId }, data: { timezone: "Pacific/Kiritimati" } });
+    const sectionId = await makeSection(schoolId);
+    const student = await makeStudent(schoolId, sectionId);
+    await prisma.attendance.create({
+      data: { schoolId, studentId: student.studentId, sectionId, date: new Date("2026-08-31T00:00:00Z"), status: "PRESENT" },
+    });
+    await prisma.attendance.create({
+      data: { schoolId, studentId: student.studentId, sectionId, date: new Date("2026-09-01T00:00:00Z"), status: "PRESENT" },
+    });
+
+    const result = await attendanceSummary(prisma, {}, [student.studentId], {
+      timezone: "Pacific/Kiritimati",
+      now: new Date("2026-08-31T10:00:00Z"),
+    });
+    expect(result.range).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+    expect(result.summary.map((row) => row.total)).toEqual([1]);
   });
 });

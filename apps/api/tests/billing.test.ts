@@ -10,6 +10,7 @@ import {
   invoiceNumberFor,
   issueInvoice,
   markInvoicePaid,
+  recordSubscriptionCapture,
   runBillingCycle,
   schoolAccess,
   setSubscription,
@@ -254,6 +255,53 @@ describe("invoices (§16.1, integration)", () => {
       const again = await markInvoicePaid(prisma, issued.id, school.adminId);
       expect(again.status).toBe("PAID");
       expect(await prisma.auditLog.count({ where: { schoolId: school.schoolId, action: "SUBSCRIPTION_INVOICE_PAID" } })).toBe(1);
+    },
+  );
+
+  it(
+    "online capture mirrors the invoiced plan onto the subscription and school",
+    { timeout: 60000 },
+    async () => {
+      const school = await registerSchool(`Billing Plan School ${uid()}`);
+      await prisma.school.update({ where: { id: school.schoolId }, data: { plan: "STANDARD" } });
+      const periodStart = startOfDayUtc(new Date("2026-12-01T00:00:00Z"));
+      const periodEnd = startOfDayUtc(new Date("2026-12-31T00:00:00Z"));
+      const issued = await issueInvoice(
+        prisma,
+        school.schoolId,
+        { plan: "STANDARD" as const, periodStart, periodEnd, schoolState: null, platformState: null },
+        school.adminId,
+      );
+      const invoice = await prisma.subscriptionInvoice.findUniqueOrThrow({ where: { id: issued.id } });
+      const total = invoice.amountPaise + invoice.cgstPaise + invoice.sgstPaise + invoice.igstPaise;
+      const orderId = `order_PLAN_${uid()}`;
+      const paymentId = `pay_PLAN_${uid()}`;
+      await prisma.subscriptionInvoice.update({ where: { id: issued.id }, data: { razorpayOrderId: orderId } });
+      const captured = await recordSubscriptionCapture(prisma, { razorpayOrderId: orderId, razorpayPaymentId: paymentId, amountPaise: total }, null);
+      expect(captured.status).toBe("PAID");
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { schoolId: school.schoolId } })).plan).toBe("STANDARD");
+      expect((await prisma.school.findUniqueOrThrow({ where: { id: school.schoolId } })).plan).toBe("STANDARD");
+    },
+  );
+
+  it(
+    "manual collection mirrors the invoiced plan onto the subscription and school",
+    { timeout: 60000 },
+    async () => {
+      const school = await registerSchool(`Billing Manual Plan School ${uid()}`);
+      const periodStart = startOfDayUtc(new Date("2026-11-01T00:00:00Z"));
+      const periodEnd = startOfDayUtc(new Date("2026-11-30T00:00:00Z"));
+      const issued = await issueInvoice(
+        prisma,
+        school.schoolId,
+        { plan: "PREMIUM" as const, periodStart, periodEnd, schoolState: null, platformState: null },
+        school.adminId,
+      );
+      await markInvoicePaid(prisma, issued.id, school.adminId);
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { schoolId: school.schoolId } })).plan).toBe("PREMIUM");
+      const mirror = await prisma.school.findUniqueOrThrow({ where: { id: school.schoolId } });
+      expect(mirror.plan).toBe("PREMIUM");
+      expect(mirror.subscriptionStatus).toBe("ACTIVE");
     },
   );
 

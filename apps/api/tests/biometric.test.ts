@@ -134,6 +134,28 @@ describe("devices/attendance-sync (§7 Phase 3 #21, §13.4 third path)", () => {
     expect(device?.lastSyncAt).not.toBeNull();
   });
 
+  it("audits a device overwrite like a manual attendance edit", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    const sectionId = await makeSection(schoolId);
+    const pupil = await makePupil(schoolId, sectionId);
+    const { deviceKey } = await enrollDevice(schoolId, adminToken);
+    await mapTag(schoolId, adminToken, pupil, "TAG-AUDIT");
+    await prisma.attendance.create({
+      data: { schoolId, studentId: pupil, sectionId, date: new Date("2026-10-07T00:00:00Z"), status: "PRESENT" },
+    });
+
+    await request(app)
+      .post(SYNC_URL)
+      .set("x-device-key", deviceKey)
+      .send({ events: [{ tag: "TAG-AUDIT", timestamp: "2026-10-07T04:30:00Z", status: "ABSENT" }] })
+      .expect(200);
+    expect((await prisma.attendance.findFirstOrThrow({ where: { schoolId, studentId: pupil } })).status).toBe("ABSENT");
+    const audits = await prisma.auditLog.findMany({ where: { schoolId, action: "ATTENDANCE_EDIT", entity: "Attendance", entityId: pupil } });
+    expect(audits).toHaveLength(1);
+    expect(audits[0]?.before).toMatchObject({ status: "PRESENT" });
+    expect(audits[0]?.after).toMatchObject({ status: "ABSENT" });
+  });
+
   it("derives the attendance day in the school timezone, not UTC", async () => {
     const { schoolId, adminToken } = await registerSchool();
     const sectionId = await makeSection(schoolId);

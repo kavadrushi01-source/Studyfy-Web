@@ -123,6 +123,45 @@ describe("Certificates (§7 Phase 2 #17)", () => {
     expect(detail.body.data.certificate.payload.studentName).toBe("Cert Pupil");
   });
 
+  it("refuses a certificate upload once a demo school hits the stored-file cap", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    await prisma.school.update({ where: { id: schoolId }, data: { isDemo: true } });
+    const studentId = await makePupil(schoolId);
+    const pupil = await prisma.student.findUniqueOrThrow({ where: { id: studentId }, select: { userId: true } });
+    await prisma.document.createMany({
+      data: Array.from({ length: 50 }, (_, i) => ({
+        schoolId,
+        ownerId: pupil.userId,
+        url: `https://cdn.example/cap-${i}.pdf`,
+        type: "OTHER",
+      })),
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/schools/${schoolId}/certificates`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ studentId, type: "BONAFIDE" });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("DEMO_UPLOAD_CAP");
+  });
+
+  it("issues distinct serials for concurrent requests instead of 500ing the loser", async () => {
+    const { schoolId, adminToken } = await registerSchool();
+    const studentId = await makePupil(schoolId);
+    const auth = { Authorization: `Bearer ${adminToken}` };
+    const body = { studentId, type: "BONAFIDE" };
+
+    const [first, second] = await Promise.all([
+      request(app).post(`/api/v1/schools/${schoolId}/certificates`).set(auth).send(body),
+      request(app).post(`/api/v1/schools/${schoolId}/certificates`).set(auth).send(body),
+    ]);
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    const serials = [first.body.data.certificate.serial, second.body.data.certificate.serial].sort();
+    expect(serials[0]).not.toBe(serials[1]);
+    expect(await prisma.certificate.count({ where: { schoolId } })).toBe(2);
+  });
+
   it("refuses strangers, bad types, and keyless roles", async () => {
     const schoolA = await registerSchool();
     const schoolB = await registerSchool();

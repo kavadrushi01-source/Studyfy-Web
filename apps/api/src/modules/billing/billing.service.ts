@@ -245,6 +245,7 @@ export async function issueInvoice(
         schoolId,
         invoiceNumber,
         financialYear: fy,
+        plan: input.plan,
         amountPaise,
         cgstPaise: gst.cgst,
         sgstPaise: gst.sgst,
@@ -303,6 +304,11 @@ export async function markInvoicePaid(
     return { id: invoice.id, status: invoice.status };
   }
   const subscription = await db.subscription.findUnique({ where: { schoolId: invoice.schoolId } });
+  const school = await db.school.findUnique({ where: { id: invoice.schoolId }, select: { plan: true } });
+  // The paper records the purchased tier: paying it moves the subscription
+  // AND its school mirror to that tier. Legacy invoices predate the column;
+  // those keep the existing tier rather than inventing one.
+  const plan = invoice.plan ?? subscription?.plan ?? school?.plan ?? null;
   const updated = await db.$transaction(async (tx) => {
     const paid = await tx.subscriptionInvoice.update({
       where: { id: invoice.id },
@@ -336,25 +342,37 @@ export async function markInvoicePaid(
         paidMethod: paid.paidMethod,
       }),
     });
-    if (subscription) {
-      const sub = await tx.subscription.update({
-        where: { id: subscription.id },
-        data: { status: "ACTIVE", currentPeriodStart: invoice.periodStart, currentPeriodEnd: invoice.periodEnd },
-      });
-      await tx.school.update({
-        where: { id: invoice.schoolId },
-        data: { subscriptionStatus: "ACTIVE" },
-      });
-      await recordAudit(txClient, {
+    const sub = await tx.subscription.upsert({
+      where: { schoolId: invoice.schoolId },
+      update: {
+        ...(plan ? { plan } : {}),
+        status: "ACTIVE",
+        currentPeriodStart: invoice.periodStart,
+        currentPeriodEnd: invoice.periodEnd,
+      },
+      create: {
         schoolId: invoice.schoolId,
-        actorId,
-        action: "SUBSCRIPTION_STATUS_CHANGE",
-        entity: "Subscription",
-        entityId: sub.id,
-        before: pickAuditFields("Subscription", { id: subscription.id, plan: subscription.plan, status: subscription.status }),
-        after: pickAuditFields("Subscription", { id: sub.id, plan: sub.plan, status: sub.status }),
-      });
-    }
+        plan: plan ?? "BASIC",
+        status: "ACTIVE",
+        currentPeriodStart: invoice.periodStart,
+        currentPeriodEnd: invoice.periodEnd,
+      },
+    });
+    await tx.school.update({
+      where: { id: invoice.schoolId },
+      data: { ...(plan ? { plan } : {}), subscriptionStatus: "ACTIVE" },
+    });
+    await recordAudit(txClient, {
+      schoolId: invoice.schoolId,
+      actorId,
+      action: "SUBSCRIPTION_STATUS_CHANGE",
+      entity: "Subscription",
+      entityId: sub.id,
+      ...(subscription
+        ? { before: pickAuditFields("Subscription", { id: subscription.id, plan: subscription.plan, status: subscription.status }) }
+        : {}),
+      after: pickAuditFields("Subscription", { id: sub.id, plan: sub.plan, status: sub.status }),
+    });
     return paid;
   });
   await invalidateOwner();
@@ -426,6 +444,9 @@ export async function recordSubscriptionCapture(
   if (total !== input.amountPaise) {
     throw new AuthError(400, "AMOUNT_MISMATCH", "Paid amount does not match the invoice total.");
   }
+  const subscription = await db.subscription.findUnique({ where: { schoolId: pending.schoolId } });
+  const school = await db.school.findUnique({ where: { id: pending.schoolId }, select: { plan: true } });
+  const plan = pending.plan ?? subscription?.plan ?? school?.plan ?? null;
   try {
     const paid = await db.$transaction(async (tx) => {
       const flipped = await tx.subscriptionInvoice.update({
@@ -462,16 +483,24 @@ export async function recordSubscriptionCapture(
       });
       const sub = await tx.subscription.upsert({
         where: { schoolId: pending.schoolId },
-        update: { status: "ACTIVE", currentPeriodStart: pending.periodStart, currentPeriodEnd: pending.periodEnd },
+        update: {
+          ...(plan ? { plan } : {}),
+          status: "ACTIVE",
+          currentPeriodStart: pending.periodStart,
+          currentPeriodEnd: pending.periodEnd,
+        },
         create: {
           schoolId: pending.schoolId,
-          plan: "BASIC",
+          plan: plan ?? "BASIC",
           status: "ACTIVE",
           currentPeriodStart: pending.periodStart,
           currentPeriodEnd: pending.periodEnd,
         },
       });
-      await tx.school.update({ where: { id: pending.schoolId }, data: { subscriptionStatus: "ACTIVE" } });
+      await tx.school.update({
+        where: { id: pending.schoolId },
+        data: { ...(plan ? { plan } : {}), subscriptionStatus: "ACTIVE" },
+      });
       await recordAudit(txClient, {
         schoolId: pending.schoolId,
         actorId,

@@ -219,6 +219,32 @@ describe("GET /api/v1/platform/dashboard (§8.3 + sequencing note)", () => {
   );
 
   it(
+    "reflects a trial extension immediately instead of serving the cached board",
+    async () => {
+      const token = await ownerToken();
+      const school = await registerSchool();
+      const auth = { Authorization: `Bearer ${token}` };
+      const before = await request(app).get("/api/v1/platform/dashboard").set(auth).expect(200);
+      const beforeRow = (before.body.data.dashboard as { schools: { slug: string; trialEndsAt: string }[] }).schools.find(
+        (row) => row.slug === school.slug,
+      );
+      expect(beforeRow?.trialEndsAt).toBeTruthy();
+
+      await request(app)
+        .post(`/api/v1/platform/schools/${school.schoolId}/trial-extension`)
+        .set(auth)
+        .send({ trialEndsAt: "2099-01-01", reason: "Extended for board-cache verification." })
+        .expect(200);
+      const after = await request(app).get("/api/v1/platform/dashboard").set(auth).expect(200);
+      const afterRow = (after.body.data.dashboard as { schools: { slug: string; trialEndsAt: string }[] }).schools.find(
+        (row) => row.slug === school.slug,
+      );
+      expect(afterRow?.trialEndsAt).toBe("2099-01-01T00:00:00.000Z");
+    },
+    30000,
+  );
+
+  it(
     "is owner-only: school admins denied, strangers 401",
     async () => {
       const token = await ownerToken();

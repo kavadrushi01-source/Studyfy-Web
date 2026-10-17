@@ -128,10 +128,15 @@ attendanceRouter.get(
       return;
     }
     try {
+      const school = await req.prisma.school.findFirst({
+        where: { id: req.schoolId ?? "" },
+        select: { timezone: true },
+      });
       const result = await attendanceSummary(
         req.prisma,
         parsed.data,
         req.studentScope ? req.studentScope.studentIds : null,
+        { timezone: school?.timezone },
       );
       res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {

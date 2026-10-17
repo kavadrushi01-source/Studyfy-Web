@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { AuthError } from "../auth/auth.service.js";
 import { documentStorage, StorageUnconfiguredError } from "../../lib/storage.js";
+import { assertDemoUploadAllowed } from "../../lib/upload-caps.js";
 import { invalidateActivityFeed, invalidateTeacherBoards } from "../metrics/metrics.service.js";
 import type { PostHomeworkInput } from "./homework.schemas.js";
 
@@ -179,6 +180,8 @@ export async function submitHomework(
         "That file is not actually a PDF/image — renamed files cannot be opened later. Please attach the real file.",
       );
     }
+    // Demo quota guard (§13.11): before bytes reach storage.
+    await assertDemoUploadAllowed(db, homework.schoolId, file.size);
     try {
       const stored = await documentStorage().upload({
         buffer: file.buffer,

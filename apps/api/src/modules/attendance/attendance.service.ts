@@ -3,7 +3,7 @@ import { pickAuditFields } from "../../lib/audit.js";
 import { detectAnomalies, type AnomalyDay, type AttendanceAnomaly } from "../../lib/attendance-anomalies.js";
 import { GroqApiError, GroqUnconfiguredError, groq } from "../../lib/groq.js";
 import { mailerFor, MailerUnconfiguredError } from "../../lib/mailer.js";
-import { schoolDay } from "../../lib/school-time.js";
+import { schoolDay, schoolDayBoundsUtc, schoolMonth, schoolMonthBoundsUtc } from "../../lib/school-time.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateAttendanceKpis, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
 import { invalidateAnalytics } from "../metrics/analytics.service.js";
@@ -67,6 +67,9 @@ export async function markAttendance(
   // (AuditSnapshots are scalars — Dates are objects).
   const school = await db.school.findUnique({ where: { id: section.schoolId }, select: { timezone: true } });
   const today = school ? schoolDay(school.timezone, new Date()) : input.date;
+  if (input.date > today) {
+    throw new AuthError(400, "VALIDATION_ERROR", "Attendance cannot be marked for a future school day.");
+  }
   const isPastDay = input.date < today;
   const previous = await db.attendance.findMany({
     where: { studentId: { in: studentIds }, date },
@@ -113,7 +116,11 @@ export async function markAttendance(
   // join table means plural by default, so iterate links, not students.
   // Best-effort by design: email must never fail a marking. Failures are
   // logged with the student/day for the office to follow up on.
-  const absentIds = input.records.filter((r) => r.status === "ABSENT").map((r) => r.studentId);
+  // Alerts fire on transitions to ABSENT, not on every re-mark: repeating
+  // the same absent row must not email guardians again.
+  const absentIds = input.records
+    .filter((r) => r.status === "ABSENT" && beforeByStudent.get(r.studentId) !== "ABSENT")
+    .map((r) => r.studentId);
   if (absentIds.length > 0) {
     await sendAbsenteeAlerts(db, section.schoolId, absentIds, input.date).catch((err: unknown) => {
       console.error("Absentee alerts failed after successful marking:", err);
@@ -195,27 +202,58 @@ function statusWeight(status: string): number {
   return 0;
 }
 
-function monthBounds(month: string | undefined, from: string | undefined, to: string | undefined): { start: Date; end: Date } {
+function monthBounds(
+  month: string | undefined,
+  from: string | undefined,
+  to: string | undefined,
+  timezone?: string,
+  now: Date = new Date(),
+): { start: Date; end: Date; from: string; to: string } {
   if (from ?? to) {
     if (!from || !to) {
       throw new AuthError(400, "VALIDATION_ERROR", "Provide both from and to for a custom range.");
+    }
+    if (timezone) {
+      const fromBounds = schoolDayBoundsUtc(timezone, from);
+      const toBounds = schoolDayBoundsUtc(timezone, to);
+      if (fromBounds.start.getTime() > toBounds.start.getTime()) {
+        throw new AuthError(400, "VALIDATION_ERROR", "From must not be after to.");
+      }
+      return { start: fromBounds.start, end: toBounds.end, from, to };
     }
     const start = new Date(`${from}T00:00:00Z`);
     const end = new Date(`${to}T00:00:00Z`);
     if (start.getTime() > end.getTime()) {
       throw new AuthError(400, "VALIDATION_ERROR", "From must not be after to.");
     }
-    return { start, end };
+    return { start, end: new Date(end.getTime() + 24 * 60 * 60 * 1000), from, to };
   }
-  const base = month ?? new Date().toISOString().slice(0, 7);
-  const [year, mon] = base.split("-").map(Number);
+  if (timezone) {
+    const resolved = month ? parseMonth(month) : schoolMonth(timezone, now);
+    const bounds = schoolMonthBoundsUtc(timezone, resolved.year, resolved.month);
+    return {
+      start: bounds.start,
+      end: bounds.end,
+      from: `${resolved.year}-${String(resolved.month).padStart(2, "0")}-01`,
+      to: `${resolved.year}-${String(resolved.month).padStart(2, "0")}-${new Date(Date.UTC(resolved.year, resolved.month, 0)).getUTCDate()}`,
+    };
+  }
+  const base = month ?? new Date(now.getTime()).toISOString().slice(0, 7);
+  const resolved = parseMonth(base);
+  return {
+    start: new Date(Date.UTC(resolved.year, resolved.month - 1, 1)),
+    end: new Date(Date.UTC(resolved.year, resolved.month, 1)),
+    from: `${resolved.year}-${String(resolved.month).padStart(2, "0")}-01`,
+    to: `${resolved.year}-${String(resolved.month).padStart(2, "0")}-${new Date(Date.UTC(resolved.year, resolved.month, 0)).getUTCDate()}`,
+  };
+}
+
+function parseMonth(month: string): { year: number; month: number } {
+  const [year, mon] = month.split("-").map(Number);
   if (!year || !mon || mon < 1 || mon > 12) {
     throw new AuthError(400, "VALIDATION_ERROR", "Month must be YYYY-MM.");
   }
-  return {
-    start: new Date(Date.UTC(year, mon - 1, 1)),
-    end: new Date(Date.UTC(year, mon, 0)),
-  };
+  return { year, month: mon };
 }
 
 // Monthly/term % per student (§10) via prefix sums (§11): rows come back
@@ -231,16 +269,17 @@ export async function attendanceSummary(
   db: PrismaClient,
   input: SummaryInput,
   allowedIds: string[] | null,
+  context: { timezone?: string; now?: Date } = {},
 ): Promise<{ range: { from: string; to: string }; summary: StudentSummary[] }> {
   if (input.studentId && allowedIds && !allowedIds.includes(input.studentId)) {
     throw new AuthError(403, "FORBIDDEN", "Not your record.");
   }
 
-  const { start, end } = monthBounds(input.month, input.from, input.to);
+  const { start, end, from, to } = monthBounds(input.month, input.from, input.to, context.timezone, context.now);
   const studentIds: string | string[] | null = input.studentId ?? allowedIds;
   const rows = await db.attendance.findMany({
     where: {
-      date: { gte: start, lte: end },
+      date: { gte: start, lt: end },
       ...(input.sectionId ? { sectionId: input.sectionId } : {}),
       ...(studentIds === null ? {} : { studentId: typeof studentIds === "string" ? studentIds : { in: studentIds } }),
     },
@@ -276,7 +315,7 @@ export async function attendanceSummary(
   summary.sort((a, b) => a.name.localeCompare(b.name));
 
   return {
-    range: { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) },
+    range: { from, to },
     summary,
   };
 }

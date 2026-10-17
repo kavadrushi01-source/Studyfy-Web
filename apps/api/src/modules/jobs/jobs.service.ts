@@ -3,6 +3,7 @@ import { seedDemo } from "@studyfy/demo-seed";
 import { scopedPrismaClient } from "../../lib/prisma-tenant.js";
 import { schoolHour } from "../../lib/school-time.js";
 import { runFeeReminders } from "../fees/fees.service.js";
+import { invalidateOwnerBoards } from "../metrics/metrics.service.js";
 import {
   runBillingCycle,
   runBillingReminders,
@@ -225,5 +226,6 @@ export async function runDemoResetJob(
     await (opts?.reseed ?? (() => seedDemo(db)))();
     result.reseeded = true;
   }
+  invalidateOwnerBoards();
   return result;
 }

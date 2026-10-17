@@ -212,12 +212,12 @@ billingRouter.get(
       return;
     }
     const day = (d: Date): string => d.toISOString().slice(0, 10);
-    // Invoices carry the ex-GST price, not a plan label (plans are
-    // re-priceable; the amount is the record). Resolve the label by exact
-    // price match — every system-issued invoice matches; anything else
-    // prints blank rather than a guessed tier.
+    // Invoices record the purchased plan on the paper itself. Legacy rows
+    // predate that column, so fall back to an exact price match — and print
+    // blank rather than a guessed tier when nothing matches.
     const planName =
-      (Object.keys(PLANS) as (keyof typeof PLANS)[]).find((p) => PLANS[p].pricePaise === invoice.amountPaise) ?? null;
+      invoice.plan ??
+      ((Object.keys(PLANS) as (keyof typeof PLANS)[]).find((p) => PLANS[p].pricePaise === invoice.amountPaise) ?? null);
     const pdf = await generateSubscriptionInvoice({
       schoolName: school.name,
       brandColor: school.brandColor ?? "#2563EB",

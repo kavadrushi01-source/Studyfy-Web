@@ -67,21 +67,25 @@ export async function generateSectionTimetables(
     }).then((rows) => rows.map((r) => ({ teacherId: r.teacherId, day: r.dayOfWeek, period: r.period }))),
   });
 
-  // Replace: clear this generation's sections first (scoped delete can only
-  // touch this tenant's rows), then insert the placed slots.
-  await db.timetableSlot.deleteMany({ where: { sectionId: { in: sectionIds } } });
-  for (const slot of result.placed) {
-    await db.timetableSlot.create({
-      data: {
-        schoolId,
-        sectionId: slot.sectionId,
-        subjectId: slot.subjectId,
-        teacherId: slot.teacherId,
-        dayOfWeek: slot.day,
-        period: slot.period,
-      },
-    });
-  }
+  // Replace atomically: clear this generation's sections first (scoped delete
+  // can only touch this tenant's rows), then insert the placed slots. One
+  // transaction means a mid-generation failure cannot leave a section with
+  // no timetable at all.
+  await db.$transaction([
+    db.timetableSlot.deleteMany({ where: { sectionId: { in: sectionIds } } }),
+    ...result.placed.map((slot) =>
+      db.timetableSlot.create({
+        data: {
+          schoolId,
+          sectionId: slot.sectionId,
+          subjectId: slot.subjectId,
+          teacherId: slot.teacherId,
+          dayOfWeek: slot.day,
+          period: slot.period,
+        },
+      }),
+    ),
+  ]);
 
   const teacherNames = new Map<string, string>();
   if (result.placed.length > 0) {
@@ -160,6 +164,15 @@ export async function addSlot(db: PrismaClient, input: AddSlotInput) {
     return slot;
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      // The unique backstop fired: re-read to blame the right conflict —
+      // a teacher double-book is TEACHER_BUSY, anything else is SLOT_TAKEN.
+      const teacherClash = await db.timetableSlot.findFirst({
+        where: { teacherId: staff.id, dayOfWeek: input.dayOfWeek, period: input.period },
+        select: { id: true },
+      });
+      if (teacherClash) {
+        throw new AuthError(409, "TEACHER_BUSY", "The teacher already teaches at that time.");
+      }
       throw new AuthError(409, "SLOT_TAKEN", "The section already has a lesson at that time.");
     }
     throw err;

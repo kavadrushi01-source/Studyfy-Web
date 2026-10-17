@@ -37,7 +37,7 @@ import {
   suspendSchoolSchema,
   trialExtensionSchema,
 } from "../billing/billing.schemas.js";
-import { getOwnerDashboard } from "../metrics/metrics.service.js";
+import { getOwnerDashboard, invalidateOwnerBoards } from "../metrics/metrics.service.js";
 
 export const platformRouter = Router();
 
@@ -364,6 +364,7 @@ platformRouter.post(
         entityId: school.id,
         after: { id: school.id, trialEndsAt: trialEndsAt.toISOString(), reason: parsed.data.reason },
       });
+      invalidateOwnerBoards();
       res.json({ success: true, data: { trialEndsAt: updated.trialEndsAt }, error: null, meta: null });
     } catch (err) {
       sendBillingError(res, err);
