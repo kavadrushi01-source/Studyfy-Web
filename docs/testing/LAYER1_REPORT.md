@@ -146,4 +146,31 @@ Programmatic Playwright run against local servers (web :3001 → API :4011 on st
 - Screenshots are local evidence only (gitignored), not committed.
 - STAGE 5 VERDICT: complete. All boards render per the written spec; one cosmetic drift class (mobile select-width) already pinned by BUGSFIX-60; no new drift.
 
-## Stage 6 — Static/doc consistency (next)
+## Stage 6 — Static/doc consistency (2026-10-16, complete)
+
+- Route audit + TENANT_MODELS drift: `route-auth-audit.test.ts` confirms 154 routes (tenant 118, platform 25, device 1, cron 1, bare-auth 1, public 8), each in exactly one auth path; no drift vs `TENANT_MODELS`. The 3 new migrations (subscription invoice plan, invoice structure uniqueness, teacher slot uniqueness) add constraints only — no new tenant models, so TENANT_MODELS unchanged.
+- Spec-vs-repo: `docs/designs/` holds 6 written board files (accountant, parent, platform-owner, school-admin, student, teacher), ZERO reference PNGs — per §8.1 the written boards stand on their own. Stage 5 compared rendered boards against these written specs with no drift found.
+- No secrets/credentials tracked: `.env` ignored, `.env.example` placeholders only; repo+history scans clean (only intentionally invalid `rzp_live_*` test canaries).
+- STAGE 6 VERDICT: complete. No static/doc inconsistencies found.
+
+## Stage 7 — Finalize (2026-10-16, complete)
+
+Final verification gates, all passing:
+- FULL API: 101 files / 487 tests ALL PASSING (first try) — includes the cron-jobs fix (due-date relativity + `Student.guardianLinks` `@relation` repair, pre-existing failures found during Layer 1).
+- FULL e2e: 97 passed + 1 flaky-green (retry) / 98 tests (5.9m) — web built with `NEXT_PUBLIC_API_URL=http://localhost:4011` matching the running API; demo password `Demo@1234` seeded on `studyfy_dev`.
+- Typecheck (api + web): 0 errors. Root lint: 0 problems (`--max-warnings=0`). `npm audit --audit-level=high`: 0 vulnerabilities.
+- Migrations: 45 local (dev/test/e2e/layer1 in sync via `migrate deploy` + `migrate diff` "No difference detected"); prod remains at 42 — the 3 new migrations are local-only, `migrate deploy` on prod stays a founder step (Layer 1 is local).
+
+## Layer 1 — VERDICT: COMPLETE
+
+All 7 stages verified locally with no live touch, no live keys:
+- Stage 0 clean baseline ✓ (fresh `studyfy_layer1`, seed idempotent ×2, migrations in sync, 4 full API + e2e green runs)
+- Stage 1 matrix/gaps ✓ (LAYER1_MATRIX.md, route-auth-audit pinned)
+- Stage 2 security ✓ (HS256 JWT pinning, shared limiter budgets, security sweep, secrets scan)
+- Stage 3 functional bug sweep ✓ (18 fixes, BUGSFIX #63–#80, red-first tests)
+- Stage 4 resilience/perf ✓ (DB/API kill mid-request, graceful shutdown, perf smoke)
+- Stage 5 UI/a11y ✓ (62 role×view screens 200 OK, zero overflow/a11y problems, boards match written spec)
+- Stage 6 static/doc ✓ (no drift, no secrets tracked)
+- Stage 7 finalize ✓ (487/487 API, 97+1 e2e, typecheck 0, lint 0, npm audit 0)
+
+Committed as `d61dd39` (fixes) + `c6bedc8` (Stage 5) + `cb73a03` (Stage 4) + `4e3db7f` (Stage 3). Tag `layer-1-complete` applied to HEAD.

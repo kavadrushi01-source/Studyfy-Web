@@ -9,8 +9,8 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS — Layer 1 testing (local only, no live touch, no keys; Phase 4 COMPLETE stands, tagged)
-**Phase / Module:** Layer 1 of 2 — full local verification (IN PROGRESS, Stages 0–5 complete; Stage 6 next)
+**Status:** COMPLETE — Layer 1 testing (local only, no live touch, no keys; Phase 4 COMPLETE stands, tagged; Layer 1 tagged `layer-1-complete`)
+**Phase / Module:** Layer 1 of 2 — full local verification (COMPLETE, Stages 0–7)
 **Last updated:** 2026-10-16
 
 ## Standing security decision (founder-ordered 2026-10-11, do not nag)

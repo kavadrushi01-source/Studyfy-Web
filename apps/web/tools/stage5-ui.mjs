@@ -3,18 +3,15 @@
 // Compares rendered boards against docs/designs/*.md (written spec,
 // §8.2–§8.4) and takes screenshots as local evidence.
 import { chromium } from "playwright";
-import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const WEB = process.env.E2E_WEB_URL ?? "http://localhost:3000";
-const API = process.env.E2E_API_URL ?? "http://localhost:4001";
-const PASSWORD = process.env.E2E_PASSWORD ?? "Demo@1234";
-const SHOTS = fileURLToPath(new URL("../e2e/shots/stage5", import.meta.url));
-console.log("DEBUG SHOTS:", SHOTS);
+const WEB = globalThis.process.env.E2E_WEB_URL ?? "http://localhost:3000";
+const PASSWORD = globalThis.process.env.E2E_PASSWORD ?? "Demo@1234";
+const SHOTS = fileURLToPath(new globalThis.URL("../e2e/shots/stage5", import.meta.url));
+globalThis.console.log("DEBUG SHOTS:", SHOTS);
 mkdirSync(SHOTS, { recursive: true });
-
-const LOGIN = "/login";
 
 function shotName(role, page, viewport) {
   return join(SHOTS, `${role}-${viewport.width}x${viewport.height}-${page
@@ -91,6 +88,7 @@ async function main() {
       const ok = res?.ok() ?? false;
       await page.screenshot({ path: shotName("sos-admin", view, desktop), fullPage: true });
       results.push({ role: "school-admin", view, status: res?.status(), ok, a11y: await a11yCheck(page, `sos-admin ${view}`) });
+// eslint-disable-next-line no-undef
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 4);
       if (overflow) results[results.length - 1].horizontalOverflow = true;
     }
@@ -100,6 +98,7 @@ async function main() {
       await loginAs(pageM, "kavita.rao@schoolofscience.demo", "school-of-science");
       await pageM.goto(`${WEB}${view}`, { waitUntil: "domcontentloaded" });
       await pageM.screenshot({ path: shotName("sos-admin-mobile", view, mobile), fullPage: true });
+// eslint-disable-next-line no-undef
       const overflow = await pageM.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 4);
       results.push({ role: "school-admin-mobile", view, overflow, ok: true });
       await pageM.close();
@@ -182,10 +181,10 @@ async function main() {
 
   await browser.close();
   writeFileSync(join(SHOTS, "stage5-results.json"), JSON.stringify(results, null, 2));
-  console.log(JSON.stringify(results, null, 2));
+  globalThis.console.log(JSON.stringify(results, null, 2));
 }
 
 main().catch((err) => {
-  console.error(err);
-  process.exit(1);
+  globalThis.console.error(err);
+  globalThis.process.exit(1);
 });
