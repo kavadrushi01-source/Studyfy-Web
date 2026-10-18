@@ -406,7 +406,7 @@ model Student {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  guardianLinks StudentGuardian[]
+  guardianLinks StudentGuardian[] @relation("StudentGuardianLinks")
   attendance    Attendance[]
   feeInvoices   FeeInvoice[]
   marks         Mark[]
@@ -428,7 +428,7 @@ model StudentGuardian {
   schoolId     String @map("school_id")
   school       School @relation(fields: [schoolId], references: [id])
   studentId    String @map("student_id")
-  student      Student @relation(fields: [studentId], references: [id])
+  student Student @relation("StudentGuardianLinks", fields: [studentId], references: [id])
   parentId     String @map("parent_user_id")
   parent       User   @relation("GuardianLinks", fields: [parentId], references: [id])
   relationship String @default("Guardian") @map("relationship")

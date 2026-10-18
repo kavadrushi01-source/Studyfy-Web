@@ -70,7 +70,7 @@ async function dueInvoice(schoolId: string): Promise<{ guardianEmail: string }> 
   const structure = await prisma.feeStructure.create({
     data: { schoolId, classId: cls.id, name: "Term 1 Tuition", amount: 5000, term: "Term 1", category: "TUITION" },
   });
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const yesterday = new Date(NINE_AM_IST.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   await prisma.feeInvoice.create({
     data: {
       schoolId,
