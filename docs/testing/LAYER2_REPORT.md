@@ -131,3 +131,42 @@ the LIVE deployed site, only what a local run can't prove — real infrastructur
 - public.spec.ts: 4 passed, 1 failed (admin login with demo credentials — expected, demo password doesn't work), 2 flaky (retried)
 - The "wrong password" test failed because error message not showing as expected — needs investigation
 - Admin login test failed because demo password doesn't work on live API
+
+## UPDATE — Test school token-based testing (2026-10-16):
+### Test school "ZZ Layer2 Test School" fully operational:
+- Slug: zz-layer2-test-school
+- Admin: layer2.test.school@example.com / Layer2TestPass123
+- API token: 276 char JWT, obtained and verified
+- Role: SCHOOL_ADMIN
+
+### Confirmed working endpoints with test school token:
+- GET /api/v1/auth/me → 200 (full profile: SCHOOL_ADMIN, schoolIsDemo: false)
+- GET /api/v1/schools/{ownId}/students → 200 (empty, new school)
+- GET /api/v1/schools/{ownId}/sections → 200 (empty)
+- GET /api/v1/schools/{ownId}/homework → 200 (empty)
+- GET /api/v1/schools/{ownId}/notices → 200 (empty)
+- GET /api/v1/schools/{ownId}/timetable?mine=true → 403 FORBIDDEN (school admin is not teacher - correct RBAC)
+- POST /api/v1/public/enquiries → 201 (public, no auth)
+
+### Tenant isolation CONFIRMED with test school:
+- Test school token → own school data: 200
+- Test school token → SOS school data: 403 TENANT_MISMATCH
+- Test school token → RK school data: 403 TENANT_MISMATCH
+
+### Blocked - Demo password issue (critical):
+- "Demo@1234" → 401 INVALID_CREDENTIALS (rotated)
+- "mega" → 401 INVALID_CREDENTIALS (then 429 RATE_LIMITED after multiple attempts)
+- User states "mega" is the live demo password but it doesn't work
+- NEEDS FOUNDER ACTION: Set DEMO_PASSWORD=mega on Render and redeploy, OR run db:reset-demo-passwords on live DB
+
+### Without demo password, CANNOT test:
+- Demo school login (student, parent, teacher, accountant, school admin roles)
+- Role-based UI journeys on demo schools
+- Email integration (absentee alerts, password reset, etc.)
+- Razorpay test mode payments
+- AI remark generation
+- File uploads
+- Scheduled jobs execution
+- Real-time socket connections
+- PWA sessions
+- Full e2e journeys
