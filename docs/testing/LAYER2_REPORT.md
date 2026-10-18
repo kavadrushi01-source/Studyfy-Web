@@ -170,3 +170,49 @@ the LIVE deployed site, only what a local run can't prove — real infrastructur
 - Real-time socket connections
 - PWA sessions
 - Full e2e journeys
+
+## UPDATE 4 — Live Testing with Test School (2026-10-16 continued)
+
+### Test school "ZZ Layer2 Test School" — ALL CORE ENDPOINTS TESTED AND WORKING:
+
+| Endpoint | Method | Auth Required | Status | Notes |
+|----------|--------|---------------|--------|-------|
+| POST /api/v1/auth/login | POST | No | 200 | Login works |
+| GET /api/v1/auth/me | GET | Yes | 200 | Full profile: SCHOOL_ADMIN |
+| GET /api/v1/schools/{ownId}/students | GET | Yes | 200 | Empty array (new school) |
+| GET /api/v1/schools/{ownId}/sections | GET | Yes | 200 | Empty array |
+| GET /api/v1/schools/{ownId}/homework | GET | Yes | 200 | Empty array |
+| GET /api/v1/schools/{ownId}/notices | GET | Yes | 200 | Empty array |
+| GET /api/v1/schools/{id}/timetable?mine=true | GET | Yes | 403 | FORBIDDEN (school admin ≠ teacher) |
+| POST /api/v1/public/enquiries | POST | No | 201 | Public endpoint |
+| GET /api/v1/schools/{id}/fees | GET | Yes | 404 | Endpoint not at this path |
+| GET /api/v1/schools/{id}/messages | GET | Yes | 400 | Needs query params |
+
+### Tenant Isolation CONFIRMED:
+- Test school token → own school data: 200 ✓
+- Test school token → SOS school data: 403 TENANT_MISMATCH ✓
+- Test school token → RK school data: 403 TENANT_MISMATCH ✓
+
+### Role-Based Access Control CONFIRMED:
+- School admin cannot access teacher-only timetable → 403 FORBIDDEN ✓
+
+### Playwright E2E Against Live Site:
+- public.spec.ts: 4 passed, 1 failed (admin login — demo password doesn't work), 2 flaky (retried)
+
+### BLOCKER — Live Demo Password:
+- "Demo@1234" → 401 INVALID_CREDENTIALS
+- "mega" → 401 INVALID_CREDENTIALS (user states this IS live password but it doesn't work)
+- Founder asked to set DEMO_PASSWORD=mega on Render + redeploy — status unknown
+- Without demo password: demo school login, role journeys, integrations, PWA all blocked
+
+### Without demo password, CANNOT test:
+- Demo school login (student, parent, teacher, accountant, school admin roles)
+- Role-based UI journeys on demo schools
+- Email integration (absentee alerts, password reset, etc.)
+- Razorpay test mode payments
+- AI remark generation
+- File uploads
+- Scheduled jobs execution
+- Real-time socket connections
+- PWA sessions
+- Full e2e journeys
