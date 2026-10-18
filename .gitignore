@@ -16,3 +16,5 @@ apps/web/playwright-report/
 apps/web/e2e/shots/
 
 test-artifacts/
+test-artifacts-live/
+docs/testing/LAYER2_ACCESS.local.md

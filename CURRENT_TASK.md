@@ -9,11 +9,23 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** COMPLETE — Layer 1 testing (local only, no live touch, no keys; Phase 4 COMPLETE stands, tagged; Layer 1 tagged `layer-1-complete`)
-**Phase / Module:** Layer 1 of 2 — full local verification (COMPLETE, Stages 0–7)
+**Status:** IN PROGRESS — Layer 2 testing (live deployed site only; Phase 0–4 live; Layer 1 COMPLETE tagged `layer-1-complete`)
+**Phase / Module:** Layer 2 of 2 — live deployed-site verification (IN PROGRESS, Stage 0 handoff/pre-flight)
 **Last updated:** 2026-10-16
 
-## Standing security decision (founder-ordered 2026-10-11, do not nag)
+## LAYER 2 STAGE 0 — HANDOFF / PRE-FLIGHT (IN PROGRESS — BLOCKED on founder reply)
+Live servers confirmed up: API https://studyfy-api.onrender.com /health → 200 (~1.9s cold); Web https://studyfy-web.vercel.app / → 200 (~5.2s). Probes done:
+- POST /api/v1/internal/jobs/fee-reminders (no secret) → 401 UNAUTHENTICATED (CRON_SECRET set ✓)
+- CORS: real origin https://studyfy-web.vercel.app → ACAO + allow-credentials:true; foreign origin https://evil.example.com → NO ACAO ✓
+- /.env, /.git/config, /api-docs, /nonexistent-route → 404 ✓; GET /api/v1/platform/users (no auth) → 401 ✓
+- "Demo@1234" → 401 INVALID_CREDENTIALS (rotated ✓); "mega" → 401 INVALID_CREDENTIALS (ALSO wrong)
+- Failed logins used: 2/15
+BLOCKER: No valid live demo password. Cannot test logins, role journeys, tenant isolation, integrations, or most Stage 2–5 items without it.
+NEED FROM FOUNDER (batched, recorded in docs/testing/LAYER2_REPORT.md):
+  1. Correct live demo password
+  2. Deployed commit SHAs (Vercel web + Render api) to confirm == `ce2f391` (/health emits no SHA)
+  3. CI green confirmation (gh keyring broken)
+Files created: secret.md (DELETE AT END), docs/testing/LAYER2_ACCESS.local.md (gitignored, never in git history ✓), docs/testing/LAYER2_REPORT.md (running report), .gitignore updated (+LAYER2_ACCESS.local.md, +test-artifacts-live/)
 - ALL credential rotations (chat-exposed DB password, demo password, any future paste) happen ONCE, LAST, after the full build completes — not per chunk. The founder explicitly accepted the interim risk (demo-only data at stake; no real pupils). Rotation list lives here until then: (1) Aiven DB password (exposed twice in chat screenshots), (2) live demo password if ever pasted, (3) Cloudinary key + Brevo SMTP key (older exposures, still open). Single "ROTATE EVERYTHING" close-out runs after Chunk 5: regenerate each, update Render env, redeploy, verify, re-verify logins.
 
 ## What's done in this task so far
