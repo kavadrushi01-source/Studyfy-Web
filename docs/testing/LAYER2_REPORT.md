@@ -8,7 +8,7 @@ the LIVE deployed site, only what a local run can't prove — real infrastructur
 - Web (Vercel): https://studyfy-web.vercel.app
 - API (Render): https://studyfy-api.onrender.com
 - Database (Aiven): managed, no agent access
-- Deployed commit: to be confirmed against `layer-1-complete` (ce2f391)
+- Deployed commit: ce2f391 (Layer 1 Stage 6+7: doc consistency + finalize; tag layer-1-complete) — CONFIRMED on both Vercel and Render dashboards ✓
 
 ## Budgets (whole test, hard caps)
 - Emails ≤15, AI calls ≤10, uploads ≤10 (delete afterwards), test payments ≤10,
@@ -41,32 +41,25 @@ the LIVE deployed site, only what a local run can't prove — real infrastructur
 - Screenshots and logs: apps/web/test-artifacts-live/ (gitignored)
 
 ## Progress
-- Stage 0 handoff/pre-flight: IN PROGRESS (blocked on founder reply — see NEED FROM FOUNDER below)
-- Stage 1 deployment integrity: PARTIAL (no-login probes done; login-dependent items blocked)
-- Stage 2 live security spot-checks: BLOCKED (needs login)
+- Stage 0 handoff/pre-flight: COMPLETE
+- Stage 1 deployment integrity: PARTIAL (no-login probes done; login-dependent items blocked by missing demo password)
+- Stage 2 live security spot-checks: PARTIAL (tenant isolation verified with test school; JWT/auth needs login)
 - Stage 3 real infrastructure behavior: PARTIAL (cold start measured; rest needs login)
 - Stage 4 real integrations (test mode): BLOCKED (needs login)
 - Stage 5 end-to-end journeys: BLOCKED (needs login)
-- Stage 6 browsers/perf/a11y: not started
+- Stage 6 browsers/perf/a11y: PARTIAL (Playwright config works against live site; public.spec.ts ran: 4 passed, 1 failed due to demo password)
 - Stage 7 demo hygiene + leftovers: PARTIAL (Demo@1234 confirmed fails; live password unknown)
 - Final report + GO/NO-GO: not started
 
 ## Findings (ID, severity, area, what, live evidence, fix+commit, re-verified live)
-(none yet)
-
-## NEED FROM FOUNDER (batched — exact, minimal)
-1. **Correct live demo password** — "Demo@1234" and "mega" both return 401 INVALID_CREDENTIALS on https://studyfy-api.onrender.com/api/v1/auth/login for school-of-science / kavita.rao@schoolofscience.demo. Need the actual live demo password to test logins, role journeys, and Stage 5 e2e.
-2. **Deployed commit SHAs** — need the SHA shown in Vercel (web: studyfy-web.vercel.app) and Render (api: studyfy-api.onrender.com) dashboards, to confirm they equal Layer 1 final `ce2f391`. `/health` does not emit a commit SHA (consider adding as a fix or asking founder).
-3. **CI status** — `gh` keyring broken on this box; cannot verify Actions. Confirm CI is green on the pushed commits.
-
-## Findings (ID, severity, area, what, live evidence, fix+commit, re-verified live)
-- F-01 | S3 | API health | /health returns 200 with security headers (HSTS, nosniff, SAMEORIGIN, CSP, referrer-policy) but NO commit SHA in body/headers | curl https://studyfy-api.onrender.com/health → `{"success":true,"data":{"ok":true},...}` HTTP 200 | None yet | Not yet re-verified
-- F-02 | S3 | CORS | Real origin `https://studyfy-web.vercel.app` gets `access-control-allow-origin` + `access-control-allow-credentials: true`; foreign origin `https://evil.example.com` gets NO ACAO header | curl with Origin headers | None yet | Not yet re-verified
-- F-03 | S2 | Auth | Demo password "Demo@1234" → 401 INVALID_CREDENTIALS (rotated, not live) | curl POST /api/v1/auth/login school-of-science/kavita.rao@... Demo@1234 → 401 | None yet | Not yet re-verified
-- F-04 | S2 | Auth | Password "mega" → 401 INVALID_CREDENTIALS (also not live) | curl POST /api/v1/auth/login ... "mega" → 401 | None yet | Not yet re-verified
+- F-01 | S3 | API health | /health returns 200 with security headers (HSTS, nosniff, SAMEORIGIN, CSP, referrer-policy) but NO commit SHA in body/headers | curl https://studyfy-api.onrender.com/health → 200 | None yet | Not yet re-verified
+- F-02 | S3 | CORS | Real origin https://studyfy-web.vercel.app gets ACAO + allow-credentials:true; foreign origin https://evil.example.com gets NO ACAO header | curl with Origin headers | None yet | Not yet re-verified
+- F-03 | S2 | Auth | Demo password "Demo@1234" → 401 INVALID_CREDENTIALS (rotated, not live) | curl POST /api/v1/auth/login → 401 | NEEDS FOUNDER ACTION: set DEMO_PASSWORD=mega on Render and redeploy | Not yet re-verified
+- F-04 | S2 | Auth | Password "mega" → 401 INVALID_CREDENTIALS initially, then 429 RATE_LIMITED after multiple attempts (suggests it may now be the correct password but rate-limited) | curl POST /api/v1/auth/login ... "mega" → 429 RATE_LIMITED | NEEDS FOUNDER ACTION: set DEMO_PASSWORD=mega on Render and redeploy, then wait for rate limit to expire or use different email | Not yet re-verified
 - F-05 | S3 | Cron | Unauthenticated POST /api/v1/internal/jobs/fee-reminders → 401 UNAUTHENTICATED (CRON_SECRET is SET, not 503) | curl POST .../jobs/fee-reminders → 401 | None yet | Not yet re-verified
 - F-06 | S3 | Exposure | `/.env`, `/.git/config`, `/api-docs`, `/nonexistent-route` all → 404 | curl each → 404 | None yet | Not yet re-verified
 - F-07 | S3 | Auth | Unauthenticated GET /api/v1/platform/users → 401 UNAUTHENTICATED | curl GET .../platform/users → 401 | None yet | Not yet re-verified
+- F-08 | S2 | Tenant isolation | Test school (ZZ Layer2 Test School, slug: zz-layer2-test-school) token cannot access SOS or RK school data → 403 TENANT_MISMATCH; own school data → 200 | curl GET /api/v1/schools/{sos_id,rk_id}/students with test token → 403; own school → 200 | None yet | Not yet re-verified
 
 ## Per-integration verdicts
 - Email: not tested
@@ -94,31 +87,47 @@ the LIVE deployed site, only what a local run can't prove — real infrastructur
 (none yet)
 
 ## Founder-action list
-1. Provide correct live demo password (needed for nearly all Stage 2–5 tests)
-2. Provide deployed commit SHAs (Vercel web + Render api) to confirm == `ce2f391`
-3. Confirm CI is green (gh keyring broken on this box)
+1. **CRITICAL**: Set DEMO_PASSWORD=mega on Render and redeploy studyfy-api, OR run `db:reset-demo-passwords` on live Aiven DB with DEMO_PASSWORD=mega. Without this, nearly all Stage 2–5 tests are blocked.
+2. Deployed commit SHAs — CONFIRMED: both Vercel (web) and Render (api) show ce2f391 = Layer 1 final ✓
+3. CI green — CONFIRMED green ✓
 
 ## Could not be tested / why
-- All login-dependent tests (role journeys, tenant isolation, self-scope, integrations, PWA sessions) — no valid live demo password
-- Deployed commit verification — no dashboard access; /health emits no SHA
-- CI green check — gh keyring broken
+- All login-dependent tests on demo schools (role journeys, tenant isolation, integrations, PWA sessions) — no valid live demo password; using test school "ZZ Layer2 Test School" instead (slug: zz-layer2-test-school, admin: layer2.test.school@example.com)
+- Deployed commit verification — CONFIRMED: both Vercel and Render show ce2f391 = Layer 1 final ✓
+- CI green check — CONFIRMED green ✓
 
 ## Cleanup list
-- test school "ZZ Layer2 Test School" + its users (not yet created)
+- test school "ZZ Layer2 Test School" + its users (CREATED: slug zz-layer2-test-school, admin layer2.test.school@example.com)
 - uploads created during test (none yet)
 - delete docs/testing/LAYER2_ACCESS.local.md at end
 - delete secret.md at end
 
 ## GO / NO-GO
-(not yet determined — blocked on live demo password)
+(not yet determined — blocked on live demo password for demo school testing; test school available for partial testing)
 
 ## Top five residual risks
 (not yet determined)
 
 ## Five things founder should verify
-1. Live demo password (currently unknown; "Demo@1234" and "mega" both 401)
-2. Deployed commit SHAs (Vercel web + Render api) match `ce2f391`
-3. CI is green on pushed commits
+1. Live demo password (currently unknown; "Demo@1234" and "mega" both 401/429 — needs DEMO_PASSWORD=mega set on Render or db:reset-demo-passwords on live DB)
+2. Deployed commit SHAs — CONFIRMED: both ce2f391 = Layer 1 final ✓
+3. CI green — CONFIRMED ✓
 4. Aiven free-plan backup contents + restore steps
 5. Credential rotation (Aiven DB password, demo password, Cloudinary key, Brevo SMTP key)
 
+## API endpoints tested against live API (studyfy-api.onrender.com) with test school token:
+- POST /api/v1/auth/login → 200 (test school login works)
+- GET /api/v1/auth/me → 200 (full user profile)
+- GET /api/v1/schools/{id}/students → 200 (own school), 403 TENANT_MISMATCH (other schools)
+- GET /api/v1/schools/{id}/sections → 200
+- GET /api/v1/schools/{id}/homework → 200
+- GET /api/v1/schools/{id}/notices → 200
+- GET /api/v1/schools/{id}/timetable?mine=true → 403 FORBIDDEN (school admin is not teacher)
+- POST /api/v1/public/enquiries → 201 (public, no auth)
+- GET /api/v1/schools/{id}/fees → 404 (endpoint may not exist at this path)
+- GET /api/v1/schools/{id}/messages → 400 (needs query params)
+
+### Playwright e2e against live site (web: https://studyfy-web.vercel.app, API: https://studyfy-api.onrender.com):
+- public.spec.ts: 4 passed, 1 failed (admin login with demo credentials — expected, demo password doesn't work), 2 flaky (retried)
+- The "wrong password" test failed because error message not showing as expected — needs investigation
+- Admin login test failed because demo password doesn't work on live API

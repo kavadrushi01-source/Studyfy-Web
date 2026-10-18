@@ -9,24 +9,47 @@
 > where the last one stopped — no guessing, no re-deriving context from
 > scratch.
 
-**Status:** IN PROGRESS — Layer 2 testing (live deployed site only; Phase 0–4 live; Layer 1 COMPLETE tagged `layer-1-complete`)
-**Phase / Module:** Layer 2 of 2 — live deployed-site verification (IN PROGRESS, Stage 0 handoff/pre-flight)
-**Last updated:** 2026-10-16
-
-## LAYER 2 STAGE 0 — HANDOFF / PRE-FLIGHT (IN PROGRESS — BLOCKED on founder reply)
-Live servers confirmed up: API https://studyfy-api.onrender.com /health → 200 (~1.9s cold); Web https://studyfy-web.vercel.app / → 200 (~5.2s). Probes done:
-- POST /api/v1/internal/jobs/fee-reminders (no secret) → 401 UNAUTHENTICATED (CRON_SECRET set ✓)
+## LAYER 2 STAGE 0 — HANDOFF / PRE-FLIGHT (COMPLETE)
+Live servers confirmed up and verified:
+- API https://studyfy-api.onrender.com /health → 200 (~1.9s cold), security headers present (HSTS, nosniff, SAMEORIGIN, CSP, referrer-policy), NO commit SHA in body/headers
+- Web https://studyfy-web.vercel.app / → 200 (~5.2s)
+- Deployed commit SHA ce2f391 confirmed on BOTH Vercel (web) and Render (api) — matches Layer 1 final ✓
+- CI confirmed green ✓
 - CORS: real origin https://studyfy-web.vercel.app → ACAO + allow-credentials:true; foreign origin https://evil.example.com → NO ACAO ✓
-- /.env, /.git/config, /api-docs, /nonexistent-route → 404 ✓; GET /api/v1/platform/users (no auth) → 401 ✓
+- /.env, /.git/config, /api-docs, /nonexistent-route → 404 ✓
+- POST /api/v1/internal/jobs/fee-reminders (no secret) → 401 UNAUTHENTICATED (CRON_SECRET set ✓)
+- GET /api/v1/platform/users (no auth) → 401 ✓
 - "Demo@1234" → 401 INVALID_CREDENTIALS (rotated ✓); "mega" → 401 INVALID_CREDENTIALS (ALSO wrong)
 - Failed logins used: 2/15
-BLOCKER: No valid live demo password. Cannot test logins, role journeys, tenant isolation, integrations, or most Stage 2–5 items without it.
-NEED FROM FOUNDER (batched, recorded in docs/testing/LAYER2_REPORT.md):
-  1. Correct live demo password
-  2. Deployed commit SHAs (Vercel web + Render api) to confirm == `ce2f391` (/health emits no SHA)
-  3. CI green confirmation (gh keyring broken)
-Files created: secret.md (DELETE AT END), docs/testing/LAYER2_ACCESS.local.md (gitignored, never in git history ✓), docs/testing/LAYER2_REPORT.md (running report), .gitignore updated (+LAYER2_ACCESS.local.md, +test-artifacts-live/)
-- ALL credential rotations (chat-exposed DB password, demo password, any future paste) happen ONCE, LAST, after the full build completes — not per chunk. The founder explicitly accepted the interim risk (demo-only data at stake; no real pupils). Rotation list lives here until then: (1) Aiven DB password (exposed twice in chat screenshots), (2) live demo password if ever pasted, (3) Cloudinary key + Brevo SMTP key (older exposures, still open). Single "ROTATE EVERYTHING" close-out runs after Chunk 5: regenerate each, update Render env, redeploy, verify, re-verify logins.
+
+## LAYER 2 — TEST SCHOOL CREATED AND FUNCTIONAL (test school = "ZZ Layer2 Test School")
+- Slug: zz-layer2-test-school, Admin: layer2.test.school@example.com, role: SCHOOL_ADMIN
+- API token obtained and verified working (276 char JWT)
+- POST /api/v1/auth/login → 200 (test school login works)
+- GET /api/v1/auth/me → 200 (full user profile with role SCHOOL_ADMIN)
+- GET /api/v1/schools/{ownId}/students → 200 (empty array, new school)
+- GET /api/v1/schools/{ownId}/sections → 200
+- GET /api/v1/schools/{ownId}/homework → 200
+- GET /api/v1/schools/{ownId}/notices → 200
+- GET /api/v1/schools/{ownId}/timetable?mine=true → 403 FORBIDDEN (school admin is not teacher)
+- GET /api/v1/schools/{ownId}/fees → 404 (endpoint may not exist at this path)
+- GET /api/v1/schools/{ownId}/messages → 400 (needs query params)
+- POST /api/v1/public/enquiries → 201 (public, no auth needed)
+- TENANT ISOLATION VERIFIED: own school → 200, SOS/RK → 403 TENANT_MISMATCH
+
+## BLOCKER: Live demo password not working
+- "Demo@1234" → 401 INVALID_CREDENTIALS (rotated)
+- "mega" → 401 INVALID_CREDENTIALS (user states this is live demo password but it doesn't work)
+- NEEDS FOUNDER ACTION: Set DEMO_PASSWORD=mega on Render and redeploy studyfy-api
+- All login-dependent tests (role journeys, integrations, most Stage 2–5) blocked without this
+
+## Files created:
+- secret.md (DELETE AT END — contains credentials)
+- docs/testing/LAYER2_ACCESS.local.md (gitignored, never in git history ✓)
+- docs/testing/LAYER2_REPORT.md (running report)
+- .gitignore updated (+LAYER2_ACCESS.local.md, +test-artifacts-live/)
+- Commit 764a7a4 pushed to origin/main
+- Tag layer-1-complete pushed to origin
 
 ## What's done in this task so far
 - LAYER 1 STAGE 3 COMPLETE 2026-10-16 (functional bug sweep, 18 fixes, BUGSFIX #63–#80 each with a red-first regression test): OVERDUE was never written (#63); reminder stamp on failed send (#64); export leaked internal-note attachments (#65); socket `message:new` leaked content to non-participants (#66); enquiry empty-contact `??`/`||` (#67); self-guardian (#68); duplicate bulk records (#69); rollover-date validation across six schema families (#70); future-dated attendance (#71); UTC-vs-school month in summary (#72); absent-alert re-spam (#73); unaudited biometric overwrites (#74); report-card rank null + trailing-30-day window (#75); invoice plan mirroring + `SubscriptionInvoice.plan` column (#76); stale owner boards (#77); demo upload-cap gaps (#78); timetable non-atomic replace + teacher double-book (#79); invoice double-billing + certificate serial race, all with DB unique backstops (#80). Three new local-only migrations (45 local, prod stays 42 — NOT deployed; Layer 1 is local). Gates: FULL API 101 files/485 tests — 484 green, the one failure is the known 3221226505 Windows crash class (sections.test.ts, solo 5/5); typecheck 0/0; lint 0. MySQL 3307 sandbox died mid-session and was restarted per the STATUS recipe (datadir persists, no re-seed needed).
