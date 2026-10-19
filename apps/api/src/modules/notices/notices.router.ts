@@ -5,8 +5,8 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
-import { createNoticeSchema } from "./notices.schemas.js";
-import { publishNotice } from "./notices.service.js";
+import { createNoticeSchema, updateNoticeSchema } from "./notices.schemas.js";
+import { deleteNotice, publishNotice, updateNotice } from "./notices.service.js";
 
 export const noticesRouter = Router();
 
@@ -48,6 +48,67 @@ noticesRouter.post(
     try {
       const result = await publishNotice(req.prisma, req.user.userId, parsed.data);
       res.status(201).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendNoticeError(res, err);
+    }
+  }),
+);
+
+// Correct a published notice (ADMIN/TEACHER). PATCH rather than PUT so a
+// one-field typo fix does not have to resend the whole body.
+noticesRouter.patch(
+  "/schools/:schoolId/notices/:noticeId",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("notices.write"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    const parsed = updateNoticeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid request body." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await updateNotice(req.prisma, req.params.noticeId ?? "", parsed.data);
+      res.json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendNoticeError(res, err);
+    }
+  }),
+);
+
+// Withdraw a notice (ADMIN/TEACHER).
+noticesRouter.delete(
+  "/schools/:schoolId/notices/:noticeId",
+  authMiddleware,
+  tenantMiddleware,
+  requirePermission("notices.write"),
+  catchAsync(async (req: Request, res: Response) => {
+    if (!req.prisma) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong." },
+        meta: null,
+      });
+      return;
+    }
+    try {
+      const result = await deleteNotice(req.prisma, req.params.noticeId ?? "");
+      res.json({ success: true, data: result, error: null, meta: null });
     } catch (err) {
       sendNoticeError(res, err);
     }

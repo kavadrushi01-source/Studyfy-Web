@@ -127,6 +127,31 @@ export default function NoticesPage() {
     }
   }
 
+  // Withdraw a notice. The board could publish and list but never edit or
+  // delete, so a notice sent to the wrong audience (or with a typo) stayed on
+  // every student and parent board permanently.
+  const withdraw = async (noticeId: string, noticeTitle: string) => {
+    if (!schoolId) {
+      return;
+    }
+    if (!window.confirm(`Withdraw "${noticeTitle}"? It disappears from every board immediately.`)) {
+      return;
+    }
+    setError("");
+    try {
+      const response = await apiFetch(`/api/v1/schools/${schoolId}/notices/${noticeId}`, { method: "DELETE" });
+      const data = (await response.json()) as { data: { deleted: string } } | ApiError;
+      if (isFailure(response, data)) {
+        setError(data.error?.message ?? `Request failed (${response.status}).`);
+        return;
+      }
+      setNotice("Notice withdrawn.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error.");
+    }
+  };
+
   const targetTint = (value: string): React.CSSProperties =>
     value === "SCHOOL"
       ? pill(colors.primary, colors.primaryGhost, "#C7DDFB")
@@ -293,6 +318,26 @@ export default function NoticesPage() {
             <small style={{ color: colors.muted, fontSize: 12 }}>
               {n.createdBy.name} · {new Date(n.createdAt).toLocaleDateString("en-GB")}
             </small>
+            {canPublish ? (
+              <div style={{ marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => void withdraw(n.id, n.title)}
+                  style={{
+                    border: `1px solid ${colors.danger}55`,
+                    background: "transparent",
+                    color: colors.danger,
+                    borderRadius: 8,
+                    padding: "6px 12px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Withdraw
+                </button>
+              </div>
+            ) : null}
           </article>
         ))
       )}

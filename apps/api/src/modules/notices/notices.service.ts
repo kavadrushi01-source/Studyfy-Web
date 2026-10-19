@@ -2,7 +2,74 @@ import type { PrismaClient } from "@prisma/client";
 import { mailerFor, MailerUnconfiguredError } from "../../lib/mailer.js";
 import { AuthError } from "../auth/auth.service.js";
 import { invalidateActivityFeed, invalidateStudentBoards, invalidateTeacherBoards } from "../metrics/metrics.service.js";
-import type { CreateNoticeInput } from "./notices.schemas.js";
+import type { CreateNoticeInput, UpdateNoticeInput } from "./notices.schemas.js";
+
+// Correct a published notice (ADMIN/TEACHER, notices.write). The board had
+// POST and GET only, so a typo in a school-wide notice could never be fixed -
+// it stayed visible to every student and parent forever. Editing re-targets
+// the notice in place and does NOT re-send email: the correction is for the
+// board, and re-mailing an already-delivered notice to the whole staff list
+// on every keystroke-save is worse than staying quiet.
+export async function updateNotice(
+  db: PrismaClient,
+  noticeId: string,
+  input: UpdateNoticeInput,
+): Promise<{ id: string; title: string }> {
+  const existing = await db.notice.findFirst({
+    where: { id: noticeId },
+    select: { id: true, title: true, target: true, classId: true, sectionId: true, schoolId: true },
+  });
+  if (!existing) {
+    throw new AuthError(404, "NOTICE_NOT_FOUND", "Notice not found in this school.");
+  }
+  const target = input.target ?? existing.target;
+  const classId = input.classId ?? existing.classId;
+  const sectionId = input.sectionId ?? existing.sectionId;
+  // A retarget that names a foreign class/section must 404, not link across
+  // tenants - the same rule publishNotice relies on.
+  if (target === "CLASS" && classId) {
+    const cls = await db.class.findFirst({ where: { id: classId } });
+    if (!cls) {
+      throw new AuthError(404, "CLASS_NOT_FOUND", "Class not found in this school.");
+    }
+  }
+  if (target === "SECTION" && sectionId) {
+    const sec = await db.section.findFirst({ where: { id: sectionId } });
+    if (!sec) {
+      throw new AuthError(404, "SECTION_NOT_FOUND", "Section not found in this school.");
+    }
+  }
+  const updated = await db.notice.update({
+    where: { id: existing.id },
+    data: {
+      title: input.title ?? existing.title,
+      body: input.body ?? undefined,
+      target,
+      classId: target === "CLASS" ? classId : null,
+      sectionId: target === "SECTION" ? sectionId : null,
+    },
+    select: { id: true, title: true },
+  });
+  invalidateActivityFeed(existing.schoolId);
+  invalidateTeacherBoards(existing.schoolId);
+  invalidateStudentBoards(existing.schoolId);
+  return updated;
+}
+
+// Withdraw a notice (ADMIN/TEACHER, notices.write). Needed for the same
+// reason as updateNotice: a notice published to the wrong audience, or one
+// that turns out to be wrong, previously could not be taken down at all.
+export async function deleteNotice(db: PrismaClient, noticeId: string): Promise<{ deleted: string; title: string }> {
+  const notice = await db.notice.findFirst({ where: { id: noticeId }, select: { id: true, title: true, schoolId: true } });
+  if (!notice) {
+    throw new AuthError(404, "NOTICE_NOT_FOUND", "Notice not found in this school.");
+  }
+  await db.notice.delete({ where: { id: notice.id } });
+  invalidateActivityFeed(notice.schoolId);
+  invalidateTeacherBoards(notice.schoolId);
+  invalidateStudentBoards(notice.schoolId);
+  return { deleted: notice.id, title: notice.title };
+}
 
 // Notice board (§7 Phase 1 #7): school-wide, class-wide, or section-scoped,
 // with email delivery to affected parents/staff over the real SMTP channel

@@ -116,7 +116,7 @@ async function makeClassroom(
   return { classId: cls.id, sectionId: section.id, studentIds };
 }
 
-describe("notices board + delivery (§7 Phase 1 #7)", () => {
+describe("notices board + delivery (Â§7 Phase 1 #7)", () => {
   it("publishes school-wide and emails every parent and staffer", async () => {
     const { schoolId, adminToken } = await registerSchool();
     const parentA = `nparent-a-${uid()}@example.com`;
@@ -238,5 +238,130 @@ describe("notices board + delivery (§7 Phase 1 #7)", () => {
       .send({ title: "Intruder notice", body: "School B admin posting into school A." })
       .expect(403);
     expect(cross.body.error.code).toBe("TENANT_MISMATCH");
+  });
+});
+
+// Layer 3: the board could publish (POST) and list (GET) but had no PATCH and
+// no DELETE, so a typo in a school-wide notice could never be corrected and a
+// notice published to the wrong audience could never be withdrawn - it stayed
+// on every student and parent board forever.
+describe("notice edit + withdraw", () => {
+  it("admin can edit a published notice", async () => {
+    const school = await registerSchool();
+    const created = await request(app)
+      .post(`/api/v1/schools/${school.schoolId}/notices`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .send({ title: "Typoed notice", body: "The assemby is on Monday morning." })
+      .expect(201);
+    const noticeId = created.body.data.id as string;
+
+    const emailsBefore = emailed.length;
+    const patched = await request(app)
+      .patch(`/api/v1/schools/${school.schoolId}/notices/${noticeId}`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .send({ title: "Corrected notice" })
+      .expect(200);
+    expect(patched.body.data.title).toBe("Corrected notice");
+
+    const list = await request(app)
+      .get(`/api/v1/schools/${school.schoolId}/notices`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .expect(200);
+    const notice = (list.body.data.notices as { id: string; title: string; body: string }[]).find((n) => n.id === noticeId);
+    expect(notice?.title).toBe("Corrected notice");
+    // A one-field typo fix must not re-mail the whole staff list.
+    expect(notice?.body).toBe("The assemby is on Monday morning.");
+    expect(emailed.length).toBe(emailsBefore);
+  });
+
+  it("admin can withdraw a notice and it leaves the board", async () => {
+    const school = await registerSchool();
+    const created = await request(app)
+      .post(`/api/v1/schools/${school.schoolId}/notices`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .send({ title: "Notice to withdraw", body: "This one should not survive the delete." })
+      .expect(201);
+    const noticeId = created.body.data.id as string;
+
+    const del = await request(app)
+      .delete(`/api/v1/schools/${school.schoolId}/notices/${noticeId}`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .expect(200);
+    expect(del.body.data.deleted).toBe(noticeId);
+
+    const list = await request(app)
+      .get(`/api/v1/schools/${school.schoolId}/notices`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .expect(200);
+    const ids = (list.body.data.notices as { id: string }[]).map((n) => n.id);
+    expect(ids).not.toContain(noticeId);
+  });
+
+  it("rejects an empty edit and an unknown notice", async () => {
+    const school = await registerSchool();
+    const created = await request(app)
+      .post(`/api/v1/schools/${school.schoolId}/notices`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .send({ title: "Untouched notice", body: "Body long enough to pass validation." })
+      .expect(201);
+    const noticeId = created.body.data.id as string;
+
+    await request(app)
+      .patch(`/api/v1/schools/${school.schoolId}/notices/${noticeId}`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .send({})
+      .expect(400);
+
+    await request(app)
+      .delete(`/api/v1/schools/${school.schoolId}/notices/does-not-exist`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .expect(404);
+  });
+
+  it("a teacher cannot edit another school's notice", async () => {
+    const schoolA = await registerSchool();
+    const schoolB = await registerSchool();
+    const created = await request(app)
+      .post(`/api/v1/schools/${schoolA.schoolId}/notices`)
+      .set("Authorization", `Bearer ${schoolA.adminToken}`)
+      .send({ title: "School A only", body: "Belongs to school A alone." })
+      .expect(201);
+    const noticeId = created.body.data.id as string;
+
+    const cross = await request(app)
+      .delete(`/api/v1/schools/${schoolA.schoolId}/notices/${noticeId}`)
+      .set("Authorization", `Bearer ${schoolB.adminToken}`)
+      .expect(403);
+    expect(cross.body.error.code).toBe("TENANT_MISMATCH");
+
+    // Still there for its real owner.
+    const list = await request(app)
+      .get(`/api/v1/schools/${schoolA.schoolId}/notices`)
+      .set("Authorization", `Bearer ${schoolA.adminToken}`)
+      .expect(200);
+    const ids = (list.body.data.notices as { id: string }[]).map((n) => n.id);
+    expect(ids).toContain(noticeId);
+  });
+
+  it("a student cannot edit or delete a notice", async () => {
+    const school = await registerSchool();
+    const room = await makeClassroom(school.schoolId, []);
+    const pupil = await loginStudentInSection(school.schoolId, school.slug, room.sectionId);
+    const created = await request(app)
+      .post(`/api/v1/schools/${school.schoolId}/notices`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .send({ title: "Read only for pupils", body: "Pupils may read this but not change it." })
+      .expect(201);
+    const noticeId = created.body.data.id as string;
+
+    await request(app)
+      .delete(`/api/v1/schools/${school.schoolId}/notices/${noticeId}`)
+      .set("Authorization", `Bearer ${pupil.token}`)
+      .expect(403);
+    await request(app)
+      .patch(`/api/v1/schools/${school.schoolId}/notices/${noticeId}`)
+      .set("Authorization", `Bearer ${pupil.token}`)
+      .send({ title: "Hijacked" })
+      .expect(403);
   });
 });
