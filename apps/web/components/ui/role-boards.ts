@@ -135,6 +135,7 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
     icon: BookMarked,
     badgeBg: "#0891B2",
     nav: [
+      { label: "Dashboard", href: "/dashboard/staff" },
       { label: "Library", href: "/library" },
       { label: "Students", href: "/students" },
       { label: "Payroll", href: "/payroll" },
@@ -147,6 +148,7 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
     icon: Bus,
     badgeBg: "#B45309",
     nav: [
+      { label: "Dashboard", href: "/dashboard/staff" },
       { label: "Transport", href: "/transport" },
       { label: "Students", href: "/students" },
       { label: "Payroll", href: "/payroll" },
@@ -186,9 +188,9 @@ export const BOARD_PATH_BY_ROLE: Record<string, string> = {
   STUDENT: "/dashboard/student",
   PARENT: "/dashboard/parent",
   // No dedicated staff board exists server-side (dashboard/admin is
-  // SCHOOL_ADMIN-only), so these roles land on the module they actually run.
-  LIBRARIAN: "/library",
-  TRANSPORT_MANAGER: "/transport",
+  // SCHOOL_ADMIN-only), so these roles get the staff board built for them.
+  LIBRARIAN: "/dashboard/staff",
+  TRANSPORT_MANAGER: "/dashboard/staff",
   PLATFORM_OWNER: "/dashboard/owner",
 };
 
