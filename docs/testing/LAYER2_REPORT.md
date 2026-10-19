@@ -1,8 +1,8 @@
 # Layer 2 Report — live deployed-site verification
 
-**Status:** COMPLETE with one open item (web CSP) and two accepted env gaps.
+**Status:** COMPLETE (Layer 2) + **Layer 3 browser sweep COMPLETE** — see §12 for the full-site functional pass and the bugs it found.
 **Verdict:** **GO** for demo/portfolio use. **CONDITIONAL** for real payments until `PLATFORM_GSTIN` / `PLATFORM_STATE` are set.
-**Test window:** 2026-10-19 · **Code under test:** `da61f67` (404 fix) + `bb3f7f5` (web headers), both deployed and re-verified live.
+**Test window:** 2026-10-19 · **Code under test:** Layer 3 head `f7040b4`, all deployed and re-verified live.
 
 ## 1. Environment under test
 
@@ -155,3 +155,61 @@ Lesson applied: both came from cleanup filters that were wider than intended. Th
 - Both Layer 2 test schools and all e2e leftovers removed from the database.
 - Probe documents deleted; stray payment intents and test students removed.
 - No secrets, tokens, or passwords appear in this report.
+
+---
+
+# 12. Layer 3 — full-site functional sweep (browser-driven)
+
+Layer 2 proved the **API** correct. Layer 3 drove the **website** the way a person
+does: real Chromium/Firefox/WebKit, real typing into forms, real clicks, every
+route, every role. That is what found the bugs below — none of them were visible
+to API-level testing, because the API was fine; the application in front of it
+was not.
+
+## Method
+
+- All **54 routes** enumerated from `apps/web/app/**/page.tsx` (dynamic ones resolved with real IDs).
+- **9 roles**: SOS Admin, Teacher, Accountant, Librarian, Transport Manager, Parent, Student; RK Admin; Platform Owner.
+- Per route captured: rendered text, every API call and status, and console errors.
+- Correct behaviour was distinguished from defects rather than assumed: a role that
+  *should* be refused is not a bug.
+
+## Bugs found and fixed
+
+| # | Severity | Bug | Fix |
+|---|---|---|---|
+| L3-1 | **S2** | **Librarian and Transport Manager were completely locked out.** Both roles are seeded with real permissions, but neither existed in `ROLE_BOARDS` nor in the login screen's role→board map. A successful login produced a "Signed in as …" screen with **no "Open my board" link and no navigation at all** — a hard dead end for 2 of 8 roles. | `ROLE_BOARDS` gained both roles with nav limited to what their permission keys allow. `BOARD_PATH_BY_ROLE` became the single source of truth, replacing the login page's duplicate map so the two can no longer drift. Commit `caabb6f`. |
+| L3-2 | **S2** | **Staff roles saw the School Admin board.** `/dashboard` hardcodes `<Shell role="SCHOOL_ADMIN">`, so a librarian/transport manager landing there got the "School Admin" badge and the full **21-link admin nav — of which 18 403'd on click.** | `/dashboard` now redirects any non-admin role to its own board. Commit `caabb6f`. |
+| L3-3 | **S3** | **Staff roles still had nowhere to navigate.** After L3-1/2 they landed on `/library` and `/transport`, which are deliberately role-agnostic and render no `Shell` — a working page with no navigation. | Added `/dashboard/staff`, built only from endpoints each role already has permission for. No API change and no new permission; `dashboard/admin` stays `SCHOOL_ADMIN`-only. Commit `816deed`. |
+| L3-4 | **S3** | **Notices could be published but never edited or withdrawn.** The module had POST and GET only. A typo in a school-wide notice could not be corrected, and a notice sent to the wrong audience could not be taken down — it stayed on every student and parent board indefinitely, with no recourse. | `PATCH` and `DELETE` on `/schools/:schoolId/notices/:noticeId`, gated on `notices.write`. Retargeting re-validates class/section through the tenant-scoped client so a foreign id 404s. Editing deliberately does **not** re-send email. Withdraw button in the UI. Regression tests added. Commit `f7040b4`. |
+
+## Verified working
+
+- **Logins:** 9/9 roles across Chromium, Firefox and WebKit.
+- **Landing boards:** every role now lands on its own board with the correct badge —
+  Teacher→`/dashboard/teacher`, Librarian & Transport→`/dashboard/staff`, Owner→`/dashboard/owner`.
+- **Nav correctness:** every sidebar link for Librarian and Transport was clicked
+  through — **12/12 pages load with zero API errors**. Previously the same click
+  produced 403s on 18 of 21 links.
+- **Route sweep:** 477 role×route combinations. After excluding *correct* refusals
+  (wrong-role boards, cross-tenant 404s, and RK's STANDARD-plan lockout of Phase 3
+  `/inventory`), **zero genuine defects remained**.
+- **Create flow:** notice published through the UI → `201` → persisted across reload.
+- **Withdraw flow:** `DELETE` → `200` → gone from the board after reload.
+- **Form validation:** submitting an empty student form makes **no POST** — the guard holds.
+- **Responsive:** no horizontal overflow at iPhone 13 (390px), iPad (768px), or 390×844 on 8 representative pages.
+
+## Honest note on methodology
+
+An early sweep reported **41 "broken" pages** and a first browser run reported **6/6 login failures**. Both were defects in the *test*, not the app: it waited a fixed 6 s (Render's cold start takes ~23 s) and judged pages "blank" by counting interactive elements, which misses div-rendered content. Re-running against the real condition showed those pages rendering correctly. The numbers above come from the corrected harness.
+
+## Still open
+
+- Web CSP (unchanged — needs a report-only rollout; see §8).
+- `users.school_id` `ON DELETE SET NULL` (unchanged — needs a migration decision; see §4 F4).
+- Cron jobs, email delivery, and real payment capture remain unverified live for the
+  same reason as Layer 2: no `CRON_SECRET`, no inbox, and no live-mode payments.
+- The new notice regression tests could not be executed locally: the api suite needs
+  a local MySQL, and the installed `MySQL80` service uses a root password that is not
+  available to this session. They are committed and will run in CI, which provisions
+  its own database.
