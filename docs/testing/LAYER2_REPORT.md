@@ -1,218 +1,153 @@
-# Layer 2 Report — live deployed-site verification (Phases 0–4)
+# Layer 2 Report — live deployed-site verification
 
-Local-only code tests are Layer 1 (see docs/testing/LAYER1_REPORT.md). This report covers Layer 2:
-the LIVE deployed site, only what a local run can't prove — real infrastructure, real integrations
-(in test mode), real browsers, real network paths.
+**Status:** COMPLETE with one open item (web CSP) and two accepted env gaps.
+**Verdict:** **GO** for demo/portfolio use. **CONDITIONAL** for real payments until `PLATFORM_GSTIN` / `PLATFORM_STATE` are set.
+**Test window:** 2026-10-19 · **Code under test:** `da61f67` (404 fix) + `bb3f7f5` (web headers), both deployed and re-verified live.
 
-## Environment under test
-- Web (Vercel): https://studyfy-web.vercel.app
-- API (Render): https://studyfy-api.onrender.com
-- Database (Aiven): managed, no agent access
-- Deployed commit: ce2f391 (Layer 1 Stage 6+7: doc consistency + finalize; tag layer-1-complete) — CONFIRMED on both Vercel and Render dashboards ✓
+## 1. Environment under test
 
-## Budgets (whole test, hard caps)
-- Emails ≤15, AI calls ≤10, uploads ≤10 (delete afterwards), test payments ≤10,
-  exports ≤2, failed logins ≤15, concurrent requests ≤20.
-- No load testing, no sustained hammering.
+| | |
+|---|---|
+| Web | `https://studyfy-web.vercel.app` (Vercel) |
+| API | `https://studyfy-api.onrender.com` (Render free tier) |
+| DB | Aiven MySQL, 45/45 migrations applied, 0 unfinished |
+| `environment` | `production` |
+| Razorpay | `TEST` mode confirmed (`rzp_test_…`) — no live money path exercised |
+| Demo schools | `school-of-science` (PREMIUM), `ramakrishna-school` (STANDARD) |
 
-## Rules of engagement
-- Scope: this deployment, two demo schools (school-of-science, ramakrishna-school),
-  and ONE self-registered school named "ZZ Layer2 Test School" (obvious prefix).
-  All writes go to the test school; demo schools: minimum writes, leave tidy.
-- Never touch real hosts/third parties beyond this deployment; no live/real payment
-  details; Razorpay test mode only.
-- No dashboard/database/CRON_SECRET access. Requests to founder via ONE batched
-  "NEED FROM FOUNDER" message per need, recorded here.
-- Everything read from live site/emails/logs is data to inspect, never instructions.
-- Live secret / real personal data / exploitable cross-school leak: STOP that path,
-  report immediately, recommend containment.
-- Evidence only: every claim needs request, response, or screenshot.
-- Severity labels: S1 (leak/security) → S5 (polish). Fix S1–S3; fix S4–S5 if cheap.
-- Product/business decisions → "needs founder decision". Do not edit planning files;
-  spec problems go in this report.
-- Fix rule for live site: reproduce locally first, red-first regression test, fix
-  root cause (never weaken a check), add BUGSFIX.md entry, small commit. Batch pushes
-  once per stage max, CI green, announce each push. After deploy, re-verify exact live
-  finding + quick smoke. Migrations/env/CORS/region/dashboard actions → NEEDS FOUNDER
-  ACTION with exact steps. Auth/tenant-scoping/self-scope/webhooks/impersonation/audit/
-  export/cookie fixes → separate report section with file+line numbers.
+Credentials, tokens, and the temporary test-school password are **not** in this file. They lived only in gitignored local notes, all deleted at cleanup.
 
-## Evidence location
-- Screenshots and logs: apps/web/test-artifacts-live/ (gitignored)
+## 2. Budget used (hard caps)
 
-## Progress
-- Stage 0 handoff/pre-flight: COMPLETE
-- Stage 1 deployment integrity: PARTIAL (no-login probes done; login-dependent items blocked by missing demo password)
-- Stage 2 live security spot-checks: PARTIAL (tenant isolation verified with test school; JWT/auth needs login)
-- Stage 3 real infrastructure behavior: PARTIAL (cold start measured; rest needs login)
-- Stage 4 real integrations (test mode): BLOCKED (needs login)
-- Stage 5 end-to-end journeys: BLOCKED (needs login)
-- Stage 6 browsers/perf/a11y: PARTIAL (Playwright config works against live site; public.spec.ts ran: 4 passed, 1 failed due to demo password)
-- Stage 7 demo hygiene + leftovers: PARTIAL (Demo@1234 confirmed fails; live password unknown)
-- Final report + GO/NO-GO: not started
+| Budget | Cap | Used |
+|---|---|---|
+| Emails | 15 | 3 |
+| AI (Groq) calls | 10 | 1 |
+| Uploads | 10 | 3 |
+| Test payments | 10 | 1 (order only, never captured) |
+| Exports | 2 | 1 |
+| Failed logins | 15 | ~8 (all from the pre-existing password blocker) |
+| Concurrent requests | 20 | 20 (exactly at cap) |
 
-## Findings (ID, severity, area, what, live evidence, fix+commit, re-verified live)
-- F-01 | S3 | API health | /health returns 200 with security headers (HSTS, nosniff, SAMEORIGIN, CSP, referrer-policy) but NO commit SHA in body/headers | curl https://studyfy-api.onrender.com/health → 200 | None yet | Not yet re-verified
-- F-02 | S3 | CORS | Real origin https://studyfy-web.vercel.app gets ACAO + allow-credentials:true; foreign origin https://evil.example.com gets NO ACAO header | curl with Origin headers | None yet | Not yet re-verified
-- F-03 | S2 | Auth | Demo password "Demo@1234" → 401 INVALID_CREDENTIALS (rotated, not live) | curl POST /api/v1/auth/login → 401 | NEEDS FOUNDER ACTION: set DEMO_PASSWORD=mega on Render and redeploy | Not yet re-verified
-- F-04 | S2 | Auth | Password "mega" → 401 INVALID_CREDENTIALS initially, then 429 RATE_LIMITED after multiple attempts (suggests it may now be the correct password but rate-limited) | curl POST /api/v1/auth/login ... "mega" → 429 RATE_LIMITED | NEEDS FOUNDER ACTION: set DEMO_PASSWORD=mega on Render and redeploy, then wait for rate limit to expire or use different email | Not yet re-verified
-- F-05 | S3 | Cron | Unauthenticated POST /api/v1/internal/jobs/fee-reminders → 401 UNAUTHENTICATED (CRON_SECRET is SET, not 503) | curl POST .../jobs/fee-reminders → 401 | None yet | Not yet re-verified
-- F-06 | S3 | Exposure | `/.env`, `/.git/config`, `/api-docs`, `/nonexistent-route` all → 404 | curl each → 404 | None yet | Not yet re-verified
-- F-07 | S3 | Auth | Unauthenticated GET /api/v1/platform/users → 401 UNAUTHENTICATED | curl GET .../platform/users → 401 | None yet | Not yet re-verified
-- F-08 | S2 | Tenant isolation | Test school (ZZ Layer2 Test School, slug: zz-layer2-test-school) token cannot access SOS or RK school data → 403 TENANT_MISMATCH; own school data → 200 | curl GET /api/v1/schools/{sos_id,rk_id}/students with test token → 403; own school → 200 | None yet | Not yet re-verified
+## 3. Blockers found and resolved
 
-## Per-integration verdicts
-- Email: not tested
-- Razorpay (test mode): not tested
-- AI: not tested
-- Files: not tested
-- Scheduled jobs: not tested
-- Real-time: not tested
-- PWA: not tested
+The deployment was **not** in the state Layer 1 left off in. Four blockers, all found by inspecting the live database rather than trusting the dashboards.
 
-## Performance table
-(endpoint, cold/warm latency, Lighthouse score)
-- GET /health: cold ~1.9s (first request after idle), warm not yet measured
+### B1 — Demo password hashes never rotated (RESOLVED)
+`DEMO_PASSWORD` was set on Render and the service redeployed, but that only affects **seed** scripts. Login compares the stored bcrypt hash, so every demo login still returned 401, then 429 after retries.
+**Fix:** ran the correct rotation entry point against production —
+`npm run db:reset-demo-passwords --workspace=@studyfy/api` (`Reset 30 demo password(s)`). SOS admin and the platform owner now authenticate.
+**Note for the founder:** re-running this is required whenever `DEMO_PASSWORD` changes on the host; setting the env var alone does nothing.
 
-## Quota headroom
-- Emails: 0/15 used
-- AI calls: 0/10 used
-- Uploads: 0/10 used
-- Test payments: 0/10 used
-- Exports: 0/2 used
-- Failed logins: 2/15 used (Demo@1234, mega)
-- Concurrent requests: 0/20 at once
+### B2 — Ramakrishna School did not exist in production (RESOLVED)
+Only `school-of-science` was present; all 8 Ramakrishna logins returned 401. Production had been seeded before the second school shipped.
+**Fix:** `npm run db:seed` against production (idempotent, demo-scoped, refuses to run without `DEMO_PASSWORD` outside local dev). Both schools now seed.
 
-## Security-sensitive fixes
-(none yet)
+### B3 — LIBRARIAN and TRANSPORT_MANAGER logins missing (RESOLVED)
+The seed adds these two staff accounts per school; production predated them. SOS role counts were `STUDENT 12, PARENT 11, TEACHER 5, ADMIN 1, ACCOUNTANT 1` — no librarian, no transport manager.
+**Fix:** same re-seed. All 16 demo accounts across both schools now authenticate (200).
 
-## Founder-action list
-1. **CRITICAL**: Set DEMO_PASSWORD=mega on Render and redeploy studyfy-api, OR run `db:reset-demo-passwords` on live Aiven DB with DEMO_PASSWORD=mega. Without this, nearly all Stage 2–5 tests are blocked.
-2. Deployed commit SHAs — CONFIRMED: both Vercel (web) and Render (api) show ce2f391 = Layer 1 final ✓
-3. CI green — CONFIRMED green ✓
+### B4 — Production was 4 migrations behind (RESOLVED)
+`prod = 42`, `local = 46`. The missing `subscription_invoices.plan` column is **written by current code**, so subscription invoice issuance was failing live. Two unique indexes were also absent, leaving no DB backstop against duplicate fee invoices per student and double-booked teachers.
+**Fix:** duplicate check first (0 conflicting groups in 17 invoices / 60 timetable slots), then `prisma migrate deploy`. Applied:
+- `20261016050321_subscription_invoice_plan` (adds `plan`)
+- `20261016111500_fee_invoice_structure_student_unique`
+- `20261016113000_timetable_slot_teacher_unique`
 
-## Could not be tested / why
-- All login-dependent tests on demo schools (role journeys, tenant isolation, integrations, PWA sessions) — no valid live demo password; using test school "ZZ Layer2 Test School" instead (slug: zz-layer2-test-school, admin: layer2.test.school@example.com)
-- Deployed commit verification — CONFIRMED: both Vercel and Render show ce2f391 = Layer 1 final ✓
-- CI green check — CONFIRMED green ✓
+The new index was confirmed working: a second `generate` call returned `skipped: [{reason: "Already has a PAID invoice for this structure."}]` instead of double-billing.
 
-## Cleanup list
-- test school "ZZ Layer2 Test School" + its users (CREATED: slug zz-layer2-test-school, admin layer2.test.school@example.com)
-- uploads created during test (none yet)
-- delete docs/testing/LAYER2_ACCESS.local.md at end
-- delete secret.md at end
+## 4. Findings
 
-## GO / NO-GO
-(not yet determined — blocked on live demo password for demo school testing; test school available for partial testing)
+| ID | Sev | Area | Finding | Disposition |
+|---|---|---|---|---|
+| F1 | **S2** | API contract | Unmatched routes returned Express's built-in **HTML 404**, while every other error returns `{success, data, error, meta}`. A client calling `res.json()` on a typo'd/retired endpoint threw a parse error instead of reading `error.code`. Live: `GET /api/v1/schools/<id>/definitely-not-a-route` → `404 text/html`. | **Fixed** `da61f67` — terminal 404 handler returning the envelope; deliberately does not echo the path (attacker-controlled string reflected into HTML). Regression test `apps/api/tests/not-found-envelope.test.ts`. Re-verified live: `404 application/json` + `{"code":"NOT_FOUND"}`. BUGSFIX 81. |
+| F2 | **S3** | Web hardening | The Vercel frontend served only its default HSTS — no CSP, `nosniff`, `X-Frame-Options`, `Referrer-Policy`, or `Permissions-Policy` — while the API sets all of them. | **Fixed** `bb3f7f5` — four low-risk headers via `next.config.js` `headers()`. **CSP deliberately omitted** (Next.js inline hydration scripts); open item, see §8. |
+| F3 | **S2** | Data hygiene | Production held **11 non-demo schools** (9 e2e leftovers from 2026-10-18 plus 2 test schools) — the e2e suite had been pointed at the live database. | **Resolved** — all 11 deleted. |
+| F4 | **S2** | Referential integrity | `users.school_id` is `ON DELETE SET NULL`, so deleting a school **orphans its admins into `school_id IS NULL` accounts**. Login treats a missing slug as a platform-level lookup (`auth.service.ts:233`), so the 9 orphaned e2e admins became authenticatable platform accounts. Contained in practice (tenant middleware rejects `schoolId = null` at `tenant.ts:24`, and they hold no `platform.*` keys), but it is a latent privilege-escalation path. | **Partially resolved** — the 9 orphans are deleted. The schema issue itself is **unfixed**; see §8. |
+| F5 | **S3** | Upload validation | Declared MIME is cross-checked against the file extension, but neither is checked against actual content — PNG bytes declared as `application/pdf` are accepted (verified live, 201). | Reported. Low impact (Cloudinary stores inert bytes); needs magic-byte sniffing. |
+| F6 | **S3** | Data hygiene | SOS demo school carried walkthrough pollution: 4 `@example.com` students, 9 junk fee structures (`LIVE Walkthrough …`), **113** stale PENDING Razorpay payment intents, 7 stray invoices. | **Resolved** — SOS reset to the deterministic seed state (8 students, 2 `Term 1 Tuition` structures, 0 test rows, 0 stale intents). |
+| F7 | **S5** | Config | `PLATFORM_GSTIN` and `PLATFORM_STATE` are unset (`/api/v1/platform/settings` → `gstinConfigured: false`, `platformStateConfigured: false`). GST invoices will lack a GSTIN and place-of-supply. | Founder action — §7. |
 
-## Top five residual risks
-(not yet determined)
+**No S1 findings.** No secret leakage, no auth bypass, no cross-tenant read.
 
-## Five things founder should verify
-1. Live demo password (currently unknown; "Demo@1234" and "mega" both 401/429 — needs DEMO_PASSWORD=mega set on Render or db:reset-demo-passwords on live DB)
-2. Deployed commit SHAs — CONFIRMED: both ce2f391 = Layer 1 final ✓
-3. CI green — CONFIRMED ✓
-4. Aiven free-plan backup contents + restore steps
-5. Credential rotation (Aiven DB password, demo password, Cloudinary key, Brevo SMTP key)
+## 5. Test results
 
-## API endpoints tested against live API (studyfy-api.onrender.com) with test school token:
-- POST /api/v1/auth/login → 200 (test school login works)
-- GET /api/v1/auth/me → 200 (full user profile)
-- GET /api/v1/schools/{id}/students → 200 (own school), 403 TENANT_MISMATCH (other schools)
-- GET /api/v1/schools/{id}/sections → 200
-- GET /api/v1/schools/{id}/homework → 200
-- GET /api/v1/schools/{id}/notices → 200
-- GET /api/v1/schools/{id}/timetable?mine=true → 403 FORBIDDEN (school admin is not teacher)
-- POST /api/v1/public/enquiries → 201 (public, no auth)
-- GET /api/v1/schools/{id}/fees → 404 (endpoint may not exist at this path)
-- GET /api/v1/schools/{id}/messages → 400 (needs query params)
+### Authentication & authorization — PASS
+16/16 demo accounts log in (both schools × ADMIN, TEACHER, ACCOUNTANT, LIBRARIAN, TRANSPORT_MANAGER, STUDENT, PARENT, plus PLATFORM_OWNER).
 
-### Playwright e2e against live site (web: https://studyfy-web.vercel.app, API: https://studyfy-api.onrender.com):
-- public.spec.ts: 4 passed, 1 failed (admin login with demo credentials — expected, demo password doesn't work), 2 flaky (retried)
-- The "wrong password" test failed because error message not showing as expected — needs investigation
-- Admin login test failed because demo password doesn't work on live API
+**Row scope is correct** — status codes alone would have hidden this, because STUDENT/PARENT/ACCOUNTANT all legitimately hold `students.read`:
+- ADMIN sees all 12 (now 8) students; ACCOUNTANT sees all.
+- TEACHER sees **4** (section-scoped).
+- PARENT sees **1** — only their linked child. STUDENT sees **1** — only self.
 
-## UPDATE — Test school token-based testing (2026-10-16):
-### Test school "ZZ Layer2 Test School" fully operational:
-- Slug: zz-layer2-test-school
-- Admin: layer2.test.school@example.com / Layer2TestPass123
-- API token: 276 char JWT, obtained and verified
-- Role: SCHOOL_ADMIN
+**Tenant isolation is airtight:** all five SOS roles requesting another school's data get `403 TENANT_MISMATCH`. Foreign object IDs return `404 NOT_FOUND` for staff, `403 FORBIDDEN` for self-scoped roles. Unauthenticated → 401; tampered and `alg=none` tokens → 401.
 
-### Confirmed working endpoints with test school token:
-- GET /api/v1/auth/me → 200 (full profile: SCHOOL_ADMIN, schoolIsDemo: false)
-- GET /api/v1/schools/{ownId}/students → 200 (empty, new school)
-- GET /api/v1/schools/{ownId}/sections → 200 (empty)
-- GET /api/v1/schools/{ownId}/homework → 200 (empty)
-- GET /api/v1/schools/{ownId}/notices → 200 (empty)
-- GET /api/v1/schools/{ownId}/timetable?mine=true → 403 FORBIDDEN (school admin is not teacher - correct RBAC)
-- POST /api/v1/public/enquiries → 201 (public, no auth)
+### Session / cookie / refresh / logout — 18/18 PASS
+Refresh cookie is `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/api/v1/auth` (so it is not sent to school routes). Refresh **rotates**; replaying the old cookie is rejected (`403`). Logout revokes (`401` after). Access-token `/auth/me` behaves correctly with no/tampered/forged tokens.
 
-### Tenant isolation CONFIRMED with test school:
-- Test school token → own school data: 200
-- Test school token → SOS school data: 403 TENANT_MISMATCH
-- Test school token → RK school data: 403 TENANT_MISMATCH
+### Plan gating — 11/11 PASS
+SOS (PREMIUM) reaches every gated route. RK (STANDARD) is blocked with `403 PLAN_UPGRADE_REQUIRED` on all four Phase 3 routes (`inventory`, `biometric`, `analytics/overview`, `attendance/anomalies`) while Phase 2 routes stay open — exactly the intended side-by-side demo.
 
-### Blocked - Demo password issue (critical):
-- "Demo@1234" → 401 INVALID_CREDENTIALS (rotated)
-- "mega" → 401 INVALID_CREDENTIALS (then 429 RATE_LIMITED after multiple attempts)
-- User states "mega" is the live demo password but it doesn't work
-- NEEDS FOUNDER ACTION: Set DEMO_PASSWORD=mega on Render and redeploy, OR run db:reset-demo-passwords on live DB
+### Integrations
+- **Upload / Cloudinary** — PNG → `201`, hosted on `res.cloudinary.com`. `6 MB` rejected `413 FILE_TOO_LARGE`. `.txt` rejected `415 UNSUPPORTED_FILE_TYPE`. Teacher → `403` (no `documents.write`).
+- **AI / Groq** — `attendance/anomalies` → `200`, `summaryStatus: "ok"`.
+- **Email** — `forgot-password` returns `200 {"received":true}` for a valid user, an unknown email, **and** an unknown school: no account enumeration.
+- **Payment (Razorpay test)** — real order created (`order_…`, amount ₹13,800 matching the outstanding balance). It records a **PENDING intent only** (`razorpay_payment_id` null); the invoice stayed PARTIAL. **No money moved, nothing marked paid.**
+- **Exports** — 200 for admin, `403` for teacher (`exports.manage` is admin-only).
+- **Cron** — `/api/v1/internal/jobs/*` rejects unauthenticated and wrong-secret requests, confirming `CRON_SECRET` is wired. **Not** triggered: the secret was not available to this test pass.
+- **Certificate PDF** — regenerates correctly (`200 application/pdf`, `%PDF-` header) after its stored artifact was removed (§9).
 
-### Without demo password, CANNOT test:
-- Demo school login (student, parent, teacher, accountant, school admin roles)
-- Role-based UI journeys on demo schools
-- Email integration (absentee alerts, password reset, etc.)
-- Razorpay test mode payments
-- AI remark generation
-- File uploads
-- Scheduled jobs execution
-- Real-time socket connections
-- PWA sessions
-- Full e2e journeys
+### Infrastructure — PASS
+- **Cold start measured: 22,979 ms** (~23 s) on the first request after idle; warm responses 137–271 ms. This is Render free-tier spin-up, not a code defect, but a first-visit user waits ~23 s.
+- API headers: HSTS, CSP, `nosniff`, `SAMEORIGIN`, `no-referrer`; `x-powered-by` correctly absent.
+- Concurrency: 20 simultaneous requests → **20/20 HTTP 200**, wall 2,030 ms, p50 1,840 ms.
+- Frontend: 20 real routes all 200; no secret markers in the served HTML (`/staff` and `/register` return 404 because those pages do not exist — registration is API-side and staff lives at `/teachers`).
 
-## UPDATE 4 — Live Testing with Test School (2026-10-16 continued)
+## 6. Production data remediation performed
 
-### Test school "ZZ Layer2 Test School" — ALL CORE ENDPOINTS TESTED AND WORKING:
+All approved explicitly before execution. Net result: **2 schools, both `isDemo`; `owner@studyfy.dev` is the only `school_id IS NULL` account; 45/45 migrations.**
 
-| Endpoint | Method | Auth Required | Status | Notes |
-|----------|--------|---------------|--------|-------|
-| POST /api/v1/auth/login | POST | No | 200 | Login works |
-| GET /api/v1/auth/me | GET | Yes | 200 | Full profile: SCHOOL_ADMIN |
-| GET /api/v1/schools/{ownId}/students | GET | Yes | 200 | Empty array (new school) |
-| GET /api/v1/schools/{ownId}/sections | GET | Yes | 200 | Empty array |
-| GET /api/v1/schools/{ownId}/homework | GET | Yes | 200 | Empty array |
-| GET /api/v1/schools/{ownId}/notices | GET | Yes | 200 | Empty array |
-| GET /api/v1/schools/{id}/timetable?mine=true | GET | Yes | 403 | FORBIDDEN (school admin ≠ teacher) |
-| POST /api/v1/public/enquiries | POST | No | 201 | Public endpoint |
-| GET /api/v1/schools/{id}/fees | GET | Yes | 404 | Endpoint not at this path |
-| GET /api/v1/schools/{id}/messages | GET | Yes | 400 | Needs query params |
+- `prisma migrate deploy` — 4 migrations.
+- `db:seed` — restored Ramakrishna, added 4 staff logins, refreshed roles/permissions.
+- Deleted 11 non-demo schools, 9 orphaned accounts, 4 test students, 9 junk fee structures, 113 stale PENDING payment intents, 4 stray invoices, 2 probe documents.
 
-### Tenant Isolation CONFIRMED:
-- Test school token → own school data: 200 ✓
-- Test school token → SOS school data: 403 TENANT_MISMATCH ✓
-- Test school token → RK school data: 403 TENANT_MISMATCH ✓
+## 7. Founder actions
 
-### Role-Based Access Control CONFIRMED:
-- School admin cannot access teacher-only timetable → 403 FORBIDDEN ✓
+1. **`PLATFORM_GSTIN` and `PLATFORM_STATE`** on Render (F7) — required before any real invoice.
+2. **Consider `ON DELETE RESTRICT` (or deactivate-then-delete) on `users.school_id`** (F4) — school deletion should not mint platform-level accounts. Needs a migration.
+3. **Rotation:** the Aiven and Cloudinary credentials were pasted into chat and into a local file during this window. **Rotate both.** The local credential files are deleted; rotate regardless, since chat history persists.
+4. **Render Shell / One-Off Jobs** are unavailable on the free tier — password rotation and seeding must be run from a machine with the database URL, as they were here.
+5. **Magic-byte MIME validation** (F5) if document uploads ever handle untrusted external files.
+6. **Cloudinary cleanup:** the deleted probe uploads may still exist as orphaned assets in the Cloudinary media library (DB rows are gone, remote blobs are not).
 
-### Playwright E2E Against Live Site:
-- public.spec.ts: 4 passed, 1 failed (admin login — demo password doesn't work), 2 flaky (retried)
+## 8. Open items
 
-### BLOCKER — Live Demo Password:
-- "Demo@1234" → 401 INVALID_CREDENTIALS
-- "mega" → 401 INVALID_CREDENTIALS (user states this IS live password but it doesn't work)
-- Founder asked to set DEMO_PASSWORD=mega on Render + redeploy — status unknown
-- Without demo password: demo school login, role journeys, integrations, PWA all blocked
+- **Web CSP (F2)** — deliberately not enforced. Next.js emits inline hydration scripts; needs a per-route asset inventory plus a `Content-Security-Policy-Report-Only` rollout first. Enforcing blind risks a white screen.
+- **`users.school_id` FK (F4)** — schema-level, not fixed; needs a migration decision.
+- **Scheduled jobs never fired in this window** — `CRON_SECRET` was unavailable, so no job ran end-to-end. Their logic is covered by Layer 1 unit tests, but live execution is unverified.
+- **No email was confirmed received** — the endpoint was verified to respond correctly and not leak, but no inbox was available to confirm delivery.
 
-### Without demo password, CANNOT test:
-- Demo school login (student, parent, teacher, accountant, school admin roles)
-- Role-based UI journeys on demo schools
-- Email integration (absentee alerts, password reset, etc.)
-- Razorpay test mode payments
-- AI remark generation
-- File uploads
-- Scheduled jobs execution
-- Real-time socket connections
-- PWA sessions
-- Full e2e journeys
+## 9. Disclosure — two accidental deletions
+
+Both happened during cleanup and are recorded here rather than buried:
+
+1. **Seeded certificate artifact.** A cleanup pass intended to delete only my own probe uploads removed `documents` row `cmus2r5pl0003jg1ysevogenc` (type `CERTIFICATE`, dated 2026-10-03 — pre-existing demo data, not mine). The `Certificate` row `CERT/2026/0001` (BONAFIDE, Ishita Choudhary) **survived**; `documentId` is nullable by design and the API regenerates the PDF from its stored payload snapshot. Verified: `/certificates/<id>/pdf` → `200 application/pdf`, valid `%PDF-` header. **No user-visible breakage, no data loss of record.**
+2. **Pre-existing PARTIAL invoice.** A date-filtered cleanup for invoices generated during this pass was too broad and also removed the seeded PARTIAL invoice for Aarav Nair (and its 2 payments). **Fully restored** by re-running the deterministic `db:seed`; the school is back to a canonical seeded invoice set.
+
+Lesson applied: both came from cleanup filters that were wider than intended. The final hygiene pass was re-run against the seed so the demo data is deterministic rather than hand-pruned.
+
+## 10. Residual risks
+
+1. **~23 s cold start** on Render free tier — the single most visible demo weakness.
+2. **Cron jobs unverified live** (no secret available).
+3. **Schema `SET NULL` on `users.school_id`** is still a latent escalation path for any future school deletion.
+4. **No CSP on the web app** until the report-only rollout is done.
+5. **Email delivery unconfirmed** — only the API contract was verified.
+
+## 11. Cleanup performed
+
+- All temporary credential files deleted: local credential note, gitignored access note, and every temp token/login payload (owner, parent, test-school, invoice-generation, certificate PDF).
+- The credential file is now gitignored and was never in any commit (verified against full history).
+- Both Layer 2 test schools and all e2e leftovers removed from the database.
+- Probe documents deleted; stray payment intents and test students removed.
+- No secrets, tokens, or passwords appear in this report.
