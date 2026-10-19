@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { colors, gradients, h1Style, labelStyle, mutedStyle, primaryBtn } from "@/lib/theme";
 import { isFailure } from "../../lib/api";
+import { boardPathForRole } from "../../components/ui/role-boards";
 
 interface Me {
   id: string;
@@ -13,15 +14,6 @@ interface Me {
   schoolId: string | null;
   role: string;
 }
-
-const DASHBOARD_BY_ROLE: Record<string, string> = {
-  SCHOOL_ADMIN: "/dashboard",
-  TEACHER: "/dashboard/teacher",
-  ACCOUNTANT: "/dashboard/accountant",
-  STUDENT: "/dashboard/student",
-  PARENT: "/dashboard/parent",
-  PLATFORM_OWNER: "/dashboard/owner",
-};
 
 // Login (§8.3, rebuilt per §8.1 — no role tabs; the account determines the
 // role server-side). Deliberate omission, not oversight: no "Sign in with
@@ -164,11 +156,17 @@ export default function LoginPage() {
                 </p>
               ) : null}
               <div style={{ display: "flex", gap: 8 }}>
-                {DASHBOARD_BY_ROLE[me.role] ? (
-                  <Link href={DASHBOARD_BY_ROLE[me.role] as string} style={{ ...primaryBtn, flex: 1, textAlign: "center", textDecoration: "none" }}>
+                {boardPathForRole(me.role) ? (
+                  <Link href={boardPathForRole(me.role) as string} style={{ ...primaryBtn, flex: 1, textAlign: "center", textDecoration: "none" }}>
                     Open my board
                   </Link>
-                ) : null}
+                ) : (
+                  // Never leave a signed-in account with no way forward.
+                  <p style={{ ...mutedStyle, fontSize: 14, margin: 0 }}>
+                    Your account is signed in but has no board yet. Contact your school
+                    administrator.
+                  </p>
+                )}
               </div>
               {error ? <p style={{ color: colors.danger, fontSize: 14, margin: 0 }}>{error}</p> : null}
             </div>

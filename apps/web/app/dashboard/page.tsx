@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { GraduationCap, Inbox, School, TrendingUp, Users, Wallet } from "lucide-react";
@@ -7,6 +8,7 @@ import { Card, EmptyState, SectionTitle, Shell, SkeletonBlocks } from "../../com
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, iconTile, mutedStyle } from "@/lib/theme";
 import { isFailure } from "../../lib/api";
+import { boardPathForRole } from "../../components/ui/role-boards";
 
 interface GrowthPoint {
   month: string;
@@ -133,10 +135,23 @@ function GrowthChart({ growth }: { growth: GrowthPoint[] }): ReactNode {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { token, schoolId, user, ready, apiFetch } = useAuth();
   const [bundle, setBundle] = useState<AdminBundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // This board is the SCHOOL_ADMIN board and it renders <Shell role="SCHOOL_ADMIN">.
+  // Any other role reaching /dashboard used to get that admin shell - wrong
+  // badge, the full 21-link admin nav, and a 403 on its own data. Send them
+  // to the board they actually own instead of showing them someone else's.
+  const isAdmin = user?.role === "SCHOOL_ADMIN";
+  const elsewhere = boardPathForRole(user?.role);
+  useEffect(() => {
+    if (ready && token && !isAdmin && elsewhere && elsewhere !== "/dashboard") {
+      router.replace(elsewhere);
+    }
+  }, [ready, token, isAdmin, elsewhere, router]);
 
   useEffect(() => {
     if (!ready || !token || !schoolId) {
