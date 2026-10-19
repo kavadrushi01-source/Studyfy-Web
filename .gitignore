@@ -18,3 +18,6 @@ apps/web/e2e/shots/
 test-artifacts/
 test-artifacts-live/
 docs/testing/LAYER2_ACCESS.local.md
+# Live credentials for Layer 2 (Aiven/Cloudinary). Local only, never committed,
+# and deleted at the end of the Layer 2 test window.
+secret.md

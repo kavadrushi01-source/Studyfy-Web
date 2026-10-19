@@ -97,6 +97,24 @@ export function createApp(): Express {
     res.json({ success: true, data: { ok: true }, error: null, meta: null });
   });
 
+  // Unmatched routes answer the SAME envelope as every other error
+  // (Layer 2 live finding). Express's built-in 404 is an HTML page
+  // ("Cannot GET /..."), so a client calling `res.json()` on a typo'd or
+  // retired endpoint threw a parse error instead of reading error.code —
+  // the one failure mode in the API that broke the documented contract.
+  // Mounted AFTER every router and /health (so real routes still match) and
+  // BEFORE the error handler below, which stays reserved for thrown errors.
+  // No path echo: the URL is attacker-controlled and reflected HTML would
+  // otherwise be an XSS sink on any client that renders it.
+  app.use((_req: Request, res: Response) => {
+    res.status(404).json({
+      success: false,
+      data: null,
+      error: { code: "NOT_FOUND", message: "Not found." },
+      meta: null,
+    });
+  });
+
   // Minimal JSON fallback until the centralized errorMiddleware lands
   // (hardening box, spec §13.2). Never leaks stack traces (RULES.md §4).
   // Body-parser failures are CLIENT faults: malformed or oversized JSON
