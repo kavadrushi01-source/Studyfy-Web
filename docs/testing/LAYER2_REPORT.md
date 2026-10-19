@@ -115,7 +115,11 @@ All approved explicitly before execution. Net result: **2 schools, both `isDemo`
 
 1. **`PLATFORM_GSTIN` and `PLATFORM_STATE`** on Render (F7) — required before any real invoice.
 2. **Consider `ON DELETE RESTRICT` (or deactivate-then-delete) on `users.school_id`** (F4) — school deletion should not mint platform-level accounts. Needs a migration.
-3. **Rotation:** the Aiven and Cloudinary credentials were pasted into chat and into a local file during this window. **Rotate both.** The local credential files are deleted; rotate regardless, since chat history persists.
+3. **Rotation (open since the first Layer 2 exposure, still not done).** The Aiven and Cloudinary credentials were pasted into chat and into a local file during this window, and the earlier handoff already recorded the Aiven DB password (twice, in chat screenshots) plus a Brevo SMTP key. The local credential files are now deleted and the credential note is gitignored, but **chat history persists — rotate regardless**:
+   - Aiven DB password
+   - Cloudinary key
+   - Brevo SMTP key
+   - the live demo password (if it was ever pasted)
 4. **Render Shell / One-Off Jobs** are unavailable on the free tier — password rotation and seeding must be run from a machine with the database URL, as they were here.
 5. **Magic-byte MIME validation** (F5) if document uploads ever handle untrusted external files.
 6. **Cloudinary cleanup:** the deleted probe uploads may still exist as orphaned assets in the Cloudinary media library (DB rows are gone, remote blobs are not).
