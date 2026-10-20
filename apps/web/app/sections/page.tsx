@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { Inbox, School } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
+import { SignInGate, actionSignInMessage } from "../../components/ui/sign-in-gate";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { cardStyle, colors, h1Style, iconTile, mutedStyle, pageFrame, pill } from "@/lib/theme";
+import { colors, h1Style, iconTile, pageFrame, pill } from "@/lib/theme";
 
 interface SectionRow {
   id: string;
@@ -64,7 +64,7 @@ export default function SectionsPage() {
 
   async function assign(sectionId: string, teacherEmail: string | null): Promise<void> {
     if (!schoolId) {
-      setError("Please sign in to assign a teacher.");
+      setError(actionSignInMessage("Please sign in to assign a teacher.", token, schoolId));
       return;
     }
     setError("");
@@ -138,15 +138,7 @@ export default function SectionsPage() {
     return (
       <main style={pageFrame}>
         <h1 style={pageH1}>Classes &amp; Sections</h1>
-        <div style={{ ...cardStyle, maxWidth: 640 }}>
-          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to view sections.</p>
-          <Link
-            href="/login"
-            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
-          >
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to view sections." />
       </main>
     );
   }

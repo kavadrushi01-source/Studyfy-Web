@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { io, type Socket } from "socket.io-client";
 import { MessageCircle, RefreshCw, Send } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
+import { SignInGate, actionSignInMessage } from "../../components/ui/sign-in-gate";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, gradients, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, shadows } from "@/lib/theme";
@@ -243,7 +243,7 @@ export default function MessagesPage() {
       return;
     }
     if (!schoolId) {
-      setError("Please sign in to send a message.");
+      setError(actionSignInMessage("Please sign in to send a message.", token, schoolId));
       return;
     }
     setError("");
@@ -307,12 +307,7 @@ export default function MessagesPage() {
         <h1 style={titleStyle}>
           <MessageCircle size={22} aria-hidden="true" color={colors.primary} /> Messages
         </h1>
-        <div className="sf-card" style={{ padding: 20, marginTop: 20 }}>
-          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view messages.</p>
-          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to view messages." />
       </main>
     );
   }

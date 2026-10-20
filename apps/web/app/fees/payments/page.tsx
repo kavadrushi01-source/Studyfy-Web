@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { DataTable } from "../../../components/ui/data-table";
 import { SkeletonBlocks } from "../../../components/ui/shell";
+import { SignInGate } from "../../../components/ui/sign-in-gate";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, mutedStyle, pageFrame, pill } from "@/lib/theme";
 
@@ -103,8 +104,7 @@ export default function PaymentsPage() {
     return (
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Payments &amp; Receipts</h1>
-        <p style={{ ...mutedStyle, margin: "0 0 12px" }}>Please sign in to view payments.</p>
-        <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>Go to login</Link>
+        <SignInGate prompt="Please sign in to view payments." />
       </main>
     );
   }

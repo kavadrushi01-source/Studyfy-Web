@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { SkeletonBlocks } from "../../../../components/ui/shell";
+import { SignInGate } from "../../../../components/ui/sign-in-gate";
 import { isFailure } from "../../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { cardStyle, colors, h1Style, mutedStyle } from "@/lib/theme";
@@ -86,10 +87,7 @@ export default function CertificatePrintPage() {
     return (
       <main style={frame}>
         <h1 style={{ ...h1Style, margin: "0 0 8px" }}>Certificate</h1>
-        <p style={{ ...mutedStyle, margin: "0 0 12px" }}>Please sign in to print a certificate.</p>
-        <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-          Go to login
-        </Link>
+        <SignInGate prompt="Please sign in to print a certificate." />
       </main>
     );
   }

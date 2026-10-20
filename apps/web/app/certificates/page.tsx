@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Award } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
 import { SkeletonBlocks, UpgradeLocked } from "../../components/ui/shell";
+import { SignInGate } from "../../components/ui/sign-in-gate";
 import { isFailure, upgradeLockedMessage } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
@@ -203,10 +204,7 @@ export default function CertificatesPage() {
     return (
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Certificates</h1>
-        <p style={{ ...mutedStyle, margin: "0 0 12px" }}>Please sign in to issue certificates.</p>
-        <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-          Go to login
-        </Link>
+        <SignInGate prompt="Please sign in to issue certificates." />
       </main>
     );
   }

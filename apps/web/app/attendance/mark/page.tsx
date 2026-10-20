@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ClipboardList, RefreshCw, Save, Users } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../../components/ui/shell";
+import { SignInGate, actionSignInMessage } from "../../../components/ui/sign-in-gate";
 import { isFailure } from "../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
@@ -153,7 +154,7 @@ export default function MarkAttendancePage() {
 
   async function save(): Promise<void> {
     if (!schoolId) {
-      setError("Please sign in to save attendance.");
+      setError(actionSignInMessage("Please sign in to save attendance.", token, schoolId));
       return;
     }
     setSaving(true);
@@ -226,12 +227,7 @@ export default function MarkAttendancePage() {
     return (
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Mark Attendance</h1>
-        <div className="sf-card" style={{ padding: 20 }}>
-          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to mark attendance.</p>
-          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to mark attendance." />
       </main>
     );
   }

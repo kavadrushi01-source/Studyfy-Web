@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { SkeletonBlocks } from "../../../../components/ui/shell";
+import { SignInGate, actionSignInMessage } from "../../../../components/ui/sign-in-gate";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, mutedStyle, pageFrame, primaryBtn } from "@/lib/theme";
 
@@ -21,7 +21,7 @@ export default function ReceiptPage() {
   async function open(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!schoolId) {
-      setError("Please sign in to open a receipt.");
+      setError(actionSignInMessage("Please sign in to open a receipt.", token, schoolId));
       return;
     }
     setLoading(true);
@@ -64,10 +64,7 @@ export default function ReceiptPage() {
     return (
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, margin: "0 0 8px" }}>Fee Receipt</h1>
-        <p style={{ ...mutedStyle, margin: "0 0 12px" }}>Please sign in to open a receipt.</p>
-        <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-          Go to login
-        </Link>
+        <SignInGate prompt="Please sign in to open a receipt." />
       </main>
     );
   }

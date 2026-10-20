@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { BookOpen, CheckCircle2, Plus, RefreshCw, Send, WifiOff } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
+import { SignInGate, actionSignInMessage } from "../../components/ui/sign-in-gate";
 import { isFailure } from "../../lib/api";
 import {
   dataUrlToFile,
@@ -123,7 +123,7 @@ export default function HomeworkPage() {
   async function postHomework(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!schoolId) {
-      setError("Please sign in to post homework.");
+      setError(actionSignInMessage("Please sign in to post homework.", token, schoolId));
       return;
     }
     setPosting(true);
@@ -161,7 +161,7 @@ export default function HomeworkPage() {
 
   async function submitItem(id: string): Promise<void> {
     if (!schoolId) {
-      setError("Please sign in to submit homework.");
+      setError(actionSignInMessage("Please sign in to submit homework.", token, schoolId));
       return;
     }
     const content = (contents[id] ?? "").trim();
@@ -288,7 +288,7 @@ export default function HomeworkPage() {
 
   async function gradeOne(submissionId: string): Promise<void> {
     if (!schoolId) {
-      setError("Please sign in to grade a submission.");
+      setError(actionSignInMessage("Please sign in to grade a submission.", token, schoolId));
       return;
     }
     setGradingId(submissionId);
@@ -378,12 +378,7 @@ export default function HomeworkPage() {
         <h1 style={{ ...titleStyle, margin: "0 0 12px" }}>
           <BookOpen size={22} aria-hidden="true" color={colors.primary} /> Homework
         </h1>
-        <div className="sf-card" style={{ padding: 20 }}>
-          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view homework.</p>
-          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to view homework." />
       </main>
     );
   }

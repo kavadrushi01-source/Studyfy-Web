@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { SkeletonBlocks } from "../../../../components/ui/shell";
+import { SignInGate, actionSignInMessage } from "../../../../components/ui/sign-in-gate";
 import { useAuth } from "@/lib/auth-context";
-import { cardStyle, colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
+import { colors, h1Style, h2Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
 
 interface ExamOption {
   id: string;
@@ -74,7 +74,7 @@ export default function ReportCardPage() {
   async function open(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!schoolId) {
-      setError("Please sign in to open a report card.");
+      setError(actionSignInMessage("Please sign in to open a report card.", token, schoolId));
       return;
     }
     setLoading(true);
@@ -230,15 +230,7 @@ export default function ReportCardPage() {
     return (
       <main style={pageFrame}>
         <h1 style={pageH1}>Report Card</h1>
-        <div style={{ ...cardStyle, maxWidth: 640 }}>
-          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to open a report card.</p>
-          <Link
-            href="/login"
-            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
-          >
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to open a report card." />
       </main>
     );
   }

@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { DataTable } from "../../components/ui/data-table";
 import { SkeletonBlocks } from "../../components/ui/shell";
+import { SignInGate } from "../../components/ui/sign-in-gate";
 import { useAuth } from "@/lib/auth-context";
-import { cardStyle, colors, h1Style, mutedStyle, pageFrame } from "@/lib/theme";
+import { colors, h1Style, pageFrame } from "@/lib/theme";
 
 interface StudentRow {
   id: string;
@@ -125,15 +126,7 @@ export default function StudentsPage() {
     return (
       <main style={pageFrame}>
         <h1 style={pageH1}>Students</h1>
-        <div style={{ ...cardStyle, maxWidth: 640 }}>
-          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to view students.</p>
-          <Link
-            href="/login"
-            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
-          >
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to view students." />
       </main>
     );
   }

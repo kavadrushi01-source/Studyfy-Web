@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { SkeletonBlocks } from "../../../components/ui/shell";
+import { SignInGate, actionSignInMessage } from "../../../components/ui/sign-in-gate";
 import { isFailure } from "../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -92,7 +92,7 @@ export default function AdmitStudentPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!schoolId) {
-      setError("Please sign in to admit a student.");
+      setError(actionSignInMessage("Please sign in to admit a student.", token, schoolId));
       return;
     }
     setSubmitting(true);
@@ -175,15 +175,7 @@ export default function AdmitStudentPage() {
     return (
       <main style={pageFrame}>
         <h1 style={pageH1}>Admit Student</h1>
-        <div style={{ ...cardStyle, maxWidth: 640 }}>
-          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to admit a student.</p>
-          <Link
-            href="/login"
-            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
-          >
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to admit a student." />
       </main>
     );
   }

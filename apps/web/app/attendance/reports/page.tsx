@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../../components/ui/shell";
+import { SignInGate } from "../../../components/ui/sign-in-gate";
 import { isFailure } from "../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, labelStyle, mutedStyle, pageFrame, primaryBtn } from "@/lib/theme";
@@ -155,12 +156,7 @@ export default function AttendanceReportsPage() {
     return (
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Attendance Reports</h1>
-        <div className="sf-card" style={{ padding: 20 }}>
-          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view attendance reports.</p>
-          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to view attendance reports." />
       </main>
     );
   }

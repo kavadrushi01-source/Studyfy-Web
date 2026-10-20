@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { ScrollText } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
+import { SignInGate } from "../../components/ui/sign-in-gate";
 import { isFailure } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, labelStyle, mutedStyle, pageFrame, pill, primaryBtn } from "@/lib/theme";
@@ -155,12 +155,7 @@ export default function AuditLogsPage() {
     return (
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Audit Logs</h1>
-        <div className="sf-card" style={{ padding: 20 }}>
-          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view audit logs.</p>
-          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to view audit logs." />
       </main>
     );
   }

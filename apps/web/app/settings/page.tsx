@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Settings2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cardStyle, colors, h1Style, mutedStyle, pageFrame, primaryBtn } from "@/lib/theme";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
+import { SignInGate } from "../../components/ui/sign-in-gate";
 
 interface ApiError {
   error: { code: string; message: string };
@@ -69,12 +69,7 @@ export default function SettingsPage() {
     return (
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Settings</h1>
-        <div className="sf-card" style={{ padding: 20 }}>
-          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view settings.</p>
-          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to view settings." />
       </main>
     );
   }

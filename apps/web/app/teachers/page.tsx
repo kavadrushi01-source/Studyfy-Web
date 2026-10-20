@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { UserPlus, Users } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
 import { Card, EmptyState, SkeletonBlocks } from "../../components/ui/shell";
+import { SignInGate } from "../../components/ui/sign-in-gate";
 import { isFailure } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -135,13 +135,7 @@ export default function TeachersPage() {
     return (
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, marginBottom: 8 }}>Teachers</h1>
-        <p style={{ ...mutedStyle, margin: "0 0 12px" }}>Please sign in to manage staff.</p>
-        <Link
-          href="/login"
-          style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
-        >
-          Go to Login
-        </Link>
+        <SignInGate prompt="Please sign in to manage staff." />
       </main>
     );
   }

@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { Clock, ReceiptText, Wallet } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
 import { SkeletonBlocks } from "../../components/ui/shell";
+import { SignInGate, actionSignInMessage } from "../../components/ui/sign-in-gate";
 import { isFailure } from "@/lib/api";
 import { loadCheckoutScript, openCheckout } from "@/lib/razorpay-checkout";
 import { useAuth } from "@/lib/auth-context";
@@ -151,7 +151,7 @@ export default function FeesPage() {
   // say so out loud (§13.8).
   async function payOnline(invoiceId: string): Promise<void> {
     if (!schoolId) {
-      setError("Please sign in to pay online.");
+      setError(actionSignInMessage("Please sign in to pay online.", token, schoolId));
       return;
     }
     setPayingOnlineId(invoiceId);
@@ -293,12 +293,7 @@ export default function FeesPage() {
     return (
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Fees &amp; Payments</h1>
-        <div className="sf-card" style={{ padding: 20 }}>
-          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view fees.</p>
-          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to view fees." />
       </main>
     );
   }

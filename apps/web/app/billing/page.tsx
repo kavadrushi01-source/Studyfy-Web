@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { ReceiptIndianRupee } from "lucide-react";
 import { EmptyState, SkeletonBlocks } from "../../components/ui/shell";
+import { SignInGate } from "../../components/ui/sign-in-gate";
 import { isFailure } from "../../lib/api";
 import { loadCheckoutScript, openCheckout } from "@/lib/razorpay-checkout";
 import { useAuth } from "@/lib/auth-context";
@@ -251,12 +251,7 @@ export default function BillingPage() {
     return (
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Billing</h1>
-        <div className="sf-card" style={{ padding: 20 }}>
-          <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in to view billing.</p>
-          <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to view billing." />
       </main>
     );
   }

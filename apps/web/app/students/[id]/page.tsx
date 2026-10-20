@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { SkeletonBlocks } from "../../../components/ui/shell";
+import { SignInGate } from "../../../components/ui/sign-in-gate";
 import { isFailure } from "../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -158,15 +159,7 @@ export default function StudentProfilePage() {
     return (
       <main style={pageFrame}>
         <h1 style={pageH1}>Student Profile</h1>
-        <div style={{ ...cardStyle, maxWidth: 640 }}>
-          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to view a profile.</p>
-          <Link
-            href="/login"
-            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
-          >
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to view a profile." />
       </main>
     );
   }

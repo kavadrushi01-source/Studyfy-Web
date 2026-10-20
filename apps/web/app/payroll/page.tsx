@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { Wallet } from "lucide-react";
 import { EmptyState, SkeletonBlocks, UpgradeLocked } from "../../components/ui/shell";
+import { SignInGate } from "../../components/ui/sign-in-gate";
 import { isFailure, upgradeLockedMessage } from "../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, h2Style, mutedStyle, pageFrame, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
@@ -117,10 +117,7 @@ export default function PayrollPage() {
     return (
       <main style={pageFrame}>
         <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Payroll</h1>
-        <p style={{ ...mutedStyle, margin: "0 0 12px" }}>Please sign in to view payroll.</p>
-        <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
-          Go to login
-        </Link>
+        <SignInGate prompt="Please sign in to view payroll." />
       </main>
     );
   }

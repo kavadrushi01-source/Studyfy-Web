@@ -1,18 +1,16 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { SkeletonBlocks } from "../../../../components/ui/shell";
+import { SignInGate, actionSignInMessage } from "../../../../components/ui/sign-in-gate";
 import { isFailure } from "../../../../lib/api";
 import { useAuth } from "@/lib/auth-context";
 import {
-  cardStyle,
   colors,
   gradients,
   h1Style,
   labelStyle,
-  mutedStyle,
   pageFrame,
   shadows,
 } from "@/lib/theme";
@@ -46,7 +44,7 @@ export default function IdCardPrintPage() {
   async function onLoad(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!schoolId) {
-      setError("Please sign in to load a card.");
+      setError(actionSignInMessage("Please sign in to load a card.", token, schoolId));
       return;
     }
     setError("");
@@ -90,15 +88,7 @@ export default function IdCardPrintPage() {
     return (
       <main style={pageFrame}>
         <h1 style={pageH1}>ID Card — Print</h1>
-        <div className="no-print" style={{ ...cardStyle, maxWidth: 640 }}>
-          <p style={{ ...mutedStyle, margin: "0 0 8px" }}>Please sign in to print an ID card.</p>
-          <Link
-            href="/login"
-            style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
-          >
-            Go to login
-          </Link>
-        </div>
+        <SignInGate prompt="Please sign in to print an ID card." />
       </main>
     );
   }
