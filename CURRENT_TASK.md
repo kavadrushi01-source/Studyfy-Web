@@ -13,7 +13,8 @@ Latest commits (all pushed; the five below were re-verified against the live sit
 - `caabb6f` — librarian / transport manager log in and reach a real board (BUGSFIX 82)
 - `816deed` — the staff dashboard page itself (BUGSFIX 83/84)
 - `f7040b4` — notices can be edited and withdrawn (BUGSFIX 85, incl. the `PATCH {}` schema bug)
-- Seed-race triage (BUGSFIX 86) + doc refresh — session 4, dated 2026-10-20
+- `7342261` + `7d45519` — seed-race triage + notice schema regression (BUGSFIX 86, session 4)
+- `340f9ee` — no more "Please sign in" said to a signed-in owner on school pages (BUGSFIX 87, session 4)
 - Layer 1 remains complete and tagged `layer-1-complete` at `ce2f391`
 
 ## Where each layer stands
@@ -41,17 +42,16 @@ npx prisma migrate deploy                                   # apply pending migr
 ## Open items (not blocking)
 
 1. **Web CSP** — deliberately not enforced. Next.js emits inline hydration scripts; needs a per-route inventory plus a `Content-Security-Policy-Report-Only` rollout. Blind enforcement risks a white screen.
-2. **Platform owner sees "Please sign in" on school-scoped pages** — the `if (!token || !schoolId)` guard pattern (~40 files) can't distinguish an owner without a school from an anonymous visitor. A cosmetic UX defect found in the sweep; the pattern needs a deliberate redesign, not a quick patch.
-3. **`users.school_id` is `ON DELETE SET NULL`** — deleting a school orphans its admins into platform-level accounts (login treats a missing slug as a platform lookup, `auth.service.ts:233`). Contained today by tenant middleware (`tenant.ts:24`), but it is a latent escalation path. Needs a migration decision.
-4. **Cron jobs never fired live** — `CRON_SECRET` was unavailable this pass. Logic is unit-tested; live execution unverified.
-5. **No email confirmed received** — only the API contract (and its anti-enumeration behaviour) was verified.
-6. **Cloudinary** — deleted probe uploads may still exist as orphaned remote assets (DB rows gone, blobs not).
+2. **`users.school_id` is `ON DELETE SET NULL`** — deleting a school orphans its admins into platform-level accounts (login treats a missing slug as a platform lookup, `auth.service.ts:233`). Contained today by tenant middleware (`tenant.ts:24`), but it is a latent escalation path. Needs a migration decision.
+3. **Cron jobs never fired live** — `CRON_SECRET` was unavailable this pass. Logic is unit-tested; live execution unverified.
+4. **No email confirmed received** — only the API contract (and its anti-enumeration behaviour) was verified.
+5. **Cloudinary** — deleted probe uploads may still exist as orphaned remote assets (DB rows gone, blobs not).
 
 ## Founder actions
 
 1. Set `PLATFORM_GSTIN` and `PLATFORM_STATE` on Render — required before any real invoice.
 2. **Rotate the Aiven and Cloudinary credentials** — they were pasted into chat and a local file during this window. The local files are deleted, but rotate regardless; chat history persists.
-3. Consider `ON DELETE RESTRICT` on `users.school_id` (open item 3).
+3. Consider `ON DELETE RESTRICT` on `users.school_id` (open item 2).
 4. Render free tier has no Shell / One-Off Jobs — rotation and seeding must be run from a machine holding the database URL.
 
 ## Cleanup state
