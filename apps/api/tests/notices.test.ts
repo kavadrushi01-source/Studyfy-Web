@@ -318,6 +318,36 @@ describe("notice edit + withdraw", () => {
       .expect(404);
   });
 
+  it("an empty PATCH cannot silently retarget a class notice to the whole school", async () => {
+    const school = await registerSchool();
+    const room = await makeClassroom(school.schoolId, []);
+    const created = await request(app)
+      .post(`/api/v1/schools/${school.schoolId}/notices`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .send({
+        title: "Class-scoped notice",
+        body: "Only this class should ever read this notice.",
+        target: "CLASS",
+        classId: room.classId,
+      })
+      .expect(201);
+    const noticeId = created.body.data.id as string;
+
+    // Regression: target carries a .default() in the CREATE schema. Sharing
+    // that shape with the update schema made every parse of {} resolve to
+    // { target: "SCHOOL" }, which both passed the "at least one field" guard
+    // and re-ran the retarget - quietly widening a class notice school-wide.
+    await request(app)
+      .patch(`/api/v1/schools/${school.schoolId}/notices/${noticeId}`)
+      .set("Authorization", `Bearer ${school.adminToken}`)
+      .send({})
+      .expect(400);
+
+    const row = await prisma.notice.findUnique({ where: { id: noticeId }, select: { target: true, classId: true } });
+    expect(row?.target).toBe("CLASS");
+    expect(row?.classId).toBe(room.classId);
+  });
+
   it("a teacher cannot edit another school's notice", async () => {
     const schoolA = await registerSchool();
     const schoolB = await registerSchool();

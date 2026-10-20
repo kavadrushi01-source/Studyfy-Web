@@ -1,16 +1,23 @@
 import { z } from "zod";
 
-// Base shape, kept standalone so the edit schema can derive a .partial()
-// version of it (a ZodEffects has no .partial()/.innerType()).
+const targetEnum = z.enum(["SCHOOL", "CLASS", "SECTION"]);
+
+// Edit shape: NO `.default()` on target. The create schema defaults it to
+// SCHOOL, but reusing that shape for the edit made every parse of `{}` come
+// back as `{ target: "SCHOOL" }`, so the "at least one field" guard below
+// always passed. A silent `PATCH {}` then re-ran the retarget logic and
+// turned a class-scoped notice into a school-wide one with no edit at all.
+// The update shape must therefore stay default-free.
 const noticeFields = z.object({
   title: z.string().trim().min(3).max(160),
   body: z.string().trim().min(10).max(5000),
-  target: z.enum(["SCHOOL", "CLASS", "SECTION"]).default("SCHOOL"),
+  target: targetEnum,
   classId: z.string().trim().max(40).optional(),
   sectionId: z.string().trim().max(40).optional(),
 });
 
 export const createNoticeSchema = noticeFields
+  .extend({ target: targetEnum.default("SCHOOL") })
   .refine((v) => (v.target === "CLASS" ? !!v.classId : true), {
     message: "classId is required for class-wide notices.",
   })
