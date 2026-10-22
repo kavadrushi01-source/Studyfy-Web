@@ -171,19 +171,41 @@ describe("student/parent self-scope (SECURITY_PATTERNS.md §3)", () => {
     expect(ids).not.toContain(childB.studentId);
   });
 
-  it("lets School Admin and Teacher read any in-school student (permission, no self pin)", async () => {
+  it("lets School Admin read any in-school student, while a Teacher is scoped to their class sections", async () => {
     const { schoolId, slug, adminToken } = await registerSchool();
-    const sectionId = await createSection(schoolId);
-    const studentA = await createStudentUser(schoolId, sectionId);
-    const teacherToken = await loginAsTeacher(schoolId, slug);
+    const sectionA = await createSection(schoolId);
+    const sectionB = await createSection(schoolId);
+    const own = await createStudentUser(schoolId, sectionA);
+    const foreign = await createStudentUser(schoolId, sectionB);
 
-    for (const token of [adminToken, teacherToken]) {
-      const res = await request(app)
-        .get(`/api/v1/schools/${schoolId}/students/${studentA.studentId}`)
-        .set("Authorization", `Bearer ${token}`)
-        .expect(200);
-      expect(res.body.data.student.id).toBe(studentA.studentId);
-      expect(res.body.data.student.user.email).toContain("@example.com");
+    // Admin keeps the full school lane (STAFF_MANAGERS-style pass-through).
+    const adminRes = await request(app)
+      .get(`/api/v1/schools/${schoolId}/students/${own.studentId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    expect(adminRes.body.data.student.id).toBe(own.studentId);
+
+    // A teacher without an assigned section sees nothing (fail-closed 404).
+    const tokenless = await loginAsTeacher(schoolId, slug);
+    await request(app)
+      .get(`/api/v1/schools/${schoolId}/students/${own.studentId}`)
+      .set("Authorization", `Bearer ${tokenless}`)
+      .expect(404);
+
+    // A class teacher reads their own pupil — and never a foreign section's.
+    const staffRow = await prisma.staff.findFirst({ where: { userId: (await prisma.user.findFirst({ where: { schoolId, email: { contains: "teacher-" } } }))?.id }, select: { id: true } });
+    if (!staffRow) {
+      throw new Error("teacher staff row must exist");
     }
+    await prisma.section.update({ where: { id: sectionA }, data: { classTeacherId: staffRow.id } });
+    const ownRes = await request(app)
+      .get(`/api/v1/schools/${schoolId}/students/${own.studentId}`)
+      .set("Authorization", `Bearer ${tokenless}`)
+      .expect(200);
+    expect(ownRes.body.data.student.id).toBe(own.studentId);
+    await request(app)
+      .get(`/api/v1/schools/${schoolId}/students/${foreign.studentId}`)
+      .set("Authorization", `Bearer ${tokenless}`)
+      .expect(404);
   });
 });

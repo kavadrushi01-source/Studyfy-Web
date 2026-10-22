@@ -231,6 +231,7 @@ studentsRouter.get(
   tenantMiddleware,
   requirePermission("students.read"),
   studentSelfScope,
+  teacherSectionScope,
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma) {
       res.status(500).json({
@@ -269,6 +270,17 @@ studentsRouter.get(
       });
       return;
     }
+    // Teacher detail reads obey the SAME scoping as the list (§9.1): a
+    // foreign-section id is indistinguishable from a missing one (404).
+    if (req.sectionScope && !req.sectionScope.includes(student.sectionId)) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "Student not found." },
+        meta: null,
+      });
+      return;
+    }
     res.json({ success: true, data: { student }, error: null, meta: null });
   }),
 );
@@ -282,6 +294,7 @@ studentsRouter.get(
   tenantMiddleware,
   requirePermission("students.read"),
   studentSelfScope,
+  teacherSectionScope,
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma || !req.schoolId) {
       res.status(500).json({
@@ -296,6 +309,7 @@ studentsRouter.get(
       req.prisma.student.findFirst({
         where: { id: req.params.studentId },
         select: {
+          sectionId: true,
           admissionNo: true,
           dob: true,
           user: { select: { name: true } },
@@ -304,7 +318,9 @@ studentsRouter.get(
       }),
       req.prisma.school.findFirst({ where: { id: req.schoolId } }),
     ]);
-    if (!student || !school) {
+    if (!student || !school || (req.sectionScope && !req.sectionScope.includes(student.sectionId))) {
+      // Same contract as the detail route: a foreign-section pupil never
+      // exists for a teacher (§9.1), so the 404 matches both shapes.
       res.status(404).json({
         success: false,
         data: null,

@@ -132,10 +132,36 @@ attendanceRouter.get(
         where: { id: req.schoolId ?? "" },
         select: { timezone: true },
       });
+      // TEACHER summary reads are scoped to their class-teacher sections
+      // (§9.1 — the same rule as the list/marks gates). An explicit pupil
+      // outside the class is indistinguishable from a missing one (404),
+      // matching the fail-closed staff shapes everywhere else.
+      let teacherPins: string[] | null = null;
+      if (req.user && req.user.role === "TEACHER") {
+        const staff = await req.prisma.staff.findFirst({ where: { userId: req.user.userId }, select: { id: true } });
+        const rows = staff
+          ? await req.prisma.student.findMany({
+              where: { section: { classTeacherId: staff.id } },
+              select: { id: true },
+            })
+          : [];
+        teacherPins = rows.map((r) => r.id);
+        if (parsed.data.studentId && !teacherPins.includes(parsed.data.studentId)) {
+          res.status(404).json({
+            success: false,
+            data: null,
+            error: { code: "NOT_FOUND", message: "Student not found." },
+            meta: null,
+          });
+          return;
+        }
+      }
       const result = await attendanceSummary(
         req.prisma,
         parsed.data,
-        req.studentScope ? req.studentScope.studentIds : null,
+        req.studentScope
+          ? req.studentScope.studentIds
+          : teacherPins,
         { timezone: school?.timezone },
       );
       res.json({ success: true, data: result, error: null, meta: null });
