@@ -46,7 +46,7 @@ Latest commits (all pushed; each re-verified against the live site):
 
 ## Test-suite reality (Windows dev box)
 
-`npm run test --workspace=@studyfy/api` runs clean locally — `TEST_DATABASE_URL` must point at the local MySQL80 instance on `127.0.0.1:3306`, database `studyfy_test` (migrated 45/45). The non-zero exits that remain are a known Windows-native Prisma engine crash inside a random fork worker (exit `3221226505`, kills a different file each run — `auth`+`teacher-dashboard`, then `admission`); assertions never failed. CI on Linux has never shown it. Never commit the DB password; it is held out-of-band by the operator.
+`npm run test --workspace=@studyfy/api` runs clean locally — final Layer-4 run was **499 tests / 103 files green, first try**. `TEST_DATABASE_URL` must point at the local MySQL80 instance on `127.0.0.1:3306`, database `studyfy_test` (migrated 45/45; root password provisioned session 5, held out-of-band). A historic Windows-native Prisma engine crash inside a random fork worker (exit `3221226505`) can still kill a random file's worker on some runs — retry that file solo or re-run; assertions never failed and CI on Linux has never shown it. Never commit the DB password; it is held out-of-band by the operator.
 
 ## Commands that matter
 

@@ -213,3 +213,7 @@ An early sweep reported **41 "broken" pages** and a first browser run reported *
   a local MySQL, and the installed `MySQL80` service uses a root password that is not
   available to this session. They are committed and will run in CI, which provisions
   its own database.
+  *(Update 2026-10-21, Layer 4: the local MySQL80 root password was provisioned, the
+  `studyfy_test` DB migrated 45/45, and these regressions plus the whole suite ran
+  locally green — see `LAYER4_REPORT.md` §1–§3. This bullet's local-MySQL constraint
+  no longer applies; the CSP/FK/cron/email/payment items above still stand.)*
