@@ -77,4 +77,4 @@ npx prisma migrate deploy                                   # apply pending migr
 
 ## Cleanup state
 
-Done: all temporary credential/token files deleted, both Layer 2 test schools and e2e leftovers removed, probe documents deleted, stray payment intents and test students removed. `secret.md` is gitignored and was never in any commit. No secrets appear in the report or in any committed doc.
+Done: all temporary credential/token files deleted, both Layer 2 test schools and e2e leftovers removed, probe documents deleted, stray payment intents and test students removed. `secret.md` was gitignored, never committed, and deleted entirely at the end of the Layer-4 session. No secrets appear in the report or in any committed doc. Future sessions needing the production DB URL should ask the founder for it out-of-band.
