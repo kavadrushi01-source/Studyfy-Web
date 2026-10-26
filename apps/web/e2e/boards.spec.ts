@@ -16,8 +16,10 @@ test.describe("student + parent boards", () => {
     await expect(page.getByRole("main").getByText(/^\d+(\.\d+)?%$/).first()).toBeVisible();
     await page.screenshot({ path: "e2e/shots/student-board.png" });
 
+    // /dashboard redirects every non-admin role to the board it owns
+    // (BUGSFIX 83) — a pupil never sees the admin shell at all.
     await page.goto("/dashboard");
-    await expect(page.getByText(/not for your role|forbidden|permission/i)).toBeVisible({ timeout: 20000 });
+    await expect(page).toHaveURL(/\/dashboard\/student/, { timeout: 20000 });
 
     await login(page, ACCOUNTS.sosParent, SOS_SLUG);
     await page.goto("/dashboard/parent");
@@ -65,10 +67,13 @@ test.describe("owner board", () => {
 });
 
 test.describe("must-fail paths", () => {
-  test("demo banner shows on demo schools, never on real ones", async ({ page, request }) => {
+  // The demo banner is retired (founder call: trial/demo posture does not
+  // belong in the portfolio UI) — the test now pins its ABSENCE on a demo
+  // school AND a freshly registered real one.
+  test("no demo banner anywhere: neither on demo schools nor on real ones", async ({ page, request }) => {
     await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
     await page.goto("/dashboard");
-    await expect(page.getByText(/data resets nightly/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/data resets nightly/i)).toHaveCount(0);
     await logout(page);
 
     // Fresh (real) school: no banner.

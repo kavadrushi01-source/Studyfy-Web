@@ -48,7 +48,10 @@ test.describe("audit logs board", () => {
     await expect(page.getByText("DEVICE_REGISTER")).toHaveCount(0);
   });
 
-  test("admin downloads the school export ZIP from the audit page", async ({ page, request }) => {
+  // The export action lives on /settings only (the audit board is the
+  // read trail). Attrition-proof: a fresh school burns nothing of the
+  // shared seed schools' 1-an-hour budget.
+  test("admin downloads the school export ZIP from the settings page", async ({ page, request }) => {
     const stamp = Date.now().toString(36);
     // Fresh school: the export budget is 1/hour/school, and shared seed
     // schools would flake back-to-back runs.
@@ -80,8 +83,8 @@ test.describe("audit logs board", () => {
         user: adminBody.data.user,
       }),
     );
-    await page.goto("/audit-logs");
-    await expect(page.getByRole("heading", { name: "Audit Logs" })).toBeVisible({ timeout: 20000 });
+    await page.goto("/settings");
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible({ timeout: 20000 });
     const [download] = await Promise.all([
       page.waitForEvent("download", { timeout: 30000 }),
       page.getByRole("button", { name: /download export/i }).click(),
@@ -89,6 +92,11 @@ test.describe("audit logs board", () => {
     expect(download.suggestedFilename()).toMatch(/\.zip$/);
     const path = await download.path();
     expect(readFileSync(path).subarray(0, 2).toString()).toBe("PK");
+    // The export wrote its audit row: filter the audit trail for it.
+    await page.goto("/audit-logs");
+    await expect(page.getByRole("heading", { name: "Audit Logs" })).toBeVisible({ timeout: 20000 });
+    await page.getByLabel(/action filter/i).fill("DATA_EXPORT");
+    await page.getByRole("button", { name: /^apply$/i }).click();
     await expect(page.getByText(/DATA_EXPORT/).first()).toBeVisible({ timeout: 20000 });
     await logout(page);
   });

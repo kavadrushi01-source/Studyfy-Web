@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { isFailure } from "./api";
+import { apiBase, isFailure } from "./api";
 
 export interface SessionUser {
   id: string;
@@ -16,9 +16,6 @@ interface PersistedSession {
   schoolSlug: string;
   issuedAt: number;
   user: SessionUser;
-  // Demo banner (§13.11): filled from /auth/me after login and on every
-  // mount (the login response carries no school flags). Owners: false.
-  schoolIsDemo: boolean;
 }
 
 // Impersonation overlay (§13.9): the OWNER session stays intact underneath
@@ -54,11 +51,6 @@ interface AuthContextValue {
   // behavior as apiFetch, always the owner's identity.
   apiFetchAsOwner: (path: string, init?: RequestInit) => Promise<Response>;
   impersonation: ImpersonationState | null;
-  // Demo banner flag (§13.11d): the session's school is a demo school AND
-  // no impersonation overlay is active (the amber banner owns the top of
-  // the screen then; owners have no school, so this is always false for
-  // them outside impersonation).
-  schoolIsDemo: boolean;
   startImpersonation: (input: { targetUserId: string; reason: string }) => Promise<void>;
   // Writes the END audit event with the owner token, then discards the
   // overlay either way (the token is client-side — discarding ends the
@@ -74,9 +66,6 @@ const IMPERSONATION_KEY = "studyfy-impersonation";
 // Refresh proactively before the 15-minute access token can expire.
 const REFRESH_AFTER_MS = 14 * 60 * 1000;
 
-function apiBase(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-}
 
 function loadPersisted(): PersistedSession | null {
   try {
@@ -110,22 +99,22 @@ function loadImpersonation(): ImpersonationState | null {
   }
 }
 
-// Fresh identity (user + demo flag) for a token. Null on any failure —
+// Fresh identity (user) for a token. Null on any failure —
 // callers keep the last known session instead. Module scope (not a hook)
 // so the mount effect can use it without dependency churn.
-async function fetchIdentity(token: string): Promise<{ user: SessionUser; schoolIsDemo: boolean } | null> {
+async function fetchIdentity(token: string): Promise<{ user: SessionUser } | null> {
   try {
     const res = await fetch(`${apiBase()}/api/v1/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const body = (await res.json()) as {
-      data?: { user?: SessionUser; schoolIsDemo?: boolean };
+      data?: { user?: SessionUser };
       error?: { message: string };
     };
     if (isFailure(res, body) || !body.data?.user) {
       return null;
     }
-    return { user: body.data.user, schoolIsDemo: body.data.schoolIsDemo ?? false };
+    return { user: body.data.user };
   } catch {
     return null;
   }
@@ -185,13 +174,13 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     fetch(`${apiBase()}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${saved.token}` } })
       .then(async (res) => {
         if (res.ok || (res.status !== 401 && res.status !== 403)) {
-          // Refresh the identity (name changes, demo flag) on every mount;
-          // keep the saved row when the fill fails transiently.
-          let merged: PersistedSession = { ...saved, schoolIsDemo: saved.schoolIsDemo ?? false };
+          // Refresh the identity (name changes) on every mount; keep the
+          // saved row when the fill fails transiently.
+          let merged: PersistedSession = { ...saved };
           if (res.ok) {
             const identity = await fetchIdentity(saved.token);
             if (identity) {
-              merged = { ...saved, user: identity.user, schoolIsDemo: identity.schoolIsDemo };
+              merged = { ...saved, user: identity.user };
             }
           }
           setSession(merged);
@@ -266,9 +255,6 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         schoolSlug: input.schoolSlug ?? "",
         issuedAt: Date.now(),
         user: body.data.user,
-        // The login response carries no school flags — fill the demo flag
-        // immediately so the banner is correct without a reload.
-        schoolIsDemo: false,
       });
       // A new identity ends any impersonation overlay (it belonged to the
       // previous session's owner).
@@ -280,7 +266,6 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
           schoolSlug: input.schoolSlug ?? "",
           issuedAt: Date.now(),
           user: identity.user,
-          schoolIsDemo: identity.schoolIsDemo,
         });
       }
     },
@@ -462,7 +447,6 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       impersonation,
       startImpersonation,
       stopImpersonation,
-      schoolIsDemo: !impersonation && (session?.schoolIsDemo ?? false),
     }),
     [session, impersonation, ready, login, logout, apiFetch, apiFetchAsOwner, startImpersonation, stopImpersonation],
   );

@@ -81,10 +81,12 @@ test.describe("SOS teacher circuit", () => {
     await expect(page.getByText("Priya Patel")).toHaveCount(0);
   });
 
-  test("admin board denies teachers with FORBIDDEN", async ({ page }) => {
+  test("admin board redirects teachers to their own board", async ({ page }) => {
     await login(page, ACCOUNTS.sosTeacher, SOS_SLUG);
+    // /dashboard is the SCHOOL_ADMIN board — teachers are bounced to
+    // /dashboard/teacher (BUGSFIX 83), never shown the admin shell.
     await page.goto("/dashboard");
-    await expect(page.getByText(/not for your role|forbidden|permission/i)).toBeVisible({ timeout: 20000 });
+    await expect(page).toHaveURL(/\/dashboard\/teacher/, { timeout: 20000 });
     await page.screenshot({ path: "e2e/shots/teacher-denied-admin.png" });
   });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Inbox, UserPlus } from "lucide-react";
 import { DataTable } from "../../components/ui/data-table";
 import { SkeletonBlocks, UpgradeLocked } from "../../components/ui/shell";
@@ -69,6 +69,7 @@ export default function CrmPage() {
   const [activeId, setActiveId] = useState("");
   const [detail, setDetail] = useState<CrmDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const detailRef = useRef<HTMLElement | null>(null);
   const [noteBody, setNoteBody] = useState("");
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [assigneeId, setAssigneeId] = useState("");
@@ -156,6 +157,12 @@ export default function CrmPage() {
       })();
     }
   }, [ready, token, schoolId, apiFetch, load, canManage]);
+
+  useEffect(() => {
+    if (activeId && detail) {
+      detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [activeId, detail]);
 
   function applyFilter(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -372,7 +379,7 @@ export default function CrmPage() {
         </div>
       ) : null}
       {activeId && detail ? (
-        <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
+        <section ref={detailRef} className="sf-card" style={{ padding: 20, marginTop: 16, scrollMarginTop: 12 }}>
           <h2 style={{ ...h2Style, margin: "0 0 4px" }}>{detail.name}</h2>
           <p style={{ ...mutedStyle, fontSize: 13, margin: "0 0 12px" }}>
             {[detail.phone, detail.email].filter(Boolean).join(" · ")} — <span style={stagePill(detail.status)}>{detail.status}</span>{" "}

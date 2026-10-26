@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { colors, gradients, h1Style, labelStyle, mutedStyle, primaryBtn } from "@/lib/theme";
-import { isFailure } from "../../lib/api";
+import { isFailure, apiBase } from "../../lib/api";
 import { boardPathForRole } from "../../components/ui/role-boards";
 
 interface Me {
@@ -34,6 +34,15 @@ export default function LoginPage() {
   const [pendingProfile, setPendingProfile] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Free-tier API cold start owned most of the "login took forever"
+  // complaint: POST /auth/login paid the full boot (~20s) after the user
+  // hit Login. This fires the cheap /health GET the moment /login opens,
+  // so the API is warm by the time credentials are typed. Pure warm-up —
+  // result is deliberately ignored on purpose.
+  useEffect(() => {
+    void fetch(`${apiBase()}/health`).catch(() => undefined);
+  }, []);
 
   // The shared session only becomes visible to apiFetch on the next render
   // after login(), so the profile fetch runs here with a fresh closure

@@ -24,6 +24,12 @@ export function isFailure(res: Response, body: object): body is { error: { messa
   return "error" in body && !!(body as { error?: unknown }).error;
 }
 
+// Single source for the API origin (the auth context fetches and the
+// pre-warm ping on /login share it).
+export function apiBase(): string {
+  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+}
+
 // Plan-gate locked state (§16.1): when the API refuses with
 // PLAN_UPGRADE_REQUIRED, the page renders the locked card (UpgradeLocked)
 // instead of its content or a bare error — the module stays visible, never

@@ -38,34 +38,42 @@ export async function inviteStaffMember(
     throw new AuthError(409, "EMAIL_TAKEN", "An account with this email already exists in this school.");
   }
   const password = tempPassword();
-  const { staff } = await db.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
+  // bcrypt is CPU-only work: hashing inside the interactive transaction
+  // wasted DB lock time and (on slow cold boxes, e2e-served) pushed the
+  // whole tx past Prisma's default 5s P2028 abort. Hash first, transact
+  // briefly, and give slow DBs explicit headroom.
+  const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
+  const { staff } = await db.$transaction(
+    async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          schoolId,
+          email: input.email,
+          passwordHash,
+          name: input.name,
+          roleId: role.id,
+        },
+      });
+      const created = await tx.staff.create({
+        data: {
+          schoolId,
+          userId: user.id,
+          designation: input.designation ?? (input.role === "TEACHER" ? "Teacher" : "Accountant"),
+        },
+        include: { user: { select: { id: true, email: true, name: true } } },
+      });
+      await recordAudit(tx as unknown as PrismaClient, {
         schoolId,
-        email: input.email,
-        passwordHash: await bcrypt.hash(password, BCRYPT_COST),
-        name: input.name,
-        roleId: role.id,
-      },
-    });
-    const created = await tx.staff.create({
-      data: {
-        schoolId,
-        userId: user.id,
-        designation: input.designation ?? (input.role === "TEACHER" ? "Teacher" : "Accountant"),
-      },
-      include: { user: { select: { id: true, email: true, name: true } } },
-    });
-    await recordAudit(tx as unknown as PrismaClient, {
-      schoolId,
-      actorId,
-      action: "USER_CREATE",
-      entity: "User",
-      entityId: input.email,
-      after: { role: input.role, isActive: true },
-    });
-    return { staff: created };
-  });
+        actorId,
+        action: "USER_CREATE",
+        entity: "User",
+        entityId: input.email,
+        after: { role: input.role, isActive: true },
+      });
+      return { staff: created };
+    },
+    { timeout: 15000 },
+  );
   // A new teacher shifts counts and class lists (§12.3).
   invalidateTeacherBoards(schoolId);
   invalidateStaffCounts(schoolId);

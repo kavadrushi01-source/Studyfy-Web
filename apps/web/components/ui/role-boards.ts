@@ -24,17 +24,17 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
     badge: "School Admin",
     icon: Crown,
     badgeBg: "#2563EB",
+    // Management focus only: attendance, timetable, homework and messaging
+    // are the TEACHER's working surfaces (they own the daily workflow), so
+    // they are not in the admin nav — the routes still answer for admins,
+    // this is a nav cut, not a permission cut.
     nav: [
       { label: "Dashboard", href: "/dashboard" },
       { label: "Students", href: "/students" },
       { label: "Teachers", href: "/teachers" },
       { label: "Classes & Sections", href: "/sections" },
-      { label: "Attendance", href: "/attendance/mark" },
       { label: "Fees & Payments", href: "/fees" },
       { label: "Exams & Marks", href: "/exams/results" },
-      { label: "Timetable", href: "/timetable" },
-      { label: "Homework", href: "/homework" },
-      { label: "Communication", href: "/messages" },
       { label: "Admissions", href: "/crm" },
       { label: "Library", href: "/library" },
       { label: "Certificates", href: "/certificates" },
@@ -52,6 +52,9 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
     badge: "Teacher",
     icon: GraduationCap,
     badgeBg: "#059669",
+    // The daily-teaching board: attendance, marks, homework, timetable,
+    // parent/student messaging, school notices. Library and transport
+    // reads belong to their owning roles.
     nav: [
       { label: "Dashboard", href: "/dashboard/teacher" },
       { label: "My Classes", href: null },
@@ -60,12 +63,9 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
       { label: "Homework", href: "/homework" },
       { label: "Timetable", href: "/timetable" },
       { label: "Messages", href: "/messages" },
-      { label: "Library", href: "/library" },
-      { label: "Transport", href: "/transport" },
+      { label: "Notices", href: "/notices" },
       { label: "Support", href: "/support" },
-      { label: "Resources", href: null },
       { label: "Profile", href: "/profile" },
-      { label: "Settings", href: null },
     ],
   },
   ACCOUNTANT: {
@@ -75,7 +75,6 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
     nav: [
       { label: "Dashboard", href: "/dashboard/accountant" },
       { label: "Fees & Payments", href: "/fees" },
-      { label: "Invoices", href: "/fees" },
       { label: "Payments & Receipts", href: "/fees/payments" },
       { label: "Admissions", href: "/crm" },
       { label: "Certificates", href: "/certificates" },
@@ -84,7 +83,6 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
       { label: "Collection Reports", href: null },
       { label: "Student Fee Ledger", href: null },
       { label: "Reports & Analytics", href: null },
-      { label: "Settings", href: null },
     ],
   },
   STUDENT: {
@@ -103,7 +101,6 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
       { label: "Library", href: "/library" },
       { label: "Transport", href: "/transport" },
       { label: "Profile", href: "/profile" },
-      { label: "Settings", href: null },
     ],
   },
   PARENT: {
@@ -122,7 +119,6 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
       { label: "Library", href: "/library" },
       { label: "Transport", href: "/transport" },
       { label: "Profile", href: "/profile" },
-      { label: "Settings", href: null },
     ],
   },
   // §8.2/§8.4 added these two roles to the seed and the RBAC map but never

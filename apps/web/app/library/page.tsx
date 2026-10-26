@@ -84,6 +84,7 @@ export default function LibraryPage() {
   const [editCategory, setEditCategory] = useState("");
   const [editCopies, setEditCopies] = useState("");
   const [saving, setSaving] = useState(false);
+  const editRef = useRef<HTMLElement | null>(null);
   // Issue desk.
   const [issueBookId, setIssueBookId] = useState("");
   const [bookQuery, setBookQuery] = useState("");
@@ -340,6 +341,14 @@ export default function LibraryPage() {
     setError("");
     setNotice("");
   }
+
+  const editOpen = editingId !== "";
+
+  useEffect(() => {
+    if (editOpen) {
+      editRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [editOpen]);
 
   async function saveEdit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -663,7 +672,7 @@ export default function LibraryPage() {
             </form>
           </section>
           {editingId ? (
-            <section className="sf-card" style={{ padding: 20, marginTop: 16 }}>
+            <section ref={editRef} className="sf-card" style={{ padding: 20, marginTop: 16, scrollMarginTop: 12 }}>
               <h2 style={{ ...h2Style }}>Edit title</h2>
               <form onSubmit={saveEdit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div className="sf-row-wrap">

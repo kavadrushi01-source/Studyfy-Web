@@ -289,17 +289,15 @@ test.describe("session, gates and edges", () => {
           "/students",
           "/teachers",
           "/sections",
-          "/attendance/mark",
           "/fees",
           "/exams/results",
-          "/timetable",
-          "/homework",
-          "/messages",
           "/crm",
           "/certificates",
           "/library",
           "/transport",
           "/payroll",
+          "/inventory",
+          "/analytics",
           "/notices",
           "/profile",
         ],
@@ -307,7 +305,7 @@ test.describe("session, gates and edges", () => {
       {
         email: ACCOUNTS.sosTeacher,
         slug: SOS_SLUG,
-        hrefs: ["/dashboard/teacher", "/attendance/mark", "/exams/results", "/homework", "/timetable", "/messages", "/transport", "/profile"],
+        hrefs: ["/dashboard/teacher", "/attendance/mark", "/exams/results", "/homework", "/timetable", "/messages", "/notices", "/profile"],
       },
       {
         email: ACCOUNTS.sosAccountant,
@@ -537,10 +535,12 @@ test.describe("role depth: teacher, student, parent", () => {
     });
   });
 
-  test("pupil is denied the admin dashboard", async ({ page }) => {
+  test("pupil is redirected away from the admin dashboard", async ({ page }) => {
     await login(page, ACCOUNTS.sosStudent, SOS_SLUG);
+    // /dashboard is the SCHOOL_ADMIN board — every other role is bounced
+    // to the board it owns (BUGSFIX 83), never shown the admin shell.
     await page.goto("/dashboard");
-    await expect(page.getByText(/not for your role|forbidden|permission/i)).toBeVisible({ timeout: 20000 });
+    await expect(page).toHaveURL(/\/dashboard\/student/, { timeout: 20000 });
   });
 
   test("counter refuses overpayment with the balance message", async ({ page }) => {

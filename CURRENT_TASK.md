@@ -2,79 +2,76 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: LAYER 4 COMPLETE — no work in progress
+## STATUS: SESSION 6 (UI fix pass) CODE COMPLETE — commit+push+live-verify are the remaining steps
 
-**Full evidence: `docs/testing/LAYER4_REPORT.md`** (Layer 3 report in `docs/testing/LAYER2_REPORT.md` §12 remains accurate).
-**Verdict: GO** for demo/portfolio use. **CONDITIONAL** for real payments until `PLATFORM_GSTIN` / `PLATFORM_STATE` are set on Render.
+**Prior state (session 5):** Layers 1–4 complete and live-verified, verdict GO for demo/portfolio use. Full evidence: `docs/testing/LAYER4_REPORT.md`.
 
-### Session 5 (Layer 4) summary
+### Session 6 summary — screenshot-driven UI pass
 
-- Every demo role of both schools driven through every module live, checking data
-  outcomes, not just status codes. Budgets stayed inside the Layer-2 caps.
-- **One real bug found and fixed:** a teacher could read a foreign-section pupil's
-  full record by id (`/students/:id`, `/id-card`, `/attendance/summary?studentId=`)
-  while the list route was correctly scoped. Fixed with the same `teacherSectionScope`
-  lens + 404s; `self-scope.test.ts` rewritten to pin the real policy; new
-  `teacher-scope-regress.test.ts`. Full API suite **499/499** green locally, lint +
-  typecheck 0. BUGSFIX entry **#88**.
-- A handful of earlier-suspicion items were re-classified **by design with live
-  evidence** (teacher list scoping shapes, parent messaging gates, RK STANDARD plan
-  matrix, export limiter, certificates read gates).
-- **Demo data restored to its exact pre-session baseline** and verified table-by-table
-  (students 16, users 52, notices 6, invoices 16, payments 14, attendance 363,
-  books 16, transport 5/5/1, timetable 60/60…). The timetable needed a small
-  exact-cover rebuild to return to 60 zero-conflict slots — LAYER4_REPORT §5 explains.
-  `audit_logs` left append-only; probe sessions pruned from `refresh_tokens`.
-- Earlier-in-session finds landed as BUGSFIX **#87** (owner "Please sign in" card) — commit `340f9ee`.
+The founder screenshotted six UI problems from the live demo. All were real, all fixed, **no API changes** except one bug found by e2e afterward:
 
-Latest commits (all pushed; each re-verified against the live site):
-- `da61f67` — unmatched API routes answer with the JSON envelope (BUGSFIX 81)
-- `bb3f7f5` — web hardening headers in `next.config.js`
-- `caabb6f` — librarian / transport manager log in and reach a real board (BUGSFIX 82)
-- `816deed` — the staff dashboard page itself (BUGSFIX 83/84)
-- `f7040b4` — notices can be edited and withdrawn (BUGSFIX 85, incl. the `PATCH {}` schema bug)
-- `7342261` + `7d45519` — seed-race triage + notice schema regression (BUGSFIX 86, session 4)
-- `340f9ee` — no more "Please sign in" said to a signed-in owner on school pages (BUGSFIX 87, session 4)
-- Layer 4 fix commit (BUGSFIX 88) pushed after this handoff was written — see git log
-- Layer 1 remains complete and tagged `layer-1-complete` at `ce2f391`
+1. **Demo banner removed** — `providers.tsx` no longer mounts it; `components/ui/demo-banner.tsx` deleted; dead `schoolIsDemo` plumbing stripped from `lib/auth-context.tsx` (interface, `PersistedSession`, `fetchIdentity`, merges, login persist, context value). API `/auth/me` still returns the flag (harmless).
+2. **Login pre-warm** — `lib/api.ts` exports `apiBase()`; `lib/auth-context.tsx` imports it (its private copy removed); `app/login/page.tsx` fires `fetch(apiBase() + "/health")` once on mount, so the Render cold-start is paid during page load instead of inside the submit.
+3. **CRM enquiry detail** ("Open") and (4) **Library edit** both worked already (e2e `chunk2.spec`/`library.spec` proved it) but opened **below the fold** with no affordance — each section now `scrollIntoView()`s into place on open (`crm/page.tsx`, `library/page.tsx`), with `scrollMarginTop: 12` so it doesn't hide under the sticky header.
+5. **Audit Logs export card removed** — audit is a viewer; the export lives only in Settings (`audit-logs/page.tsx`: card, `exportSchool`, `exporting/exportNotice/exportError` state deleted).
+6. **Settings rebuilt** (`app/settings/page.tsx` rewritten) — fetches `GET /schools/:schoolId/billing/overview` and renders a School Profile card (name, plan + subscription status, enrolment vs cap, state, trial line, link to `/billing`) plus the export card. There is no school-profile PATCH endpoint anywhere in the API — profile editing was never possible, so none was built.
+7. **Nav trimmed for role reality** (`components/ui/role-boards.ts`, the single source of truth consumed by login + every Shell):
+   - ADMIN: removed Attendance, Timetable, Homework, Communication (teacher's modules); 17 links remain.
+   - TEACHER: removed Library, Transport, "Resources soon", "Settings soon"; added Notices.
+   - ACCOUNTANT: removed the duplicate "Invoices" entry and "Settings soon".
+   - STUDENT / PARENT: removed "Settings soon".
+   - LIBRARIAN / TRANSPORT_MANAGER / OWNER untouched.
+   - Comment in the file states plainly: nav cuts are **not** permission cuts (API permissions unchanged; audit of any regressions would surface in the API suite).
+8. **Real bug caught by e2e during verification (#90):** staff invite 500'd with **Prisma P2028** when the interactive `$transaction` ran over the default 5s — `apps/api/src/modules/staff/staff.service.ts` was bcrypt-hashing *inside* the transaction. Fix: pre-hash outside the tx + `{ timeout: 15000 }`. No other service hashes inside a tx (audited).
+
+### Verification record (this box, Windows)
+
+- Web: typecheck + lint + production build clean; **web e2e 98/98 green** (7.9 min, local MySQL + local API + `next start`).
+- API: lint + typecheck clean; vitest suite effectively green — the runs this session hit only the known environmental Windows worker crash (`3221226505`, killed 1/2/3 random files per run; each file passes solo, e.g. `documents.test.ts` in 7.5s after failing serial-starved) and one serial-starved timeout. Every test assertion that ran passed (497+ then獨 498/499 then all-solo-verifications green), including the staff-invite change.
+- Edited e2e specs (all now pass): `boards.spec.ts` (banner asserted GONE for fresh + persisted; `/dashboard` gate test → redirect-URL assert), `human.spec.ts` (admin walk hrefs: −attendance/mark −timetable −homework −messages, +inventory +analytics; teacher walk: −transport +notices; pupil test → redirect URL), `teacher.spec.ts` (→ redirect URL), `audit.spec.ts` (export asserted from `/settings`; `DATA_EXPORT` check via the audit action filter).
+
+### Local e2e harness recipe (reproducible)
+
+DB: `mysql://root:9328581846@127.0.0.1:3306/studyfy_e2e` (created, migrated, seeded `npx tsx prisma/seed.ts` with `NODE_ENV=development`).
+
+```powershell
+# API (from apps/api, after npm run build there)
+$env:DATABASE_URL='mysql://root:9328581846@127.0.0.1:3306/studyfy_e2e'; $env:PORT='4000'
+$env:LOGIN_ACCOUNT_LIMIT_MAX='500'; $env:REGISTER_RATE_LIMIT_MAX='500'; $env:ENQUIRY_RATE_LIMIT_MAX='500'
+$env:EXPORT_RATE_LIMIT_MAX='500'; $env:TICKET_CREATE_LIMIT_MAX='500'
+node dist/server.js                     # ~10s to boot; health at /health
+
+# Web (from apps/web; NEXT_PUBLIC_API_URL is baked at BUILD time)
+$env:NEXT_PUBLIC_API_URL='http://localhost:4000'
+npm run build; npx next start -p 3000
+
+# Playwright (from apps/web)
+$env:E2E_API_URL='http://localhost:4000'; npx playwright test
+```
+
+Limiter overrides exist because back-to-back full passes from one IP drain the shared in-memory buckets (public signup/enquiry, support tickets) — flushing requires an API restart. Brevo rejects this laptop's IP for ticket email (`525 Unauthorized IP address`) — calls complete, mail fails, non-fatal.
+
+### Latest commits
+- `9dbf2b5` docs refresh (Layer-4 close) — session 6 features commit after this handoff.
+- Earlier: `da61f67`, `bb3f7f5`, `caabb6f`, `816deed`, `f7040b4`, `7342261`, `7d45519`, `340f9ee` (BUGSFIX 81–87), Layer-1 tag `layer-1-complete` at `ce2f391`.
 
 ## Where each layer stands
 
-1. **Layer 2** — deployment audit via the live database: 4 blockers fixed (demo hashes never rotated, Ramakrishna School missing, LIBRARIAN/TRANSPORT logins missing, production 4 migrations behind), 2 demo schools + platform owner only, all `createci` junk removed, **GO** verdict.
-2. **Layer 3** — browser sweep, 477 roleA-route combinations on Chromium/Firefox/WebKit: 9/9 logins, wrong-role boards 403, cross-tenant 404, plan gating holds; all flagged items were correct RBAC/tenant behaviour. It found the 3 real bugs above (plus the schema bug inside #85, caught by its own regression test).
-3. **Layer 4** — full human pass, every role × every module with data-verity checks: found and fixed the teacher-scope read leak (BUGSFIX 88), re-classified the rest by design, and restored the demo data to its exact baseline. **GO** verdict reaffirmed.
+1. **Layer 2** — deployment audit via the live DB: 4 blockers fixed, 2 demo schools + platform owner only, **GO** verdict.
+2. **Layer 3** — browser sweep, 477 roleA-route combinations via playwright: 9/9 logins, wrong-role 403, cross-tenant 404, plan gating holds; flagged items were correct RBAC/tenant behaviour.
+3. **Layer 4** — full human pass (these were sessions 5): found/fixed the teacher-scope read leak (BUGSFIX 88), re-classified the rest by design, demo data restored to its exact baseline.
+4. **Session 6** — the six-screenshot pass above (BUGSFIX 89), the P2028 staff-invite tx bug (#90), 98/98 web e2e.
 
-## Test-suite reality (Windows dev box)
+## Deploy + live-verify (finish this list)
 
-`npm run test --workspace=@studyfy/api` runs clean locally — final Layer-4 run was **499 tests / 103 files green, first try**. `TEST_DATABASE_URL` must point at the local MySQL80 instance on `127.0.0.1:3306`, database `studyfy_test` (migrated 45/45; root password provisioned session 5, held out-of-band). A historic Windows-native Prisma engine crash inside a random fork worker (exit `3221226505`) can still kill a random file's worker on some runs — retry that file solo or re-run; assertions never failed and CI on Linux has never shown it. Never commit the DB password; it is held out-of-band by the operator.
+1. Commit + push (code + docs). Render (API) and Vercel (web) deploy on push.
+2. Live-check on the demo: banner gone on login + every page; login feels faster (pre-warm); admin nav has no Attendance/Timetable/Homework/Communication; teacher nav has Notices; CRM "Open" scrolls the detail into view; Library "Edit" scrolls the panel; Settings shows the school profile + export; audit page has no export card.
+3. Founder actions: set `PLATFORM_GSTIN`/`PLATFORM_STATE` on Render; **delete the leaked Render API key `rnd_P5qHlcgctDVKV7KeVX8ywu67YD0D` in the Render dashboard**; rotate Aiven + Cloudinary creds (pasted in chat during earlier sessions).
 
-## Commands that matter
+## Test-suite reality recap
 
-Run from the **repo root**, with `DATABASE_URL` and `DEMO_PASSWORD` in the environment:
-
-```powershell
-npm run db:reset-demo-passwords --workspace=@studyfy/api   # rotate demo hashes ONLY
-npm run db:seed --workspace=@studyfy/api                   # re-seed both demo schools
-npx prisma migrate deploy                                   # apply pending migrations
-```
-
-**Setting `DEMO_PASSWORD` on the host does NOT change existing hashes** — you must run the reset script. `npx prisma db seed` / `npx prisma seed` do **not** invoke this project code and will fail; don't retry them.
-
-## Open items (not blocking)
-
-1. **Web CSP** — deliberately not enforced. Next.js emits inline hydration scripts; needs a per-route inventory plus a `Content-Security-Policy-Report-Only` rollout. Blind enforcement risks a white screen.
-2. **`users.school_id` is `ON DELETE SET NULL`** — deleting a school orphans its admins into platform-level accounts (login treats a missing slug as a platform lookup, `auth.service.ts:233`). Contained today by tenant middleware (`tenant.ts:24`), but it is a latent escalation path. Needs a migration decision.
-3. **Cron jobs never fired live** — `CRON_SECRET` was unavailable this pass. Logic is unit-tested; live execution unverified.
-4. **No email confirmed received** — only the API contract (and its anti-enumeration behaviour) was verified.
-5. **Cloudinary** — deleted probe uploads may still exist as orphaned remote assets (DB rows gone, blobs not).
-
-## Founder actions
-
-1. Set `PLATFORM_GSTIN` and `PLATFORM_STATE` on Render — required before any real invoice.
-2. **Rotate the Aiven and Cloudinary credentials** — they were pasted into chat and a local file during this window. The local files are deleted, but rotate regardless; chat history persists.
-3. Consider `ON DELETE RESTRICT` on `users.school_id` (open item 2).
-4. Render free tier has no Shell / One-Off Jobs — rotation and seeding must be run from a machine holding the database URL.
+`npm run test --workspace=@studyfy/api` needs `TEST_DATABASE_URL` pointing at local MySQL80 `studyfy_test` (migrated 45/45). The Windows-native Prisma worker crash (exit `3221226505`) can kill a random file's worker on some full-parallel runs; retry solo or rerun — assertions never fail, Linux CI never showed it. Never commit the DB password.
 
 ## Cleanup state
 
-Done: all temporary credential/token files deleted, both Layer 2 test schools and e2e leftovers removed, probe documents deleted, stray payment intents and test students removed. `secret.md` was gitignored, never committed, and deleted entirely at the end of the Layer-4 session. No secrets appear in the report or in any committed doc. Future sessions needing the production DB URL should ask the founder for it out-of-band.
+All temporary credential files deleted (`secret.md` deleted + gitignored in session 5). Local e2e DB `studyfy_e2e` and pids/logs (`$env:TEMP\opencode\api-pid.txt`, `api-out.log`, `api-err.log`, `web-…`) are local-only. Probe/knob notes are recorded in BUGSFIX 89/90 rather than ad-hoc files. No secrets in this doc.
