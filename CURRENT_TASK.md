@@ -2,27 +2,41 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 7 COMPLETE — commit `22bdbe6` pushed; prod live-verified 5/5; nothing left but org chores (see "Founder actions")
+## STATUS: SESSION 8 COMPLETE — commit `adb07de` pushed (glass navbar + icon rail); prod live-verified 3/3; nothing left but org chores
 
-**Prior state (session 6):** commit `84ed8b9` pushed to main — six-screenshot UI pass + P2028 staff-invite fix, live-verified 5/5 on prod with a temporary Playwright spec (delete temp files when done). Usage guide delivered to the founder (demo emails, board URLs, prod password `mega`, TEST MODE payments).
+**Prior state (session 7:** `22bdbe6` — no "Soon" stubs, animated no-pricing landing, login polish + keep-warm workflow; prod 5/5). Session 8 was a further founder screenshot pass on top of that.
 
-### Session 7 summary — second screenshot pass ("stubs / landing / login")
+### Session 8 summary — screenshot pass #3 ("remove demo card, glass navbar, gyanmirai-style rail")
 
-The founder sent six more screenshots and asked: kill the faint "SOON" stubs, improve the login system, redo the landing page (no pricing — this is a portfolio demo; add good free 3D animation), fix perceived loading lag, then test, deploy, report all done.
+1. **Landing demo-credentials card removed** (`app/page.tsx`) — the "Try the live demo" section (`#demo`, slug/roles tiles) is gone per the founder's screenshot; the hero CTA "Open the live demo" and the footer remain the paths to try it. Spec asserts the heading is at count 0 and "Demo credentials ship with the repository" copy is gone.
+2. **Premium glass navbar** — new `components/ui/landing/public-nav.tsx`: sticky header with a floating center pill (`sf-land-pill`), scroll-spy active section (scroll listener + section probe, bottom-of-page = last section), `.sf-land-header-scrolled` shadow after 8px scroll, "About" added to the links (the old nav pointed at the deleted `#demo`; about/contact replace it). Reduced-motion guarded.
+3. **Reveal-on-scroll** — new `components/ui/landing/reveal-on-scroll.tsx` (null-rendering client component): observes `[data-reveal]` sections and adds `.sf-reveal-in`; the hidden/translated state (`.sf-reveal`) is only added at mount, so a no-JS load shows everything (no content lost); in-viewport elements show immediately (no blink). Updated `app/page.tsx` sections with `data-reveal`.
+4. **App shell rebuilt as an icon rail** (founder's reference screenshots, app.gyanmirai.in style) — `components/ui/shell.tsx`: light 92px rail, logo tile, role badge as icon circle + tiny uppercase label, each nav entry an icon column + REAL-TEXT tiny label (accessible names and every `getByRole("link", {name})` e2e assertion keep working), active item gets `#EFF6FF` tint + left accent bar, logout rail item at the bottom, `role-boards.ts` gained `NAV_ICONS` (label→icon; a renamed label falls back to no icon, never a crash). On phones (≤900px) the rail items are credentials unchanged: `.sf-menu-btn` toggle still collapses (`sf-side-collapsed` hides nav+logout via the pre-existing !important rules), `.sf-side-rail .sf-side-nav` becomes a horizontal scroll strip when open. Global `scroll-behavior: smooth` (reduced-motion guarded) gives the app the animated-scroll feel the founder pointed at.
+5. **e2e**: `public.spec.ts` updated (demo-card absent, hero CTA + "Get Started" present). Temp prod spec/config deleted after use; screenshots at `apps/test-artifacts/prod-landing-8.png`, `prod-rail-owner.png`, `prod-rail-teacher.png`.
+
+### Session 8 verification record
+
+- typecheck `tsc --noEmit` clean, lint clean, build clean (`$env:NEXT_PUBLIC_API_URL='http://localhost:4000'` baked).
+- Full web e2e: **104 tests — 103 passed + 1 retry-recovered flake** (`support.spec` owner-console, environmental; same class as the historical pwa/SW and worker flake).
+- Prod (after `bd6921c..adb07de` deploy): 3/3 — glass pill nav + no demo card + canvas; owner icon rail (8 items) + zero "Soon"; teacher rail → "Notices" navigates to the real Notice Board.
+- Teacher-prod lesson (not a bug): `/notices`, `/homework`, `/fees` etc. render standalone (no Shell) — the rail exists on dashboards and module pages that mount Shell; do not assert rail-logout from URLs that never had a sidebar.
+
+## Session 7 summary (previous, still true)
 
 1. **All seven "Soon" nav stubs removed** (`components/ui/role-boards.ts` + `components/ui/shell.tsx`) — teacher "My Classes", accountant "Collection Reports"/"Student Fee Ledger"/"Reports & Analytics", student "Attendance", parent "My Children"+"Attendance", owner "Platform Analytics" now link their real pages. `NavItem.href` is `string`-only; the "Soon" pill branch is deleted from the shell. Nav is link-or-nothing.
-2. **Landing rebuilt** (`app/page.tsx`, `components/ui/landing/hero-visual.tsx`, `app/globals.css`) — pricing section and `PLANS` import gone (public.spec asserts ₹-strings and "Simple, Transparent Pricing" absent), hero "One calm dashboard for your whole school", CTAs "Open the live demo" + "See what's inside", fact pills, same nine pinned feature titles, tenant-isolation section (`#tenants`: SOS teal vs RK maroon), 3-step how-it-works, "Try the live demo" card (slugs + roles, **no password on the public page** — creds live in repo's DEMO_DATA.md), About/Contact/footer kept. New `.sf-land-*` CSS (aurora blobs, float, tilt/lean, all under the existing `prefers-reduced-motion` block). `hero-visual.tsx` is a zero-dependency client component: canvas particle field (dpr ≤2, ResizeObserver reseed, pauses on `document.hidden`) + rAF-throttled mouse-tilt 3D card stack; disabled when reduced-motion or `innerWidth <= 560`; `aria-hidden` decor, no invented KPI numbers.
-3. **Login system** (`app/login/page.tsx`) — show/hide password toggle (Eye/EyeOff, aria-labelled), remember-me kept, `/health` pre-warm on mount kept. Fresh sign-in still resolves to the "Signed in as X (role)" card + single **"Open my board"** link via `boardPathForRole(me.role)` — label is load-bearing: e2e specs click `getByRole("link", { name: /open my board/i })` (renaming it "Go to my board" caused 12 failures). NO auto-redirect timers (they race test navigation — see BUGSFIX 92).
-4. **Signed-in handling is a hint, not a bounce** — mount effect reads `studyfy-session` from localStorage and (if token+user) sets `returningBoard`, rendering an inline "You already have a signed-in session → Open my board — or sign in below with a different account" notice above the INTACT form. The first version auto-`router.replace`d to the board and broke in-context account switching (boards/deep specs log in twice inside one context; the slug form disappeared). Fixed and verified. `useRouter` import removed again.
-5. **`.github/workflows/keep-warm.yml`** — cron `*/10 * * * *` `GET https://studyfy-api.onrender.com/health`, `continue-on-error`, `workflow_dispatch`, concurrency group `keep-api-warm`, `permissions: {}`. Kills the Render free-tier cold start (~20s) that sat inside every first login. Free (public repo Actions minutes).
-6. **e2e**: `public.spec.ts` landing test rewritten (pricing absent, "Try the live demo" visible, canvas visible); new `e2e/nav-stubs.spec.ts` — all six role logins assert `getByText("Soon")` count 0. Suite is now **104 tests**.
+2. **Landing rebuilt** (`app/page.tsx`, `components/ui/landing/hero-visual.tsx`, `app/globals.css`) — pricing section and `PLANS` import gone (public.spec asserts ₹-strings and "Simple, Transparent Pricing" absent), hero "One calm dashboard for your whole school", fact pills, same nine pinned feature titles, tenant-isolation section (`#tenants`: SOS teal vs RK maroon), 3-step how-it-works. `hero-visual.tsx` is a zero-dependency client component: canvas particle field (dpr ≤2, ResizeObserver reseed, pauses on `document.hidden`) + rAF-throttled mouse-tilt 3D card stack; disabled when reduced-motion or `innerWidth <= 560`; `aria-hidden` decor, no invented KPI numbers.
+3. **Login system** (`app/login/page.tsx`) — show/hide password toggle, remember-me, `/health` pre-warm on mount. Fresh sign-in resolves to "Signed in as X (role)" + single **"Open my board"** link via `boardPathForRole(me.role)` — label is load-bearing for e2e.
+4. **Signed-in handling is a hint, not a bounce** — mount effect reads `studyfy-session` and renders an inline "Open my board — or sign in below with a different account" notice above the INTACT form (auto-redirect broke in-context account switching — BUGSFIX 92).
+5. **`.github/workflows/keep-warm.yml`** — cron `*/10` `GET https://studyfy-api.onrender.com/health` so Render stops cold-booting.
+6. **e2e**: suite grown to **104** (`nav-stubs.spec.ts` added; `public.spec.ts` rewritten).
 
-### Verification record (this box, Windows)
+### Session 7 verification record
 
-- Web typecheck `tsc --noEmit` clean, lint clean, `npm run build` clean (52 static pages), with `$env:NEXT_PUBLIC_API_URL='http://localhost:4000'` (baked at build time).
-- Web e2e (local MySQL + local API + fresh `next start`, `E2E_API_URL='http://localhost:4000'`): **103 passed + 1 flaky (pwa service-worker retry, environmental) = 104/104** in 7.6 min. First full runs exposed two genuine issues, both fixed and re-verified: the auto-bounce (#92) and a stale `next start` process that kept port 3000 and served the old build (EADDRINUSE trap — verify the port owner pid is younger than the build; probe a new-build marker like "One calm dashboard").
-- API: **no changes this session** (suite green in session 6's runs; Windows worker-crash flake documented in #88–90).
-- BUGSFIX entries added: **#91** (stubs + landing + login + keep-warm) and **#92** (bounce-lesson + stale-server lesson).
+- Web typecheck/lint/build clean; **web e2e 103 passed + 1 flaky (pwa SW retry) = 104/104**.
+- API: **no changes** (green in session 6's runs; Windows worker-crash flake documented in #88–90).
+- BUGSFIX added **#91** (stubs+landing+login+keep-warm) and **#92** (no router.replace off /login; stale-server EADDRINUSE trap: verify port owner pid + probe a new-build marker before trusting e2e failures).
+
+The founder's session-7 ask, verbatim for context: kill the faint "SOON" stubs, improve the login system, redo the landing page (no pricing — this is a portfolio demo; add good free 3D animation), fix perceived loading lag, then test, deploy, report all done.
 
 ### Local e2e harness recipe (reproducible)
 
@@ -48,13 +62,14 @@ Limiter overrides exist because back-to-back full passes from one IP drain the s
 ## Where things stand overall
 
 1. **Layer 2/3/4 (sessions 1–5)** — deployment audit GO, 477 route-combos clean, teacher-scope leak fixed (BUGSFIX 88). Report: `docs/testing/LAYER4_REPORT.md`.
-2. **Session 6** (`84ed8b9`) — banner removed, login pre-warm, CRM/Library scrollIntoView, Settings rebuilt, role navs trimmed, P2028 staff-invite tx fix (BUGSFIX 89–90), 98/98 web e2e, live-verified 5/5 on prod.
-3. **Session 7 (this one)** — stubs gone, landing rebuilt without pricing + 3D hero, login polish + no-bounce hint, keep-warm workflow, e2e suite grown to 104, BUGSFIX 91–92.
+2. **Session 6** (`84ed8b9`) — banner removed, login pre-warm, CRM/Library scrollIntoView, Settings rebuilt, role navs trimmed, P2028 staff-invite tx fix (BUGSFIX 89–90), live-verified 5/5 on prod.
+3. **Session 7** (`22bdbe6`) — stubs gone (BUGSFIX 91–92), landing rebuilt without pricing + 3D hero, login polish + no-bounce hint, keep-warm workflow, suite at 104.
+4. **Session 8 (this one)** (`adb07de`) — landing demo-card removed, glass pill navbar + scroll-spy, reveal-on-scroll, app shell reborn as the light icon rail, smooth scroll global.
 
 ## Remaining (finish this list)
 
-1. ~~Commit + push~~ — done: `22bdbe6` on main (Render API unchanged; Vercel deployed; keep-warm workflow active on next scheduled run).
-2. ~~Live-verify prod~~ — done: temporary `e2e/prod.config.ts` + `prod-verify-live.spec.ts` (both deleted after the run) — 5/5: landing hero + canvas with zero pricing copy; login eye toggle, no demo banner; owner sign-in ("Open my board") lands `/dashboard/owner`; teacher sees Notices nav; accountant sees Fees & Payments — **zero** "Soon" text on every checked board. Screenshot saved to `test-artifacts/prod-landing.png` (gitignored).
+1. ~~Commits + pushes~~ — `22bdbe6`, `bd6921c`, `adb07de` all on main; Vercel deployed each; keep-warm workflow live.
+2. ~~Live-verify prods~~ — session 7: 5/5; session 8: 3/3 (glass nav + demo card gone; owner icon rail + zero "Soon"; teacher Notices navigation). Temp files deleted each time; screenshots in `apps/test-artifacts/` (gitignored).
 3. Founder actions (manual): set `PLATFORM_GSTIN`/`PLATFORM_STATE` on Render; **delete the leaked Render API key `rnd_P5qHlcgctDVKV7KeVX8ywu67YD0D` in the Render dashboard**; rotate Aiven + Cloudinary creds (pasted in chat during earlier sessions).
 
 ## Test-suite reality recap
