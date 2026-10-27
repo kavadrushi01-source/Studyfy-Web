@@ -1,23 +1,28 @@
 import Link from "next/link";
 import {
+  ArrowRight,
   Award,
   BarChart3,
   Bell,
   CalendarDays,
   ClipboardCheck,
   FileText,
+  GraduationCap,
   MessageCircle,
+  ShieldCheck,
   Users,
+  UserPlus,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { colors, gradients, iconTile, pill, primaryBtn, secondaryBtn, shadows } from "@/lib/theme";
-import { PLANS as PLAN_CONFIG } from "@studyfy/shared-types";
+import { colors, gradients, iconTile, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
+import { HeroVisual } from "@/components/ui/landing/hero-visual";
 
-// Public marketing site (§7 Phase 1 #10, copy per §8.3). Exclusions
-// honored (§8.1): no invented customer stats, no app-store badges, and the
-// second hero CTA scrolls to features (no demo video exists to "watch").
-// No stock photography — the hero visual is a CSS/SVG board mock (§8.5).
+// Public marketing site (§7 Phase 1 #10, copy per §8.3; exclusions §8.1:
+// no invented customer stats, no app-store badges, no pricing section —
+// the product is a portfolio build and tiers are shown inside the app,
+// not sold from the landing). The hero visual is dependency-free CSS 3D +
+// a tiny particle canvas (§8.5) instead of stock photography.
 
 const FEATURES: { title: string; detail: string; icon: LucideIcon }[] = [
   { title: "Student Management", detail: "Admissions, profiles, documents, and printable ID cards.", icon: Users },
@@ -31,16 +36,18 @@ const FEATURES: { title: string; detail: string; icon: LucideIcon }[] = [
   { title: "Reports & Analytics", detail: "Role dashboards with live KPIs for every stakeholder.", icon: BarChart3 },
 ];
 
-// Pricing cards (§16.1): generated FROM the single shared plan config —
-// names, headline prices and bullets all derive here, so the page cannot
-// promise more than the code enforces. `popular` is presentation-only
-// (Standard is the highlighted tier); everything else is config truth.
-const PLANS: { name: string; price: string; popular: boolean; points: string[] }[] = Object.values(PLAN_CONFIG).map((p) => ({
-  name: p.plan.charAt(0) + p.plan.slice(1).toLowerCase(),
-  price: `₹${(p.pricePaise / 100).toLocaleString("en-IN")}/month`,
-  popular: p.plan === "STANDARD",
-  points: p.bullets,
-}));
+const ROLES = [
+  "School Admin",
+  "Teacher",
+  "Accountant",
+  "Librarian",
+  "Transport Manager",
+  "Student",
+  "Parent",
+  "Platform Owner",
+];
+
+const FACT_PILLS = ["Multi-tenant by design", "8 role dashboards", "9 modules", "PDF receipts & report cards"];
 
 const font: React.CSSProperties = { fontFamily: "Inter, system-ui, sans-serif" };
 
@@ -67,10 +74,21 @@ const accentText: React.CSSProperties = {
   color: "transparent",
 };
 
+const sectionHead = {
+  fontSize: 30,
+  fontWeight: 800,
+  letterSpacing: "-0.03em",
+  textAlign: "center" as const,
+  margin: "0 0 8px",
+  color: colors.ink,
+};
+
+const sectionSub = { textAlign: "center" as const, color: colors.muted, margin: "0 0 28px", fontSize: 15 };
+
 export default function LandingPage() {
   return (
     <div style={{ ...font, color: colors.ink, background: "transparent" }}>
-      <header style={{ display: "flex", alignItems: "center", gap: 24, padding: "16px 32px", maxWidth: 1120, margin: "0 auto" }}>
+      <header className="sf-land-header" style={{ display: "flex", alignItems: "center", gap: 24, padding: "14px 32px", maxWidth: 1120, margin: "0 auto" }}>
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none" }}>
           <span style={logoTile}>S</span>
           <span style={{ fontWeight: 700, fontSize: 18, color: colors.ink, letterSpacing: "-0.02em" }}>Studyfy</span>
@@ -78,8 +96,8 @@ export default function LandingPage() {
         <nav className="sf-public-nav" style={{ display: "flex", gap: 20, flex: 1, justifyContent: "center", fontSize: 14 }}>
           <a href="#top" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Home</a>
           <a href="#features" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Features</a>
-          <a href="#pricing" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Pricing</a>
-          <a href="#about" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>About</a>
+          <a href="#tenants" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>For your school</a>
+          <a href="#demo" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Live demo</a>
           <a href="#contact" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Contact</a>
         </nav>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -88,86 +106,161 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <main id="top" style={{ maxWidth: 1120, margin: "0 auto", padding: "48px 32px" }}>
-        <section className="sf-grid-hero">
+      <main id="top" style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 32px 0" }}>
+        {/* Hero — copy + animated 3D visual */}
+        <section className="sf-grid-hero" style={{ paddingTop: 40 }}>
           <div>
-            <h1 style={{ fontSize: "clamp(34px, 4.8vw, 54px)", lineHeight: 1.08, fontWeight: 800, letterSpacing: "-0.03em", margin: "0 0 16px", color: colors.ink }}>
-              Modern School Management System for a{" "}
-              <span style={accentText}>Brighter Future</span>
+            <span style={{ ...pill("#2563EB", "#EFF6FF", "#D6E4FF"), fontSize: 12 }}>
+              <GraduationCap size={13} aria-hidden="true" /> Built for real schools
+            </span>
+            <h1 style={{ fontSize: "clamp(34px, 4.8vw, 54px)", lineHeight: 1.08, fontWeight: 800, letterSpacing: "-0.03em", margin: "14px 0 16px", color: colors.ink }}>
+              One calm dashboard for{" "}
+              <span style={accentText}>your whole school</span>
             </h1>
             <p style={{ fontSize: 17, color: colors.inkSoft, margin: "0 0 8px", lineHeight: 1.6 }}>
-              Admissions, attendance, fees, exams, and parent communication — one calm dashboard for every role in your school.
+              Admissions, attendance, fees, exams, transport, and parent communication — every role gets its own board, and every school gets its own sealed workspace.
             </p>
             <p style={{ fontSize: 14, color: colors.muted, margin: "0 0 24px" }}>
-              9 core subjects · Built for any English-medium school · 14-day free trial.
+              Start free · 14-day trial, no card needed · Works on any phone browser.
             </p>
-            <div style={{ display: "flex", gap: 12 }}>
-              <Link href="/signup" style={{ ...primaryBtn, padding: "12px 24px", textDecoration: "none" }}>Get Started Free</Link>
-              <a href="#features" style={{ ...secondaryBtn, padding: "12px 24px", textDecoration: "none" }}>See Features</a>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <Link href="/login" style={{ ...primaryBtn, padding: "12px 24px", textDecoration: "none" }}>Open the live demo</Link>
+              <a href="#features" style={{ ...secondaryBtn, padding: "12px 24px", textDecoration: "none" }}>See what&apos;s inside</a>
             </div>
-          </div>
-          <div aria-hidden="true" style={{ background: colors.card, borderRadius: 16, padding: 24, border: `1px solid ${colors.line}`, boxShadow: shadows.card }}>
-            <div style={{ background: gradients.accent, borderRadius: 10, height: 28, width: "45%", marginBottom: 16 }} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} style={{ background: colors.canvas, borderRadius: 10, height: 64, border: `1px solid ${colors.line}` }} />
-              ))}
-            </div>
-            <div style={{ background: colors.canvas, borderRadius: 10, border: `1px solid ${colors.line}`, padding: 12 }}>
-              {[85, 60, 72].map((w, i) => (
-                <div key={i} style={{ height: 10, borderRadius: 999, background: "#E2E8F0", marginBottom: i === 2 ? 0 : 8 }}>
-                  <div style={{ height: "100%", width: `${w}%`, borderRadius: 999, background: gradients.primary }} />
-                </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 24 }}>
+              {FACT_PILLS.map((fact) => (
+                <span key={fact} style={{ ...pill(colors.muted, "#FFFFFF", colors.line), fontSize: 12 }}>{fact}</span>
               ))}
             </div>
           </div>
+          <HeroVisual />
         </section>
 
-        <section id="features" style={{ padding: "32px 0" }}>
-          <h2 style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.03em", textAlign: "center", margin: "0 0 8px", color: colors.ink }}>Everything You Need in One Platform</h2>
-          <p style={{ textAlign: "center", color: colors.muted, margin: "0 0 28px" }}>Nine modules that cover the full school day.</p>
+        {/* Features */}
+        <section id="features" style={{ padding: "40px 0 32px" }}>
+          <h2 style={sectionHead}>Everything You Need in One Platform</h2>
+          <p style={sectionSub}>Nine modules that cover the full school day.</p>
           <div className="sf-grid-3">
             {FEATURES.map((feature) => {
               const Icon = feature.icon;
               return (
-              <div key={feature.title} className="sf-card sf-card-hover" style={{ padding: 20 }}>
-                <span style={{ ...iconTile(colors.primary, colors.primaryGhost, 40), margin: "0 0 12px" }}>
-                  <Icon size={20} />
-                </span>
-                <h3 style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.015em", margin: "0 0 6px", color: colors.ink }}>{feature.title}</h3>
-                <p style={{ fontSize: 14, color: colors.muted, margin: 0 }}>{feature.detail}</p>
-              </div>
+                <div key={feature.title} className="sf-card sf-land-lean" style={{ padding: 20, position: "relative", overflow: "hidden" }}>
+                  <span aria-hidden="true" style={{ position: "absolute", inset: "-1px", borderRadius: 16, padding: "0", background: "linear-gradient(135deg, rgba(37,99,235,.18), rgba(124,58,237,.18) 40%, transparent 70%)", WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)", WebkitMaskComposite: "xor", maskComposite: "exclude", pointerEvents: "none" }} />
+                  <span style={{ ...iconTile(colors.primary, colors.primaryGhost, 40), margin: "0 0 12px" }}>
+                    <Icon size={20} />
+                  </span>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.015em", margin: "0 0 6px", color: colors.ink }}>{feature.title}</h3>
+                  <p style={{ fontSize: 14, color: colors.muted, margin: 0 }}>{feature.detail}</p>
+                </div>
               );
             })}
           </div>
         </section>
 
-        <section id="pricing" style={{ padding: "48px 0" }}>
-          <h2 style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.03em", textAlign: "center", margin: "0 0 28px", color: colors.ink }}>Simple, Transparent Pricing</h2>
+        {/* Tenant isolation — the honest reason this product is interesting */}
+        <section id="tenants" style={{ padding: "40px 0", maxWidth: 980, margin: "0 auto" }}>
+          <h2 style={sectionHead}>Your School&apos;s Data Stays Yours</h2>
+          <p style={sectionSub}>Multi-tenancy isn&apos;t a tagline here — every query is scoped to your school, enforced server-side.</p>
+          <div className="sf-grid-1-1" style={{ maxWidth: 980 }}>
+            <div className="sf-card" style={{ padding: 22, borderTop: `4px solid #0D9488` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 14px" }}>
+                <span style={{ width: 12, height: 12, borderRadius: 999, background: "#0D9488" }} />
+                <span style={{ fontWeight: 700, fontSize: 15, color: colors.ink }}>School of Science</span>
+                <span style={{ marginLeft: "auto", fontSize: 12, color: colors.muted, fontFamily: "monospace" }}>school-of-science</span>
+              </div>
+              <p style={{ fontSize: 14, color: colors.inkSoft, lineHeight: 1.6, margin: 0 }}>
+                Signs in with its own slug. Sees its own students, fees, exams, and audit trail — and nothing from any other school, ever.
+              </p>
+            </div>
+            <div className="sf-card" style={{ padding: 22, borderTop: `4px solid #7F1D1D` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 14px" }}>
+                <span style={{ width: 12, height: 12, borderRadius: 999, background: "#7F1D1D" }} />
+                <span style={{ fontWeight: 700, fontSize: 15, color: colors.ink }}>Ramakrishna School</span>
+                <span style={{ marginLeft: "auto", fontSize: 12, color: colors.muted, fontFamily: "monospace" }}>ramakrishna-school</span>
+              </div>
+              <p style={{ fontSize: 14, color: colors.inkSoft, lineHeight: 1.6, margin: 0 }}>
+                Runs a second, completely separate workspace on the same platform. Its data and its plan are invisible to the first school.
+              </p>
+            </div>
+          </div>
+          <div className="sf-grid-3" style={{ marginTop: 16 }}>
+            {[
+              { icon: ShieldCheck, title: "Cross-tenant reads fail closed", detail: "Asking another school's API for a record returns a hard 404 — even with a valid session." },
+              { icon: GraduationCap, title: "Everyone gets exactly their board", detail: "Admin, teacher, accountant, librarian, transport, student, parent, owner — role-based, never role-assumed." },
+              { icon: ArrowRight, title: "Leave with your data", detail: "Schools can download a GDPR-style ZIP export of everything they own, on demand." },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.title} className="sf-card sf-land-lean" style={{ padding: 18 }}>
+                  <span style={{ ...iconTile("#7C3AED", "#F5F3FF", 36), margin: "0 0 10px" }}>
+                    <Icon size={17} />
+                  </span>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 4px", color: colors.ink }}>{item.title}</h3>
+                  <p style={{ fontSize: 13.5, color: colors.muted, margin: 0, lineHeight: 1.55 }}>{item.detail}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* How it works */}
+        <section style={{ padding: "32px 0 40px", maxWidth: 980, margin: "0 auto" }}>
+          <h2 style={sectionHead}>From First Enquiry to Report Card</h2>
+          <p style={sectionSub}>The whole admission-to-graduation path lives in one system.</p>
           <div className="sf-grid-3">
-            {PLANS.map((plan) => (
-              <div
-                key={plan.name}
-                className="sf-card sf-card-hover"
-                style={{ padding: 24, position: "relative", ...(plan.popular ? { border: `2px solid ${colors.primary}` } : null) }}
-              >
-                {plan.popular ? (
-                  <span style={{ position: "absolute", top: -12, left: 24, background: gradients.accent, color: "#fff", fontSize: 12, fontWeight: 700, borderRadius: 999, padding: "3px 12px", boxShadow: "0 6px 16px -8px rgba(37,99,235,.7)" }}>Most Popular</span>
-                ) : null}
-                <h3 style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 4px", color: colors.ink }}>{plan.name}</h3>
-                <p style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 12px", color: colors.ink }}>{plan.price}</p>
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: colors.inkSoft, display: "grid", gap: 6 }}>
-                  {plan.points.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
-                </ul>
+            {[
+              { step: "1", title: "A parent discovers your school", detail: "They fill the public admission enquiry form on your site — name, phone or email, message. The row lands straight in your CRM as New." },
+              { step: "2", title: "You convert it to an admission", detail: "Work the enquiry through your stages; when it's Admitted, one click converts it — contact details carried over into the new pupil's profile." },
+              { step: "3", title: "School life runs on Studyfy", detail: "Teachers mark attendance and homework, accountants collect fees with PDF receipts, students and parents follow along on their own dashboards." },
+            ].map((item) => (
+              <div key={item.step} className="sf-card sf-land-lean" style={{ padding: 20 }}>
+                <span style={{ display: "inline-flex", width: 34, height: 34, borderRadius: 999, background: gradients.accent, color: "#fff", fontWeight: 800, fontSize: 15, alignItems: "center", justifyContent: "center", margin: "0 0 12px", boxShadow: "0 8px 18px -8px rgba(37,99,235,.65)" }}>
+                  {item.step}
+                </span>
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 6px", color: colors.ink }}>{item.title}</h3>
+                <p style={{ fontSize: 14, color: colors.muted, margin: 0, lineHeight: 1.6 }}>{item.detail}</p>
               </div>
             ))}
           </div>
-          <p style={{ textAlign: "center", color: colors.muted, fontSize: 14, marginTop: 16 }}>14-day free trial · No setup fee · Cancel anytime.</p>
         </section>
 
-        <section id="about" style={{ padding: "32px 0", maxWidth: 720 }}>
+        {/* Live demo */}
+        <section id="demo" style={{ padding: "24px 0 40px" }}>
+          <div className="sf-card" style={{ padding: 28, maxWidth: 980, margin: "0 auto", display: "grid", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
+              <span style={{ ...iconTile(colors.primary, colors.primaryGhost, 42) }}>
+                <UserPlus size={19} />
+              </span>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 4px", color: colors.ink }}>Try the live demo</h2>
+                <p style={{ fontSize: 14, color: colors.inkSoft, margin: 0, lineHeight: 1.6 }}>
+                  A fully working deployment with two seeded demo schools. Log in as any of the eight roles and click through the real thing — enquiries, attendance, fees, library, transport, audit logs — all demo data.
+                </p>
+              </div>
+              <Link href="/login" style={{ ...primaryBtn, textDecoration: "none", whiteSpace: "nowrap" }}>
+                Open the login page
+              </Link>
+            </div>
+            <div className="sf-form-2col">
+              <div style={{ background: colors.canvas, border: `1px solid ${colors.line}`, borderRadius: 12, padding: "12px 14px" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: colors.muted }}>School slug</span>
+                <p style={{ margin: "4px 0 0", fontFamily: "monospace", fontSize: 13, color: colors.ink }}>school-of-science</p>
+              </div>
+              <div style={{ background: colors.canvas, border: `1px solid ${colors.line}`, borderRadius: 12, padding: "12px 14px" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: colors.muted }}>Roles included</span>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: colors.ink }}>
+                  {ROLES.join(" · ")}
+                </p>
+              </div>
+            </div>
+            <p style={{ fontSize: 12.5, color: colors.muted, margin: 0 }}>
+              The second school runs as <span style={{ fontFamily: "monospace" }}>ramakrishna-school</span> — log in with its slug to see both, and to prove to yourself that neither can see the other. Demo credentials ship with the repository (see <span style={{ fontFamily: "monospace" }}>DEMO_DATA.md</span>).
+            </p>
+          </div>
+        </section>
+
+        {/* About */}
+        <section id="about" style={{ padding: "24px 0 8px", maxWidth: 720, margin: "0 auto" }}>
           <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.025em", margin: "0 0 8px", color: colors.ink }}>About Studyfy</h2>
           <p style={{ color: colors.inkSoft, fontSize: 15, lineHeight: 1.65 }}>
             Studyfy is a multi-tenant school management system: each school gets its own isolated workspace with role-based
@@ -176,7 +269,8 @@ export default function LandingPage() {
           </p>
         </section>
 
-        <section id="contact" style={{ padding: "32px 0 48px", maxWidth: 720 }}>
+        {/* Contact */}
+        <section id="contact" style={{ padding: "32px 0 48px", maxWidth: 720, margin: "0 auto" }}>
           <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.025em", margin: "0 0 8px", color: colors.ink }}>Contact &amp; Admissions</h2>
           <p style={{ color: colors.inkSoft, fontSize: 15, lineHeight: 1.65 }}>
             For admission enquiries, write directly to your school through our{" "}
@@ -198,7 +292,7 @@ export default function LandingPage() {
           <span style={{ fontWeight: 700, letterSpacing: "-0.02em" }}>Studyfy</span>
         </div>
         <span style={{ fontSize: 13, color: colors.muted }}>Better Schools. Brighter Futures.</span>
-        <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+        <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
           {["Secure", "Fast", "Scalable", "Multi-Tenant SaaS"].map((badge) => (
             <span key={badge} style={pill(colors.muted, colors.card, colors.line)}>{badge}</span>
           ))}

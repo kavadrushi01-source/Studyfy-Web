@@ -1,13 +1,14 @@
 // Canonical role boards config — §8.2 badges + §8.4 nav, single source of
 // truth. Every dashboard sidebar renders from here, so nav order, labels,
-// badge colors, role icons, and "coming soon" treatment can never drift per
-// page. href: null = page not built yet → rendered as dimmed text + "Soon"
-// pill, never a dead link to a 404.
+// badge colors, and role icons can never drift per page. Every nav entry
+// points at a real page: unbuilt surfaces are simply absent (a "Soon" pill
+// in a shipped portfolio reads as unfinished work, and it used to lie about
+// what the role could do).
 import { BookMarked, Bus, Crown, GraduationCap, PersonStanding, Shield, Wallet, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   label: string;
-  href: string | null;
+  href: string;
 }
 
 export interface RoleBoard {
@@ -57,7 +58,6 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
     // reads belong to their owning roles.
     nav: [
       { label: "Dashboard", href: "/dashboard/teacher" },
-      { label: "My Classes", href: null },
       { label: "Attendance", href: "/attendance/mark" },
       { label: "Marks Entry", href: "/exams/results" },
       { label: "Homework", href: "/homework" },
@@ -80,9 +80,6 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
       { label: "Certificates", href: "/certificates" },
       { label: "Payroll", href: "/payroll" },
       { label: "Support", href: "/support" },
-      { label: "Collection Reports", href: null },
-      { label: "Student Fee Ledger", href: null },
-      { label: "Reports & Analytics", href: null },
     ],
   },
   STUDENT: {
@@ -91,7 +88,6 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
     badgeBg: "#0D9488",
     nav: [
       { label: "Dashboard", href: "/dashboard/student" },
-      { label: "Attendance", href: null },
       { label: "Marks & Results", href: "/exams/results" },
       { label: "Homework", href: "/homework" },
       { label: "Timetable", href: "/timetable" },
@@ -109,8 +105,6 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
     badgeBg: "#DB2777",
     nav: [
       { label: "Dashboard", href: "/dashboard/parent" },
-      { label: "My Children", href: null },
-      { label: "Attendance", href: null },
       { label: "Marks & Results", href: "/exams/results" },
       { label: "Homework", href: "/homework" },
       { label: "Fees & Payments", href: "/fees" },
@@ -161,7 +155,6 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
       { label: "Dashboard", href: "/dashboard/owner" },
       { label: "Schools", href: "/owner/schools" },
       { label: "Subscriptions & Billing", href: "/owner/billing" },
-      { label: "Platform Analytics", href: null },
       { label: "Users Management", href: "/owner/users" },
       { label: "Support & Impersonation", href: "/owner/support" },
       { label: "Audit Logs", href: "/owner/audit-logs" },

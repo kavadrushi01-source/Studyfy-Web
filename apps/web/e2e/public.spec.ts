@@ -5,17 +5,21 @@ import { login } from "./helpers";
 // regression: a failed login must show the server message, never
 // "Cannot read properties of null".
 test.describe("public site + login", () => {
-  test("landing has spec copy and no fabricated stats or badges", async ({ page }) => {
+  test("landing has spec copy, animated hero, and no fabricated stats, badges, or pricing", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Modern School Management System for a Brighter Future" })).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible();
     for (const name of ["Student Management", "Parent Communication", "Reports & Analytics"]) {
       await expect(page.getByRole("heading", { name })).toBeVisible();
     }
-    await expect(page.getByText("₹5,999/month")).toBeVisible();
-    await expect(page.getByText("Most Popular")).toBeVisible();
+    // Pricing was intentionally removed from the landing (tiers are shown
+    // in-app after sign-in); the demo card sells the live deployment.
+    await expect(page.getByText(/₹5,999\/month|₹1,999\/month|₹2,999\/month|₹4,999\/month/)).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Simple, Transparent Pricing/i })).toHaveCount(0);
+    await expect(page.getByText("Try the live demo")).toBeVisible();
     await expect(page.getByText("Better Schools. Brighter Futures.")).toBeVisible();
     await expect(page.getByText(/500\+ Happy Schools|50K\+ Students|99% Uptime/)).toHaveCount(0);
     await expect(page.getByText(/App Store|Google Play/)).toHaveCount(0);
+    await expect(page.locator("canvas")).toBeVisible();
     await page.screenshot({ path: "e2e/shots/landing.png", fullPage: true });
   });
 

@@ -7,10 +7,10 @@ import { gradients, shadows } from "@/lib/theme";
 import { ROLE_BOARDS } from "./role-boards";
 
 // Shared dashboard shell (§8.2 + §8.4): navy sidebar with logo, role badge,
-// canonical nav, and light-canvas content area. Unbuilt destinations render
-// as dimmed text with a "Soon" pill — never dead links. Collapses to a top
-// strip on narrow screens via .sf-shell (§8.5). Premium pass: layered
-// gradient sidebar, glass active states with accent rail, micro-motion.
+// canonical nav, and light-canvas content area. Every nav entry is a real
+// page (role-boards.ts guarantees it). Collapses to a top strip on narrow
+// screens via .sf-shell (§8.5). Premium pass: layered gradient sidebar,
+// glass active states with accent rail, micro-motion.
 export function Shell({
   role,
   activeHref,
@@ -124,37 +124,6 @@ export function Shell({
         >
           {board.nav.map((item) => {
             const active = item.href === activeHref;
-            if (!item.href) {
-              return (
-                <span
-                  key={item.label}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "9px 12px",
-                    fontSize: 14,
-                    color: "#3E4C63",
-                  }}
-                >
-                  <span style={{ flex: 1 }}>{item.label}</span>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                      border: "1px solid rgba(148,163,184,.25)",
-                      borderRadius: 999,
-                      padding: "1px 8px",
-                      color: "#5B6B85",
-                    }}
-                  >
-                    Soon
-                  </span>
-                </span>
-              );
-            }
             const isOwner = role === "PLATFORM_OWNER";
             const accent = isOwner ? "#F59E0B" : (board.badgeAccent ?? "#60A5FA");
             return (

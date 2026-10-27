@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { colors, gradients, h1Style, labelStyle, mutedStyle, primaryBtn } from "@/lib/theme";
 import { isFailure, apiBase } from "../../lib/api";
@@ -15,13 +16,29 @@ interface Me {
   role: string;
 }
 
+const SESSION_KEY = "studyfy-session";
+
 // Login (§8.3, rebuilt per §8.1 — no role tabs; the account determines the
 // role server-side). Deliberate omission, not oversight: no "Sign in with
 // Google" (OAuth isn't wired — a dead button would lie). "Forgot password?"
-// links to /forgot-password (real flow, §13.3). Remember-me is functional: it
-// remembers the email in this browser only. After signing in, the page
-// shows the signer's name plus a direct link to their own board; the
-// session itself lives in the shared AuthProvider (no token paste).
+// links to /forgot-password (real flow, §13.3). Remember-me is functional:
+// it remembers the email in this browser only.
+//
+// Two flow improvements remove the last dead weight after signing in
+// (the old flow landed everyone on this screen with a manual "Open my
+// board" click):
+// 1. Returning to /login with a live session shows an inline "continue"
+//    hint above the form. No auto-redirect: switching accounts (re-login
+//    from /login without signing out first) is a real flow - observed in
+//    multi-user scripts - and a bounce removes the form they came here
+//    to use. After a logout the session is cleared, so no hint shows.
+// 2. A fresh sign-in resolves into a single "Open my board" button that
+//    lands on the role's board. No automatic navigation on this screen —
+//    timers here race any immediate navigation the app or a test performs
+//    (observed as random mid-flow redirects), so the click is the user's
+//    own intent.
+// The session lives in the shared AuthProvider; the /health warm-up below
+// pays the free-tier API cold start during page load, not inside Submit.
 export default function LoginPage() {
   const { login, apiFetch } = useAuth();
   const [schoolSlug, setSchoolSlug] = useState("");
@@ -29,11 +46,13 @@ export default function LoginPage() {
     typeof window === "undefined" ? "" : (window.localStorage.getItem("studyfy-login-email") ?? ""),
   );
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
   const [pendingProfile, setPendingProfile] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [returningBoard, setReturningBoard] = useState<string | null>(null);
 
   // Free-tier API cold start owned most of the "login took forever"
   // complaint: POST /auth/login paid the full boot (~20s) after the user
@@ -43,6 +62,30 @@ export default function LoginPage() {
   useEffect(() => {
     void fetch(`${apiBase()}/health`).catch(() => undefined);
   }, []);
+
+  // A signed-in visitor on /login gets a one-click path back to their
+  // board while the form stays usable underneath. Reads the persisted
+  // session directly (AuthProvider's state isn't visible here yet on
+  // first paint); a dead token simply lands on the target page's sign-in
+  // gate, which is the honest outcome.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SESSION_KEY);
+      if (!raw) {
+        return;
+      }
+      const saved = JSON.parse(raw) as { token?: string; user?: { role?: string } };
+      const board = saved.token && saved.user ? boardPathForRole(saved.user.role) : null;
+      if (board) {
+        setReturningBoard(board);
+      }
+    } catch {
+      // Unreadable storage: show the plain form, no hint.
+    }
+  }, []);
+
+  // After a fresh sign-in the confirmation card renders; the "Open my
+  // board" link (below) is the deliberate single next step.
 
   // The shared session only becomes visible to apiFetch on the next render
   // after login(), so the profile fetch runs here with a fresh closure
@@ -121,22 +164,87 @@ export default function LoginPage() {
         </Link>
       </header>
       <main style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 24px 64px" }}>
-        <div className="sf-card" style={{ padding: 32, width: 420, maxWidth: "100%" }}>
+        <div className="sf-card sf-rise" style={{ padding: 32, width: 420, maxWidth: "100%" }}>
           <h1 style={{ ...h1Style, margin: "0 0 4px" }}>Welcome Back!</h1>
           <p style={{ ...mutedStyle, margin: "0 0 20px" }}>Sign in to your school account</p>
+          {!me && returningBoard ? (
+            <p
+              style={{
+                fontSize: 14,
+                margin: "0 0 16px",
+                padding: "10px 12px",
+                borderRadius: 10,
+                background: "rgba(37,99,235,.08)",
+                color: colors.ink,
+              }}
+            >
+              You already have a signed-in session.{" "}
+              <Link href={returningBoard} style={{ color: colors.primary, fontWeight: 600 }}>
+                Open my board
+              </Link>{" "}
+              — or sign in below with a different account.
+            </p>
+          ) : null}
           {!me ? (
             <form onSubmit={submit} style={{ display: "grid", gap: 14 }}>
               <label style={labelStyle}>
                 School slug <span style={{ color: colors.muted, fontSize: 12 }}>(leave empty only for the platform owner)</span>
-                <input className="sf-input" value={schoolSlug} onChange={(e) => setSchoolSlug(e.target.value)} placeholder="e.g. school-of-science" />
+                <input
+                  className="sf-input"
+                  value={schoolSlug}
+                  onChange={(e) => setSchoolSlug(e.target.value)}
+                  placeholder="e.g. school-of-science"
+                  autoComplete="organization"
+                  spellCheck={false}
+                />
               </label>
               <label style={labelStyle}>
                 Email
-                <input className="sf-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <input
+                  className="sf-input"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
               </label>
               <label style={labelStyle}>
                 Password
-                <input className="sf-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <span style={{ position: "relative", display: "block" }}>
+                  <input
+                    className="sf-input"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                    style={{ paddingRight: 40 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((shown) => !shown)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    style={{
+                      position: "absolute",
+                      right: 6,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      width: 30,
+                      height: 30,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "none",
+                      background: "transparent",
+                      color: colors.muted,
+                      cursor: "pointer",
+                      borderRadius: 8,
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}
+                  </button>
+                </span>
               </label>
               <label style={{ ...labelStyle, display: "flex", gap: 8, alignItems: "center" }}>
                 <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
@@ -164,19 +272,20 @@ export default function LoginPage() {
                   (this ID — not the school slug)
                 </p>
               ) : null}
-              <div style={{ display: "flex", gap: 8 }}>
-                {boardPathForRole(me.role) ? (
-                  <Link href={boardPathForRole(me.role) as string} style={{ ...primaryBtn, flex: 1, textAlign: "center", textDecoration: "none" }}>
-                    Open my board
-                  </Link>
-                ) : (
-                  // Never leave a signed-in account with no way forward.
-                  <p style={{ ...mutedStyle, fontSize: 14, margin: 0 }}>
-                    Your account is signed in but has no board yet. Contact your school
-                    administrator.
-                  </p>
-                )}
-              </div>
+              {boardPathForRole(me.role) ? (
+                <Link
+                  href={boardPathForRole(me.role) as string}
+                  style={{ ...primaryBtn, textDecoration: "none", width: "100%", textAlign: "center" }}
+                >
+                  Open my board
+                </Link>
+              ) : (
+                // Never leave a signed-in account with no way forward.
+                <p style={{ ...mutedStyle, fontSize: 14, margin: 0 }}>
+                  Your account is signed in but has no board yet. Contact your school
+                  administrator.
+                </p>
+              )}
               {error ? <p style={{ color: colors.danger, fontSize: 14, margin: 0 }}>{error}</p> : null}
             </div>
           )}
@@ -185,3 +294,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

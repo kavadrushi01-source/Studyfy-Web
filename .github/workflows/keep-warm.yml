@@ -1,0 +1,38 @@
+name: Keep API warm
+
+# The API runs on Render's free tier, which spins the service down after
+# ~15 minutes without traffic. Without this job the first visitor after a
+# quiet spell pays a 30-60s cold boot (the login page's /health pre-warm
+# softens but cannot remove it). Pinging /health every 10 minutes keeps
+# the instance idle-warm so the site is fast on every open — for free:
+# scheduled workflows on a public repository run on GitHub-hosted runners
+# at no cost, and hours stay inside Render's free tier budget (one service
+# always-on ≈ 720h of the 750h/mo allowance).
+#
+# Ops notes:
+# - `period: 10` minutes: comfortably inside Render's 15-minute spin-down.
+# - continue-on-error: a cold timeout must never page anyone.
+# - workflow_dispatch lets you warm it manually (e.g. right before a demo).
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: keep-api-warm
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Ping health endpoint
+        run: |
+          curl -fsS --max-time 30 \
+            -H "User-Agent: studyfy-keep-warm/1.0" \
+            https://studyfy-api.onrender.com/health \
+            || echo "health ping failed (continues anyway)"

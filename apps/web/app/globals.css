@@ -406,6 +406,73 @@ h3 {
   }
 }
 
+/* ── Landing (public) hero animations ─────────────────────────────
+   Deliberately dependency-free: layered CSS keyframes + one tiny
+   canvas RT for particles. Honors prefers-reduced-motion (the media
+   query above neuters every animation here). */
+.sf-land-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  background: rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid var(--color-line-soft);
+}
+
+@keyframes sf-aurora {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(34px, -22px) scale(1.08);
+  }
+  66% {
+    transform: translate(-24px, 18px) scale(0.94);
+  }
+}
+.sf-land-blob {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(64px);
+  opacity: 0.5;
+  pointer-events: none;
+  animation: sf-aurora 18s ease-in-out infinite;
+}
+
+@keyframes sf-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+.sf-land-float {
+  animation: sf-float 6s ease-in-out infinite;
+}
+
+.sf-land-perspective {
+  perspective: 1200px;
+}
+.sf-land-tilt {
+  transition: transform 120ms var(--ease-out);
+  will-change: transform;
+  transform-style: preserve-3d;
+}
+
+/* Feature cards: subtle 3D hover lean (cheap, transform-only). */
+.sf-land-lean {
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+@media (hover: hover) {
+  .sf-land-lean:hover {
+    transform: translateY(-4px) rotate(-0.4deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
