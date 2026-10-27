@@ -2,7 +2,7 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 7 (bounce fix verified) — remaining: commit, push, prod live-verify
+## STATUS: SESSION 7 COMPLETE — commit `22bdbe6` pushed; prod live-verified 5/5; nothing left but org chores (see "Founder actions")
 
 **Prior state (session 6):** commit `84ed8b9` pushed to main — six-screenshot UI pass + P2028 staff-invite fix, live-verified 5/5 on prod with a temporary Playwright spec (delete temp files when done). Usage guide delivered to the founder (demo emails, board URLs, prod password `mega`, TEST MODE payments).
 
@@ -53,8 +53,8 @@ Limiter overrides exist because back-to-back full passes from one IP drain the s
 
 ## Remaining (finish this list)
 
-1. Commit + push (code+specs+docs). Render (API) and Vercel (web) deploy on push; workflow file activates on next Actions run.
-2. Live-verify prod with a temporary `e2e/prod.config.ts` (workers 1, `globalSetup` skipped) + temp spec — checks: landing hero "One calm dashboard" + canvas without pricing; login page has show/hide toggle + `/health` pre-warm; sign-in (prod password `mega`) → "Open my board"; owner/teacher/accountant/parent boards have **no** "Soon" text anywhere; delete temp files after.
+1. ~~Commit + push~~ — done: `22bdbe6` on main (Render API unchanged; Vercel deployed; keep-warm workflow active on next scheduled run).
+2. ~~Live-verify prod~~ — done: temporary `e2e/prod.config.ts` + `prod-verify-live.spec.ts` (both deleted after the run) — 5/5: landing hero + canvas with zero pricing copy; login eye toggle, no demo banner; owner sign-in ("Open my board") lands `/dashboard/owner`; teacher sees Notices nav; accountant sees Fees & Payments — **zero** "Soon" text on every checked board. Screenshot saved to `test-artifacts/prod-landing.png` (gitignored).
 3. Founder actions (manual): set `PLATFORM_GSTIN`/`PLATFORM_STATE` on Render; **delete the leaked Render API key `rnd_P5qHlcgctDVKV7KeVX8ywu67YD0D` in the Render dashboard**; rotate Aiven + Cloudinary creds (pasted in chat during earlier sessions).
 
 ## Test-suite reality recap
