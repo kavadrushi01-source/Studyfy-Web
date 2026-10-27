@@ -4,13 +4,15 @@ import { useState, type ReactNode } from "react";
 import { Lock, LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { gradients, shadows } from "@/lib/theme";
-import { ROLE_BOARDS } from "./role-boards";
+import { NAV_ICONS, ROLE_BOARDS } from "./role-boards";
 
-// Shared dashboard shell (§8.2 + §8.4): navy sidebar with logo, role badge,
-// canonical nav, and light-canvas content area. Every nav entry is a real
-// page (role-boards.ts guarantees it). Collapses to a top strip on narrow
-// screens via .sf-shell (§8.5). Premium pass: layered gradient sidebar,
-// glass active states with accent rail, micro-motion.
+// Shared dashboard shell (§8.2 + §8.4): icon rail sidebar — every nav entry
+// renders as an icon column + tiny label (label stays real text, so
+// accessible names and every e2e link-name assertion keep working). Light
+// rail per the founder's reference screenshots; active item gets a tinted
+// pill + accent rail. Every nav entry is a real page (role-boards.ts
+// guarantees it). Collapses to a top strip on narrow screens via .sf-shell
+// (§8.5); on phones the rail becomes a horizontal scroll strip.
 export function Shell({
   role,
   activeHref,
@@ -33,21 +35,19 @@ export function Shell({
     await logout();
     window.location.href = "/login";
   }
-  const transition = "180ms cubic-bezier(.22,1,.36,1)";
   return (
     <div className="sf-shell" style={{ fontFamily: "Inter, system-ui, sans-serif" }}>
       <aside
-        className={`sf-sidebar${menuOpen ? "" : " sf-side-collapsed"}`}
+        className={`sf-sidebar sf-side-rail${menuOpen ? "" : " sf-side-collapsed"}`}
         style={{
-          background: gradients.sidebar,
-          color: "#E2E8F0",
-          padding: "20px 14px",
-          borderRight: "1px solid rgba(148,163,184,.12)",
+          background: "#FFFFFF",
+          color: "#334155",
+          borderRight: "1px solid #E6EBF4",
           display: "flex",
           flexDirection: "column",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "0 8px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 10px 12px", justifyContent: "center" }}>
           <span
             style={{
               width: 38,
@@ -61,12 +61,16 @@ export function Shell({
               fontWeight: 800,
               fontSize: 20,
               letterSpacing: "-0.02em",
+              flexShrink: 0,
               boxShadow: "0 6px 18px -6px rgba(37,99,235,.7), inset 0 1px 0 rgba(255,255,255,.25)",
             }}
           >
             S
           </span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: "#fff", letterSpacing: "-0.02em", flex: 1 }}>
+          <span
+            className="sf-side-brand"
+            style={{ fontWeight: 700, fontSize: 18, color: "#0F172A", letterSpacing: "-0.02em" }}
+          >
             Studyfy
           </span>
           <button
@@ -81,136 +85,87 @@ export function Shell({
               width: 40,
               height: 40,
               borderRadius: 10,
-              border: "1px solid rgba(148,163,184,.25)",
-              background: "rgba(255,255,255,.06)",
-              color: "#E2E8F0",
+              border: "1px solid #E2E8F0",
+              background: "#F8FAFC",
+              color: "#334155",
               cursor: "pointer",
+              flexShrink: 0,
             }}
           >
             {menuOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
           </button>
         </div>
         <div
+          className="sf-side-badge"
           style={{
-            margin: "0 8px 18px",
-            display: "inline-block",
-            fontSize: 11,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.07em",
-            background: board.badgeAccent
-              ? `linear-gradient(180deg, ${board.badgeBg}33 0%, ${board.badgeBg}1f 100%)`
-              : "rgba(255,255,255,.08)",
-            border: board.badgeAccent
-              ? `1px solid ${board.badgeAccent}55`
-              : "1px solid rgba(255,255,255,.14)",
-            color: board.badgeAccent ?? "#E2E8F0",
+            margin: "4px auto 14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 40,
+            height: 40,
             borderRadius: 999,
-            padding: "5px 12px",
-            width: "fit-content",
+            flexShrink: 0,
+            background: `linear-gradient(180deg, ${board.badgeBg}1a 0%, ${board.badgeBg}0d 100%)`,
+            border: `1px solid ${board.badgeAccent ?? board.badgeBg}44`,
+            color: board.badgeAccent ?? board.badgeBg,
+          }}
+          title={board.badge}
+        >
+          {board.icon ? <board.icon size={18} aria-hidden="true" /> : null}
+        </div>
+        <span
+          className="sf-side-badge-label"
+          style={{
+            margin: "-8px auto 14px",
+            display: "block",
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            color: board.badgeAccent ?? board.badgeBg,
+            maxWidth: 84,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            textAlign: "center",
           }}
         >
-          {board.icon ? (
-            <board.icon size={11} aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 6 }} />
-          ) : null}
           {board.badge}
-        </div>
+        </span>
         <nav
           className="sf-side-nav"
-          // alignContent:start — grid auto-rows stretch to fill free space
-          // by default; on long pages the tall sidebar made every nav link
-          // hundreds of px tall (only the top item stayed visible).
-          style={{ display: "grid", gap: 3, flex: 1, alignContent: "start" }}
+          aria-label={board.badge}
+          style={{ flex: 1, overflowY: "auto", padding: "2px 8px 8px" }}
         >
           {board.nav.map((item) => {
             const active = item.href === activeHref;
-            const isOwner = role === "PLATFORM_OWNER";
-            const accent = isOwner ? "#F59E0B" : (board.badgeAccent ?? "#60A5FA");
+            const Icon = NAV_ICONS[item.label];
             return (
               <a
                 key={item.label}
                 href={item.href}
-                style={{
-                  display: "block",
-                  position: "relative",
-                  padding: "9px 12px 9px 14px",
-                  borderRadius: 10,
-                  fontSize: 14,
-                  textDecoration: "none",
-                  background: active ? "rgba(255,255,255,.09)" : "transparent",
-                  border: active ? "1px solid rgba(255,255,255,.1)" : "1px solid transparent",
-                  color: active ? "#fff" : "#B6C2D6",
-                  fontWeight: active ? 600 : 500,
-                  transition: `background ${transition}, color ${transition}, border-color ${transition}`,
-                }}
-                onMouseEnter={(e) => {
-                  if (!active) {
-                    e.currentTarget.style.background = "rgba(255,255,255,.05)";
-                    e.currentTarget.style.color = "#E8EEF9";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!active) {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.color = "#B6C2D6";
-                  }
-                }}
+                className={`sf-rail-item${active ? " sf-rail-active" : ""}`}
+                aria-current={active ? "page" : undefined}
+                title={item.label}
               >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    left: -14,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    width: 3,
-                    height: active ? 18 : 0,
-                    borderRadius: 999,
-                    background: accent,
-                    boxShadow: active ? `0 0 10px ${accent}` : "none",
-                    transition: `height ${transition}`,
-                  }}
-                />
-                {item.label}
+                {Icon ? (
+                  <Icon size={20} strokeWidth={active ? 2.2 : 1.9} aria-hidden="true" />
+                ) : null}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
+                  {item.label}
+                </span>
               </a>
             );
           })}
         </nav>
         <button
           type="button"
-          className="sf-side-logout"
+          className="sf-side-logout sf-rail-item sf-rail-logout"
           onClick={handleLogout}
-          style={{
-            marginTop: 16,
-            width: "100%",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "1px solid rgba(148,163,184,.22)",
-            background: "rgba(255,255,255,.03)",
-            color: "#B6C2D6",
-            fontFamily: "inherit",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-            transition: `background 180ms cubic-bezier(.22,1,.36,1), color 180ms cubic-bezier(.22,1,.36,1), border-color 180ms cubic-bezier(.22,1,.36,1)`,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(239,68,68,.14)";
-            e.currentTarget.style.color = "#FECACA";
-            e.currentTarget.style.borderColor = "rgba(239,68,68,.35)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,.03)";
-            e.currentTarget.style.color = "#B6C2D6";
-            e.currentTarget.style.borderColor = "rgba(148,163,184,.22)";
-          }}
         >
-          <LogOut size={15} aria-hidden="true" />
-          Log out
+          <LogOut size={19} aria-hidden="true" />
+          <span>Log out</span>
         </button>
       </aside>
       <main className="sf-main" style={{ maxWidth: 1140 }}>

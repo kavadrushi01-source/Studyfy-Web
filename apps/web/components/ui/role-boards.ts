@@ -4,7 +4,38 @@
 // points at a real page: unbuilt surfaces are simply absent (a "Soon" pill
 // in a shipped portfolio reads as unfinished work, and it used to lie about
 // what the role could do).
-import { BookMarked, Bus, Crown, GraduationCap, PersonStanding, Shield, Wallet, type LucideIcon } from "lucide-react";
+import {
+  Award,
+  Bell,
+  Banknote,
+  BarChart3,
+  BookMarked,
+  Building,
+  Bus,
+  CalendarDays,
+  ClipboardCheck,
+  CreditCard,
+  Crown,
+  FileBadge,
+  GraduationCap,
+  LayoutDashboard,
+  LayoutGrid,
+  LifeBuoy,
+  MessageCircle,
+  NotebookPen,
+  Package,
+  PenLine,
+  PersonStanding,
+  Receipt,
+  ScrollText,
+  Settings as SettingsIcon,
+  Shield,
+  User,
+  UserPlus,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 
 export interface NavItem {
   label: string;
@@ -19,6 +50,43 @@ export interface RoleBoard {
   icon?: LucideIcon;
   nav: NavItem[];
 }
+
+// Icon rail (§8.2 premium pass): every sidebar link renders as an icon +
+// tiny label column, matching the reference screenshots the founder approved.
+// Keyed by the exact nav label from ROLE_BOARDS, so a renamed label shows a
+// fallback icon instead of breaking.
+export const NAV_ICONS: Record<string, LucideIcon> = {
+  Dashboard: LayoutDashboard,
+  Students: Users,
+  Teachers: GraduationCap,
+  "Classes & Sections": LayoutGrid,
+  "Fees & Payments": Wallet,
+  "Payments & Receipts": Receipt,
+  "Exams & Marks": Award,
+  "Marks & Results": Award,
+  "Marks Entry": PenLine,
+  Admissions: UserPlus,
+  Library: BookMarked,
+  Certificates: FileBadge,
+  Transport: Bus,
+  Payroll: Banknote,
+  Inventory: Package,
+  Reports: BarChart3,
+  Billing: CreditCard,
+  "Subscriptions & Billing": CreditCard,
+  "Audit Logs": ScrollText,
+  Support: LifeBuoy,
+  "Support & Impersonation": LifeBuoy,
+  Settings: SettingsIcon,
+  Attendance: ClipboardCheck,
+  Homework: NotebookPen,
+  Timetable: CalendarDays,
+  Messages: MessageCircle,
+  Notices: Bell,
+  Profile: User,
+  Schools: Building,
+  "Users Management": Users,
+};
 
 export const ROLE_BOARDS: Record<string, RoleBoard> = {
   SCHOOL_ADMIN: {

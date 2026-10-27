@@ -276,26 +276,120 @@ h3 {
   }
 }
 
-/* ── App shell: sidebar + content; collapses to a top strip on narrow. ── */
+/* ── App shell: icon-rail sidebar + content; collapses to a top strip ── */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    /* Premium feel: every in-page anchor (#features on the landing,
+       scrollIntoView targets in CRM/Library) glides instead of jumping. */
+    scroll-behavior: smooth;
+  }
+}
 .sf-shell {
   display: flex;
   min-height: 100vh;
 }
 .sf-sidebar {
-  width: 256px;
+  width: 92px;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
 .sf-main {
   flex: 1;
   min-width: 0;
   padding: 30px 32px 48px;
 }
+
+/* Icon rail items: icon over a tiny, always-visible label (real text —
+   accessible names and e2e link-name assertions survive). */
+.sf-rail-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 4px 8px;
+  margin: 0 0 3px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  color: #64748B;
+  text-align: center;
+  max-width: 84px;
+  width: 100%;
+  transition: background-color 160ms cubic-bezier(.22, 1, .36, 1),
+    color 160ms cubic-bezier(.22, 1, .36, 1);
+}
+.sf-rail-item:hover {
+  background-color: #F1F5F9;
+  color: #0F172A;
+}
+.sf-rail-active,
+.sf-rail-active:hover {
+  background-color: #EFF6FF;
+  color: var(--color-primary, #2563EB);
+}
+.sf-rail-active::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--color-primary, #2563EB);
+}
+.sf-rail-item svg {
+  display: block;
+  flex-shrink: 0;
+}
+.sf-rail-logout {
+  margin: 8px 4px 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #64748B;
+  font-family: inherit;
+  cursor: pointer;
+  width: auto;
+}
+.sf-rail-logout:hover {
+  background-color: #FEF2F2;
+  color: #B91C1C;
+}
+
 @media (max-width: 900px) {
   .sf-shell {
     flex-direction: column;
   }
   .sf-sidebar {
     width: 100%;
+    height: auto;
+    position: static;
+  }
+  /* On phones the rail becomes a horizontal scroll strip when open —
+     same items, thumb-friendly. */
+  .sf-side-rail .sf-side-nav {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 4px;
+    padding: 4px 12px 10px;
+  }
+  .sf-side-rail .sf-rail-item {
+    flex-direction: column;
+    flex: 0 0 auto;
+    max-width: 76px;
+  }
+  .sf-rail-logout {
+    margin-top: 4px;
+  }
+  .sf-rail-active::before {
+    display: none;
   }
   .sf-main {
     padding: 16px;
@@ -406,10 +500,10 @@ h3 {
   }
 }
 
-/* ── Landing (public) hero animations ─────────────────────────────
+/* ── Landing (public) header + hero animations ────────────────────
    Deliberately dependency-free: layered CSS keyframes + one tiny
-   canvas RT for particles. Honors prefers-reduced-motion (the media
-   query above neuters every animation here). */
+   canvas RT for particles + IntersectionObserver reveals. Honors
+   prefers-reduced-motion (the media query neuters every animation). */
 .sf-land-header {
   position: sticky;
   top: 0;
@@ -418,6 +512,64 @@ h3 {
   -webkit-backdrop-filter: blur(12px) saturate(150%);
   background: rgba(255, 255, 255, 0.72);
   border-bottom: 1px solid var(--color-line-soft);
+  transition: box-shadow var(--transition), background var(--transition);
+}
+.sf-land-header-scrolled {
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 10px 30px -18px rgba(15, 23, 42, 0.35);
+}
+/* Anchor targets glide long enough to clear the sticky header. */
+.sf-land-header ~ main section[id] {
+  scroll-margin-top: 84px;
+}
+
+/* Floating center pill for the section links. */
+.sf-land-pill {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(241, 245, 249, 0.75);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+}
+.sf-land-pill-link {
+  display: inline-block;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--transition), background-color var(--transition);
+}
+.sf-land-pill-link:hover {
+  color: var(--color-ink);
+  background-color: rgba(255, 255, 255, 0.9);
+}
+.sf-land-pill-active,
+.sf-land-pill-active:hover {
+  color: var(--color-primary-strong, #1d4ed8);
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+}
+
+/* Reveal-on-scroll: the state is only VISIBLE once JS engages (the client
+   component adds .sf-reveal at mount), so a no-JS load loses nothing. */
+.sf-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.sf-reveal-in {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sf-reveal {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @keyframes sf-aurora {

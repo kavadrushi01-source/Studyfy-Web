@@ -11,12 +11,13 @@ import {
   MessageCircle,
   ShieldCheck,
   Users,
-  UserPlus,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { colors, gradients, iconTile, pill, primaryBtn, secondaryBtn } from "@/lib/theme";
 import { HeroVisual } from "@/components/ui/landing/hero-visual";
+import { PublicNav } from "@/components/ui/landing/public-nav";
+import { RevealOnScroll } from "@/components/ui/landing/reveal-on-scroll";
 
 // Public marketing site (§7 Phase 1 #10, copy per §8.3; exclusions §8.1:
 // no invented customer stats, no app-store badges, no pricing section —
@@ -34,17 +35,6 @@ const FEATURES: { title: string; detail: string; icon: LucideIcon }[] = [
   { title: "Notices", detail: "School, class, and section announcements with email delivery.", icon: Bell },
   { title: "Parent Communication", detail: "Scoped 1:1 teacher–parent messaging with admin oversight.", icon: MessageCircle },
   { title: "Reports & Analytics", detail: "Role dashboards with live KPIs for every stakeholder.", icon: BarChart3 },
-];
-
-const ROLES = [
-  "School Admin",
-  "Teacher",
-  "Accountant",
-  "Librarian",
-  "Transport Manager",
-  "Student",
-  "Parent",
-  "Platform Owner",
 ];
 
 const FACT_PILLS = ["Multi-tenant by design", "8 role dashboards", "9 modules", "PDF receipts & report cards"];
@@ -88,23 +78,7 @@ const sectionSub = { textAlign: "center" as const, color: colors.muted, margin: 
 export default function LandingPage() {
   return (
     <div style={{ ...font, color: colors.ink, background: "transparent" }}>
-      <header className="sf-land-header" style={{ display: "flex", alignItems: "center", gap: 24, padding: "14px 32px", maxWidth: 1120, margin: "0 auto" }}>
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none" }}>
-          <span style={logoTile}>S</span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: colors.ink, letterSpacing: "-0.02em" }}>Studyfy</span>
-        </Link>
-        <nav className="sf-public-nav" style={{ display: "flex", gap: 20, flex: 1, justifyContent: "center", fontSize: 14 }}>
-          <a href="#top" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Home</a>
-          <a href="#features" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Features</a>
-          <a href="#tenants" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>For your school</a>
-          <a href="#demo" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Live demo</a>
-          <a href="#contact" style={{ color: colors.inkSoft, textDecoration: "none", fontWeight: 500 }}>Contact</a>
-        </nav>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <Link href="/login" style={{ fontSize: 14, color: colors.inkSoft, textDecoration: "none", fontWeight: 600 }}>Login</Link>
-          <Link href="/signup" style={{ ...secondaryBtn, textDecoration: "none" }}>Get Started</Link>
-        </div>
-      </header>
+      <PublicNav />
 
       <main id="top" style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 32px 0" }}>
         {/* Hero — copy + animated 3D visual */}
@@ -137,7 +111,7 @@ export default function LandingPage() {
         </section>
 
         {/* Features */}
-        <section id="features" style={{ padding: "40px 0 32px" }}>
+        <section id="features" data-reveal style={{ padding: "40px 0 32px" }}>
           <h2 style={sectionHead}>Everything You Need in One Platform</h2>
           <p style={sectionSub}>Nine modules that cover the full school day.</p>
           <div className="sf-grid-3">
@@ -158,7 +132,7 @@ export default function LandingPage() {
         </section>
 
         {/* Tenant isolation — the honest reason this product is interesting */}
-        <section id="tenants" style={{ padding: "40px 0", maxWidth: 980, margin: "0 auto" }}>
+        <section id="tenants" data-reveal style={{ padding: "40px 0", maxWidth: 980, margin: "0 auto" }}>
           <h2 style={sectionHead}>Your School&apos;s Data Stays Yours</h2>
           <p style={sectionSub}>Multi-tenancy isn&apos;t a tagline here — every query is scoped to your school, enforced server-side.</p>
           <div className="sf-grid-1-1" style={{ maxWidth: 980 }}>
@@ -204,7 +178,7 @@ export default function LandingPage() {
         </section>
 
         {/* How it works */}
-        <section style={{ padding: "32px 0 40px", maxWidth: 980, margin: "0 auto" }}>
+        <section data-reveal style={{ padding: "32px 0 40px", maxWidth: 980, margin: "0 auto" }}>
           <h2 style={sectionHead}>From First Enquiry to Report Card</h2>
           <p style={sectionSub}>The whole admission-to-graduation path lives in one system.</p>
           <div className="sf-grid-3">
@@ -224,43 +198,8 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Live demo */}
-        <section id="demo" style={{ padding: "24px 0 40px" }}>
-          <div className="sf-card" style={{ padding: 28, maxWidth: 980, margin: "0 auto", display: "grid", gap: 16 }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
-              <span style={{ ...iconTile(colors.primary, colors.primaryGhost, 42) }}>
-                <UserPlus size={19} />
-              </span>
-              <div style={{ flex: 1, minWidth: 220 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 4px", color: colors.ink }}>Try the live demo</h2>
-                <p style={{ fontSize: 14, color: colors.inkSoft, margin: 0, lineHeight: 1.6 }}>
-                  A fully working deployment with two seeded demo schools. Log in as any of the eight roles and click through the real thing — enquiries, attendance, fees, library, transport, audit logs — all demo data.
-                </p>
-              </div>
-              <Link href="/login" style={{ ...primaryBtn, textDecoration: "none", whiteSpace: "nowrap" }}>
-                Open the login page
-              </Link>
-            </div>
-            <div className="sf-form-2col">
-              <div style={{ background: colors.canvas, border: `1px solid ${colors.line}`, borderRadius: 12, padding: "12px 14px" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: colors.muted }}>School slug</span>
-                <p style={{ margin: "4px 0 0", fontFamily: "monospace", fontSize: 13, color: colors.ink }}>school-of-science</p>
-              </div>
-              <div style={{ background: colors.canvas, border: `1px solid ${colors.line}`, borderRadius: 12, padding: "12px 14px" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: colors.muted }}>Roles included</span>
-                <p style={{ margin: "4px 0 0", fontSize: 13, color: colors.ink }}>
-                  {ROLES.join(" · ")}
-                </p>
-              </div>
-            </div>
-            <p style={{ fontSize: 12.5, color: colors.muted, margin: 0 }}>
-              The second school runs as <span style={{ fontFamily: "monospace" }}>ramakrishna-school</span> — log in with its slug to see both, and to prove to yourself that neither can see the other. Demo credentials ship with the repository (see <span style={{ fontFamily: "monospace" }}>DEMO_DATA.md</span>).
-            </p>
-          </div>
-        </section>
-
         {/* About */}
-        <section id="about" style={{ padding: "24px 0 8px", maxWidth: 720, margin: "0 auto" }}>
+        <section id="about" data-reveal style={{ padding: "24px 0 8px", maxWidth: 720, margin: "0 auto" }}>
           <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.025em", margin: "0 0 8px", color: colors.ink }}>About Studyfy</h2>
           <p style={{ color: colors.inkSoft, fontSize: 15, lineHeight: 1.65 }}>
             Studyfy is a multi-tenant school management system: each school gets its own isolated workspace with role-based
@@ -270,7 +209,7 @@ export default function LandingPage() {
         </section>
 
         {/* Contact */}
-        <section id="contact" style={{ padding: "32px 0 48px", maxWidth: 720, margin: "0 auto" }}>
+        <section id="contact" data-reveal style={{ padding: "32px 0 48px", maxWidth: 720, margin: "0 auto" }}>
           <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.025em", margin: "0 0 8px", color: colors.ink }}>Contact &amp; Admissions</h2>
           <p style={{ color: colors.inkSoft, fontSize: 15, lineHeight: 1.65 }}>
             For admission enquiries, write directly to your school through our{" "}
@@ -298,6 +237,8 @@ export default function LandingPage() {
           ))}
         </div>
       </footer>
+
+      <RevealOnScroll />
     </div>
   );
 }

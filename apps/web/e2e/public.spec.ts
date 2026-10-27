@@ -12,10 +12,13 @@ test.describe("public site + login", () => {
       await expect(page.getByRole("heading", { name })).toBeVisible();
     }
     // Pricing was intentionally removed from the landing (tiers are shown
-    // in-app after sign-in); the demo card sells the live deployment.
+    // in-app after sign-in); the demo-credentials card was removed too —
+    // the hero CTA links straight into the login flow instead.
     await expect(page.getByText(/₹5,999\/month|₹1,999\/month|₹2,999\/month|₹4,999\/month/)).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Simple, Transparent Pricing/i })).toHaveCount(0);
-    await expect(page.getByText("Try the live demo")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Try the live demo" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /open the live demo/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Get Started" })).toBeVisible();
     await expect(page.getByText("Better Schools. Brighter Futures.")).toBeVisible();
     await expect(page.getByText(/500\+ Happy Schools|50K\+ Students|99% Uptime/)).toHaveCount(0);
     await expect(page.getByText(/App Store|Google Play/)).toHaveCount(0);
