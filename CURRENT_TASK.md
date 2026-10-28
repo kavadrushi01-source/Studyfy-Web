@@ -2,7 +2,20 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 8 COMPLETE — commit `adb07de` pushed (glass navbar + icon rail); prod live-verified 3/3; nothing left but org chores
+## STATUS: SESSION 9 COMPLETE — commit `0e37c10` pushed ("See It From the Inside" rail); prod live-verified 3/3; nothing left but org chores
+
+### Session 9 summary — product-showcase rail (founder's gyanmirai screenshots)
+
+The founder showed competitor landing pages that auto-move through real app screenshots, draggable by the visitor. Built the same with REAL captures of OUR app:
+
+1. **`scripts/capture-showcase.mjs`** (dev-only, eslint-ignored, not a spec): logs into the local app (admin, school-of-science) and captures 6 screens at 1280x800@2x into `public/showcase/`: dashboard, students, fees, attendance, timetable, library. Run it AFTER a DB re-seed — `npx prisma migrate reset --force --skip-generate --schema=../../prisma/schema.prisma` then `NODE_ENV=development DATABASE_URL=mysql://root:9328581846@127.0.0.1:3306/studyfy_e2e npx tsx ../../prisma/seed.ts` (from apps/api) — so shots show the clean demo baseline (an unseeded capture showed "E2E Resubmit…" junk in Recent Activities). Schema default URL is studyfy_dev@3307; always override DATABASE_URL for the e2e DB.
+2. **`components/ui/landing/showcase.tsx`**: mac-chrome cards on `.sf-show-rail` — auto-drift via rAF (bounces at the edges), pauses on hover/press/focus, drag-to-pan (pointer capture), reduced-motion = plain scroller. next/image (priority on the first), `sizes="640px"`, captions + fake-browser URL line use the REAL page paths.
+3. **Landing section `#inside`** between how-it-works and About + nav pill link "Inside"; public.spec asserts the heading, 6 cards, first image visible. **next/image note:** it rewrites srcs to `/_next/image?url=%2Fshowcase%2F...` — prod-deploy probes must match the encoded form.
+4. Verified: typecheck/lint/build clean; full e2e 103 passed + pwa-SW flake recovered solo (104/104 effectively); **prod 3/3** — showcase visible + drift measured (scrollLeft advances), glass nav + canvas + no demo card, owner icon rail + zero "Soon".
+
+## Session 8 record (previous session)
+
+**Session 8** — commit `adb07de` pushed (glass navbar + icon rail); prod live-verified 3/3.
 
 **Prior state (session 7:** `22bdbe6` — no "Soon" stubs, animated no-pricing landing, login polish + keep-warm workflow; prod 5/5). Session 8 was a further founder screenshot pass on top of that.
 
