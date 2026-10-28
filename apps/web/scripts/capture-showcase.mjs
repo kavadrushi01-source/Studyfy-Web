@@ -2,8 +2,9 @@
 // the landing page. Not picked up by Playwright (no .spec suffix). Run with:
 //   $env:NEXT_PUBLIC... (nothing needed) — web on :3000, API on :4000
 //   node scripts/capture-showcase.mjs
-// Writes PNGs (1280x800 @2x) to public/showcase/. All data shown is the
-// fabricated demo seed (see DEMO_DATA.md), safe to publish.
+// Writes FULL-PAGE PNGs (1920px wide @1.5x) to public/showcase/ — tall
+// captures so the landing display can auto-scroll through the page.
+// All data shown is the fabricated demo seed (see DEMO_DATA.md), safe to publish.
 import { mkdirSync } from "node:fs";
 import { chromium } from "@playwright/test";
 
@@ -26,7 +27,7 @@ const SHOTS = [
 
 const browser = await chromium.launch();
 try {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1.5 });
   const deadline = Date.now() + 20000;
   for (;;) {
     try {
@@ -52,7 +53,7 @@ try {
     await page.goto(`${FRONT}${shot.path}`, { waitUntil: "networkidle" });
     await page.waitForTimeout(1200); // skeleton -> data settle
     const file = new URL(`${shot.out}.png`, OUT).pathname.replace(/^\/(\w:)/, "$1");
-    await page.screenshot({ path: file });
+    await page.screenshot({ path: file, fullPage: true });
     console.log("captured", shot.out);
   }
 } finally {
