@@ -13,6 +13,7 @@ const SECTIONS = [
   { id: "top", label: "Home" },
   { id: "features", label: "Features" },
   { id: "tenants", label: "For your school" },
+  { id: "inside", label: "Inside" },
   { id: "about", label: "About" },
   { id: "contact", label: "Contact" },
 ];

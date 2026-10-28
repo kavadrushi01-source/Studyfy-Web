@@ -18,6 +18,7 @@ import { colors, gradients, iconTile, pill, primaryBtn, secondaryBtn } from "@/l
 import { HeroVisual } from "@/components/ui/landing/hero-visual";
 import { PublicNav } from "@/components/ui/landing/public-nav";
 import { RevealOnScroll } from "@/components/ui/landing/reveal-on-scroll";
+import { ShowcaseRail } from "@/components/ui/landing/showcase";
 
 // Public marketing site (§7 Phase 1 #10, copy per §8.3; exclusions §8.1:
 // no invented customer stats, no app-store badges, no pricing section —
@@ -196,6 +197,15 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* Inside the app — real screenshots, auto-drifting rail (drag to explore) */}
+        <section id="inside" data-reveal style={{ padding: "32px 0 24px" }}>
+          <h2 style={sectionHead}>See It From the Inside</h2>
+          <p style={sectionSub}>
+            Real screens from the live deployment — the rail drifts on its own, grab it to explore.
+          </p>
+          <ShowcaseRail />
         </section>
 
         {/* About */}
