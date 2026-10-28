@@ -2,16 +2,16 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 9 COMPLETE — commit `0e37c10` pushed ("See It From the Inside" rail); prod live-verified 3/3; nothing left but org chores
+## STATUS: SESSION 9 COMPLETE — commit `c7ea012` pushed (showcase v2: one big auto-advancing display); prod live-verified 3/3; nothing left but org chores
 
-### Session 9 summary — product-showcase rail (founder's gyanmirai screenshots)
+### Session 9 summary — product showcase (founder's gyanmirai screenshots, v2 display)
 
-The founder showed competitor landing pages that auto-move through real app screenshots, draggable by the visitor. Built the same with REAL captures of OUR app:
+The founder showed competitor landing pages that auto-move through real app screenshots. v1 (draggable tilted-card rail, commit `0e37c10`) was rejected — "not like that… proper display, moves automatically, premium". v2 rewrote it as a single big slideshow:
 
 1. **`scripts/capture-showcase.mjs`** (dev-only, eslint-ignored, not a spec): logs into the local app (admin, school-of-science) and captures 6 screens at 1280x800@2x into `public/showcase/`: dashboard, students, fees, attendance, timetable, library. Run it AFTER a DB re-seed — `npx prisma migrate reset --force --skip-generate --schema=../../prisma/schema.prisma` then `NODE_ENV=development DATABASE_URL=mysql://root:9328581846@127.0.0.1:3306/studyfy_e2e npx tsx ../../prisma/seed.ts` (from apps/api) — so shots show the clean demo baseline (an unseeded capture showed "E2E Resubmit…" junk in Recent Activities). Schema default URL is studyfy_dev@3307; always override DATABASE_URL for the e2e DB.
-2. **`components/ui/landing/showcase.tsx`**: mac-chrome cards on `.sf-show-rail` — auto-drift via rAF (bounces at the edges), pauses on hover/press/focus, drag-to-pan (pointer capture), reduced-motion = plain scroller. next/image (priority on the first), `sizes="640px"`, captions + fake-browser URL line use the REAL page paths.
-3. **Landing section `#inside`** between how-it-works and About + nav pill link "Inside"; public.spec asserts the heading, 6 cards, first image visible. **next/image note:** it rewrites srcs to `/_next/image?url=%2Fshowcase%2F...` — prod-deploy probes must match the encoded form.
-4. Verified: typecheck/lint/build clean; full e2e 103 passed + pwa-SW flake recovered solo (104/104 effectively); **prod 3/3** — showcase visible + drift measured (scrollLeft advances), glass nav + canvas + no demo card, owner icon rail + zero "Soon".
+2. **`components/ui/landing/showcase.tsx` → `ShowcaseDisplay`** (v2): ONE large mac-chrome window on a dark stage (`.sf-show-stage`, radial glows over `#0B1220`). Slides stack absolutely in `.sf-show-screen` (aspect-ratio 1280/800), `.sf-show-slide-active` crossfades/glides in 0.65s; auto-advance every 4200ms via setInterval; pauses on hover/focus/`document.hidden`; swipe threshold 40px (pointer events); prev/next `.sf-show-arrow` buttons; `.sf-show-dots` with elongating active dot (blue→violet gradient); reduced-motion = manual only. Captions + fake-browser URL line use the REAL page paths. TS: `SHOTS[active]?.url ?? ""` for noUncheckedIndexedAccess.
+3. **Landing section `#inside`** ("See It From the Inside") between how-it-works and About + nav pill link "Inside"; public.spec asserts 6 `.sf-show-slide` and the active slide's img visible. **next/image note:** it rewrites srcs to `/_next/image?url=%2Fshowcase%2F...` — prod-deploy probes must match the encoded form.
+4. Verified: typecheck/lint/build clean; **full e2e 104/104**; **prod 3/3** — 6 slides + auto-advance measured (`.sf-show-slide-active` index changes after ~4.5s), glass nav + canvas + no demo card, owner icon rail + zero "Soon" (prod spec needed the helpers' selectors: button is `/^login$/i` not "Sign in", and the eye toggle's aria-label "Show password" makes `getByLabel('Password')` strict-clash — use `input[type="password"]`).
 
 ## Session 8 record (previous session)
 
