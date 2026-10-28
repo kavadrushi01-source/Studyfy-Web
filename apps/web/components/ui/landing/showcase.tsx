@@ -3,11 +3,13 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// "Inside the app" display (§8.3 founder ask): ONE large premium screen —
-// a dark stage with a big mac-chrome window — that auto-advances through
-// real captures of the live deployment. The visitor can drive it: dots,
-// prev/next arrows, swipe. Auto-advance pauses on hover/press/focus and
-// while the tab is hidden; reduced-motion visitors get manual-only.
+// "Inside the app" display (§8.3 founder ask, v3): a TABLET-SIZED device —
+// smaller than v2, centered with room on each side — that visibly SLIDES
+// through real captures of the live deployment (horizontal track, not just
+// fades). Under it a filmstrip of the same screenshots auto-scrolls in a
+// seamless marquee; tapping a thumb jumps the big screen. Swipe works on
+// the tablet; auto-advance pauses on hover/press/focus and while the tab
+// is hidden; reduced-motion visitors get manual-only.
 const SHOTS: { src: string; url: string; caption: string }[] = [
   { src: "/showcase/admin-dashboard.png", url: "/dashboard", caption: "School Admin · Live overview" },
   { src: "/showcase/students.png", url: "/students", caption: "Student records & documents" },
@@ -17,7 +19,7 @@ const SHOTS: { src: string; url: string; caption: string }[] = [
   { src: "/showcase/library.png", url: "/library", caption: "Library catalog & circulation" },
 ];
 
-const DWELL_MS = 4200;
+const DWELL_MS = 3800;
 
 export function ShowcaseDisplay(): React.ReactNode {
   const [active, setActive] = useState(0);
@@ -55,7 +57,7 @@ export function ShowcaseDisplay(): React.ReactNode {
       onBlur={() => setPaused(false)}
     >
       <div
-        className="sf-show-frame"
+        className="sf-show-tablet"
         onPointerDown={(e) => {
           swipe.current = { x: e.clientX };
           setPaused(true);
@@ -67,54 +69,59 @@ export function ShowcaseDisplay(): React.ReactNode {
           swipe.current = null;
         }}
       >
-        <div className="sf-show-chrome" aria-hidden="true">
-          <span className="sf-show-dot" style={{ background: "#FF5F57" }} />
-          <span className="sf-show-dot" style={{ background: "#FEBC2E" }} />
-          <span className="sf-show-dot" style={{ background: "#28C840" }} />
-          <span className="sf-show-url">studyfy-web.vercel.app{SHOTS[active]?.url ?? ""}</span>
-        </div>
+        <span className="sf-show-cam" aria-hidden="true" />
         <div className="sf-show-screen" aria-live="polite">
-          {SHOTS.map((shot, index) => (
-            <div key={shot.src} className={`sf-show-slide${index === active ? " sf-show-slide-active" : ""}`} aria-hidden={index !== active}>
-              <Image
-                src={shot.src}
-                alt={`${shot.caption} — real screen of Studyfy`}
-                width={1280}
-                height={800}
-                priority={index === 0}
-                draggable={false}
-                sizes="1080px"
-              />
-            </div>
-          ))}
-          <div className="sf-show-caption">{SHOTS[active]?.caption ?? ""}</div>
+          <div className="sf-show-track" style={{ transform: `translateX(-${active * 100}%)` }}>
+            {SHOTS.map((shot, index) => (
+              <div key={shot.src} className={`sf-show-slide${index === active ? " sf-show-slide-active" : ""}`} aria-hidden={index !== active}>
+                <Image
+                  src={shot.src}
+                  alt={`${shot.caption} — real screen of Studyfy`}
+                  width={1280}
+                  height={800}
+                  priority={index === 0}
+                  draggable={false}
+                  sizes="640px"
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="sf-show-controls">
-        <button type="button" className="sf-show-arrow" aria-label="Previous screen" onClick={() => go(-1)}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
-            <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        <div className="sf-show-dots" role="tablist" aria-label="Screens">
-          {SHOTS.map((shot, index) => (
+      <div className="sf-show-caption">
+        <span className="sf-show-url">studyfy-web.vercel.app{SHOTS[active]?.url ?? ""}</span>
+        <span className="sf-show-caption-text">{SHOTS[active]?.caption ?? ""}</span>
+      </div>
+
+      <div className="sf-show-dots" role="tablist" aria-label="Screens">
+        {SHOTS.map((shot, index) => (
+          <button
+            key={shot.src}
+            type="button"
+            role="tab"
+            aria-selected={index === active}
+            aria-label={`Show screen ${index + 1}: ${shot.caption}`}
+            className={`sf-show-dot-btn${index === active ? " sf-show-dot-active" : ""}`}
+            onClick={() => setActive(index)}
+          />
+        ))}
+      </div>
+
+      <div className="sf-show-strip" aria-label="More screens">
+        <div className="sf-show-strip-track">
+          {[...SHOTS, ...SHOTS].map((shot, index) => (
             <button
-              key={shot.src}
+              key={`${shot.src}-${index}`}
               type="button"
-              role="tab"
-              aria-selected={index === active}
-              aria-label={`Show screen ${index + 1}: ${shot.caption}`}
-              className={`sf-show-dot-btn${index === active ? " sf-show-dot-active" : ""}`}
-              onClick={() => setActive(index)}
-            />
+              className={`sf-show-thumb${index % SHOTS.length === active ? " sf-show-thumb-active" : ""}`}
+              aria-label={`Show screen: ${shot.caption}`}
+              onClick={() => setActive(index % SHOTS.length)}
+            >
+              <Image src={shot.src} alt="" width={224} height={140} draggable={false} sizes="240px" />
+            </button>
           ))}
         </div>
-        <button type="button" className="sf-show-arrow" aria-label="Next screen" onClick={() => go(1)}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
-            <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
       </div>
     </div>
   );

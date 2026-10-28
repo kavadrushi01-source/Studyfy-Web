@@ -23,10 +23,17 @@ test.describe("public site + login", () => {
     await expect(page.getByText(/500\+ Happy Schools|50K\+ Students|99% Uptime/)).toHaveCount(0);
     await expect(page.getByText(/App Store|Google Play/)).toHaveCount(0);
     await expect(page.locator("canvas")).toBeVisible();
-    // Inside-the-app display: real captures, auto-advancing slideshow.
+    // Inside-the-app display: tablet-sized auto-scrolling screen plus a
+    // self-scrolling thumbnail filmstrip underneath.
     await expect(page.getByRole("heading", { name: /See It From the Inside/i })).toBeVisible();
     await expect(page.locator(".sf-show-slide")).toHaveCount(6);
     await expect(page.locator(".sf-show-slide-active img")).toBeVisible();
+    await expect(page.locator(".sf-show-thumb").first()).toBeVisible();
+    const strip = page.locator(".sf-show-strip-track");
+    const s1 = await strip.evaluate((el) => getComputedStyle(el).transform);
+    await page.waitForTimeout(1600);
+    const s2 = await strip.evaluate((el) => getComputedStyle(el).transform);
+    expect(s2).not.toBe(s1); // filmstrip scrolls by itself
     await page.screenshot({ path: "e2e/shots/landing.png", fullPage: true });
   });
 

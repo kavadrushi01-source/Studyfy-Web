@@ -627,14 +627,17 @@ h3 {
 
 /* ── "Inside the app" display ─────────────────────────────────────
    Real captures of the deployed product on a dark premium stage:
-   ONE big mac-chrome window, slides cross-fade + glide, auto-advances
-   (component rAF), dots/arrows/swipe to drive. Reduced-motion neuters
-   the transitions via the global media query. */
+   a TABLET-SIZED device (half the old width, breathing room on both
+   sides) whose screen SLIDES horizontally through the shots on its
+   own, plus a filmstrip of thumbnails underneath that auto-scrolls
+   in a seamless marquee (tap a thumb to jump the big screen).
+   Swipe on the tablet, dots to drive, pause on hover/hidden tab.
+   Reduced-motion: manual-only + a static scrollable strip. */
 .sf-show-stage {
   position: relative;
   max-width: 1080px;
   margin: 0 auto;
-  padding: 40px 40px 30px;
+  padding: 44px 40px 34px;
   border-radius: 28px;
   background:
     radial-gradient(900px 420px at 50% -12%, rgba(37, 99, 235, 0.28), transparent 62%),
@@ -643,54 +646,46 @@ h3 {
   border: 1px solid rgba(148, 163, 184, 0.18);
   box-shadow: 0 40px 90px -40px rgba(15, 23, 42, 0.6);
 }
-.sf-show-frame {
-  border-radius: 14px;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: 0 30px 70px -30px rgba(2, 6, 23, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.25);
+.sf-show-tablet {
+  position: relative;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 16px;
+  border-radius: 30px;
+  background: linear-gradient(180deg, #1E293B, #0F172A);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow:
+    0 34px 80px -34px rgba(2, 6, 23, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
   touch-action: pan-y;
 }
-.sf-show-chrome {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
-  background: #0F172A;
-}
-.sf-show-dot {
-  width: 11px;
-  height: 11px;
+.sf-show-cam {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  transform: translateX(-50%);
   border-radius: 999px;
-  flex-shrink: 0;
-}
-.sf-show-url {
-  margin-left: 10px;
-  font-size: 11.5px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: #94A3B8;
-  letter-spacing: 0.01em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: rgba(148, 163, 184, 0.55);
 }
 .sf-show-screen {
   position: relative;
+  margin-top: 10px;
   aspect-ratio: 1280 / 800;
+  border-radius: 16px;
   overflow: hidden;
+  background: #F8FAFC;
+}
+.sf-show-track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.85s var(--ease-out);
 }
 .sf-show-slide {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  transform: translateX(26px) scale(0.985);
-  transition: opacity 0.65s var(--ease-out), transform 0.65s var(--ease-out);
-  pointer-events: none;
-}
-.sf-show-slide-active {
-  opacity: 1;
-  transform: none;
-  pointer-events: auto;
+  position: relative;
+  flex: 0 0 100%;
+  height: 100%;
 }
 .sf-show-slide img {
   width: 100%;
@@ -699,18 +694,23 @@ h3 {
   user-select: none;
 }
 .sf-show-caption {
-  position: absolute;
-  left: 14px;
-  bottom: 14px;
-  max-width: calc(100% - 28px);
-  padding: 7px 14px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.85);
-  color: #F1F5F9;
-  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding-top: 16px;
+  text-align: center;
+}
+.sf-show-url {
+  font-size: 11.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #94A3B8;
+  letter-spacing: 0.01em;
+}
+.sf-show-caption-text {
+  font-size: 13px;
   font-weight: 600;
-  backdrop-filter: blur(6px);
-  pointer-events: none;
+  color: #F1F5F9;
 }
 .sf-show-controls {
   display: flex;
@@ -719,28 +719,12 @@ h3 {
   gap: 18px;
   padding: 18px 0 0;
 }
-.sf-show-arrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(255, 255, 255, 0.06);
-  color: #CBD5E1;
-  cursor: pointer;
-  transition: background-color var(--transition), color var(--transition), border-color var(--transition);
-}
-.sf-show-arrow:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-  border-color: rgba(148, 163, 184, 0.6);
-}
 .sf-show-dots {
   display: flex;
   gap: 8px;
   align-items: center;
+  justify-content: center;
+  padding-top: 14px;
 }
 .sf-show-dot-btn {
   width: 9px;
@@ -756,15 +740,75 @@ h3 {
   width: 26px;
   background: linear-gradient(90deg, #3B82F6, #8B5CF6);
 }
+.sf-show-strip {
+  margin-top: 22px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+}
+.sf-show-strip-track {
+  display: flex;
+  width: max-content;
+  animation: sf-show-marquee 36s linear infinite;
+}
+.sf-show-strip:hover .sf-show-strip-track {
+  animation-play-state: paused;
+}
+.sf-show-thumb {
+  flex: 0 0 auto;
+  margin-right: 14px;
+  padding: 0;
+  border: 2px solid rgba(148, 163, 184, 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0F172A;
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.sf-show-thumb:hover {
+  border-color: rgba(148, 163, 184, 0.6);
+}
+.sf-show-thumb-active {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+.sf-show-thumb img {
+  display: block;
+  width: 224px;
+  height: 140px;
+  object-fit: cover;
+  user-select: none;
+}
+@keyframes sf-show-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
 @media (max-width: 640px) {
   .sf-show-stage {
     padding: 20px 14px 16px;
     border-radius: 20px;
   }
-  .sf-show-caption {
-    left: 10px;
-    bottom: 10px;
-    font-size: 11.5px;
+  .sf-show-tablet {
+    padding: 10px;
+    border-radius: 22px;
+  }
+  .sf-show-screen {
+    border-radius: 12px;
+  }
+  .sf-show-thumb img {
+    width: 150px;
+    height: 94px;
+  }
+  .sf-show-caption-text {
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sf-show-strip {
+    overflow-x: auto;
+  }
+  .sf-show-strip-track {
+    animation: none;
   }
 }
 
