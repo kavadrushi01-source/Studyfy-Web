@@ -23,10 +23,10 @@ test.describe("public site + login", () => {
     await expect(page.getByText(/500\+ Happy Schools|50K\+ Students|99% Uptime/)).toHaveCount(0);
     await expect(page.getByText(/App Store|Google Play/)).toHaveCount(0);
     await expect(page.locator("canvas")).toBeVisible();
-    // Inside-the-app rail: real captures, auto-drifting + draggable.
+    // Inside-the-app display: real captures, auto-advancing slideshow.
     await expect(page.getByRole("heading", { name: /See It From the Inside/i })).toBeVisible();
-    await expect(page.locator(".sf-show-card")).toHaveCount(6);
-    await expect(page.locator(".sf-show-card img").first()).toBeVisible();
+    await expect(page.locator(".sf-show-slide")).toHaveCount(6);
+    await expect(page.locator(".sf-show-slide-active img")).toBeVisible();
     await page.screenshot({ path: "e2e/shots/landing.png", fullPage: true });
   });
 
