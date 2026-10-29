@@ -3,21 +3,22 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// "Inside the app" display (§8.3 founder ask, v5 — gyanmirai style, clean):
-// ONE smaller rounded window (no fake browser chrome — the founder wants it
-// clean) whose screenshot AUTO-SCROLLS vertically through the whole page —
-// the tall full-page captures pan from top to bottom (CSS object-position
-// animation, restarted each time a slide becomes active), then the next
-// page cross-fades in and scrolls one by one. No dots, no arrows, no strip.
-// Auto-advance pauses on hover/press/focus and while the tab is hidden;
-// swipe still works; reduced-motion visitors get a static view.
+// "Inside the app" display (§8.3 founder ask, v6 — gyanmirai style, clean):
+// ONE smaller rounded window (no fake browser chrome) that cycles through a
+// DIFFERENT ROLE's real page one by one — school admin, teacher, accountant,
+// parent, platform owner — each tall full-page capture auto-scrolling from
+// top to bottom (CSS object-position animation, restarted per activation),
+// then the next role's page cross-fades in. The display NEVER stalls: no
+// hover-pause; it only pauses while the visitor is actively pressing/swiping
+// or the tab is hidden. Reduced-motion visitors get a static view.
 const SHOTS: { src: string; url: string; caption: string }[] = [
   { src: "/showcase/admin-dashboard.png", url: "/dashboard", caption: "School Admin · Live overview" },
-  { src: "/showcase/students.png", url: "/students", caption: "Student records & documents" },
-  { src: "/showcase/fees.png", url: "/fees", caption: "Fees ledger, receipts & TEST MODE pay" },
-  { src: "/showcase/attendance.png", url: "/attendance/mark", caption: "Daily attendance marking" },
-  { src: "/showcase/timetable.png", url: "/timetable", caption: "Conflict-free auto timetable" },
-  { src: "/showcase/library.png", url: "/library", caption: "Library catalog & circulation" },
+  { src: "/showcase/students.png", url: "/students", caption: "School Admin · Student records" },
+  { src: "/showcase/teacher-board.png", url: "/dashboard/teacher", caption: "Teacher · My day & classes" },
+  { src: "/showcase/teacher-attendance.png", url: "/attendance/mark", caption: "Teacher · Attendance in seconds" },
+  { src: "/showcase/accountant-fees.png", url: "/fees", caption: "Accountant · Fees ledger & receipts" },
+  { src: "/showcase/parent-board.png", url: "/dashboard/parent", caption: "Parent · Your child's whole day" },
+  { src: "/showcase/owner-console.png", url: "/dashboard/owner", caption: "Platform owner · Every school" },
 ];
 
 // One full top→bottom pan per page before the next cross-fades in.
@@ -53,8 +54,6 @@ export function ShowcaseDisplay(): React.ReactNode {
   return (
     <div
       className="sf-show-stage"
-      onPointerEnter={() => setPaused(true)}
-      onPointerLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
@@ -65,6 +64,7 @@ export function ShowcaseDisplay(): React.ReactNode {
           setPaused(true);
         }}
         onPointerUp={(e) => {
+          setPaused(false);
           if (swipe.current && Math.abs(e.clientX - swipe.current.x) > 40) {
             go(e.clientX < swipe.current.x ? 1 : -1);
           }

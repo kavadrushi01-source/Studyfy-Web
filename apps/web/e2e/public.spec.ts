@@ -26,7 +26,7 @@ test.describe("public site + login", () => {
     // Inside-the-app display: big window, screenshot auto-scrolls inside
     // (vertical pan), pages cross-fade on their own.
     await expect(page.getByRole("heading", { name: /See It From the Inside/i })).toBeVisible();
-    await expect(page.locator(".sf-show-slide")).toHaveCount(6);
+    await expect(page.locator(".sf-show-slide")).toHaveCount(7);
     const activeImg = page.locator(".sf-show-slide-active img");
     await expect(activeImg).toBeVisible();
     const p1 = await activeImg.evaluate((el) => getComputedStyle(el).objectPosition);
