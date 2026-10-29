@@ -2,7 +2,16 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 9 COMPLETE — commit `e25218d` pushed (showcase v6: every role's page cycles one by one); prod live-verified 3/3; nothing left but org chores
+## STATUS: SESSION 10 COMPLETE — commit `3bf44f0` pushed (transparent navbar + premium charts + perf); full e2e 104/104, prod live-verified 3/3; nothing left but org chores
+
+### Session 10 summary — navbar like gyanmirai, premium charts everywhere, full functional test, perf pass
+
+1. **Navbar (gyanmirai-style, light-theme adapted)** (`globals.css` `.sf-land-header*`, `public-nav.tsx`): header is now TRANSPARENT at the top — no white band, it floats over the hero (gyanmirai's transparent nav, color-matched to our light theme); after 8px scroll it gains frosted glass + hairline + shadow (`.sf-land-header-scrolled`). Nav links bumped to 14px #334155. "Get Started" CTA is now a gradient pill (`gradients.accent`) with a blue glow shadow + inset highlight (own `ctaPill` style, NOT the shared `secondaryBtn` — that would change buttons app-wide; `secondaryBtn` import dropped from public-nav).
+2. **Premium chart polish across the whole site** — one shared CSS layer (`.sf-chart*` in globals.css) wired into every hand-rolled SVG: `.sf-chart` soft drop-shadow elevation; `.sf-chart-line` glow + `.sf-chart-draw` stroke-dashoffset draw-in animation; `.sf-chart-bar` scaleY rise-in (transform-box: fill-box) with stagger delays; `.sf-chart-seg` donut segment fade/rotate-in with 3px white gaps (dasharray -3/+3) and stagger; `.sf-chart-dot` dot shadows; `.sf-chart-divbar` for the analytics div-bars (gradient fill + glow + stagger). Touched: `app/dashboard/page.tsx` (GrowthChart), `app/dashboard/accountant/page.tsx` (TrendChart + StatusDonut), `app/dashboard/owner/page.tsx` (MonthBars gradient fill + PlansDonut), `app/analytics/page.tsx` (attendance line segments + fee bars). Global reduced-motion block collapses all durations → final state instantly. ARIA labels/values untouched (e2e-safe).
+3. **Perf pass**: hero particle canvas now pauses via IntersectionObserver when the hero scrolls offscreen (was only tab-hidden); showcase PNGs already lazy (priority on first only, sizes="800px", next/image webp). **Landing "loads too much" root cause to tell the founder: the Render FREE-tier API sleeps after ~15 min idle — first login then waits ~30-60s cold start. keep-warm.yml pings every 10 min but GitHub Actions cron drifts; the real fix is upgrading the Render plan (founder's call, costs money).**
+4. **Full functional test**: `npx playwright test` = **104/104 passed, ZERO flakes** (cleanest run yet).
+5. **Prod verify lessons**: prod demo password `mega` works for school users too, BUT the login form needs the SCHOOL SLUG filled (`school-of-science`) — email+password alone fails for non-owner roles. Owner login needs no slug.
+6. Verified prod 3/3: header bg transparent at top → glass after scroll (computed), CTA has linear-gradient + glow shadow, `svg.sf-chart` + `.sf-chart-line.sf-chart-draw` attached on /dashboard, owner rail clean.
 
 ### Session 9 summary — product showcase (founder's gyanmirai screenshots, v6 = keeper)
 
