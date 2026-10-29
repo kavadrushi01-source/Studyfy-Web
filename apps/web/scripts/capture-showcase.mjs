@@ -3,8 +3,9 @@
 //   $env:NEXT_PUBLIC... (nothing needed) — web on :3000, API on :4000
 //   node scripts/capture-showcase.mjs
 // Writes FULL-PAGE PNGs (1920px wide @1.5x) to public/showcase/ — tall
-// captures so the landing display can auto-scroll through the page.
-// All data shown is the fabricated demo seed (see DEMO_DATA.md), safe to publish.
+// captures (viewport height 1200 so even short pages have scroll depth
+// for the landing display's auto-scroll). All data shown is the
+// fabricated demo seed (see DEMO_DATA.md), safe to publish.
 import { mkdirSync } from "node:fs";
 import { chromium } from "@playwright/test";
 
@@ -27,7 +28,7 @@ const SHOTS = [
 
 const browser = await chromium.launch();
 try {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1.5 });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 1200 }, deviceScaleFactor: 1.5 });
   const deadline = Date.now() + 20000;
   for (;;) {
     try {

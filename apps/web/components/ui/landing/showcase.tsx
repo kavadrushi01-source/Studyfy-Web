@@ -3,12 +3,12 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// "Inside the app" display (§8.3 founder ask, v4 — gyanmirai style): ONE
-// big mac-chrome window (kept at the size the founder approved) whose
-// screenshot AUTO-SCROLLS vertically through the whole page — the tall
-// full-page captures pan from top to bottom (CSS object-position
+// "Inside the app" display (§8.3 founder ask, v5 — gyanmirai style, clean):
+// ONE smaller rounded window (no fake browser chrome — the founder wants it
+// clean) whose screenshot AUTO-SCROLLS vertically through the whole page —
+// the tall full-page captures pan from top to bottom (CSS object-position
 // animation, restarted each time a slide becomes active), then the next
-// page cross-fades in. No filmstrip, no dots, no arrows — just the window.
+// page cross-fades in and scrolls one by one. No dots, no arrows, no strip.
 // Auto-advance pauses on hover/press/focus and while the tab is hidden;
 // swipe still works; reduced-motion visitors get a static view.
 const SHOTS: { src: string; url: string; caption: string }[] = [
@@ -71,12 +71,6 @@ export function ShowcaseDisplay(): React.ReactNode {
           swipe.current = null;
         }}
       >
-        <div className="sf-show-chrome" aria-hidden="true">
-          <span className="sf-show-dot" style={{ background: "#FF5F57" }} />
-          <span className="sf-show-dot" style={{ background: "#FEBC2E" }} />
-          <span className="sf-show-dot" style={{ background: "#28C840" }} />
-          <span className="sf-show-url">studyfy-web.vercel.app{SHOTS[active]?.url ?? ""}</span>
-        </div>
         <div className="sf-show-screen" aria-live="polite">
           {SHOTS.map((shot, index) => (
             <div key={shot.src} className={`sf-show-slide${index === active ? " sf-show-slide-active" : ""}`} aria-hidden={index !== active}>
@@ -84,10 +78,10 @@ export function ShowcaseDisplay(): React.ReactNode {
                 src={shot.src}
                 alt={`${shot.caption} — real screen of Studyfy`}
                 width={1920}
-                height={1350}
+                height={1800}
                 priority={index === 0}
                 draggable={false}
-                sizes="1080px"
+                sizes="800px"
               />
             </div>
           ))}
