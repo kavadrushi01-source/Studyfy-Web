@@ -230,6 +230,7 @@ export default function AnalyticsPage() {
               <svg
                 viewBox={`0 0 ${width} ${height}`}
                 style={{ width: "100%", height: "auto" }}
+                className="sf-chart"
                 role="img"
                 aria-label="Daily attendance percent line chart"
               >
@@ -243,7 +244,7 @@ export default function AnalyticsPage() {
                   );
                 })}
                 {segments.map((d, i) => (
-                  <path key={i} d={d} fill="none" stroke={colors.primary} strokeWidth={2} />
+                  <path key={i} d={d} fill="none" stroke={colors.primary} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="sf-chart-line sf-chart-draw" style={{ animationDelay: `${i * 90}ms` }} />
                 ))}
               </svg>
             ) : (
@@ -258,17 +259,20 @@ export default function AnalyticsPage() {
           <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
             <h2 style={h2Style}>Fee collection — by month</h2>
             <div style={{ display: "flex", gap: 12, alignItems: "flex-end", height: 150, marginTop: 8 }}>
-              {data.feeTrend.map((f) => {
+              {data.feeTrend.map((f, barIndex) => {
                 const value = Number(f.collected);
                 return (
                   <div key={f.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: colors.ink }}>₹{value.toLocaleString("en-IN")}</span>
                     <div
+                      className="sf-chart-divbar"
                       style={{
                         width: "70%",
                         height: Math.max(4, (value / maxFee) * 100),
-                        background: value > 0 ? colors.primary : "#E2E8F0",
+                        background: value > 0 ? "linear-gradient(180deg, #3B82F6 0%, #2563EB 100%)" : "#E2E8F0",
                         borderRadius: 6,
+                        boxShadow: value > 0 ? "0 8px 18px -8px rgba(37, 99, 235, 0.55)" : "none",
+                        animationDelay: `${barIndex * 70}ms`,
                       }}
                     />
                     <span style={{ fontSize: 12, color: colors.inkSoft }}>{f.month}</span>

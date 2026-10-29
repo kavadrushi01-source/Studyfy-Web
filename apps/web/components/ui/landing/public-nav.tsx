@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { colors, gradients, secondaryBtn } from "@/lib/theme";
+import { colors, gradients } from "@/lib/theme";
 
 // Premium public navbar (§8.3 landing): glass pill with a scroll-spy active
 // state and a gentle pressed-state should the header sit over content.
@@ -79,6 +79,17 @@ export function PublicNav(): React.ReactNode {
     boxShadow: "0 6px 18px -6px rgba(37,99,235,.7), inset 0 1px 0 rgba(255,255,255,.25)",
   };
 
+  const ctaPill: React.CSSProperties = {
+    background: gradients.accent,
+    color: "#fff",
+    fontWeight: 700,
+    fontSize: 14,
+    borderRadius: 999,
+    padding: "10px 22px",
+    boxShadow: "0 10px 26px -8px rgba(37, 99, 235, 0.65), inset 0 1px 0 rgba(255,255,255,.25)",
+    transition: "box-shadow .2s ease, transform .2s ease",
+  };
+
   return (
     <header
       className={`sf-land-header${scrolled ? " sf-land-header-scrolled" : ""}`}
@@ -103,8 +114,8 @@ export function PublicNav(): React.ReactNode {
         </div>
       </nav>
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <Link href="/login" style={{ fontSize: 14, color: colors.inkSoft, textDecoration: "none", fontWeight: 600 }}>Login</Link>
-        <Link href="/signup" style={{ ...secondaryBtn, textDecoration: "none" }}>Get Started</Link>
+        <Link href="/login" style={{ fontSize: 14, color: colors.ink, textDecoration: "none", fontWeight: 600 }}>Login</Link>
+        <Link href="/signup" style={{ ...ctaPill, textDecoration: "none" }}>Get Started</Link>
       </div>
     </header>
   );

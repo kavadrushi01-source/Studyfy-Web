@@ -122,7 +122,7 @@ function TrendChart({ trend }: { trend: TrendPoint[] }): ReactNode {
   const area = `${line} L${(points[points.length - 1]?.x ?? 0).toFixed(1)},${height - padBottom} L${padLeft},${height - padBottom} Z`;
   const ticks = [0, 0.5, 1].map((f) => Math.round(max * f));
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Fee collection per month">
+    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} className="sf-chart" role="img" aria-label="Fee collection per month">
       <defs>
         <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={colors.accent} stopOpacity="0.28" />
@@ -141,10 +141,10 @@ function TrendChart({ trend }: { trend: TrendPoint[] }): ReactNode {
         );
       })}
       <path d={area} fill="url(#trendFill)" />
-      <path d={line} fill="none" stroke={colors.accent} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      <path d={line} fill="none" stroke={colors.accent} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" className="sf-chart-line sf-chart-draw" />
       {points.map((p) => (
         <g key={p.month}>
-          <circle cx={p.x} cy={p.y} r="4" fill={colors.card} stroke={colors.accent} strokeWidth="2.5" />
+          <circle cx={p.x} cy={p.y} r="4" fill={colors.card} stroke={colors.accent} strokeWidth="2.5" className="sf-chart-dot" />
           <text x={p.x} y={height - 8} textAnchor="middle" fontSize="11" fill={colors.muted}>
             {monthLabel(p.month)}
           </text>
@@ -173,9 +173,9 @@ function StatusDonut({ slices }: { slices: StatusSlice[] }): ReactNode {
   });
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Invoice amounts by status">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="sf-chart" role="img" aria-label="Invoice amounts by status">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={colors.lineSoft} strokeWidth="24" />
-        {segments.map((segment) =>
+        {segments.map((segment, segIndex) =>
           segment.dash > 0 ? (
             <circle
               key={segment.status}
@@ -185,9 +185,11 @@ function StatusDonut({ slices }: { slices: StatusSlice[] }): ReactNode {
               fill="none"
               stroke={STATUS_COLORS[segment.status] ?? colors.muted}
               strokeWidth="24"
-              strokeDasharray={`${segment.dash} ${circumference - segment.dash}`}
+              strokeDasharray={`${Math.max(segment.dash - 3, 1)} ${circumference - segment.dash + 3}`}
               strokeDashoffset={-segment.offset}
               transform={`rotate(-90 ${size / 2} ${size / 2})`}
+              className="sf-chart-seg"
+              style={{ animationDelay: `${segIndex * 120}ms` }}
             />
           ) : null,
         )}

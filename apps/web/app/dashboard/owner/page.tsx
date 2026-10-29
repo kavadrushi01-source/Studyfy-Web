@@ -136,7 +136,13 @@ function MonthBars({
   const stepX = points.length > 1 ? (width - padLeft - 8) / (points.length - 1) : 0;
   const barW = Math.min(48, Math.max(12, stepX * 0.5));
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label={ariaLabel}>
+    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} className="sf-chart" role="img" aria-label={ariaLabel}>
+      <defs>
+        <linearGradient id="ownerBarFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={barColor} stopOpacity="1" />
+          <stop offset="100%" stopColor={barColor} stopOpacity="0.55" />
+        </linearGradient>
+      </defs>
       {[0, 0.5, 1].map((f) => {
         const t = Math.round(max * f);
         const y = padTop + (height - padTop - padBottom) * (1 - t / max);
@@ -155,7 +161,7 @@ function MonthBars({
         const y = height - padBottom - barH;
         return (
           <g key={p.month}>
-            <rect x={x} y={y} width={barW} height={Math.max(barH, 2)} rx="6" fill={barColor} />
+            <rect x={x} y={y} width={barW} height={Math.max(barH, 2)} rx="8" fill="url(#ownerBarFill)" className="sf-chart-bar" style={{ animationDelay: `${i * 70}ms` }} />
             <text x={padLeft + i * stepX} y={y - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill={colors.ink}>
               {formatValue(p.value)}
             </text>
@@ -202,9 +208,9 @@ function PlansDonut({ plans }: { plans: { plan: string; schools: number }[] }): 
   });
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Schools by subscription plan">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="sf-chart" role="img" aria-label="Schools by subscription plan">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={colors.lineSoft} strokeWidth="24" />
-        {segments.map((segment) =>
+        {segments.map((segment, segIndex) =>
           segment.dash > 0 ? (
             <circle
               key={segment.plan}
@@ -214,9 +220,11 @@ function PlansDonut({ plans }: { plans: { plan: string; schools: number }[] }): 
               fill="none"
               stroke={segment.color}
               strokeWidth="24"
-              strokeDasharray={`${segment.dash} ${circumference - segment.dash}`}
+              strokeDasharray={`${Math.max(segment.dash - 3, 1)} ${circumference - segment.dash + 3}`}
               strokeDashoffset={-segment.offset}
               transform={`rotate(-90 ${size / 2} ${size / 2})`}
+              className="sf-chart-seg"
+              style={{ animationDelay: `${segIndex * 120}ms` }}
             />
           ) : null,
         )}

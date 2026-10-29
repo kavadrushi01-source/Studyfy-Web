@@ -91,15 +91,26 @@ function useParticleCanvas(): React.RefObject<HTMLCanvasElement | null> {
       raf = requestAnimationFrame(frame);
     };
 
-    const onVisibility = (): void => {
-      if (document.hidden) {
-        running = false;
-        cancelAnimationFrame(raf);
-      } else if (!running) {
+    const setRunning = (on: boolean): void => {
+      if (on && !running) {
         running = true;
         raf = requestAnimationFrame(frame);
+      } else if (!on && running) {
+        running = false;
+        cancelAnimationFrame(raf);
       }
     };
+
+    const onVisibility = (): void => {
+      setRunning(!document.hidden && inView);
+    };
+
+    let inView = true;
+    const io = new IntersectionObserver((entries) => {
+      inView = entries[0]?.isIntersecting ?? true;
+      setRunning(inView && !document.hidden);
+    });
+    io.observe(parent);
 
     seed();
     raf = requestAnimationFrame(frame);
@@ -110,6 +121,7 @@ function useParticleCanvas(): React.RefObject<HTMLCanvasElement | null> {
       running = false;
       cancelAnimationFrame(raf);
       observer.disconnect();
+      io.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
