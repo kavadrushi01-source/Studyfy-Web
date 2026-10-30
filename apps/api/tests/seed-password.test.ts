@@ -6,6 +6,7 @@ import {
   DEV_FALLBACK_PASSWORD,
   isLocalDatabaseUrl,
   resetDemoPasswords,
+  OWNER_EMAIL,
 } from "../../../prisma/seed.js";
 import { prisma } from "../src/lib/prisma.js";
 
@@ -48,6 +49,13 @@ describe("demo password gate (§13.11)", () => {
     expect(isLocalDatabaseUrl("")).toBe(false);
     expect(() => decideDemoPassword({ NODE_ENV: "development" }, "not-a-url")).toThrow(/Refusing to seed/);
   });
+
+  it("uses read-only login for production demo schools only", async () => {
+    const { shouldUseReadOnlyDemoLogin } = await import("../src/modules/auth/auth.service.js");
+    expect(shouldUseReadOnlyDemoLogin(true, "production")).toBe(true);
+    expect(shouldUseReadOnlyDemoLogin(false, "production")).toBe(false);
+    expect(shouldUseReadOnlyDemoLogin(true, "test")).toBe(false);
+  });
 });
 
 describe("reset demo passwords mode (§13.11 rotation)", () => {
@@ -81,6 +89,16 @@ describe("reset demo passwords mode (§13.11 rotation)", () => {
         name: "Reset Demo Admin",
       },
     });
+    const ownerRole = await prisma.role.findUniqueOrThrow({ where: { name: "PLATFORM_OWNER" } });
+    const owner = await prisma.user.create({
+      data: {
+        schoolId: null,
+        roleId: ownerRole.id,
+        email: OWNER_EMAIL,
+        passwordHash: oldHash,
+        name: "Seed Owner Password Test",
+      },
+    });
     const realUser = await prisma.user.create({
       data: {
         schoolId: realSchool.id,
@@ -91,14 +109,14 @@ describe("reset demo passwords mode (§13.11 rotation)", () => {
       },
     });
 
-    const first = await resetDemoPasswords(prisma, "rotated-strong-pw-123");
+    const first = await resetDemoPasswords(prisma, "Demo@1234", "owner-private-password-123");
     expect(first.schools.some((s) => s.slug === demoSchool.slug && s.updated === 1)).toBe(true);
     // Idempotent: same call again converges (fresh salt, same password).
-    const second = await resetDemoPasswords(prisma, "rotated-strong-pw-123");
+    const second = await resetDemoPasswords(prisma, "Demo@1234", "owner-private-password-123");
     expect(second.schools.some((s) => s.slug === demoSchool.slug && s.updated === 1)).toBe(true);
 
     const demoAfter = await prisma.user.findUniqueOrThrow({ where: { id: demoUser.id } });
-    expect(await bcrypt.compare("rotated-strong-pw-123", demoAfter.passwordHash)).toBe(true);
+    expect(await bcrypt.compare("Demo@1234", demoAfter.passwordHash)).toBe(true);
     expect(await bcrypt.compare("old-documented-pw", demoAfter.passwordHash)).toBe(false);
     // Only the hash changed — every other column identical.
     expect({ ...demoAfter, passwordHash: "x", updatedAt: demoAfter.updatedAt }).toMatchObject({
@@ -106,6 +124,10 @@ describe("reset demo passwords mode (§13.11 rotation)", () => {
       name: "Reset Demo Admin",
       schoolId: demoSchool.id,
     });
+
+    const ownerAfter = await prisma.user.findUniqueOrThrow({ where: { id: owner.id } });
+    expect(await bcrypt.compare("owner-private-password-123", ownerAfter.passwordHash)).toBe(true);
+    expect(await bcrypt.compare("Demo@1234", ownerAfter.passwordHash)).toBe(false);
 
     // The real school's account is byte-identical (same hash → untouched).
     const realAfter = await prisma.user.findUniqueOrThrow({ where: { id: realUser.id } });

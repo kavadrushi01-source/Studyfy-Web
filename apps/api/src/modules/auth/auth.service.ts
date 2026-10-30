@@ -15,6 +15,10 @@ const REFRESH_DAYS = 7;
 
 export const INVALID_CREDENTIALS = "Invalid email or password.";
 
+export function shouldUseReadOnlyDemoLogin(isDemoSchool: boolean, nodeEnv = process.env.NODE_ENV): boolean {
+  return isDemoSchool && nodeEnv === "production";
+}
+
 export interface PublicUser {
   id: string;
   email: string;
@@ -25,7 +29,8 @@ export interface PublicUser {
 
 export interface AuthResult {
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
+  readOnlyDemo?: boolean;
   user: PublicUser;
 }
 
@@ -145,7 +150,7 @@ function buildAuthResult(user: UserWithRole, refreshToken: string): AuthResult {
   };
 }
 
-async function loginUser(user: UserWithRole, password: string): Promise<AuthResult> {
+async function loginUser(user: UserWithRole, password: string, readOnlyDemo = false): Promise<AuthResult> {
   if (!user.isActive) {
     throw new AuthError(403, "ACCOUNT_DISABLED", "This account has been disabled.");
   }
@@ -153,53 +158,19 @@ async function loginUser(user: UserWithRole, password: string): Promise<AuthResu
   if (!ok) {
     throw new AuthError(401, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
   }
+  if (readOnlyDemo) {
+    const publicUser = toPublicUser(user);
+    return {
+      accessToken: signAccessToken(
+        { sub: publicUser.id, schoolId: publicUser.schoolId, role: publicUser.role, readOnly: true },
+        "30m",
+      ),
+      readOnlyDemo: true,
+      user: publicUser,
+    };
+  }
   const refreshToken = await issueRefreshToken(user.id);
   return buildAuthResult(user, refreshToken);
-}
-
-export interface DemoSessionResult {
-  accessToken: string;
-  expiresAt: string;
-  schoolSlug: string;
-  user: PublicUser;
-}
-
-export async function createDemoSession(): Promise<DemoSessionResult> {
-  const user = await prisma.user.findFirst({
-    where: {
-      isActive: true,
-      role: { name: "SCHOOL_ADMIN" },
-      school: { slug: "school-of-science", isDemo: true },
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      schoolId: true,
-      role: { select: { name: true } },
-      school: { select: { slug: true } },
-    },
-  });
-  if (!user?.schoolId || user.role.name !== "SCHOOL_ADMIN" || !user.school) {
-    throw new AuthError(503, "DEMO_UNAVAILABLE", "The read-only demo is temporarily unavailable.");
-  }
-
-  const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
-  return {
-    accessToken: signAccessToken(
-      { sub: user.id, schoolId: user.schoolId, role: user.role.name, readOnly: true },
-      "30m",
-    ),
-    expiresAt: expiresAt.toISOString(),
-    schoolSlug: user.school.slug,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role.name,
-      schoolId: user.schoolId,
-    },
-  };
 }
 
 // POST /auth/register — the ONE deliberate exception to tenant middleware
@@ -303,7 +274,7 @@ export async function login(input: LoginInput): Promise<AuthResult> {
       if (candidate.role.name !== "SCHOOL_ADMIN") {
         throw new AuthError(403, "SCHOOL_SUSPENDED", "This school's account is suspended. Please contact your school administrator.");
       }
-      return loginUser(candidate, input.password);
+      return loginUser(candidate, input.password, shouldUseReadOnlyDemoLogin(school.isDemo));
     }
     assertTenantAccess(school, subscription);
     const user = await prisma.user.findUnique({
@@ -313,7 +284,7 @@ export async function login(input: LoginInput): Promise<AuthResult> {
     if (!user) {
       throw new AuthError(401, "INVALID_CREDENTIALS", INVALID_CREDENTIALS);
     }
-    return loginUser(user, input.password);
+    return loginUser(user, input.password, shouldUseReadOnlyDemoLogin(school.isDemo));
   }
 
   const owner = await prisma.user.findFirst({

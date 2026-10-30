@@ -124,6 +124,40 @@ describe("POST /api/v1/auth/login", () => {
     expect(decoded["sub"]).toBe(body.user.id);
   });
 
+  it("makes production demo logins read-only and omits the refresh cookie", async () => {
+    const { body } = await registerSchool(`Read Only Demo ${uid()}`);
+    const schoolId = body.user.schoolId;
+    if (!schoolId) {
+      throw new Error("Registered demo fixture has no school id.");
+    }
+    await prisma.school.update({ where: { id: schoolId }, data: { isDemo: true } });
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const login = await request(app)
+        .post("/api/v1/auth/login")
+        .send({ email: body.user.email, password: "password-123", schoolSlug: body.school.slug })
+        .expect(200);
+      expect(login.body.data.readOnlyDemo).toBe(true);
+      expect(refreshPair(login)).toBeUndefined();
+      const decoded = jwt.verify(login.body.data.accessToken as string, accessSecret()) as Record<string, unknown>;
+      expect(decoded.readOnly).toBe(true);
+
+      const write = await request(app)
+        .post(`/api/v1/schools/${schoolId}/students`)
+        .set("Authorization", `Bearer ${login.body.data.accessToken as string}`)
+        .send({});
+      expect(write.status).toBe(403);
+      expect(write.body.error.code).toBe("READ_ONLY_SESSION");
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalNodeEnv;
+      }
+    }
+  });
+
   it("returns the SAME 401 for wrong password, unknown email, and unknown slug", async () => {
     const { body } = await registerSchool(`Enum School ${uid()}`);
 

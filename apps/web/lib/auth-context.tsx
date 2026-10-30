@@ -41,7 +41,6 @@ interface AuthContextValue {
   user: SessionUser | null;
   ready: boolean;
   login: (input: { email: string; password: string; schoolSlug?: string }) => Promise<SessionUser>;
-  startDemoSession: () => Promise<SessionUser>;
   logout: () => Promise<void>;
   readOnlyDemo: boolean;
   // Authenticated fetch: attaches the token, silently refreshes once on
@@ -262,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         }),
       });
       const body = (await res.json()) as
-        | { data: { accessToken: string; user: SessionUser; school: { id: string } } }
+        | { data: { accessToken: string; user: SessionUser; school?: { id: string }; readOnlyDemo?: boolean } }
         | { error: { message: string } };
       if (isFailure(res, body)) {
         throw new Error(body.error?.message ?? "Sign-in failed.");
@@ -272,6 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         schoolSlug: input.schoolSlug ?? "",
         issuedAt: Date.now(),
         user: body.data.user,
+        ...(body.data.readOnlyDemo ? { readOnly: true } : {}),
       });
       // A new identity ends any impersonation overlay (it belonged to the
       // previous session's owner).
@@ -294,29 +294,6 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       // Local logout succeeds even when the API is unavailable.
     }
   }, [persist, persistImpersonation]);
-
-  const startDemoSession = useCallback(async () => {
-    await logout();
-    const res = await fetch(`${apiBase()}/api/v1/auth/demo-session`, {
-      method: "POST",
-      credentials: "omit",
-    });
-    const body = (await res.json()) as
-      | { data: { accessToken: string; schoolSlug: string; user: SessionUser } }
-      | { error: { message: string } };
-    if (isFailure(res, body)) {
-      throw new Error(body.error?.message ?? "Could not open the demo.");
-    }
-    persist({
-      token: body.data.accessToken,
-      schoolSlug: body.data.schoolSlug,
-      issuedAt: Date.now(),
-      user: body.data.user,
-      readOnly: true,
-    });
-    persistImpersonation(null);
-    return body.data.user;
-  }, [logout, persist, persistImpersonation]);
 
   // Shared authenticated fetch over an explicit token. refreshSession
   // non-null enables the refresh flows (owner sessions only); null means
@@ -485,7 +462,6 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         : (session?.user ?? null),
       ready,
       login,
-      startDemoSession,
       logout,
       readOnlyDemo: session?.readOnly === true,
       apiFetch,
@@ -499,7 +475,6 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       impersonation,
       ready,
       login,
-      startDemoSession,
       logout,
       apiFetch,
       apiFetchAsOwner,

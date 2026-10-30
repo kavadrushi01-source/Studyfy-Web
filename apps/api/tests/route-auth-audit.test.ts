@@ -14,7 +14,6 @@ const modulesDir = join(srcDir, "modules");
 const PUBLIC_ALLOWLIST = new Set([
   "POST /api/v1/auth/register",
   "POST /api/v1/auth/login",
-  "POST /api/v1/auth/demo-session",
   "POST /api/v1/auth/refresh",
   "POST /api/v1/auth/logout",
   "POST /api/v1/auth/forgot-password",

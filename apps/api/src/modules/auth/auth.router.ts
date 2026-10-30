@@ -2,11 +2,10 @@ import { Router, type CookieOptions, type Request, type Response } from "express
 import { catchAsync } from "../../lib/async.js";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
-import { loginAccountLimiter, publicDemoSessionLimiter, registerLimiter } from "../../middleware/security.js";
+import { loginAccountLimiter, registerLimiter } from "../../middleware/security.js";
 import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema } from "./auth.schemas.js";
 import {
   AuthError,
-  createDemoSession,
   identityExtras,
   login,
   logout,
@@ -39,19 +38,6 @@ function sendAuthError(res: Response, err: unknown): void {
 }
 
 export const authRouter = Router();
-
-authRouter.post(
-  "/demo-session",
-  publicDemoSessionLimiter(),
-  catchAsync(async (_req: Request, res: Response) => {
-    try {
-      const result = await createDemoSession();
-      res.status(200).json({ success: true, data: result, error: null, meta: null });
-    } catch (err) {
-      sendAuthError(res, err);
-    }
-  }),
-);
 
 // Current identity for dashboard headers ("Good morning, {name}") and
 // role-aware navigation. Auth only — no tenant scope, so the Platform
@@ -112,6 +98,9 @@ authRouter.post(
     }
     try {
       const result = await register(parsed.data);
+      if (!result.refreshToken) {
+        throw new AuthError(500, "REGISTRATION_FAILED", "Could not create a persistent session.");
+      }
       res
         .status(201)
         .cookie(REFRESH_COOKIE, result.refreshToken, refreshCookieOptions())
@@ -149,15 +138,20 @@ authRouter.post(
     }
     try {
       const result = await login(parsed.data);
-      res
-        .status(200)
-        .cookie(REFRESH_COOKIE, result.refreshToken, refreshCookieOptions())
-        .json({
-          success: true,
-          data: { user: result.user, accessToken: result.accessToken },
-          error: null,
-          meta: null,
-        });
+      const response = res.status(200);
+      if (result.refreshToken) {
+        response.cookie(REFRESH_COOKIE, result.refreshToken, refreshCookieOptions());
+      } else if (result.readOnlyDemo) {
+        const previousToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+        await logout(previousToken);
+        response.clearCookie(REFRESH_COOKIE, { path: "/api/v1/auth" });
+      }
+      response.json({
+        success: true,
+        data: { user: result.user, accessToken: result.accessToken, readOnlyDemo: result.readOnlyDemo === true },
+        error: null,
+        meta: null,
+      });
     } catch (err) {
       sendAuthError(res, err);
     }

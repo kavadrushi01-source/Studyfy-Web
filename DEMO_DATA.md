@@ -119,9 +119,9 @@ out-of-band operation" that rule allows.
 
 ## Login credentials for every seeded account
 
-Every account created by `prisma/seed.ts` — every teacher, student, parent,
-accountant, both admins, and the Platform Owner — uses the demo password,
-resolved as follows (§13.11):
+Every synthetic demo-school account created by `prisma/seed.ts` — teachers,
+students, parents, accountants, and both school admins — uses the demo
+password, resolved as follows (§13.11):
 
 - `DEMO_PASSWORD` from the environment always wins (production rotation,
   CI, local experiments).
@@ -130,22 +130,30 @@ resolved as follows (§13.11):
   production, a remote DB, CI — refuses to seed rather than writing
   publicly-documented credentials onto a reachable database.
 
-Local development default: `Demo@1234` (run seeds with
-`NODE_ENV=development`). Emails follow a predictable pattern so you're never
-guessing, e.g. `firstname.lastname@schoolofscience.demo` and
-`firstname.lastname@ramakrishnaschool.demo`.
+The demo password is `Demo@1234`. On the live site this password works only
+for the synthetic demo-school accounts; production sessions for either demo
+school last 30 minutes, cannot be refreshed, and are read-only. New school
+registrations always choose their own admin password and are unaffected.
 
-Visitors to the live website should use **Explore a read-only demo** on the
-login page. It opens the School of Science sample workspace for 30 minutes;
-the API blocks every write and issues no refresh token. The live demo password
-is not published or needed for this flow. New school registrations always
-choose their own admin password.
+The seeded Platform Owner is a separate account (`owner@studyfy.dev`) with a
+private `OWNER_PASSWORD` of at least 16 characters. Never set it to the public
+demo password. New production owner creation fails closed unless that private
+environment variable is configured.
+
+Live demo admin credentials:
+
+| School | Slug | Email | Password |
+|---|---|---|---|
+| School of Science | `school-of-science` | `kavita.rao@schoolofscience.demo` | `Demo@1234` |
+| Ramakrishna School | `ramakrishna-school` | `s.venkataraman@ramakrishnaschool.demo` | `Demo@1234` |
 
 **This is deliberately different from §13.3's rule for real bulk-imported
 accounts** (random per-account password, single-use reset link, never a
 shared default) — that rule exists to protect real students' real accounts
-at a real school. This is seed data for local development, and a known
-password is the entire point: you need to actually log in as each role to
+at a real school. This is fictional seed data, and a known password makes
+the public walkthrough easy. Production API sessions for demo schools are
+read-only and expire after 30 minutes. Use unique passwords for real users.
+The local development default is also convenient: log in as each role to
 verify dashboards, tenant isolation, and self-scoping by hand (per
 `AGENT_START_HERE.md`'s final human-verification step). Don't apply
 §13.3's random-password logic to the seed script — it would make the demo
@@ -153,23 +161,22 @@ data unusable for its actual purpose. Just as clearly: never reuse this
 pattern for a real bulk import of a real school's real students — that's
 exactly the shared-default-password mistake §13.3 exists to prevent.
 
-**On the live site, this default must not be the password** (spec §13.11). The
-seed script reads `DEMO_PASSWORD` from the environment; `Demo@1234` is the
-local-development fallback only (local DB + `NODE_ENV=development` — anything
-else without the variable refuses). The deployed demo uses a different password
-kept in the host's environment variables and your password manager — assume the
-repo is public and anything written in these files is public too. The Platform
-Owner demo account is never shared as a writable login.
+The public demo password is intentionally published for sample accounts only.
+The Platform Owner password must remain private and is never shared with demo
+users. Existing accounts keep their current hashes until the rotation command
+below is run; changing the Render environment variable alone does not change
+their passwords.
 
-**Rotating the live demo password** (no data touched): generate a strong
-password → password manager + host env vars (`DEMO_PASSWORD`), then run
+**Updating live demo credentials** (no school data touched): set `DEMO_PASSWORD`
+to `Demo@1234` and `OWNER_PASSWORD` to a separate private random password of at
+least 16 characters in the Render environment, then run
 `npm run db:reset-demo-passwords --workspace=@studyfy/api` with `DATABASE_URL`
-pointing at the live database and `DEMO_PASSWORD` in the shell environment.
-It rewrites only `passwordHash` rows inside `isDemo` schools plus the seeded
-owner, reports counts per school, and is safe to re-run. Verify afterwards:
-the new password logs in and the old one fails. Never paste the live password
-into a chat message or tracked file — if it ever appears there, treat it as a
-secret rotation event, not routine.
+pointing at the live database and both variables present in the shell
+environment. On Render, run this command from the service shell after the code
+deploys. It rewrites only `passwordHash` rows inside `isDemo` schools and the
+seeded owner's hash using the separate private password. Verify demo logins
+work and the owner password is not the public one. Never share
+`OWNER_PASSWORD` or paste it into chat.
 
 **Subscription demo data (from Phase 4):** seed two or three paid subscription
 invoices per demo school with payment method `TEST`/`MANUAL`, visibly labelled

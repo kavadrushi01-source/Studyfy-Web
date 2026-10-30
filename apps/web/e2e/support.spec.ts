@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { ACCOUNTS, PASSWORD, SOS_SLUG, login, logout } from "./helpers";
+import { ACCOUNTS, OWNER_PASSWORD, SOS_SLUG, login, logout } from "./helpers";
 
 const API = process.env.E2E_API_URL ?? "http://localhost:4001";
 
@@ -23,7 +23,7 @@ test.describe("support tickets", () => {
     await expect(page.getByRole("button", { name: new RegExp(subject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })).toBeVisible();
 
     const ownerLogin = await request.post(`${API}/api/v1/auth/login`, {
-      data: { email: ACCOUNTS.owner, password: PASSWORD },
+      data: { email: ACCOUNTS.owner, password: OWNER_PASSWORD },
     });
     expect(ownerLogin.ok()).toBe(true);
     const ownerToken = ((await ownerLogin.json()) as { data: { accessToken: string } }).data.accessToken;
@@ -117,7 +117,7 @@ test.describe("support tickets", () => {
       .then((r) => expect(r.ok()).toBe(true));
 
     const ownerLogin = await request.post(`${API}/api/v1/auth/login`, {
-      data: { email: ACCOUNTS.owner, password: PASSWORD },
+      data: { email: ACCOUNTS.owner, password: OWNER_PASSWORD },
     });
     const ownerToken = ((await ownerLogin.json()) as { data: { accessToken: string } }).data.accessToken;
     await request.post(`${API}/api/v1/platform/schools/${schoolId}/suspend`, {
@@ -186,7 +186,7 @@ test.describe("support tickets", () => {
     expect(lowRes.ok()).toBe(true);
 
     const ownerLogin = await request.post(`${API}/api/v1/auth/login`, {
-      data: { email: ACCOUNTS.owner, password: PASSWORD },
+      data: { email: ACCOUNTS.owner, password: OWNER_PASSWORD },
     });
     expect(ownerLogin.ok()).toBe(true);
     const ownerToken = ((await ownerLogin.json()) as { data: { accessToken: string } }).data.accessToken;
@@ -306,7 +306,7 @@ test.describe("support tickets", () => {
       .then((r) => expect(r.ok()).toBe(true));
 
     const ownerLogin = await request.post(`${API}/api/v1/auth/login`, {
-      data: { email: ACCOUNTS.owner, password: PASSWORD },
+      data: { email: ACCOUNTS.owner, password: OWNER_PASSWORD },
     });
     expect(ownerLogin.ok()).toBe(true);
     const ownerToken = ((await ownerLogin.json()) as { data: { accessToken: string } }).data.accessToken;

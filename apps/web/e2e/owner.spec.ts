@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { ACCOUNTS, login, logout } from "./helpers";
+import { ACCOUNTS, login, logout, OWNER_PASSWORD } from "./helpers";
 
 const API = process.env.E2E_API_URL ?? "http://localhost:4001";
 
@@ -67,7 +67,7 @@ test.describe("super admin panel", () => {
     expect(reg.ok()).toBe(true);
     const schoolId = ((await reg.json()) as { data: { school: { id: string } } }).data.school.id;
     const ownerLogin = await request.post(`${API}/api/v1/auth/login`, {
-      data: { email: ACCOUNTS.owner, password: "Demo@1234" },
+      data: { email: ACCOUNTS.owner, password: OWNER_PASSWORD },
     });
     expect(ownerLogin.ok()).toBe(true);
     const ownerToken = ((await ownerLogin.json()) as { data: { accessToken: string } }).data.accessToken;

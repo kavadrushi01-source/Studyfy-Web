@@ -3,6 +3,7 @@ import { expect, type Page } from "@playwright/test";
 export const SOS_SLUG = "school-of-science";
 export const RK_SLUG = "ramakrishna-school";
 export const PASSWORD = "Demo@1234";
+export const OWNER_PASSWORD = "Local-Test-Owner-Password-123!";
 
 export const ACCOUNTS = {
   sosAdmin: "kavita.rao@schoolofscience.demo",
@@ -24,7 +25,7 @@ export async function login(page: Page, email: string, slug: string | null): Pro
     await page.getByLabel(/school slug/i).fill(slug);
   }
   await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/^password/i).fill(PASSWORD);
+  await page.getByLabel(/^password/i).fill(email === ACCOUNTS.owner ? OWNER_PASSWORD : PASSWORD);
   await page.getByRole("button", { name: /^login$/i }).click();
   await expect(page).not.toHaveURL(/\/login(?:[/?#]|$)/, { timeout: 20000 });
 }

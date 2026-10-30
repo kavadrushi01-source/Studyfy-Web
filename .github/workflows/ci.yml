@@ -114,11 +114,10 @@ jobs:
       - run: npm run db:deploy
       - run: npm run db:seed
         env:
-          # The documented development password (DEMO_DATA.md — public by
-          # design). The seed's Demo@1234 fallback applies only with
-          # NODE_ENV=development; CI sets neither, so the value is passed
-          # explicitly — and e2e logs in with exactly this password.
+          # Public password for synthetic demo-school accounts.
           DEMO_PASSWORD: Demo@1234
+          # CI-only owner credential; distinct from the public demo password.
+          OWNER_PASSWORD: Local-Test-Owner-Password-123!
       - run: npm run build --workspace=@studyfy/api
       - run: npm run build --workspace=@studyfy/web
       - run: npm run start --workspace=@studyfy/api -- --port 4001 &

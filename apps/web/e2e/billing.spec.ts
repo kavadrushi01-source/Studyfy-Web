@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { ACCOUNTS, PASSWORD, SOS_SLUG, login } from "./helpers";
+import { ACCOUNTS, OWNER_PASSWORD, SOS_SLUG, login } from "./helpers";
 
 const API = process.env.E2E_API_URL ?? "http://localhost:4001";
 
@@ -47,7 +47,7 @@ test.describe("billing", () => {
     const slug = regBody.data.school.slug;
 
     const ownerLogin = await request.post(`${API}/api/v1/auth/login`, {
-      data: { email: ACCOUNTS.owner, password: PASSWORD },
+      data: { email: ACCOUNTS.owner, password: OWNER_PASSWORD },
     });
     expect(ownerLogin.ok()).toBe(true);
     const ownerToken = ((await ownerLogin.json()) as { data: { accessToken: string } }).data.accessToken;

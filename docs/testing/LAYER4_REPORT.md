@@ -11,7 +11,7 @@
 | Web | `https://studyfy-web.vercel.app` |
 | API | `https://studyfy-api.onrender.com` (free tier, cold-start tolerated) |
 | DB | Aiven MySQL, 45/45 migrations |
-| Demo | credentialed account tests; public visitors use the read-only demo flow |
+| Demo | public sample accounts; production sessions are read-only and time-limited |
 
 Credentials and tokens are not reproduced in this file. The session notes lived in a
 gitignored local file that is deleted at cleanup.

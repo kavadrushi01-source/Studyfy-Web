@@ -4,17 +4,16 @@
 // All transactional values are DETERMINISTIC (index-derived, no randomness)
 // for the same reason — DEMO_DATA.md demands reusable demos, not variety.
 //
-// Passwords: EVERY seeded account uses the shared demo password below.
-// This is deliberately NOT §13.3's random-password flow — that rule protects
-// REAL schools' REAL accounts; seed data exists so a human can log in as
-// each role and verify by hand. Never reuse this pattern for real imports.
+// Synthetic demo-school accounts use the shared DEMO_PASSWORD and production
+// logins to demo schools are read-only. The platform owner uses a distinct
+// private OWNER_PASSWORD. Never reuse demo credentials for real accounts.
 //
 // Run: npm run db:seed  (DATABASE_URL from env; locally with
-//   NODE_ENV=development, which selects the documented Demo@1234 fallback).
+//   NODE_ENV=development, which selects the documented Demo@1234 fallback
+//   for local demo users and owner only).
 // Rotate demo passwords only:
-//   npm run db:reset-demo-passwords  (DEMO_PASSWORD required in env —
-//   password manager → shell, never committed; touches passwordHash rows in
-//   isDemo schools + the seeded owner, nothing else).
+//   npm run db:reset-demo-passwords  (DEMO_PASSWORD + private OWNER_PASSWORD;
+//   updates passwordHash only for demo schools and the seeded owner).
 import { Prisma, PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -207,30 +206,35 @@ export {
   seedDemo,
 };
 
-// Password rotation without touching data (§13.11): rewrites ONLY the
-// passwordHash of accounts that already exist inside demo schools
-// (isDemo=true) plus the seeded platform owner — no creates, no updates to
-// any other column, no other school reachable by construction (the
-// isDemo filter is the guard; a bug here degrades to updating nobody,
-// never to touching a real school). Idempotent: re-running with the same
-// DEMO_PASSWORD converges to the same end state (one fresh hash per run —
-// bcrypt salts — all verifying against the same password).
+// Password rotation changes only existing demo-account hashes and the
+// seeded owner hash. The public demo password and private owner password
+// are separate inputs so a public credential cannot access the owner panel.
 export interface ResetDemoPasswordsResult {
   schools: { slug: string; updated: number }[];
   ownerUpdated: boolean;
 }
 
-export async function resetDemoPasswords(db: PrismaClient, password: string): Promise<ResetDemoPasswordsResult> {
-  const passwordHash = await bcrypt.hash(password, DEMO_BCRYPT_COST);
+export async function resetDemoPasswords(
+  db: PrismaClient,
+  demoPassword: string,
+  ownerPassword: string,
+): Promise<ResetDemoPasswordsResult> {
+  if (!demoPassword || !ownerPassword || ownerPassword.length < 16 || demoPassword === ownerPassword) {
+    throw new Error("Provide a demo password and a different owner password of at least 16 characters.");
+  }
+  const [demoPasswordHash, ownerPasswordHash] = await Promise.all([
+    bcrypt.hash(demoPassword, DEMO_BCRYPT_COST),
+    bcrypt.hash(ownerPassword, DEMO_BCRYPT_COST),
+  ]);
   const demoSchools = await db.school.findMany({ where: { isDemo: true }, select: { id: true, slug: true } });
   const schools: { slug: string; updated: number }[] = [];
   for (const school of demoSchools) {
-    const updated = await db.user.updateMany({ where: { schoolId: school.id }, data: { passwordHash } });
+    const updated = await db.user.updateMany({ where: { schoolId: school.id }, data: { passwordHash: demoPasswordHash } });
     schools.push({ slug: school.slug, updated: updated.count });
   }
   const owner = await db.user.updateMany({
     where: { schoolId: null, email: OWNER_EMAIL },
-    data: { passwordHash },
+    data: { passwordHash: ownerPasswordHash },
   });
   return { schools, ownerUpdated: owner.count > 0 };
 }
@@ -249,29 +253,28 @@ if (invokedDirectly) {
 
 // Rotation entry point (production use — see the header comment and §13.11):
 //   DATABASE_URL='<prod-uri>' npx tsx prisma/seed.ts --reset-demo-passwords
-// with DEMO_PASSWORD in the environment (password manager → shell env, never
-// a committed file, never a chat message). DEMO_PASSWORD is REQUIRED here —
-// no fallback in any NODE_ENV: a rotation that silently fell back to the
-// documented password would be worse than refusing.
+// with DEMO_PASSWORD and OWNER_PASSWORD in the environment. The demo
+// password is public by design; OWNER_PASSWORD must be private and at least
+// 16 characters. Both are required — there is no fallback in any NODE_ENV.
 async function resetMain(): Promise<void> {
-  const password = process.env.DEMO_PASSWORD;
-  if (!password) {
+  const demoPassword = process.env.DEMO_PASSWORD;
+  const ownerPassword = process.env.OWNER_PASSWORD;
+  if (!demoPassword || !ownerPassword) {
     console.error(
-      "Refusing to reset demo passwords: DEMO_PASSWORD is not set. " +
-        "Generate a strong password, store it in your password manager (and the host's env vars), " +
-        "then re-run with DEMO_PASSWORD in the environment. There is no fallback in this mode.",
+      "Refusing to reset demo passwords: DEMO_PASSWORD and OWNER_PASSWORD are both required. " +
+        "Set the public demo password and a separate private OWNER_PASSWORD (at least 16 characters) in the environment.",
     );
     process.exitCode = 1;
     return;
   }
   const db = new PrismaClient();
   try {
-    const result = await resetDemoPasswords(db, password);
+    const result = await resetDemoPasswords(db, demoPassword, ownerPassword);
     for (const school of result.schools) {
       console.log(`Reset ${school.updated} demo password(s): ${school.slug}`);
     }
-    console.log(`Seeded owner ${OWNER_EMAIL}: ${result.ownerUpdated ? "password reset" : "not found (nothing to do)"}`);
-    console.log("Demo passwords rotated. Verify: log in with the new password; the old documented password must now fail.");
+    console.log(`Seeded owner ${OWNER_EMAIL}: ${result.ownerUpdated ? "private password reset" : "not found (nothing to do)"}`);
+    console.log("Demo passwords updated separately from the private owner password.");
   } finally {
     await db.$disconnect();
   }

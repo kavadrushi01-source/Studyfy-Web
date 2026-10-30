@@ -8,15 +8,15 @@ import { PLANS } from "@studyfy/shared-types";
 
 export const DEV_FALLBACK_PASSWORD = "Demo@1234";
 
-// The documented demo password is PUBLIC (DEMO_DATA.md) — it must never be
-// the password on any reachable database (§13.11). So the seed resolves its
-// password through decideDemoPassword(), never a bare `??` fallback:
+// The demo password is public for the synthetic demo schools only. Production
+// logins to those schools are read-only and short-lived; the platform owner
+// uses a separate private password. The seed resolves demo credentials
+// through decideDemoPassword(), never a bare `??` fallback:
 // - DEMO_PASSWORD from the environment always wins, everywhere (production
 //   rotation, CI, local experiments alike).
 // - The documented fallback applies ONLY to a local database seeded with
-//   NODE_ENV=development. Anything else without DEMO_PASSWORD — production,
-//   a remote staging DB, CI without the documented seed env — throws instead
-//   of silently seeding publicly-known credentials onto a live database.
+//   NODE_ENV=development. Anything else without DEMO_PASSWORD requires an
+//   explicit value, rather than silently seeding credentials.
 // Localhost detection is the backstop: even with NODE_ENV=development, a
 // non-local DATABASE_URL still requires the explicit variable.
 export function isLocalDatabaseUrl(databaseUrl: string): boolean {
@@ -42,7 +42,7 @@ export function decideDemoPassword(
   throw new Error(
     "Refusing to seed demo passwords: DEMO_PASSWORD is not set, and the documented Demo@1234 fallback " +
       "applies only to a LOCAL database seeded with NODE_ENV=development (§13.11). " +
-      "Set DEMO_PASSWORD to a strong password (production/password manager), or run locally with NODE_ENV=development.",
+      "Set DEMO_PASSWORD explicitly for demo accounts, or run locally with NODE_ENV=development.",
   );
 }
 
@@ -52,9 +52,8 @@ export function decideDemoPassword(
 function resolveDemoPassword(): { password: string; source: "environment" | "local fallback" } {
   return decideDemoPassword(process.env, process.env.DATABASE_URL ?? "");
 }
-// Cost 10: the RULES.md minimum. One hash is computed and REUSED for every
-// seeded account (same password → same string is fine here), keeping the
-// seed fast. Real imports must use random per-account passwords (§13.3).
+// Cost 10: the RULES.md minimum. The demo hash is reused only for synthetic
+// demo-school accounts; the private platform-owner password is separate.
 export const DEMO_BCRYPT_COST = 10;
 
 export const OWNER_EMAIL = "owner@studyfy.dev";
@@ -220,7 +219,23 @@ async function upsertUser(
   return created.id;
 }
 
-async function seedOwner(db: PrismaClient, passwordHash: string): Promise<void> {
+function resolveOwnerPassword(): string {
+  if (process.env.OWNER_PASSWORD) {
+    if (process.env.OWNER_PASSWORD.length < 16 || process.env.OWNER_PASSWORD === process.env.DEMO_PASSWORD) {
+      throw new Error("OWNER_PASSWORD must be private, different from DEMO_PASSWORD, and at least 16 characters.");
+    }
+    return process.env.OWNER_PASSWORD;
+  }
+  if (process.env.NODE_ENV === "development" && isLocalDatabaseUrl(process.env.DATABASE_URL ?? "")) {
+    return DEV_FALLBACK_PASSWORD;
+  }
+  throw new Error(
+    "Refusing to create the platform owner without OWNER_PASSWORD. Set a private password in the environment; " +
+      "the public demo password must never be used for the owner account.",
+  );
+}
+
+async function seedOwner(db: PrismaClient): Promise<void> {
   const role = await db.role.findUnique({ where: { name: "PLATFORM_OWNER" } });
   if (!role) {
     throw new Error("PLATFORM_OWNER role must be seeded before the owner account.");
@@ -229,6 +244,7 @@ async function seedOwner(db: PrismaClient, passwordHash: string): Promise<void> 
   // findFirst + create is the §13.4-sanctioned path (seed-only creation).
   const existing = await db.user.findFirst({ where: { schoolId: null, email: OWNER_EMAIL } });
   if (!existing) {
+    const passwordHash = await bcrypt.hash(resolveOwnerPassword(), DEMO_BCRYPT_COST);
     await db.user.create({
       data: { schoolId: null, roleId: role.id, email: OWNER_EMAIL, passwordHash, name: "Admin User" },
     });
@@ -1001,9 +1017,8 @@ export async function seedDemo(db: PrismaClient): Promise<void> {
   // seeding must never throw.
   const { password } = resolveDemoPassword();
   const passwordHash = await bcrypt.hash(password, DEMO_BCRYPT_COST);
-  await seedOwner(db, passwordHash);
+  await seedOwner(db);
   for (const spec of SCHOOLS) {
     await seedSchool(db, spec, roles, passwordHash);
   }
 }
-

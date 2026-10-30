@@ -98,18 +98,6 @@ export const loginAccountLimiter = () =>
     },
   });
 
-export const publicDemoSessionLimiter = () =>
-  maybeLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 20,
-    standardHeaders: true,
-    legacyHeaders: false,
-    handler: (_req, res) => {
-      const body = limited("Too many demo sessions started. Try again in 15 minutes.");
-      res.status(body.statusCode).type("application/json").send(body.message);
-    },
-  });
-
 // Register/forgot/reset share this bucket: 10/hour/IP per spec.
 // REGISTER_RATE_LIMIT_MAX is a LOCAL-ONLY override -
 // the e2e suite legitimately consumes 3 slots per run (2 garbage-token
