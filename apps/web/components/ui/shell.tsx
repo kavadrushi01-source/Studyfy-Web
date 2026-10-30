@@ -3,7 +3,7 @@
 import { LogoMark } from "@/components/ui/logo";
 
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Lock, LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { gradients, shadows } from "@/lib/theme";
@@ -34,6 +34,23 @@ export function Shell({
   // Keep the initial state identical during SSR and hydration. Desktop CSS
   // ignores the collapsed class; on phones it starts with content first.
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen || window.matchMedia("(min-width: 901px)").matches) {
+      return;
+    }
+
+    const navigation = document.querySelector<HTMLElement>(".sf-side-nav");
+    const activeLink = navigation?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!navigation || !activeLink) {
+      return;
+    }
+
+    const navBounds = navigation.getBoundingClientRect();
+    const linkBounds = activeLink.getBoundingClientRect();
+    navigation.scrollLeft +=
+      linkBounds.left - navBounds.left - (navigation.clientWidth - linkBounds.width) / 2;
+  }, [activeHref, menuOpen]);
 
   async function handleLogout(): Promise<void> {
     await logout();

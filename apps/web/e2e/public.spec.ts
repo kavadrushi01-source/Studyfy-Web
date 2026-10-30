@@ -20,6 +20,16 @@ test.describe("public site + login", () => {
     await menuButton.click();
     await expect(page.locator(".sf-side-nav")).toBeVisible();
     await expect(page.locator(".sf-side-nav a").first()).toBeVisible();
+    const activeLinkVisible = await page.locator(".sf-side-nav [aria-current='page']").evaluate((link) => {
+      const nav = link.parentElement;
+      if (!nav) {
+        return false;
+      }
+      const navBounds = nav.getBoundingClientRect();
+      const linkBounds = link.getBoundingClientRect();
+      return linkBounds.left >= navBounds.left && linkBounds.right <= navBounds.right;
+    });
+    expect(activeLinkVisible).toBe(true);
     expect(hydrationErrors).toEqual([]);
   });
 
