@@ -2,7 +2,16 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 10 COMPLETE — commit `3bf44f0` pushed (transparent navbar + premium charts + perf); full e2e 104/104, prod live-verified 3/3; nothing left but org chores
+## STATUS: SESSION 11 COMPLETE — commit `f85f01a` pushed (responsive fixes: rail labels wrap, 2x2 KPI < 1280px); full e2e 104/104 (2 retry-recovered), prod live-verified 2/2; nothing left but org chores
+
+### Session 11 summary — whole-site responsiveness pass (founder's narrow-desktop screenshot)
+
+The founder's ~1300px-wide window showed the owner dashboard cramped: rail labels ellipsized ("PLATFORM O…", "Subscrip…", "Users Ma…"). Root cause: `shell.tsx` used `whiteSpace: nowrap + textOverflow: ellipsis` on the role badge label and every rail item label; and `.sf-grid-kpi` only collapsed below 1024px (dashboards sat 4-across squeezed at 1024-1280px):
+
+1. **`components/ui/shell.tsx`**: role badge label now wraps (whiteSpace normal, lineHeight 1.3 — "PLATFORM OWNER" fits on two lines); rail item labels use `-webkit-box` line-clamp 2 + word-break (real wrapped text, no "…"; accessible names + e2e `getByRole("link", {name})` assertions unchanged — the full text is still there).
+2. **`globals.css`**: KPI grid collapses to 2×2 below **1280px** (was 1024 — the squeeze band is gone); `.sf-grid-2-1`/`.sf-grid-1-1` stack below 1280; `.sf-main` gets relaxed padding below 1200px (22px 20px 40px). Wider than 1280 stays 4-across (verified both).
+3. Verified: tc/lint/build clean; full e2e 102 passed + 2 retry-recovered flakes (audit export, marks-entry — pass solo; 104/104 effectively). **Ops note:** the local API died twice more (laptop sleep); restart pattern that works: set `$env:DATABASE_URL/'…studyfy_e2e'`, `$env:PORT='4000'` + all FIVE limiter overrides =500 in the same PowerShell call, `Start-Process node dist/server.js` from apps/api (env inherits). `EADDRINUSE` on :4000 means the previous background start actually survived — probe /health before starting another.
+4. **Prod verified 2/2** (live, both viewports): at 1100x800 the badge computes `white-space: normal`, rail item labels `webkit-line-clamp: 2`, KPI grid 2 columns; at 1500x900 KPI grid 4 columns. Prod school-user login needs slug `school-of-science` + password `mega`.
 
 ### Session 10 summary — navbar like gyanmirai, premium charts everywhere, full functional test, perf pass
 
