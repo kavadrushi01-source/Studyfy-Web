@@ -1,5 +1,7 @@
 "use client";
 
+import { LogoMark } from "@/components/ui/logo";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { colors, gradients } from "@/lib/theme";
@@ -64,21 +66,6 @@ export function PublicNav(): React.ReactNode {
     };
   }, []);
 
-  const logoTile: React.CSSProperties = {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    background: gradients.accent,
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 800,
-    fontSize: 17,
-    letterSpacing: "-0.02em",
-    boxShadow: "0 6px 18px -6px rgba(37,99,235,.7), inset 0 1px 0 rgba(255,255,255,.25)",
-  };
-
   const ctaPill: React.CSSProperties = {
     background: gradients.accent,
     color: "#fff",
@@ -96,7 +83,7 @@ export function PublicNav(): React.ReactNode {
       style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 28px" }}
     >
       <Link href="/" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none" }} aria-label="Studyfy home">
-        <span style={logoTile}>S</span>
+        <LogoMark />
         <span style={{ fontWeight: 700, fontSize: 18, color: colors.ink, letterSpacing: "-0.02em" }}>Studyfy</span>
       </Link>
       <nav className="sf-public-nav" aria-label="Landing" style={{ display: "flex", flex: 1, justifyContent: "center" }}>

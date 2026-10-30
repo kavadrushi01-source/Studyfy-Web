@@ -1,5 +1,7 @@
 "use client";
 
+import { LogoMark } from "@/components/ui/logo";
+
 import { useState, type ReactNode } from "react";
 import { Lock, LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -48,25 +50,7 @@ export function Shell({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 10px 12px", justifyContent: "center" }}>
-          <span
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 12,
-              background: gradients.accent,
-              color: "#fff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 800,
-              fontSize: 20,
-              letterSpacing: "-0.02em",
-              flexShrink: 0,
-              boxShadow: "0 6px 18px -6px rgba(37,99,235,.7), inset 0 1px 0 rgba(255,255,255,.25)",
-            }}
-          >
-            S
-          </span>
+          <LogoMark size={38} />
           <span
             className="sf-side-brand"
             style={{ fontWeight: 700, fontSize: 18, color: "#0F172A", letterSpacing: "-0.02em" }}

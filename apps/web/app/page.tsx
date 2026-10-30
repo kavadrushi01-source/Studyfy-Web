@@ -40,22 +40,9 @@ const FEATURES: { title: string; detail: string; icon: LucideIcon }[] = [
 
 const FACT_PILLS = ["Multi-tenant by design", "8 role dashboards", "9 modules", "PDF receipts & report cards"];
 
-const font: React.CSSProperties = { fontFamily: "Inter, system-ui, sans-serif" };
+import { LogoMark } from "@/components/ui/logo";
 
-const logoTile: React.CSSProperties = {
-  width: 32,
-  height: 32,
-  borderRadius: 10,
-  background: gradients.accent,
-  color: "#fff",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontWeight: 800,
-  fontSize: 17,
-  letterSpacing: "-0.02em",
-  boxShadow: "0 6px 18px -6px rgba(37,99,235,.7), inset 0 1px 0 rgba(255,255,255,.25)",
-};
+const font: React.CSSProperties = { fontFamily: "Inter, system-ui, sans-serif" };
 
 const accentText: React.CSSProperties = {
   background: gradients.accent,
@@ -237,7 +224,7 @@ export default function LandingPage() {
 
       <footer style={{ borderTop: `1px solid ${colors.line}`, padding: "28px 32px", maxWidth: 1120, margin: "0 auto", display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ ...logoTile, width: 28, height: 28, borderRadius: 8, fontSize: 15 }}>S</span>
+          <LogoMark size={28} />
           <span style={{ fontWeight: 700, letterSpacing: "-0.02em" }}>Studyfy</span>
         </div>
         <span style={{ fontSize: 13, color: colors.muted }}>Better Schools. Brighter Futures.</span>

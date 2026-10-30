@@ -1,10 +1,12 @@
 "use client";
 
+import { LogoMark } from "@/components/ui/logo";
+
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { colors, gradients, h1Style, labelStyle, mutedStyle, primaryBtn } from "@/lib/theme";
+import { colors, h1Style, labelStyle, mutedStyle, primaryBtn } from "@/lib/theme";
 import { isFailure, apiBase } from "../../lib/api";
 import { boardPathForRole } from "../../components/ui/role-boards";
 
@@ -140,26 +142,11 @@ export default function LoginPage() {
     }
   }
 
-  const logoTile: React.CSSProperties = {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    background: gradients.accent,
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 800,
-    fontSize: 18,
-    letterSpacing: "-0.02em",
-    boxShadow: "0 6px 18px -6px rgba(37,99,235,.7), inset 0 1px 0 rgba(255,255,255,.25)",
-  };
-
   return (
     <div style={{ fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh", background: "transparent", display: "flex", flexDirection: "column" }}>
       <header style={{ padding: "16px 32px", maxWidth: 1120, margin: "0 auto", width: "100%" }}>
         <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 9, textDecoration: "none" }}>
-          <span style={logoTile}>S</span>
+          <LogoMark />
           <span style={{ fontWeight: 700, fontSize: 18, color: colors.ink, letterSpacing: "-0.02em" }}>Studyfy</span>
         </Link>
       </header>
