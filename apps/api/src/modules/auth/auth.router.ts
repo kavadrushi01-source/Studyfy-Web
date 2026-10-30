@@ -2,9 +2,19 @@ import { Router, type CookieOptions, type Request, type Response } from "express
 import { catchAsync } from "../../lib/async.js";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
-import { loginAccountLimiter, registerLimiter } from "../../middleware/security.js";
+import { loginAccountLimiter, publicDemoSessionLimiter, registerLimiter } from "../../middleware/security.js";
 import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema } from "./auth.schemas.js";
-import { AuthError, identityExtras, login, logout, register, requestPasswordReset, resetPassword, rotateRefreshToken } from "./auth.service.js";
+import {
+  AuthError,
+  createDemoSession,
+  identityExtras,
+  login,
+  logout,
+  register,
+  requestPasswordReset,
+  resetPassword,
+  rotateRefreshToken,
+} from "./auth.service.js";
 
 export const REFRESH_COOKIE = "studyfy_refresh";
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -29,6 +39,19 @@ function sendAuthError(res: Response, err: unknown): void {
 }
 
 export const authRouter = Router();
+
+authRouter.post(
+  "/demo-session",
+  publicDemoSessionLimiter(),
+  catchAsync(async (_req: Request, res: Response) => {
+    try {
+      const result = await createDemoSession();
+      res.status(200).json({ success: true, data: result, error: null, meta: null });
+    } catch (err) {
+      sendAuthError(res, err);
+    }
+  }),
+);
 
 // Current identity for dashboard headers ("Good morning, {name}") and
 // role-aware navigation. Auth only — no tenant scope, so the Platform

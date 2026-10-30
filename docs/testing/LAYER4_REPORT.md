@@ -11,7 +11,7 @@
 | Web | `https://studyfy-web.vercel.app` |
 | API | `https://studyfy-api.onrender.com` (free tier, cold-start tolerated) |
 | DB | Aiven MySQL, 45/45 migrations |
-| Demo | password `mega` for all demo accounts; owner logs in with an empty school slug |
+| Demo | credentialed account tests; public visitors use the read-only demo flow |
 
 Credentials and tokens are not reproduced in this file. The session notes lived in a
 gitignored local file that is deleted at cleanup.

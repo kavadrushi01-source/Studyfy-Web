@@ -157,6 +157,51 @@ async function loginUser(user: UserWithRole, password: string): Promise<AuthResu
   return buildAuthResult(user, refreshToken);
 }
 
+export interface DemoSessionResult {
+  accessToken: string;
+  expiresAt: string;
+  schoolSlug: string;
+  user: PublicUser;
+}
+
+export async function createDemoSession(): Promise<DemoSessionResult> {
+  const user = await prisma.user.findFirst({
+    where: {
+      isActive: true,
+      role: { name: "SCHOOL_ADMIN" },
+      school: { slug: "school-of-science", isDemo: true },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      schoolId: true,
+      role: { select: { name: true } },
+      school: { select: { slug: true } },
+    },
+  });
+  if (!user?.schoolId || user.role.name !== "SCHOOL_ADMIN" || !user.school) {
+    throw new AuthError(503, "DEMO_UNAVAILABLE", "The read-only demo is temporarily unavailable.");
+  }
+
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+  return {
+    accessToken: signAccessToken(
+      { sub: user.id, schoolId: user.schoolId, role: user.role.name, readOnly: true },
+      "30m",
+    ),
+    expiresAt: expiresAt.toISOString(),
+    schoolSlug: user.school.slug,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role.name,
+      schoolId: user.schoolId,
+    },
+  };
+}
+
 // POST /auth/register — the ONE deliberate exception to tenant middleware
 // (spec §8.3, §13.4): no school_id exists yet, so this uses the raw,
 // unscoped Prisma client for exactly this write.

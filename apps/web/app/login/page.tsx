@@ -27,7 +27,7 @@ const SESSION_KEY = "studyfy-session";
 // pays the free-tier API cold start during page load, not inside Submit.
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, startDemoSession } = useAuth();
   const [schoolSlug, setSchoolSlug] = useState("");
   const [email, setEmail] = useState(() =>
     typeof window === "undefined" ? "" : (window.localStorage.getItem("studyfy-login-email") ?? ""),
@@ -37,6 +37,7 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [me, setMe] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [error, setError] = useState("");
   const [returningBoard, setReturningBoard] = useState<string | null>(null);
 
@@ -96,6 +97,20 @@ export default function LoginPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
       setLoading(false);
+    }
+  }
+
+  async function exploreDemo(): Promise<void> {
+    setDemoLoading(true);
+    setError("");
+    try {
+      const demoUser = await startDemoSession();
+      const next = new URLSearchParams(window.location.search).get("next");
+      const destination = safeReturnTo(next) ?? boardPathForRole(demoUser.role);
+      router.replace(destination ?? "/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not open the demo.");
+      setDemoLoading(false);
     }
   }
 
@@ -194,9 +209,23 @@ export default function LoginPage() {
                 <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
                 Remember me on this browser
               </label>
-              <button type="submit" disabled={loading} className="sf-btn sf-btn-primary">
+              <button type="submit" disabled={loading || demoLoading} className="sf-btn sf-btn-primary">
                 {loading ? "Signing in…" : "Login"}
               </button>
+              <div style={{ display: "grid", gap: 8, textAlign: "center" }}>
+                <span style={{ fontSize: 12, color: colors.muted }}>or explore the sample workspace</span>
+                <button
+                  type="button"
+                  disabled={loading || demoLoading}
+                  onClick={() => void exploreDemo()}
+                  className="sf-btn sf-btn-secondary"
+                >
+                  {demoLoading ? "Opening demo…" : "Explore a read-only demo"}
+                </button>
+                <span style={{ fontSize: 12, color: colors.muted }}>
+                  School of Science sample data · writes disabled · 30-minute session
+                </span>
+              </div>
               <p style={{ fontSize: 13, margin: 0 }}>
                 <Link href="/forgot-password" style={{ color: colors.primary, fontWeight: 600 }}>Forgot password?</Link>
               </p>

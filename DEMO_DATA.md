@@ -135,6 +135,12 @@ Local development default: `Demo@1234` (run seeds with
 guessing, e.g. `firstname.lastname@schoolofscience.demo` and
 `firstname.lastname@ramakrishnaschool.demo`.
 
+Visitors to the live website should use **Explore a read-only demo** on the
+login page. It opens the School of Science sample workspace for 30 minutes;
+the API blocks every write and issues no refresh token. The live demo password
+is not published or needed for this flow. New school registrations always
+choose their own admin password.
+
 **This is deliberately different from §13.3's rule for real bulk-imported
 accounts** (random per-account password, single-use reset link, never a
 shared default) — that rule exists to protect real students' real accounts
@@ -161,8 +167,8 @@ password → password manager + host env vars (`DEMO_PASSWORD`), then run
 pointing at the live database and `DEMO_PASSWORD` in the shell environment.
 It rewrites only `passwordHash` rows inside `isDemo` schools plus the seeded
 owner, reports counts per school, and is safe to re-run. Verify afterwards:
-new password logs in, the old documented one fails. Never paste the live
-password into a chat message — if it ever appears there, treat it as a
+the new password logs in and the old one fails. Never paste the live password
+into a chat message or tracked file — if it ever appears there, treat it as a
 secret rotation event, not routine.
 
 **Subscription demo data (from Phase 4):** seed two or three paid subscription

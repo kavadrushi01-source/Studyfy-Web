@@ -29,7 +29,7 @@ export function Shell({
   if (!board) {
     throw new Error(`Unknown role board: ${role}`);
   }
-  const { logout } = useAuth();
+  const { logout, readOnlyDemo } = useAuth();
   const router = useRouter();
   // Phones start with the menu collapsed (content first, one tap to
   // navigate); desktops start open. CSS hides the toggle above 900px.
@@ -164,6 +164,30 @@ export function Shell({
         </button>
       </aside>
       <main className="sf-main" style={{ maxWidth: 1140 }}>
+        {readOnlyDemo ? (
+          <div
+            role="status"
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 12,
+              marginBottom: 20,
+              padding: "13px 16px",
+              border: "1px solid #BFDBFE",
+              borderRadius: 14,
+              background: "linear-gradient(135deg, #EFF6FF, #F8FAFF)",
+              color: "#1E3A8A",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            <Lock size={18} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>
+              <strong>Read-only demo.</strong> You’re exploring sample School of Science data. Changes are disabled; this
+              session ends after 30 minutes.
+            </span>
+          </div>
+        ) : null}
         {children}
       </main>
     </div>

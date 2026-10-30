@@ -137,7 +137,7 @@ Local probes against the running local API (studyfy_layer1) — nothing touched 
 
 ## Stage 5 — UI/UX/a11y vs written boards + screenshots (2026-10-16, complete)
 
-Programmatic Playwright run against local servers (web :3001 → API :4011 on studyfy_layer1; demo password `mega`; nothing committed, no live touch):
+Programmatic Playwright run against local servers (web :3001 → API :4011 on studyfy_layer1; local-only demo credentials; nothing committed, no live touch):
 
 - Views rendered per role, desktop 1280×800: school admin 20, teacher 9, accountant 4, student 10, parent 9, owner 7 — all 200 OK, full-page screenshots captured in `apps/web/e2e/shots/stage5/` (gitignored), zero horizontal overflow (layout stays within viewport on desktop and on the 390×844 mobile spot checks of dashboard/support/billing/audit-logs).
 - a11y spot checks: every page has exactly one <h1>, no images without alt, every input/select/textarea has an explicit label or aria-label — zero problems.
