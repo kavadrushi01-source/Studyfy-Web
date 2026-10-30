@@ -2,7 +2,11 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 11 COMPLETE — commits `f85f01a` (responsive) + `db8907e` (floating nav pill) pushed; full e2e green, prod verified; nothing left but org chores
+## STATUS: SESSION 11 COMPLETE — latest `1016809` (+`54a3a35`) pushed: premium logo mark everywhere; prod verified; nothing left but org chores
+
+### Session 11 final — new logo mark across the whole site (founder ask)
+
+The flat letter-"S" tiles looked plain. Now ONE shared mark (`components/ui/logo.tsx`, `LogoMark`): gradient squircle + white **GraduationCap** icon + layered 3D shadow (glow + inset top highlight + bottom inner shade), size-scalable. Swapped into **all 8 spots**: landing nav + footer, app shell (sidebar), login, signup, forgot/reset-password, enquiry. Deleted 7 duplicated `logoTile` inline consts (net -135 lines). Ops lesson: after rebuilds, `next start` can leave a STALE server on :3000 serving old cached HTML — the symptom is e2e failing on things that are obviously fixed (old "S" still in snapshot); fix = kill ALL :3000 listeners, verify port free, restart, and confirm the expected new markup (e.g. `lucide-graduation-cap`) in fetched HTML before testing. Verified: tc/lint/build clean, local public+nav-stubs **11/11 (17.9s)**, **prod live 1/1** (cap icon visible on landing nav, login, and in the app shell after login). Commits `1016809` + `54a3a35`.
 
 ### Session 11 addendum — scrolled navbar = floating rounded glass pill (founder ask)
 
