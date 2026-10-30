@@ -2,7 +2,11 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 11 COMPLETE — latest `1016809` (+`54a3a35`) pushed: premium logo mark everywhere; prod verified; nothing left but org chores
+## STATUS: SESSION 11 COMPLETE — latest `899025a` pushed: rail/logo/chart polish; prod verified 2/2; nothing left but org chores
+
+### Session 11 final addendum — rail, logo placement, owner-chart fixes (founder screenshots)
+
+Founder's shots showed: (1) logo tile CLIPPED at the top-left corner — the brand row (tile 38 + "Studyfy" ~70 + hidden menu btn) was ~170px centered in the 92px rail, overflowing both sides; (2) rail labels breaking mid-word ("Subscriptio ns & Billing"); (3) owner bar-chart value labels ("₹18,877.64") overlapping bars and clipping past the right edge. Fixes: rail 92→104px; collapsed rail hides the wordmark (tile sits alone, centered — the logo reads on its own); open rail = 200px so tile + wordmark + close btn fit; label wordBreak → overflowWrap anywhere (wraps at spaces now); MonthBars got padRight 54, compact labels ("₹18.9K" / "2.1K" via updated formatValue props + compact axis), so nothing overlaps or clips. Ops: stale `next start` process served a build whose CSS chunk 500'd — full `Get-Process node | Stop-Process` + restart of BOTH servers (API + web) with validation (fetch CSS, assert `104px`) before testing. Local 11/11; **prod 2/2** (logo tile fully inside rail bounds in both rail states; every owner-chart text bbox inside the svg viewBox). Commit `899025a`.
 
 ### Session 11 final — new logo mark across the whole site (founder ask)
 
