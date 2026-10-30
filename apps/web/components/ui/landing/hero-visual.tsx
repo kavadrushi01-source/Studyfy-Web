@@ -24,9 +24,6 @@ function useParticleCanvas(): React.RefObject<HTMLCanvasElement | null> {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return;
-    }
     const canvas = canvasRef.current;
     if (!canvas) {
       return;
@@ -41,8 +38,11 @@ function useParticleCanvas(): React.RefObject<HTMLCanvasElement | null> {
     }
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const particles: Particle[] = [];
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
     let raf = 0;
-    let running = true;
+    let running = false;
+    let motionAllowed = !preference.matches;
+    let inView = true;
     let width = 0;
     let height = 0;
 
@@ -92,7 +92,7 @@ function useParticleCanvas(): React.RefObject<HTMLCanvasElement | null> {
     };
 
     const setRunning = (on: boolean): void => {
-      if (on && !running) {
+      if (on && motionAllowed && !running) {
         running = true;
         raf = requestAnimationFrame(frame);
       } else if (!on && running) {
@@ -102,27 +102,33 @@ function useParticleCanvas(): React.RefObject<HTMLCanvasElement | null> {
     };
 
     const onVisibility = (): void => {
-      setRunning(!document.hidden && inView);
+      setRunning(!document.hidden && inView && motionAllowed);
     };
 
-    let inView = true;
+    const onPreferenceChange = (): void => {
+      motionAllowed = !preference.matches;
+      setRunning(motionAllowed && !document.hidden && inView);
+    };
+
     const io = new IntersectionObserver((entries) => {
       inView = entries[0]?.isIntersecting ?? true;
-      setRunning(inView && !document.hidden);
+      setRunning(inView && !document.hidden && motionAllowed);
     });
     io.observe(parent);
 
     seed();
-    raf = requestAnimationFrame(frame);
+    setRunning(!document.hidden && inView);
     const observer = new ResizeObserver(seed);
     observer.observe(parent);
     document.addEventListener("visibilitychange", onVisibility);
+    preference.addEventListener("change", onPreferenceChange);
     return () => {
       running = false;
       cancelAnimationFrame(raf);
       observer.disconnect();
       io.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
+      preference.removeEventListener("change", onPreferenceChange);
     };
   }, []);
 
@@ -132,49 +138,63 @@ function useParticleCanvas(): React.RefObject<HTMLCanvasElement | null> {
 export function HeroVisual(): React.ReactNode {
   const canvasRef = useParticleCanvas();
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const motionOk = useRef(true);
-
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || window.innerWidth <= 560) {
-      motionOk.current = false;
-    }
-  }, []);
 
   useEffect(() => {
     const stage = stageRef.current;
-    if (!stage || !motionOk.current) {
+    if (!stage) {
       return;
     }
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frame = 0;
     let targetX = 0;
     let targetY = 0;
+    let enabled = !preference.matches && window.innerWidth > 560;
+    const apply = (): void => {
+      frame = 0;
+      stage.style.transform = enabled ? `rotateY(${targetX * 7}deg) rotateX(${targetY * -6}deg)` : "none";
+    };
+    const schedule = (): void => {
+      if (!frame) {
+        frame = requestAnimationFrame(apply);
+      }
+    };
+    const syncMotion = (): void => {
+      const next = !preference.matches && window.innerWidth > 560;
+      if (enabled && !next) {
+        targetX = 0;
+        targetY = 0;
+        enabled = false;
+        schedule();
+      } else {
+        enabled = next;
+      }
+    };
     const onMove = (event: MouseEvent): void => {
+      if (!enabled) {
+        return;
+      }
       const rect = stage.getBoundingClientRect();
       const relX = (event.clientX - rect.left) / rect.width - 0.5;
       const relY = (event.clientY - rect.top) / rect.height - 0.5;
       targetX = Math.max(-1, Math.min(1, relX * 2));
       targetY = Math.max(-1, Math.min(1, relY * 2));
-      if (!frame) {
-        frame = requestAnimationFrame(apply);
-      }
+      schedule();
     };
     const onLeave = (): void => {
       targetX = 0;
       targetY = 0;
-      if (!frame) {
-        frame = requestAnimationFrame(apply);
-      }
-    };
-    const apply = (): void => {
-      frame = 0;
-      stage.style.transform = `rotateY(${targetX * 7}deg) rotateX(${targetY * -6}deg)`;
+      schedule();
     };
     const wrap = stage.parentElement;
     wrap?.addEventListener("mousemove", onMove);
     wrap?.addEventListener("mouseleave", onLeave);
+    preference.addEventListener("change", syncMotion);
+    window.addEventListener("resize", syncMotion);
     return () => {
       wrap?.removeEventListener("mousemove", onMove);
       wrap?.removeEventListener("mouseleave", onLeave);
+      preference.removeEventListener("change", syncMotion);
+      window.removeEventListener("resize", syncMotion);
       if (frame) {
         cancelAnimationFrame(frame);
       }

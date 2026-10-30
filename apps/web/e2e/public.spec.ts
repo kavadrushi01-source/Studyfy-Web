@@ -5,6 +5,24 @@ import { login } from "./helpers";
 // regression: a failed login must show the server message, never
 // "Cannot read properties of null".
 test.describe("public site + login", () => {
+  test("mobile dashboard shell hydrates without a sidebar mismatch", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const hydrationErrors: string[] = [];
+    page.on("pageerror", (error) => {
+      if (/hydration|#418/i.test(error.message)) {
+        hydrationErrors.push(error.message);
+      }
+    });
+
+    await page.goto("/owner/settings");
+    const menuButton = page.getByRole("button", { name: "Open menu" });
+    await expect(menuButton).toBeVisible();
+    await menuButton.click();
+    await expect(page.locator(".sf-side-nav")).toBeVisible();
+    await expect(page.locator(".sf-side-nav a").first()).toBeVisible();
+    expect(hydrationErrors).toEqual([]);
+  });
+
   test("landing navigation and content stay usable on a phone", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");

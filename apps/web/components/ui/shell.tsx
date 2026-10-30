@@ -31,9 +31,9 @@ export function Shell({
   }
   const { logout } = useAuth();
   const router = useRouter();
-  // Phones start with the menu collapsed (content first, one tap to
-  // navigate); desktops start open. CSS hides the toggle above 900px.
-  const [menuOpen, setMenuOpen] = useState(() => (typeof window === "undefined" ? true : window.innerWidth > 900));
+  // Keep the initial state identical during SSR and hydration. Desktop CSS
+  // ignores the collapsed class; on phones it starts with content first.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   async function handleLogout(): Promise<void> {
     await logout();

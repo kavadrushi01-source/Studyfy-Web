@@ -113,7 +113,6 @@ export function ShowcaseDisplay(): React.ReactNode {
                 alt={`${item.role}: ${item.title} — real Studyfy screen`}
                 width={1920}
                 height={1800}
-                priority={index === 0}
                 draggable={false}
                 sizes="(max-width: 640px) 100vw, 820px"
               />
