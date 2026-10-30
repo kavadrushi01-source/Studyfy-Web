@@ -125,9 +125,8 @@ export function Shell({
             textTransform: "uppercase",
             color: board.badgeAccent ?? board.badgeBg,
             maxWidth: 84,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            lineHeight: 1.3,
+            whiteSpace: "normal",
             textAlign: "center",
           }}
         >
@@ -152,7 +151,17 @@ export function Shell({
                 {Icon ? (
                   <Icon size={20} strokeWidth={active ? 2.2 : 1.9} aria-hidden="true" />
                 ) : null}
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
+                <span
+                  style={{
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                    lineHeight: 1.25,
+                    maxWidth: "100%",
+                    wordBreak: "break-word",
+                  }}
+                >
                   {item.label}
                 </span>
               </a>

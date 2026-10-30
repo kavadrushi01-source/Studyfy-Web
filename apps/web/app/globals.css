@@ -261,13 +261,20 @@ h3 {
     padding: 16px 0 40px;
   }
 }
-@media (max-width: 1024px) {
+@media (max-width: 1280px) {
   .sf-grid-kpi {
     grid-template-columns: repeat(2, 1fr);
   }
   .sf-grid-2-1,
   .sf-grid-1-1 {
     grid-template-columns: 1fr;
+  }
+}
+/* Narrow-desktop breathing room: the 92px rail + wide paddings squeeze
+   hard between 900-1200px — relax before the phone layout takes over. */
+@media (max-width: 1200px) {
+  .sf-main {
+    padding: 22px 20px 40px;
   }
 }
 @media (max-width: 560px) {
