@@ -130,10 +130,11 @@ function MonthBars({
   const width = 600;
   const height = 220;
   const padLeft = 36;
+  const padRight = 54;
   const padBottom = 28;
   const padTop = 12;
   const max = Math.max(1, ...points.map((p) => p.value));
-  const stepX = points.length > 1 ? (width - padLeft - 8) / (points.length - 1) : 0;
+  const stepX = points.length > 1 ? (width - padLeft - padRight) / (points.length - 1) : 0;
   const barW = Math.min(48, Math.max(12, stepX * 0.5));
   return (
     <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} className="sf-chart" role="img" aria-label={ariaLabel}>
@@ -148,9 +149,9 @@ function MonthBars({
         const y = padTop + (height - padTop - padBottom) * (1 - t / max);
         return (
           <g key={t}>
-            <line x1={padLeft} y1={y} x2={width - 8} y2={y} stroke={colors.lineSoft} strokeWidth="1" />
+            <line x1={padLeft} y1={y} x2={width - padRight} y2={y} stroke={colors.lineSoft} strokeWidth="1" />
             <text x={padLeft - 6} y={y + 4} textAnchor="end" fontSize="11" fill={colors.muted}>
-              {t.toLocaleString("en-IN")}
+              {t >= 1000 ? `${(t / 1000).toFixed(1)}K` : String(Math.round(t))}
             </text>
           </g>
         );
@@ -450,7 +451,7 @@ export default function OwnerDashboardPage() {
           ) : (
             <MonthBars
               points={bundle.analytics.map((p) => ({ month: p.month, value: p.schools }))}
-              formatValue={(n) => String(n)}
+              formatValue={(n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(Math.round(n)))}
               ariaLabel="New schools per month"
               barColor={colors.warning}
             />
@@ -476,7 +477,7 @@ export default function OwnerDashboardPage() {
           ) : (
             <MonthBars
               points={bundle.revenueTrend.map((p) => ({ month: p.month, value: Number(p.total) }))}
-              formatValue={(n) => `₹${n.toLocaleString("en-IN")}`}
+              formatValue={(n) => (n >= 1000 ? `₹${(n / 1000).toFixed(1)}K` : `₹${Math.round(n)}`)}
               ariaLabel="Paid subscription revenue per month"
               barColor={colors.success}
             />

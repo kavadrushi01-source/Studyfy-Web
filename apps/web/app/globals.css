@@ -296,11 +296,22 @@ h3 {
   min-height: 100vh;
 }
 .sf-sidebar {
-  width: 92px;
+  width: 104px;
   flex-shrink: 0;
   position: sticky;
   top: 0;
   height: 100vh;
+}
+/* Desktop: collapsed rail shows the logo tile alone (the wordmark made the
+   92px rail overflow and clip the logo at the corner). Opening the menu
+   widens the sidebar so tile + wordmark + close button fit. */
+.sf-side-collapsed .sf-side-brand {
+  display: none;
+}
+@media (min-width: 901px) {
+  .sf-sidebar:not(.sf-side-collapsed) {
+    width: 200px;
+  }
 }
 .sf-main {
   flex: 1;
@@ -325,7 +336,7 @@ h3 {
   text-decoration: none;
   color: #64748B;
   text-align: center;
-  max-width: 84px;
+  max-width: 92px;
   width: 100%;
   transition: background-color 160ms cubic-bezier(.22, 1, .36, 1),
     color 160ms cubic-bezier(.22, 1, .36, 1);

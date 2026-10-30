@@ -143,7 +143,7 @@ export function Shell({
                     overflow: "hidden",
                     lineHeight: 1.25,
                     maxWidth: "100%",
-                    wordBreak: "break-word",
+                    overflowWrap: "anywhere",
                   }}
                 >
                   {item.label}
