@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { SignInLink } from "@/components/ui/sign-in-gate";
 import { ScrollText } from "lucide-react";
 import { EmptyState, Shell, SkeletonBlocks } from "../../../components/ui/shell";
 import { isFailure } from "../../../lib/api";
@@ -123,7 +123,7 @@ export default function OwnerAuditLogsPage() {
   }
 
   if (!token) {
-    return gate("Please sign in as the Platform Owner.", <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>Go to login</Link>);
+    return gate("Please sign in as the Platform Owner.", <SignInLink style={{ color: colors.primary, fontWeight: 600 }}>Go to login</SignInLink>);
   }
 
   if (!isOwner) {

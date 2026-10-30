@@ -39,9 +39,6 @@ test.describe("role journeys", () => {
     await page.getByLabel(/email/i).fill(email);
     await page.getByLabel(/^password/i).fill(tempPassword);
     await page.getByRole("button", { name: /^login$/i }).click();
-    await expect(page.getByText(/signed in as/i)).toBeVisible({ timeout: 20000 });
-    // Login lands on the signed-in panel; the human path is its board link.
-    await page.getByRole("link", { name: /open my board/i }).click();
     await expect(page).toHaveURL(/\/dashboard\/student/, { timeout: 20000 });
     // The fresh account is a pupil: own board, own name, no staff pages.
     await page.goto("/profile");
@@ -188,7 +185,7 @@ test.describe("role journeys", () => {
     await page.getByLabel(/email/i).fill(pupilEmail);
     await page.getByLabel(/^password/i).fill(tempPassword);
     await page.getByRole("button", { name: /^login$/i }).click();
-    await expect(page.getByText(/signed in as/i)).toBeVisible({ timeout: 20000 });
+    await expect(page).toHaveURL(/\/dashboard\/student/, { timeout: 20000 });
     await page.goto("/notices");
     await expect(page.getByText(title).first()).toBeVisible({ timeout: 20000 });
 
@@ -230,7 +227,12 @@ test.describe("session, gates and edges", () => {
     await page.goto("/students");
     await expect(page.getByText(/Please sign in to view students/i)).toBeVisible({ timeout: 20000 });
     await page.getByRole("link", { name: /go to login/i }).click();
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/login\?next=%2Fstudents$/);
+    await page.getByLabel(/school slug/i).fill(SOS_SLUG);
+    await page.getByLabel(/email/i).fill(ACCOUNTS.sosAdmin);
+    await page.getByLabel(/^password/i).fill(PASSWORD);
+    await page.getByRole("button", { name: /^login$/i }).click();
+    await expect(page).toHaveURL(/\/students$/, { timeout: 20000 });
 
     await page.goto("/this-route-never-existed");
     await expect(page.getByText(/404/).first()).toBeVisible({ timeout: 20000 });
@@ -251,7 +253,6 @@ test.describe("session, gates and edges", () => {
   test("phone-sized viewport: login and the shell stay usable", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
-    await page.getByRole("link", { name: /open my board/i }).click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
     await expect(page.locator("h1").first()).toBeVisible({ timeout: 20000 });
     // Phones start with the menu collapsed: content first, links one tap away.

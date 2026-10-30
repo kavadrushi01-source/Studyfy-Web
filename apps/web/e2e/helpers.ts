@@ -26,13 +26,15 @@ export async function login(page: Page, email: string, slug: string | null): Pro
   await page.getByLabel(/email/i).fill(email);
   await page.getByLabel(/^password/i).fill(PASSWORD);
   await page.getByRole("button", { name: /^login$/i }).click();
-  await expect(page.getByText(/signed in as/i)).toBeVisible({ timeout: 20000 });
+  await expect(page).not.toHaveURL(/\/login(?:[/?#]|$)/, { timeout: 20000 });
 }
 
 export async function logout(page: Page): Promise<void> {
-  // Shell-less pages (/messages, /students, …) carry no logout button, so
-  // always sign out from /profile, which every role can open.
-  await page.goto("/profile");
+  const logoutButton = page.getByRole("button", { name: /log out/i });
+  if (!(await logoutButton.count())) {
+    // Shell-less pages (/messages, /students, …) have no logout control.
+    await page.goto("/profile");
+  }
   await page.getByRole("button", { name: /log out/i }).click({ timeout: 20000 });
-  await expect(page).toHaveURL(/\/login/);
+  await expect(page).toHaveURL("/", { timeout: 10000 });
 }

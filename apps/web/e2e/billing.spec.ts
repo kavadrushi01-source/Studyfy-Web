@@ -11,9 +11,6 @@ const API = process.env.E2E_API_URL ?? "http://localhost:4001";
 test.describe("billing", () => {
   test("admin sees plan, status and TEST invoices", async ({ page }) => {
     await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
-    // Login lands on the "Open my board" interstitial — the sidebar nav
-    // only exists past it (same trap as the audit journey).
-    await page.getByRole("link", { name: /open my board/i }).click();
     await page.getByRole("link", { name: "Billing" }).click();
     await expect(page.getByRole("heading", { name: "Billing" })).toBeVisible({ timeout: 20000 });
     await expect(page.getByText("PREMIUM plan").first()).toBeVisible({ timeout: 20000 });

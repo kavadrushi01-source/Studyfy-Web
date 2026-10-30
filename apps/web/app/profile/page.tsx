@@ -2,18 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { SignInLink } from "@/components/ui/sign-in-gate";
 import { colors, dangerBtn, gradients, h1Style, mutedStyle, primaryBtn } from "@/lib/theme";
 import { Card, SkeletonBlocks } from "@/components/ui/shell";
-
-const BOARD_BY_ROLE: Record<string, string> = {
-  SCHOOL_ADMIN: "/dashboard",
-  TEACHER: "/dashboard/teacher",
-  ACCOUNTANT: "/dashboard/accountant",
-  STUDENT: "/dashboard/student",
-  PARENT: "/dashboard/parent",
-  PLATFORM_OWNER: "/dashboard/owner",
-};
+import { boardPathForRole } from "@/components/ui/role-boards";
 
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }): React.ReactNode {
   return (
@@ -40,6 +34,7 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 // useAuth — skeleton while restoring, sign-in gate when signed out — then a
 // neutral card with the account rows, board link, and logout.
 export default function ProfilePage(): React.ReactNode {
+  const router = useRouter();
   const { ready, token, user, apiFetch, logout } = useAuth();
   const [identity, setIdentity] = useState<{
     admissionNo: string | null;
@@ -70,7 +65,7 @@ export default function ProfilePage(): React.ReactNode {
 
   async function handleLogout(): Promise<void> {
     await logout();
-    window.location.href = "/login";
+    router.replace("/");
   }
 
   const shell: React.CSSProperties = {
@@ -99,16 +94,16 @@ export default function ProfilePage(): React.ReactNode {
           <h1 style={{ ...h1Style, margin: "0 0 16px" }}>Profile</h1>
           <Card>
             <p style={{ margin: "0 0 12px", fontSize: 14, color: colors.muted }}>You&apos;re signed out.</p>
-            <Link href="/login" style={{ ...primaryBtn, display: "block", textAlign: "center", textDecoration: "none" }}>
+            <SignInLink style={{ ...primaryBtn, display: "block", textAlign: "center", textDecoration: "none" }}>
               Sign in
-            </Link>
+            </SignInLink>
           </Card>
         </div>
       </main>
     );
   }
 
-  const boardHref: string | undefined = BOARD_BY_ROLE[user.role];
+  const boardHref = boardPathForRole(user.role) ?? undefined;
 
   return (
     <main style={shell}>

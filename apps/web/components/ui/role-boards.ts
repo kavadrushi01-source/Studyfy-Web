@@ -232,12 +232,8 @@ export const ROLE_BOARDS: Record<string, RoleBoard> = {
 };
 
 // Where each role lands after login, and where the role's "Dashboard" nav
-// entry points. Single source of truth on purpose: the login screen used to
-// carry its own copy, and when a role was missing from it the account logged
-// in successfully and was then shown a signed-in screen with no way forward
-// (no "Open my board" link, no nav) - a dead end for LIBRARIAN and
-// TRANSPORT_MANAGER. Anything absent here has no board and must not pretend
-// to be an admin.
+// entry points. Keep this as the single source of truth so every supported
+// account reaches its own board and no role is accidentally treated as admin.
 export const BOARD_PATH_BY_ROLE: Record<string, string> = {
   SCHOOL_ADMIN: "/dashboard",
   TEACHER: "/dashboard/teacher",

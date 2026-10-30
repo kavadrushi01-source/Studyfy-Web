@@ -1,10 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { cardStyle, colors, mutedStyle } from "@/lib/theme";
 import { useAuth } from "@/lib/auth-context";
+import { loginHref } from "@/lib/auth-navigation";
 import { boardPathForRole } from "./role-boards";
+
+type SignInLinkProps = Omit<ComponentProps<typeof Link>, "href">;
+
+export function SignInLink({ children, ...props }: SignInLinkProps): ReactNode {
+  const pathname = usePathname() ?? "/";
+  const [href, setHref] = useState(() => loginHref(pathname));
+
+  useEffect(() => {
+    setHref(loginHref(`${pathname}${window.location.search}${window.location.hash}`));
+  }, [pathname]);
+
+  return (
+    <Link href={href} {...props}>
+      {children}
+    </Link>
+  );
+}
 
 // What a page's `if (!token || !schoolId)` gate really means depends on
 // who is looking at it:
@@ -44,12 +63,11 @@ export function SignInGate({ prompt }: { prompt: string }): ReactNode {
       ) : (
         <>
           <p style={{ ...mutedStyle, margin: "0 0 8px" }}>{prompt}</p>
-          <Link
-            href="/login"
+          <SignInLink
             style={{ color: colors.primary, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
           >
             Go to login
-          </Link>
+          </SignInLink>
         </>
       )}
     </div>

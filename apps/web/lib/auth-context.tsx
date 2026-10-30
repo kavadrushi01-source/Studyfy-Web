@@ -39,7 +39,7 @@ interface AuthContextValue {
   schoolSlug: string;
   user: SessionUser | null;
   ready: boolean;
-  login: (input: { email: string; password: string; schoolSlug?: string }) => Promise<void>;
+  login: (input: { email: string; password: string; schoolSlug?: string }) => Promise<SessionUser>;
   logout: () => Promise<void>;
   // Authenticated fetch: attaches the token, silently refreshes once on
   // 401 via the httpOnly cookie, then retries. Throws on final failure.
@@ -259,27 +259,23 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       // A new identity ends any impersonation overlay (it belonged to the
       // previous session's owner).
       persistImpersonation(null);
-      const identity = await fetchIdentity(body.data.accessToken);
-      if (identity) {
-        persist({
-          token: body.data.accessToken,
-          schoolSlug: input.schoolSlug ?? "",
-          issuedAt: Date.now(),
-          user: identity.user,
-        });
-      }
+      return body.data.user;
     },
     [persist, persistImpersonation],
   );
 
   const logout = useCallback(async () => {
-    try {
-      await fetch(`${apiBase()}/api/v1/auth/logout`, { method: "POST", credentials: "include" });
-    } catch {
-      // Logout is best-effort client-side; the server call is idempotent.
-    }
     persist(null);
     persistImpersonation(null);
+    try {
+      await fetch(`${apiBase()}/api/v1/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch {
+      // Local logout succeeds even when the API is unavailable.
+    }
   }, [persist, persistImpersonation]);
 
   // Shared authenticated fetch over an explicit token. refreshSession

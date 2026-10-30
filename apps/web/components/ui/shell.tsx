@@ -2,6 +2,7 @@
 
 import { LogoMark } from "@/components/ui/logo";
 
+import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { Lock, LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -29,13 +30,14 @@ export function Shell({
     throw new Error(`Unknown role board: ${role}`);
   }
   const { logout } = useAuth();
+  const router = useRouter();
   // Phones start with the menu collapsed (content first, one tap to
   // navigate); desktops start open. CSS hides the toggle above 900px.
   const [menuOpen, setMenuOpen] = useState(() => (typeof window === "undefined" ? true : window.innerWidth > 900));
 
   async function handleLogout(): Promise<void> {
     await logout();
-    window.location.href = "/login";
+    router.replace("/");
   }
   return (
     <div className="sf-shell" style={{ fontFamily: "Inter, system-ui, sans-serif" }}>

@@ -100,9 +100,10 @@ test.describe("public site + login", () => {
     await expect(page.getByText(/reset link has been sent|check your inbox/i)).toBeVisible({ timeout: 15000 });
   });
 
-  test("admin login lands with board link", async ({ page }) => {
+  test("admin login opens the role board", async ({ page }) => {
     await login(page, "kavita.rao@schoolofscience.demo", "school-of-science");
-    await expect(page.getByText("Kavita Rao")).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 20000 });
+    await expect(page.locator("h1").first()).toBeVisible();
     await page.screenshot({ path: "e2e/shots/login-done.png" });
   });
 });

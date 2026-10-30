@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { SignInLink } from "@/components/ui/sign-in-gate";
 import { Building2 } from "lucide-react";
 import { EmptyState, Shell, SkeletonBlocks } from "../../../components/ui/shell";
 import { isFailure } from "../../../lib/api";
@@ -125,9 +126,9 @@ export default function OwnerSchoolsPage() {
           <h1 style={{ ...h1Style, margin: "0 0 12px" }}>Schools</h1>
           <div className="sf-card" style={{ padding: 20 }}>
             <p style={{ color: colors.inkSoft, fontSize: 14, margin: "0 0 8px" }}>Please sign in as the Platform Owner.</p>
-            <Link href="/login" style={{ color: colors.primary, fontWeight: 600 }}>
+            <SignInLink style={{ color: colors.primary, fontWeight: 600 }}>
               Go to login
-            </Link>
+            </SignInLink>
           </div>
         </main>
       </Shell>

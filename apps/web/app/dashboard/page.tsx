@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { SignInLink } from "@/components/ui/sign-in-gate";
 import { GraduationCap, Inbox, School, TrendingUp, Users, Wallet } from "lucide-react";
 import { Card, EmptyState, SectionTitle, Shell, SkeletonBlocks } from "../../components/ui/shell";
 import { useAuth } from "@/lib/auth-context";
@@ -200,13 +200,12 @@ export default function DashboardPage() {
       <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
         <h1 style={{ fontSize: 24, margin: "0 0 8px" }}>Please sign in</h1>
         <p style={{ color: colors.muted, margin: "0 0 20px" }}>Sign in to view the school admin dashboard.</p>
-        <Link
-          href="/login"
+        <SignInLink
           className="sf-btn sf-btn-primary"
           style={{ display: "inline-flex", textDecoration: "none" }}
         >
           Go to sign in
-        </Link>
+        </SignInLink>
       </main>
     );
   }

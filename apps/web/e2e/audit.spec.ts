@@ -28,9 +28,7 @@ test.describe("audit logs board", () => {
     expect(enroll.ok()).toBe(true);
 
     await login(page, ACCOUNTS.sosAdmin, SOS_SLUG);
-    // Login lands on the "Open my board" interstitial, not the dashboard —
-    // the sidebar (with the Audit Logs nav) only exists past it.
-    await page.getByRole("link", { name: /open my board/i }).click();
+    // Login routes directly to the board for the authenticated role.
     await page.getByRole("link", { name: "Audit Logs" }).click();
     await expect(page.getByRole("heading", { name: "Audit Logs" })).toBeVisible({ timeout: 20000 });
     await page.getByLabel(/action filter/i).fill("DEVICE_REGISTER");

@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BookMarked, Bus, Users, Wallet } from "lucide-react";
 import { Card, Shell, SkeletonBlocks } from "../../../components/ui/shell";
+import { SignInLink } from "@/components/ui/sign-in-gate";
 import { boardPathForRole } from "../../../components/ui/role-boards";
 import { useAuth } from "@/lib/auth-context";
 import { colors, h1Style, mutedStyle } from "@/lib/theme";
@@ -97,6 +98,17 @@ export default function StaffDashboardPage() {
   }
 
   if (!role || !boardPathForRole(role)) {
+    if (!token) {
+      return (
+        <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
+          <h1 style={{ fontSize: 22, margin: "0 0 8px" }}>Please sign in</h1>
+          <p style={{ ...mutedStyle, margin: "0 0 20px" }}>Sign in to view your staff board.</p>
+          <SignInLink className="sf-btn sf-btn-primary" style={{ display: "inline-flex", textDecoration: "none" }}>
+            Go to sign in
+          </SignInLink>
+        </main>
+      );
+    }
     return (
       <main style={{ maxWidth: 480, margin: "48px auto", padding: 24, fontFamily: "Inter, system-ui, sans-serif", textAlign: "center" }}>
         <h1 style={{ fontSize: 22, margin: "0 0 8px" }}>No board for this account</h1>

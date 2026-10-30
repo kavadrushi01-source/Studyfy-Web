@@ -3,20 +3,15 @@
 import { LogoMark } from "@/components/ui/logo";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import type { SessionUser } from "@/lib/auth-context";
 import { colors, h1Style, labelStyle, mutedStyle, primaryBtn } from "@/lib/theme";
-import { isFailure, apiBase } from "../../lib/api";
+import { apiBase } from "../../lib/api";
 import { boardPathForRole } from "../../components/ui/role-boards";
-
-interface Me {
-  id: string;
-  name: string;
-  email: string;
-  schoolId: string | null;
-  role: string;
-}
+import { safeReturnTo } from "@/lib/auth-navigation";
 
 const SESSION_KEY = "studyfy-session";
 
@@ -26,23 +21,13 @@ const SESSION_KEY = "studyfy-session";
 // links to /forgot-password (real flow, §13.3). Remember-me is functional:
 // it remembers the email in this browser only.
 //
-// Two flow improvements remove the last dead weight after signing in
-// (the old flow landed everyone on this screen with a manual "Open my
-// board" click):
-// 1. Returning to /login with a live session shows an inline "continue"
-//    hint above the form. No auto-redirect: switching accounts (re-login
-//    from /login without signing out first) is a real flow - observed in
-//    multi-user scripts - and a bounce removes the form they came here
-//    to use. After a logout the session is cleared, so no hint shows.
-// 2. A fresh sign-in resolves into a single "Open my board" button that
-//    lands on the role's board. No automatic navigation on this screen —
-//    timers here race any immediate navigation the app or a test performs
-//    (observed as random mid-flow redirects), so the click is the user's
-//    own intent.
+// Returning signed-in visitors can still switch accounts. A fresh sign-in
+// returns to its requested page, or to the board for the server-verified role.
 // The session lives in the shared AuthProvider; the /health warm-up below
 // pays the free-tier API cold start during page load, not inside Submit.
 export default function LoginPage() {
-  const { login, apiFetch } = useAuth();
+  const router = useRouter();
+  const { login } = useAuth();
   const [schoolSlug, setSchoolSlug] = useState("");
   const [email, setEmail] = useState(() =>
     typeof window === "undefined" ? "" : (window.localStorage.getItem("studyfy-login-email") ?? ""),
@@ -50,8 +35,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
-  const [me, setMe] = useState<Me | null>(null);
-  const [pendingProfile, setPendingProfile] = useState(false);
+  const [me, setMe] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [returningBoard, setReturningBoard] = useState<string | null>(null);
@@ -86,56 +70,29 @@ export default function LoginPage() {
     }
   }, []);
 
-  // After a fresh sign-in the confirmation card renders; the "Open my
-  // board" link (below) is the deliberate single next step.
-
-  // The shared session only becomes visible to apiFetch on the next render
-  // after login(), so the profile fetch runs here with a fresh closure
-  // instead of the stale one captured by submit().
-  useEffect(() => {
-    if (!pendingProfile) {
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const meRes = await apiFetch("/api/v1/auth/me");
-        const meBody = (await meRes.json()) as { data: { user: Me } } | { error: { message: string } };
-        if (isFailure(meRes, meBody)) {
-          throw new Error("Signed in, but could not load your profile.");
-        }
-        if (!cancelled) {
-          setMe(meBody.data.user);
-          setPendingProfile(false);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Network error.");
-          setPendingProfile(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pendingProfile, apiFetch]);
-
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setLoading(true);
     setError("");
     try {
       const slug = schoolSlug.trim();
-      await login({ email, password, ...(slug.length > 0 ? { schoolSlug: slug } : {}) });
+      const signedInUser = await login({ email, password, ...(slug.length > 0 ? { schoolSlug: slug } : {}) });
       if (remember && typeof window !== "undefined") {
-        window.localStorage.setItem("studyfy-login-email", email);
+        try {
+          window.localStorage.setItem("studyfy-login-email", email);
+        } catch {
+          // Remembering an email is optional; it must not block sign-in.
+        }
       }
       setPassword("");
-      setPendingProfile(true);
+      const next = new URLSearchParams(window.location.search).get("next");
+      const destination = safeReturnTo(next) ?? boardPathForRole(signedInUser.role);
+      if (destination) {
+        router.replace(destination);
+      } else {
+        setMe(signedInUser);
+        setLoading(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error.");
       setLoading(false);
