@@ -2,7 +2,11 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 11 COMPLETE — commit `f85f01a` pushed (responsive fixes: rail labels wrap, 2x2 KPI < 1280px); full e2e 104/104 (2 retry-recovered), prod live-verified 2/2; nothing left but org chores
+## STATUS: SESSION 11 COMPLETE — commits `f85f01a` (responsive) + `db8907e` (floating nav pill) pushed; full e2e green, prod verified; nothing left but org chores
+
+### Session 11 addendum — scrolled navbar = floating rounded glass pill (founder ask)
+
+When scrolled, the navbar now DETACHES from the top edge and becomes a rounded frosted-glass pill floating 10px down: `border-radius: 999px`, hairline border, layered 3D shadow (`0 24px 50px -22px` + `0 6px 16px -8px` + inset top highlight), blur(16px) saturate(170%). At the top of the page it stays fully transparent (same pill shape, invisible). Layout props (max-width 1120 / margin auto / radius) moved OUT of inline styles into `.sf-land-header` CSS so classes can control them — inline `borderRadius: 0` was blocking this. `top` transitions 0→10px smoothly. Verified tc/lint/build clean, local public+nav-stubs 10 passed + 1 flake-recovered, **prod 1/1** (measured: radius 999px, top 10px, layered shadow, frosted bg after scroll). Commit `db8907e`.
 
 ### Session 11 summary — whole-site responsiveness pass (founder's narrow-desktop screenshot)
 
