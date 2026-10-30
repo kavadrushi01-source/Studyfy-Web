@@ -93,7 +93,7 @@ export function PublicNav(): React.ReactNode {
   return (
     <header
       className={`sf-land-header${scrolled ? " sf-land-header-scrolled" : ""}`}
-      style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 28px", maxWidth: 1120, margin: "0 auto", borderRadius: 0 }}
+      style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 28px" }}
     >
       <Link href="/" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none" }} aria-label="Studyfy home">
         <span style={logoTile}>S</span>
