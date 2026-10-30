@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { BookOpen, Bus, ClipboardCheck, Wallet } from "lucide-react";
+import { BookOpen, Bus, CalendarDays, ClipboardCheck, GraduationCap, MessageCircle, Wallet } from "lucide-react";
 import { colors, gradients, iconTile } from "@/lib/theme";
 
 // Landing hero visual (§8.3/§8.5): a mouse-tilted 3D mock of the product
@@ -220,6 +220,26 @@ export function HeroVisual(): React.ReactNode {
       <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, zIndex: 0 }} />
       <div className="sf-land-perspective" style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 380, padding: "28px 8px" }}>
         <div ref={stageRef} className="sf-land-tilt" style={{ position: "relative", width: 300, height: 300, transformStyle: "preserve-3d" }}>
+          <div className="sf-hero-orbit">
+            <span className="sf-hero-orbit-node sf-hero-orbit-node-schools">
+              <span className="sf-hero-orbit-chip">
+                <GraduationCap size={15} aria-hidden="true" />
+                Schools
+              </span>
+            </span>
+            <span className="sf-hero-orbit-node sf-hero-orbit-node-classes">
+              <span className="sf-hero-orbit-chip">
+                <CalendarDays size={14} aria-hidden="true" />
+                Classes
+              </span>
+            </span>
+            <span className="sf-hero-orbit-node sf-hero-orbit-node-families">
+              <span className="sf-hero-orbit-chip">
+                <MessageCircle size={14} aria-hidden="true" />
+                Families
+              </span>
+            </span>
+          </div>
           {/* Back card — fees */}
           <div
             className="sf-land-float"

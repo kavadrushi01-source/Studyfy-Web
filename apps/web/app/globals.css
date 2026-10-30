@@ -946,6 +946,97 @@ h3 {
   will-change: transform;
   transform-style: preserve-3d;
 }
+.sf-hero-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: 340px;
+  height: 220px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 50%;
+  box-shadow: 0 0 28px rgba(37, 99, 235, 0.08), inset 0 0 22px rgba(124, 58, 237, 0.05);
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotateX(68deg);
+  transform-style: preserve-3d;
+}
+.sf-hero-orbit-node {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  display: block;
+  transform: translate(-50%, -50%);
+}
+.sf-hero-orbit-node-classes {
+  top: 0;
+  left: 50%;
+}
+.sf-hero-orbit-node-families {
+  right: 0;
+  left: auto;
+  transform: translate(50%, -50%);
+}
+.sf-hero-orbit-chip {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid rgba(219, 228, 242, 0.95);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 28px -14px rgba(15, 23, 42, 0.38), 0 1px 2px rgba(15, 23, 42, 0.06);
+  color: #334155;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.sf-hero-orbit-node-schools .sf-hero-orbit-chip {
+  color: #1d4ed8;
+}
+.sf-hero-orbit-node-classes .sf-hero-orbit-chip {
+  color: #047857;
+}
+.sf-hero-orbit-node-families .sf-hero-orbit-chip {
+  color: #7c3aed;
+}
+@keyframes sf-hero-orbit-spin {
+  from {
+    transform: translate(-50%, -50%) rotateX(68deg) rotateZ(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotateX(68deg) rotateZ(360deg);
+  }
+}
+@keyframes sf-hero-orbit-counter {
+  from {
+    transform: rotateX(-68deg) rotateZ(0deg);
+  }
+  to {
+    transform: rotateX(-68deg) rotateZ(-360deg);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sf-hero-orbit {
+    animation: sf-hero-orbit-spin 36s linear infinite;
+  }
+  .sf-hero-orbit-chip {
+    animation: sf-hero-orbit-counter 36s linear infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sf-hero-orbit,
+  .sf-hero-orbit-chip {
+    animation: none;
+  }
+}
+@media (max-width: 640px) {
+  .sf-hero-orbit {
+    width: 270px;
+    height: 180px;
+  }
+}
 
 /* Feature cards: subtle 3D hover lean (cheap, transform-only). */
 .sf-land-lean {

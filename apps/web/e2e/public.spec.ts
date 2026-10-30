@@ -71,6 +71,12 @@ test.describe("public site + login", () => {
     await expect(page.getByText(/500\+ Happy Schools|50K\+ Students|99% Uptime/)).toHaveCount(0);
     await expect(page.getByText(/App Store|Google Play/)).toHaveCount(0);
     await expect(page.locator("canvas")).toBeVisible();
+    await expect(page.locator(".sf-hero-orbit-node")).toHaveCount(3);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expect(page.locator(".sf-hero-orbit")).toHaveCSS("animation-name", "sf-hero-orbit-spin");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(page.locator(".sf-hero-orbit")).toHaveCSS("animation-name", "none");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     // Inside-the-app display: real screens cross-fade and gently move.
     await expect(page.getByRole("heading", { name: /See It From the Inside/i })).toBeVisible();
     await expect(page.locator(".sf-show-slide")).toHaveCount(7);
