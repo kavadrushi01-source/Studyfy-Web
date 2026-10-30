@@ -85,7 +85,7 @@ test.describe("public site + login", () => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     // Inside-the-app display: real screens cross-fade and gently move.
     await expect(page.getByRole("heading", { name: /See It From the Inside/i })).toBeVisible();
-    await expect(page.locator(".sf-show-slide")).toHaveCount(7);
+    await expect(page.locator(".sf-show-slide")).toHaveCount(1);
     const activeImg = page.locator(".sf-show-slide-active img");
     await expect(activeImg).toBeVisible();
     const p1 = await activeImg.evaluate((el) => getComputedStyle(el).transform);

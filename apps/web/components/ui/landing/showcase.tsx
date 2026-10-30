@@ -21,7 +21,9 @@ export function ShowcaseDisplay(): React.ReactNode {
   const [active, setActive] = useState(0);
   const [hidden, setHidden] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [inView, setInView] = useState(false);
   const swipe = useRef<{ x: number; y: number } | null>(null);
+  const stage = useRef<HTMLDivElement | null>(null);
   const shot = SHOTS[active];
   if (!shot) {
     throw new Error(`Showcase slide index out of range: ${active}`);
@@ -38,6 +40,19 @@ export function ShowcaseDisplay(): React.ReactNode {
   }, []);
 
   useEffect(() => {
+    const element = stage.current;
+    if (!element) {
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => setInView(entry?.isIntersecting ?? false),
+      { threshold: 0.1 },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
     const onPreferenceChange = (): void => setReducedMotion(preference.matches);
     onPreferenceChange();
@@ -46,15 +61,15 @@ export function ShowcaseDisplay(): React.ReactNode {
   }, []);
 
   useEffect(() => {
-    if (hidden || reducedMotion) {
+    if (hidden || reducedMotion || !inView) {
       return;
     }
     const timer = window.setTimeout(() => go(1), DWELL_MS);
     return () => window.clearTimeout(timer);
-  }, [active, hidden, reducedMotion, go]);
+  }, [active, hidden, inView, reducedMotion, go]);
 
   return (
-    <div className="sf-show-stage">
+    <div className="sf-show-stage" ref={stage}>
       <div className="sf-show-heading" aria-live="polite">
         <div className="sf-show-copy">
           <span className="sf-show-eyebrow"><Sparkles size={13} aria-hidden="true" /> A closer look</span>
@@ -102,22 +117,16 @@ export function ShowcaseDisplay(): React.ReactNode {
             swipe.current = null;
           }}
         >
-          {SHOTS.map((item, index) => (
-            <div
-              key={item.src}
-              className={`sf-show-slide${index === active ? " sf-show-slide-active" : ""}`}
-              aria-hidden={index !== active}
-            >
-              <Image
-                src={item.src}
-                alt={`${item.role}: ${item.title} — real Studyfy screen`}
-                width={1920}
-                height={1800}
-                draggable={false}
-                sizes="(max-width: 640px) 100vw, 820px"
-              />
-            </div>
-          ))}
+          <div key={shot.src} className="sf-show-slide sf-show-slide-active">
+            <Image
+              src={shot.src}
+              alt={`${shot.role}: ${shot.title} — real Studyfy screen`}
+              width={1920}
+              height={1800}
+              draggable={false}
+              sizes="(max-width: 640px) 100vw, 820px"
+            />
+          </div>
           <div className="sf-show-screen-shade" aria-hidden="true" />
         </div>
       </div>

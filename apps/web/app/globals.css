@@ -1480,6 +1480,7 @@ h3 {
   opacity: 1;
   transform: none;
   pointer-events: auto;
+  animation: sf-show-slide-enter 650ms var(--ease-out) both;
 }
 .sf-show-slide img {
   position: absolute;
@@ -1489,6 +1490,10 @@ h3 {
   object-fit: cover;
   object-position: center top;
   user-select: none;
+}
+@keyframes sf-show-slide-enter {
+  from { opacity: 0; transform: translateX(16px) scale(1.01); }
+  to { opacity: 1; transform: none; }
 }
 .sf-show-slide-active img {
   animation: sf-show-camera 8s cubic-bezier(0.2, 0.65, 0.3, 1) both;
@@ -1561,6 +1566,7 @@ h3 {
 }
 @media (prefers-reduced-motion: reduce) {
   .sf-show-title,
+  .sf-show-slide-active,
   .sf-show-slide-active img {
     animation: none;
   }
