@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Pause, Play, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const SHOTS = [
@@ -19,7 +19,6 @@ const DWELL_MS = 8000;
 
 export function ShowcaseDisplay(): React.ReactNode {
   const [active, setActive] = useState(0);
-  const [paused, setPaused] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const swipe = useRef<{ x: number; y: number } | null>(null);
@@ -47,15 +46,15 @@ export function ShowcaseDisplay(): React.ReactNode {
   }, []);
 
   useEffect(() => {
-    if (paused || hidden || reducedMotion) {
+    if (hidden || reducedMotion) {
       return;
     }
     const timer = window.setTimeout(() => go(1), DWELL_MS);
     return () => window.clearTimeout(timer);
-  }, [active, paused, hidden, reducedMotion, go]);
+  }, [active, hidden, reducedMotion, go]);
 
   return (
-    <div className={`sf-show-stage${paused || reducedMotion ? " sf-show-paused" : ""}`}>
+    <div className="sf-show-stage">
       <div className="sf-show-heading" aria-live="polite">
         <div className="sf-show-copy">
           <span className="sf-show-eyebrow"><Sparkles size={13} aria-hidden="true" /> A closer look</span>
@@ -77,6 +76,18 @@ export function ShowcaseDisplay(): React.ReactNode {
         </div>
         <div
           className="sf-show-screen"
+          role="region"
+          aria-label="Product screen tour. Use the left and right arrow keys to browse."
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowRight") {
+              event.preventDefault();
+              go(1);
+            } else if (event.key === "ArrowLeft") {
+              event.preventDefault();
+              go(-1);
+            }
+          }}
           onPointerDown={(event) => {
             swipe.current = { x: event.clientX, y: event.clientY };
           }}
@@ -109,55 +120,6 @@ export function ShowcaseDisplay(): React.ReactNode {
             </div>
           ))}
           <div className="sf-show-screen-shade" aria-hidden="true" />
-        </div>
-      </div>
-
-      <div className="sf-show-controls">
-        <div className="sf-show-progress" role="group" aria-label="Choose a product screen">
-          {SHOTS.map((item, index) => (
-            <button
-              key={item.src}
-              className={`sf-show-progress-item${index === active ? " sf-show-progress-active" : ""}`}
-              type="button"
-              aria-label={`Show ${item.role}: ${item.title}`}
-              aria-current={index === active ? "true" : undefined}
-              onClick={() => setActive(index)}
-            >
-              <span className="sf-show-progress-track">
-                <span
-                  key={`${index}-${active}-${paused}`}
-                  className={index === active ? "sf-show-progress-fill" : ""}
-                  style={{ animationDuration: `${DWELL_MS}ms` }}
-                />
-              </span>
-            </button>
-          ))}
-        </div>
-        <div className="sf-show-transport">
-          <span className="sf-show-count"><strong>{String(active + 1).padStart(2, "0")}</strong> / {String(SHOTS.length).padStart(2, "0")}</span>
-          <div className="sf-show-buttons">
-            <button type="button" className="sf-show-control-btn" aria-label="Previous screen" onClick={() => go(-1)}>
-              <ArrowLeft size={17} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="sf-show-control-btn sf-show-play-btn"
-              aria-label={
-                reducedMotion
-                  ? "Autoplay disabled by reduced-motion preference"
-                  : paused
-                    ? "Resume autoplay"
-                    : "Pause autoplay"
-              }
-              disabled={reducedMotion}
-              onClick={() => setPaused((value) => !value)}
-            >
-              {paused ? <Play size={15} fill="currentColor" aria-hidden="true" /> : <Pause size={15} fill="currentColor" aria-hidden="true" />}
-            </button>
-            <button type="button" className="sf-show-control-btn" aria-label="Next screen" onClick={() => go(1)}>
-              <ArrowRight size={17} aria-hidden="true" />
-            </button>
-          </div>
         </div>
       </div>
     </div>

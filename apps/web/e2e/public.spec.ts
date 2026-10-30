@@ -52,9 +52,9 @@ test.describe("public site + login", () => {
     await page.waitForTimeout(1800);
     const p2 = await activeImg.evaluate((el) => getComputedStyle(el).transform);
     expect(p2).not.toBe(p1); // the camera move is subtle but continuous
-    await page.getByRole("button", { name: "Pause autoplay" }).click();
-    await expect(page.getByRole("button", { name: "Resume autoplay" })).toBeVisible();
-    await page.getByRole("button", { name: "Next screen" }).click();
+    await expect(page.locator(".sf-show-controls")).toHaveCount(0);
+    await page.getByRole("region", { name: /Product screen tour/ }).focus();
+    await page.keyboard.press("ArrowRight");
     await expect(page.getByRole("heading", { name: "Student records, all in one place" })).toBeVisible();
     await expect(page.locator(".sf-show-slide-active img")).toHaveAttribute("alt", /Student records/);
     await page.screenshot({ path: "e2e/shots/landing.png", fullPage: true });
