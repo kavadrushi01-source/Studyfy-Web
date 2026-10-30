@@ -5,6 +5,26 @@ import { login } from "./helpers";
 // regression: a failed login must show the server message, never
 // "Cannot read properties of null".
 test.describe("public site + login", () => {
+  test("landing navigation and content stay usable on a phone", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/");
+
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Get Started" })).toBeVisible();
+    const menuButton = page.getByRole("button", { name: "Open navigation menu" });
+    await expect(menuButton).toBeVisible();
+    await menuButton.click();
+    await page.locator("#sf-mobile-nav").getByRole("link", { name: "Features" }).click();
+    await expect(page).toHaveURL(/#features$/);
+    await expect(page.locator("#features")).toBeInViewport();
+
+    const widths = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth,
+    }));
+    expect(widths.content).toBeLessThanOrEqual(widths.viewport);
+  });
+
   test("landing has spec copy, animated hero, and no fabricated stats, badges, or pricing", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("h1").first()).toBeVisible();
@@ -23,16 +43,20 @@ test.describe("public site + login", () => {
     await expect(page.getByText(/500\+ Happy Schools|50K\+ Students|99% Uptime/)).toHaveCount(0);
     await expect(page.getByText(/App Store|Google Play/)).toHaveCount(0);
     await expect(page.locator("canvas")).toBeVisible();
-    // Inside-the-app display: big window, screenshot auto-scrolls inside
-    // (vertical pan), pages cross-fade on their own.
+    // Inside-the-app display: real screens cross-fade and gently move.
     await expect(page.getByRole("heading", { name: /See It From the Inside/i })).toBeVisible();
     await expect(page.locator(".sf-show-slide")).toHaveCount(7);
     const activeImg = page.locator(".sf-show-slide-active img");
     await expect(activeImg).toBeVisible();
-    const p1 = await activeImg.evaluate((el) => getComputedStyle(el).objectPosition);
+    const p1 = await activeImg.evaluate((el) => getComputedStyle(el).transform);
     await page.waitForTimeout(1800);
-    const p2 = await activeImg.evaluate((el) => getComputedStyle(el).objectPosition);
-    expect(p2).not.toBe(p1); // the screenshot scrolls by itself
+    const p2 = await activeImg.evaluate((el) => getComputedStyle(el).transform);
+    expect(p2).not.toBe(p1); // the camera move is subtle but continuous
+    await page.getByRole("button", { name: "Pause autoplay" }).click();
+    await expect(page.getByRole("button", { name: "Resume autoplay" })).toBeVisible();
+    await page.getByRole("button", { name: "Next screen" }).click();
+    await expect(page.getByRole("heading", { name: "Student records, all in one place" })).toBeVisible();
+    await expect(page.locator(".sf-show-slide-active img")).toHaveAttribute("alt", /Student records/);
     await page.screenshot({ path: "e2e/shots/landing.png", fullPage: true });
   });
 

@@ -65,10 +65,10 @@ const sectionSub = { textAlign: "center" as const, color: colors.muted, margin: 
 
 export default function LandingPage() {
   return (
-    <div style={{ ...font, color: colors.ink, background: "transparent" }}>
+    <div className="sf-landing" style={{ ...font, color: colors.ink, background: "transparent" }}>
       <PublicNav />
 
-      <main id="top" style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 32px 0" }}>
+      <main id="top" className="sf-landing-main" style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 32px 0" }}>
         {/* Hero — copy + animated 3D visual */}
         <section className="sf-grid-hero" style={{ paddingTop: 40 }}>
           <div>
@@ -190,7 +190,7 @@ export default function LandingPage() {
         <section id="inside" data-reveal style={{ padding: "32px 0 24px" }}>
           <h2 style={{ ...sectionHead, color: colors.ink }}>See It From the Inside</h2>
           <p style={sectionSub}>
-            Real screens from the live deployment — it plays on its own; arrows, dots, or a swipe to drive.
+            Real screens from the live deployment. Explore at your own pace or let the tour play.
           </p>
           <ShowcaseDisplay />
         </section>

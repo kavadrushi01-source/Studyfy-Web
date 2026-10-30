@@ -4,6 +4,7 @@ import { LogoMark } from "@/components/ui/logo";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
 import { colors, gradients } from "@/lib/theme";
 
 // Premium public navbar (§8.3 landing): glass pill with a scroll-spy active
@@ -23,6 +24,7 @@ const SECTIONS = [
 export function PublicNav(): React.ReactNode {
   const [active, setActive] = useState("top");
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const reduced =
@@ -82,7 +84,7 @@ export function PublicNav(): React.ReactNode {
       className={`sf-land-header${scrolled ? " sf-land-header-scrolled" : ""}`}
       style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 28px" }}
     >
-      <Link href="/" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none" }} aria-label="Studyfy home">
+      <Link className="sf-land-brand" href="/" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none" }} aria-label="Studyfy home">
         <LogoMark />
         <span style={{ fontWeight: 700, fontSize: 18, color: colors.ink, letterSpacing: "-0.02em" }}>Studyfy</span>
       </Link>
@@ -100,10 +102,32 @@ export function PublicNav(): React.ReactNode {
           ))}
         </div>
       </nav>
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <Link href="/login" style={{ fontSize: 14, color: colors.ink, textDecoration: "none", fontWeight: 600 }}>Login</Link>
-        <Link href="/signup" style={{ ...ctaPill, textDecoration: "none" }}>Get Started</Link>
+      <div className="sf-land-actions" style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <Link className="sf-land-login" href="/login" style={{ fontSize: 14, color: colors.ink, textDecoration: "none", fontWeight: 600 }}>Login</Link>
+        <Link className="sf-land-cta" href="/signup" style={{ ...ctaPill, textDecoration: "none" }}>Get Started</Link>
+        <button
+          type="button"
+          className="sf-land-menu-btn"
+          aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={menuOpen}
+          aria-controls="sf-mobile-nav"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          {menuOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
+        </button>
       </div>
+      <nav id="sf-mobile-nav" className={`sf-mobile-nav${menuOpen ? " sf-mobile-nav-open" : ""}`} aria-label="Mobile landing">
+        {SECTIONS.map((section) => (
+          <a
+            key={section.id}
+            href={`#${section.id}`}
+            aria-current={active === section.id ? "true" : undefined}
+            onClick={() => setMenuOpen(false)}
+          >
+            {section.label}
+          </a>
+        ))}
+      </nav>
     </header>
   );
 }

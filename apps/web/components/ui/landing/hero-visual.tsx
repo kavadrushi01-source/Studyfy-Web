@@ -188,7 +188,7 @@ export function HeroVisual(): React.ReactNode {
   );
 
   return (
-    <div style={{ position: "relative", minHeight: 380 }} aria-hidden="true">
+    <div className="sf-land-visual" style={{ position: "relative", minHeight: 380 }} aria-hidden="true">
       <div
         className="sf-land-blob"
         style={{ width: 300, height: 300, top: -40, right: -60, background: "radial-gradient(circle, rgba(37,99,235,.55), transparent 65%)", animationDelay: "-4s" }}
