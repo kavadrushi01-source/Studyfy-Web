@@ -748,7 +748,20 @@ h3 {
    block collapses every duration, so charts land in their final
    state instantly for those visitors. */
 .sf-chart {
+  max-width: 100%;
+  max-height: 360px;
+  margin-inline: auto;
   filter: drop-shadow(0 12px 28px rgba(15, 23, 42, 0.1));
+}
+.sf-chart-scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+.sf-chart-scroll > .sf-chart {
+  display: block;
 }
 .sf-chart-line {
   filter: drop-shadow(0 4px 12px rgba(37, 99, 235, 0.35));
@@ -1182,7 +1195,7 @@ textarea.sf-input {
 }
 .sf-shell {
   min-width: 0;
-  overflow: clip;
+  overflow-x: clip;
 }
 .sf-sidebar {
   z-index: 10;
@@ -1191,7 +1204,10 @@ textarea.sf-input {
 .sf-main {
   width: 100%;
   max-width: 1140px !important;
-  margin-right: auto;
+  margin-inline: auto;
+  min-width: 0;
+}
+.sf-card {
   min-width: 0;
 }
 .sf-grid-kpi {
@@ -1298,12 +1314,12 @@ textarea.sf-input {
   .sf-grid-kpi {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}
-@media (max-width: 900px) {
   .sf-grid-1-1,
   .sf-grid-2-1 {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+@media (max-width: 900px) {
   .sf-grid-3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1355,6 +1371,11 @@ textarea.sf-input {
   }
 }
 @media (max-width: 640px) {
+  .sf-chart-scroll > .sf-chart {
+    min-width: 520px;
+    max-height: none;
+    margin-inline: 0;
+  }
   .sf-main {
     padding: 18px 16px calc(28px + env(safe-area-inset-bottom));
   }

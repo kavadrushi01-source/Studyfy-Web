@@ -227,26 +227,28 @@ export default function AnalyticsPage() {
           <section className="sf-card" style={{ padding: 20, marginBottom: 16 }}>
             <h2 style={h2Style}>Attendance trend — daily % present</h2>
             {trend.some((p) => p.percent !== null) ? (
-              <svg
-                viewBox={`0 0 ${width} ${height}`}
-                style={{ width: "100%", height: "auto" }}
-                className="sf-chart"
-                role="img"
-                aria-label="Daily attendance percent line chart"
-              >
-                {[0, 25, 50, 75, 100].map((g) => {
-                  const y = pad + (1 - g / 100) * (height - pad * 2);
-                  return (
-                    <g key={g}>
-                      <line x1={pad} x2={width - pad} y1={y} y2={y} stroke="#E2E8F0" strokeWidth={1} />
-                      <text x={4} y={y + 3} fontSize={9} fill="#64748B">{`${g}%`}</text>
-                    </g>
-                  );
-                })}
-                {segments.map((d, i) => (
-                  <path key={i} d={d} fill="none" stroke={colors.primary} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="sf-chart-line sf-chart-draw" style={{ animationDelay: `${i * 90}ms` }} />
-                ))}
-              </svg>
+              <div className="sf-chart-scroll">
+                <svg
+                  viewBox={`0 0 ${width} ${height}`}
+                  style={{ width: "100%", height: "auto" }}
+                  className="sf-chart"
+                  role="img"
+                  aria-label="Daily attendance percent line chart"
+                >
+                  {[0, 25, 50, 75, 100].map((g) => {
+                    const y = pad + (1 - g / 100) * (height - pad * 2);
+                    return (
+                      <g key={g}>
+                        <line x1={pad} x2={width - pad} y1={y} y2={y} stroke="#E2E8F0" strokeWidth={1} />
+                        <text x={4} y={y + 3} fontSize={9} fill="#64748B">{`${g}%`}</text>
+                      </g>
+                    );
+                  })}
+                  {segments.map((d, i) => (
+                    <path key={i} d={d} fill="none" stroke={colors.primary} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="sf-chart-line sf-chart-draw" style={{ animationDelay: `${i * 90}ms` }} />
+                  ))}
+                </svg>
+              </div>
             ) : (
               <EmptyState
                 icon={<BarChart3 size={22} aria-hidden="true" />}

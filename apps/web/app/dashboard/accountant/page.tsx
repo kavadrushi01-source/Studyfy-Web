@@ -122,35 +122,37 @@ function TrendChart({ trend }: { trend: TrendPoint[] }): ReactNode {
   const area = `${line} L${(points[points.length - 1]?.x ?? 0).toFixed(1)},${height - padBottom} L${padLeft},${height - padBottom} Z`;
   const ticks = [0, 0.5, 1].map((f) => Math.round(max * f));
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} className="sf-chart" role="img" aria-label="Fee collection per month">
-      <defs>
-        <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={colors.accent} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={colors.accent} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {ticks.map((t) => {
-        const y = padTop + (height - padTop - padBottom) * (1 - t / max);
-        return (
-          <g key={t}>
-            <line x1={padLeft} y1={y} x2={width - 8} y2={y} stroke={colors.lineSoft} strokeWidth="1" />
-            <text x={padLeft - 6} y={y + 4} textAnchor="end" fontSize="11" fill={colors.muted}>
-              ₹{(t / 1000).toFixed(t % 1000 === 0 ? 0 : 1)}k
+    <div className="sf-chart-scroll">
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} className="sf-chart" role="img" aria-label="Fee collection per month">
+        <defs>
+          <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={colors.accent} stopOpacity="0.28" />
+            <stop offset="100%" stopColor={colors.accent} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {ticks.map((t) => {
+          const y = padTop + (height - padTop - padBottom) * (1 - t / max);
+          return (
+            <g key={t}>
+              <line x1={padLeft} y1={y} x2={width - 8} y2={y} stroke={colors.lineSoft} strokeWidth="1" />
+              <text x={padLeft - 6} y={y + 4} textAnchor="end" fontSize="11" fill={colors.muted}>
+                ₹{(t / 1000).toFixed(t % 1000 === 0 ? 0 : 1)}k
+              </text>
+            </g>
+          );
+        })}
+        <path d={area} fill="url(#trendFill)" />
+        <path d={line} fill="none" stroke={colors.accent} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" className="sf-chart-line sf-chart-draw" />
+        {points.map((p) => (
+          <g key={p.month}>
+            <circle cx={p.x} cy={p.y} r="4" fill={colors.card} stroke={colors.accent} strokeWidth="2.5" className="sf-chart-dot" />
+            <text x={p.x} y={height - 8} textAnchor="middle" fontSize="11" fill={colors.muted}>
+              {monthLabel(p.month)}
             </text>
           </g>
-        );
-      })}
-      <path d={area} fill="url(#trendFill)" />
-      <path d={line} fill="none" stroke={colors.accent} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" className="sf-chart-line sf-chart-draw" />
-      {points.map((p) => (
-        <g key={p.month}>
-          <circle cx={p.x} cy={p.y} r="4" fill={colors.card} stroke={colors.accent} strokeWidth="2.5" className="sf-chart-dot" />
-          <text x={p.x} y={height - 8} textAnchor="middle" fontSize="11" fill={colors.muted}>
-            {monthLabel(p.month)}
-          </text>
-        </g>
-      ))}
-    </svg>
+        ))}
+      </svg>
+    </div>
   );
 }
 

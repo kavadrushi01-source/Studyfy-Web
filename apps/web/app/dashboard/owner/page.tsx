@@ -132,47 +132,49 @@ function MonthBars({
   const padLeft = 36;
   const padRight = 54;
   const padBottom = 28;
-  const padTop = 12;
+  const padTop = 28;
   const max = Math.max(1, ...points.map((p) => p.value));
   const stepX = points.length > 1 ? (width - padLeft - padRight) / (points.length - 1) : 0;
   const barW = Math.min(48, Math.max(12, stepX * 0.5));
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} className="sf-chart" role="img" aria-label={ariaLabel}>
-      <defs>
-        <linearGradient id="ownerBarFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={barColor} stopOpacity="1" />
-          <stop offset="100%" stopColor={barColor} stopOpacity="0.55" />
-        </linearGradient>
-      </defs>
-      {[0, 0.5, 1].map((f) => {
-        const t = Math.round(max * f);
-        const y = padTop + (height - padTop - padBottom) * (1 - t / max);
-        return (
-          <g key={t}>
-            <line x1={padLeft} y1={y} x2={width - padRight} y2={y} stroke={colors.lineSoft} strokeWidth="1" />
-            <text x={padLeft - 6} y={y + 4} textAnchor="end" fontSize="11" fill={colors.muted}>
-              {t >= 1000 ? `${(t / 1000).toFixed(1)}K` : String(Math.round(t))}
-            </text>
-          </g>
-        );
-      })}
-      {points.map((p, i) => {
-        const barH = (height - padTop - padBottom) * (p.value / max);
-        const x = padLeft + i * stepX - barW / 2;
-        const y = height - padBottom - barH;
-        return (
-          <g key={p.month}>
-            <rect x={x} y={y} width={barW} height={Math.max(barH, 2)} rx="8" fill="url(#ownerBarFill)" className="sf-chart-bar" style={{ animationDelay: `${i * 70}ms` }} />
-            <text x={padLeft + i * stepX} y={y - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill={colors.ink}>
-              {formatValue(p.value)}
-            </text>
-            <text x={padLeft + i * stepX} y={height - 8} textAnchor="middle" fontSize="11" fill={colors.muted}>
-              {monthLabel(p.month)}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+    <div className="sf-chart-scroll">
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} className="sf-chart" role="img" aria-label={ariaLabel}>
+        <defs>
+          <linearGradient id="ownerBarFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={barColor} stopOpacity="1" />
+            <stop offset="100%" stopColor={barColor} stopOpacity="0.55" />
+          </linearGradient>
+        </defs>
+        {[0, 0.5, 1].map((f) => {
+          const t = Math.round(max * f);
+          const y = padTop + (height - padTop - padBottom) * (1 - t / max);
+          return (
+            <g key={t}>
+              <line x1={padLeft} y1={y} x2={width - padRight} y2={y} stroke={colors.lineSoft} strokeWidth="1" />
+              <text x={padLeft - 6} y={y + 4} textAnchor="end" fontSize="11" fill={colors.muted}>
+                {t >= 1000 ? `${(t / 1000).toFixed(1)}K` : String(Math.round(t))}
+              </text>
+            </g>
+          );
+        })}
+        {points.map((p, i) => {
+          const barH = (height - padTop - padBottom) * (p.value / max);
+          const x = padLeft + i * stepX - barW / 2;
+          const y = height - padBottom - barH;
+          return (
+            <g key={p.month}>
+              <rect x={x} y={y} width={barW} height={Math.max(barH, 2)} rx="8" fill="url(#ownerBarFill)" className="sf-chart-bar" style={{ animationDelay: `${i * 70}ms` }} />
+              <text x={padLeft + i * stepX} y={y - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill={colors.ink}>
+                {formatValue(p.value)}
+              </text>
+              <text x={padLeft + i * stepX} y={height - 8} textAnchor="middle" fontSize="11" fill={colors.muted}>
+                {monthLabel(p.month)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 
