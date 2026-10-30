@@ -512,18 +512,23 @@ h3 {
 
 /* Skeleton shimmer (§8.5 — skeletons, never spinners). */
 @keyframes sf-shimmer {
-  0% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.5;
+  to {
+    transform: translateX(220%);
   }
 }
 .sf-skeleton {
-  animation: sf-shimmer 1.4s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.sf-skeleton::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.72) 50%, transparent 80%);
+  content: "";
+  transform: translateX(-120%);
+  animation: sf-shimmer 1.5s ease-in-out infinite;
 }
 
 /* Gentle entrance for page content. */
@@ -1288,6 +1293,39 @@ textarea.sf-input {
 }
 .sf-card {
   min-width: 0;
+}
+@keyframes sf-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sf-grid-kpi > * {
+    animation: sf-card-enter 420ms var(--ease-out);
+  }
+  .sf-grid-kpi > :nth-child(2) {
+    animation-delay: 45ms;
+  }
+  .sf-grid-kpi > :nth-child(3) {
+    animation-delay: 90ms;
+  }
+  .sf-grid-kpi > :nth-child(4) {
+    animation-delay: 135ms;
+  }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .sf-grid-kpi > .sf-card {
+    transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+  }
+  .sf-grid-kpi > .sf-card:hover {
+    transform: perspective(900px) translateY(-3px) rotateX(0.5deg);
+    box-shadow: var(--shadow-card-hover);
+  }
 }
 .sf-grid-kpi {
   grid-template-columns: repeat(4, minmax(0, 1fr));

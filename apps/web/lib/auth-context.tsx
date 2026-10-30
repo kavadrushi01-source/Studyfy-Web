@@ -102,11 +102,19 @@ function loadImpersonation(): ImpersonationState | null {
 // Fresh identity (user) for a token. Null on any failure —
 // callers keep the last known session instead. Module scope (not a hook)
 // so the mount effect can use it without dependency churn.
-async function fetchIdentity(token: string): Promise<{ user: SessionUser } | null> {
+async function fetchIdentity(
+  token: string,
+): Promise<{ user: SessionUser | null; rejected: boolean } | null> {
   try {
     const res = await fetch(`${apiBase()}/api/v1/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (res.status === 401 || res.status === 403) {
+      return { user: null, rejected: true };
+    }
+    if (!res.ok) {
+      return null;
+    }
     const body = (await res.json()) as {
       data?: { user?: SessionUser };
       error?: { message: string };
@@ -114,7 +122,7 @@ async function fetchIdentity(token: string): Promise<{ user: SessionUser } | nul
     if (isFailure(res, body) || !body.data?.user) {
       return null;
     }
-    return { user: body.data.user };
+    return { user: body.data.user, rejected: false };
   } catch {
     return null;
   }
@@ -137,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   const [impersonation, setImpersonation] = useState<ImpersonationState | null>(null);
   const [ready, setReady] = useState(false);
   const refreshing = useRef<Promise<string> | null>(null);
+  const authGeneration = useRef(0);
 
   // Restore persisted session on mount; drop it only when the server
   // definitively rejects the identity (401/403). Transient failures -
@@ -146,6 +155,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   // The impersonation overlay restores alongside (same mount): a live one
   // resumes the banner, an expired one is closed with an END write first.
   useEffect(() => {
+    let active = true;
+    const generation = authGeneration.current;
     const saved = loadPersisted();
     const overlay = loadImpersonation();
     if (overlay && saved) {
@@ -171,29 +182,32 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       setReady(true);
       return;
     }
-    fetch(`${apiBase()}/api/v1/auth/me`, { headers: { Authorization: `Bearer ${saved.token}` } })
-      .then(async (res) => {
-        if (res.ok || (res.status !== 401 && res.status !== 403)) {
-          // Refresh the identity (name changes) on every mount; keep the
-          // saved row when the fill fails transiently.
-          let merged: PersistedSession = { ...saved };
-          if (res.ok) {
-            const identity = await fetchIdentity(saved.token);
-            if (identity) {
-              merged = { ...saved, user: identity.user };
-            }
-          }
-          setSession(merged);
-          storeSession(merged);
-        } else {
-          window.localStorage.removeItem(STORAGE_KEY);
-        }
-      })
-      .catch(() => setSession(saved))
-      .finally(() => setReady(true));
+    setSession(saved);
+    setReady(true);
+    void fetchIdentity(saved.token).then((identity) => {
+      if (!active || generation !== authGeneration.current) {
+        return;
+      }
+      if (identity?.rejected) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        setSession(null);
+        setImpersonation(null);
+        window.localStorage.removeItem(IMPERSONATION_KEY);
+        return;
+      }
+      if (identity?.user) {
+        const merged = { ...saved, user: identity.user };
+        setSession(merged);
+        storeSession(merged);
+      }
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, []);
 
   const persist = useCallback((next: PersistedSession | null) => {
+    authGeneration.current += 1;
     setSession(next);
     storeSession(next);
   }, []);
