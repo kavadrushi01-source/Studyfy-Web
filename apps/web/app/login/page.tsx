@@ -197,25 +197,6 @@ export default function LoginPage() {
               <button type="submit" disabled={loading} className="sf-btn sf-btn-primary">
                 {loading ? "Signing in…" : "Login"}
               </button>
-              <aside
-                style={{
-                  display: "grid",
-                  gap: 8,
-                  padding: "14px 16px",
-                  border: "1px solid #BFDBFE",
-                  borderRadius: 12,
-                  background: "#EFF6FF",
-                  color: "#1E3A8A",
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                }}
-              >
-                <strong>Public demo login · read-only</strong>
-                <span>School of Science: <code>school-of-science</code> · <code>kavita.rao@schoolofscience.demo</code></span>
-                <span>Ramakrishna School: <code>ramakrishna-school</code> · <code>s.venkataraman@ramakrishnaschool.demo</code></span>
-                <span>Password: <code>Demo@1234</code></span>
-                <span>Sample accounts only. Production demo logins expire after 30 minutes and cannot change data.</span>
-              </aside>
               <p style={{ fontSize: 13, margin: 0 }}>
                 <Link href="/forgot-password" style={{ color: colors.primary, fontWeight: 600 }}>Forgot password?</Link>
               </p>
