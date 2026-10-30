@@ -158,7 +158,7 @@ export function Shell({
           onClick={handleLogout}
         >
           <LogOut size={19} aria-hidden="true" />
-          <span>Log out</span>
+          <span className="sf-side-logout-label">Log out</span>
         </button>
       </aside>
       <main className="sf-main" style={{ maxWidth: 1140 }}>

@@ -311,6 +311,7 @@ h3 {
   position: sticky;
   top: 0;
   height: 100vh;
+  height: 100dvh;
 }
 /* Desktop: collapsed rail shows the logo tile alone (the wordmark made the
    92px rail overflow and clip the logo at the corner). Opening the menu
@@ -327,6 +328,12 @@ h3 {
   flex: 1;
   min-width: 0;
   padding: 30px 32px 48px;
+}
+.sf-side-nav {
+  min-height: 0;
+}
+.sf-side-logout {
+  flex-shrink: 0;
 }
 
 /* Icon rail items: icon over a tiny, always-visible label (real text —
@@ -394,27 +401,101 @@ h3 {
     flex-direction: column;
   }
   .sf-sidebar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-areas:
+      "brand logout"
+      "role role"
+      "nav nav";
+    align-items: center;
+    gap: 0 8px;
     width: 100%;
     height: auto;
     position: static;
+    padding: 0 12px;
   }
-  /* On phones the rail becomes a horizontal scroll strip when open —
-     same items, thumb-friendly. */
+  .sf-sidebar > div:first-child {
+    grid-area: brand;
+    min-width: 0;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    padding: 10px 4px !important;
+  }
+  .sf-side-collapsed .sf-side-brand {
+    display: inline !important;
+  }
+  .sf-menu-btn {
+    flex: 0 0 40px;
+    margin-left: auto;
+  }
+  .sf-sidebar > .sf-side-badge {
+    display: none !important;
+  }
+  .sf-sidebar > .sf-side-badge-label {
+    grid-area: role;
+    justify-self: start;
+    max-width: none !important;
+    margin: 0 0 8px !important;
+    padding: 4px 10px;
+    border: 1px solid #e6ebf4;
+    border-radius: 999px;
+    background: #f8faff;
+    font-size: 10px !important;
+  }
   .sf-side-rail .sf-side-nav {
+    grid-area: nav;
     display: flex;
     flex-direction: row;
+    min-width: 0;
+    width: 100%;
+    flex: none !important;
     overflow-x: auto;
     overflow-y: hidden;
     gap: 4px;
-    padding: 4px 12px 10px;
+    padding: 4px 0 10px;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .sf-side-rail .sf-side-nav::-webkit-scrollbar {
+    display: none;
   }
   .sf-side-rail .sf-rail-item {
     flex-direction: column;
-    flex: 0 0 auto;
+    flex: 0 0 72px;
     max-width: 76px;
+    min-height: 56px;
+    scroll-snap-align: start;
   }
-  .sf-rail-logout {
-    margin-top: 4px;
+  .sf-sidebar .sf-side-logout {
+    grid-area: logout;
+    display: inline-flex !important;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    max-width: 40px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #fee2e2;
+    border-radius: 12px;
+    background: #fff7f7;
+    color: #b91c1c;
+  }
+  .sf-side-logout-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .sf-side-collapsed .sf-side-nav {
+    display: none !important;
   }
   .sf-rail-active::before {
     display: none;
@@ -514,8 +595,7 @@ h3 {
     display: inline-flex;
   }
   /* !important: both targets carry inline display styles that would win. */
-  .sf-side-collapsed .sf-side-nav,
-  .sf-side-collapsed .sf-side-logout {
+  .sf-side-collapsed .sf-side-nav {
     display: none !important;
   }
 }
@@ -675,7 +755,6 @@ h3 {
     transform: scale(0.84);
   }
 }
-
 /* ── Landing (public) header + hero animations ────────────────────
    Deliberately dependency-free: layered CSS keyframes + one tiny
    canvas RT for particles + IntersectionObserver reveals. Honors
@@ -1024,9 +1103,9 @@ h3 {
 }
 .sf-show-screen {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 16 / 15;
   overflow: hidden;
-  background: #f1f5f9;
+  background: #e8edf5;
   touch-action: pan-y;
   isolation: isolate;
 }
@@ -1052,7 +1131,7 @@ h3 {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center top;
   user-select: none;
 }
@@ -1060,8 +1139,8 @@ h3 {
   animation: sf-show-camera 8s cubic-bezier(0.2, 0.65, 0.3, 1) both;
 }
 @keyframes sf-show-camera {
-  from { transform: scale(1.045) translateY(0); }
-  to { transform: scale(1.015) translateY(-1.2%); }
+  from { transform: scale(1.015) translateY(0); }
+  to { transform: scale(1) translateY(-0.4%); }
 }
 .sf-show-screen-shade {
   position: absolute;
@@ -1104,9 +1183,6 @@ h3 {
   }
   .sf-show-device {
     border-radius: 13px;
-  }
-  .sf-show-screen {
-    aspect-ratio: 4 / 3;
   }
   .sf-show-browser-bar {
     grid-template-columns: 1fr minmax(0, 1.7fr) 1fr;
@@ -1344,9 +1420,9 @@ textarea.sf-input {
     margin: 0 0 0 auto !important;
   }
   .sf-sidebar > .sf-side-badge-label {
-    max-width: 160px !important;
-    margin: 0 12px 0 8px !important;
-    font-size: 11px !important;
+    max-width: none !important;
+    margin: 0 0 8px !important;
+    font-size: 10px !important;
   }
   .sf-side-rail .sf-side-nav {
     padding: 6px 12px 9px;
@@ -1364,7 +1440,10 @@ textarea.sf-input {
     box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
   }
   .sf-side-logout {
-    align-self: flex-end;
+    align-self: center;
+  }
+  .sf-sidebar .sf-side-logout {
+    min-height: 40px;
   }
   .sf-main {
     max-width: none !important;
@@ -1431,5 +1510,11 @@ textarea.sf-input {
   .sf-main {
     padding-right: 12px;
     padding-left: 12px;
+  }
+}
+@media (max-width: 320px) {
+  html,
+  body {
+    min-width: 0;
   }
 }
