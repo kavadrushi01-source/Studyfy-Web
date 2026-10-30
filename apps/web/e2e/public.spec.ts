@@ -77,6 +77,12 @@ test.describe("public site + login", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await expect(page.locator(".sf-hero-orbit")).toHaveCSS("animation-name", "none");
     await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expect(page.locator(".sf-platform-map-node")).toHaveCount(9);
+    await expect(page.locator(".sf-platform-map-link")).toHaveCount(9);
+    await expect(page.locator(".sf-platform-map-link").first()).toHaveCSS("animation-name", "sf-platform-link-flow");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(page.locator(".sf-platform-map-link").first()).toHaveCSS("animation-name", "none");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     // Inside-the-app display: real screens cross-fade and gently move.
     await expect(page.getByRole("heading", { name: /See It From the Inside/i })).toBeVisible();
     await expect(page.locator(".sf-show-slide")).toHaveCount(7);

@@ -38,6 +38,18 @@ const FEATURES: { title: string; detail: string; icon: LucideIcon }[] = [
   { title: "Reports & Analytics", detail: "Role dashboards with live KPIs for every stakeholder.", icon: BarChart3 },
 ];
 
+const FEATURE_NODE_POSITIONS = [
+  { x: 50, y: 9 },
+  { x: 72, y: 13 },
+  { x: 86, y: 35 },
+  { x: 87, y: 68 },
+  { x: 70, y: 90 },
+  { x: 30, y: 90 },
+  { x: 13, y: 68 },
+  { x: 14, y: 35 },
+  { x: 28, y: 13 },
+] as const;
+
 const FACT_PILLS = ["Multi-tenant by design", "8 role dashboards", "9 modules", "PDF receipts & report cards"];
 
 import { LogoMark } from "@/components/ui/logo";
@@ -62,6 +74,73 @@ const sectionHead = {
 };
 
 const sectionSub = { textAlign: "center" as const, color: colors.muted, margin: "0 0 28px", fontSize: 15 };
+
+function PlatformMap(): React.ReactNode {
+  const center = { x: 450, y: 220 };
+
+  return (
+    <div className="sf-platform-map" aria-hidden="true">
+      <div className="sf-platform-map-scene">
+        <svg className="sf-platform-map-wires" viewBox="0 0 900 440" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="sf-platform-wire" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#60a5fa" stopOpacity=".72" />
+              <stop offset="55%" stopColor="#a78bfa" stopOpacity=".82" />
+              <stop offset="100%" stopColor="#67e8f9" stopOpacity=".72" />
+            </linearGradient>
+            <radialGradient id="sf-platform-core-glow">
+              <stop offset="0%" stopColor="#818cf8" stopOpacity=".22" />
+              <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <ellipse className="sf-platform-map-ring sf-platform-map-ring-outer" cx={center.x} cy={center.y} rx="390" ry="196" />
+          <ellipse className="sf-platform-map-ring sf-platform-map-ring-inner" cx={center.x} cy={center.y} rx="300" ry="146" />
+          <circle cx={center.x} cy={center.y} r="150" fill="url(#sf-platform-core-glow)" />
+          {FEATURE_NODE_POSITIONS.map((position, index) => {
+            const x = (position.x / 100) * 900;
+            const y = (position.y / 100) * 440;
+            return (
+              <path
+                key={FEATURES[index]?.title}
+                className={`sf-platform-map-link sf-platform-map-link-${index % 3}`}
+                d={`M ${center.x} ${center.y} Q ${(center.x + x) / 2} ${(center.y + y) / 2} ${x} ${y}`}
+                pathLength="100"
+              />
+            );
+          })}
+        </svg>
+        <div className="sf-platform-map-core">
+          <LogoMark size={38} />
+          <span className="sf-platform-map-brand">Studyfy</span>
+          <span className="sf-platform-map-caption">One connected platform</span>
+        </div>
+        {FEATURES.map((feature, index) => {
+          const Icon = feature.icon;
+          const position = FEATURE_NODE_POSITIONS[index];
+          if (!position) {
+            return null;
+          }
+          return (
+            <div
+              key={feature.title}
+              className={`sf-platform-map-node sf-platform-map-node-${index + 1}`}
+              style={{
+                left: `${position.x}%`,
+                top: `${position.y}%`,
+                animationDelay: `${index * -0.42}s`,
+              }}
+            >
+              <span className="sf-platform-map-node-card">
+                <Icon className="sf-platform-map-node-icon" size={17} strokeWidth={2} />
+                <span className="sf-platform-map-node-label">{feature.title}</span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function LandingPage() {
   return (
@@ -101,7 +180,8 @@ export default function LandingPage() {
         {/* Features */}
         <section id="features" data-reveal style={{ padding: "40px 0 32px" }}>
           <h2 style={sectionHead}>Everything You Need in One Platform</h2>
-          <p style={sectionSub}>Nine modules that cover the full school day.</p>
+          <p style={sectionSub}>Nine school workflows, connected in one calm workspace.</p>
+          <PlatformMap />
           <div className="sf-grid-3">
             {FEATURES.map((feature) => {
               const Icon = feature.icon;
