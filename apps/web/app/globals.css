@@ -526,7 +526,7 @@ h3 {
 .sf-mobile-nav {
   display: none;
 }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .sf-public-nav {
     display: none !important;
   }
@@ -1125,5 +1125,290 @@ h3 {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Shared product-wide refinement ─────────────────────────────── */
+html {
+  min-width: 320px;
+  scroll-padding-top: 20px;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  min-height: 100svh;
+}
+h1,
+h2,
+h3,
+p {
+  overflow-wrap: break-word;
+}
+h1 {
+  line-height: 1.15;
+}
+h2 {
+  line-height: 1.3;
+}
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+.sf-input,
+.sf-select,
+.sf-textarea {
+  min-height: 42px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
+}
+.sf-textarea,
+textarea.sf-input {
+  min-height: 112px;
+  line-height: 1.55;
+}
+.sf-btn {
+  min-height: 40px;
+  white-space: normal;
+  line-height: 1.35;
+}
+.sf-card {
+  border-color: #e4eaf3;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035), 0 10px 28px -22px rgba(15, 23, 42, 0.28);
+}
+.sf-shell {
+  min-width: 0;
+  overflow: clip;
+}
+.sf-sidebar {
+  z-index: 10;
+  border-color: #e4eaf3 !important;
+}
+.sf-main {
+  width: 100%;
+  max-width: 1140px !important;
+  margin-right: auto;
+  min-width: 0;
+}
+.sf-grid-kpi {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.sf-grid-1-1 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.sf-grid-2-1 {
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+}
+.sf-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.sf-land-visual {
+  overflow-x: clip;
+}
+.sf-table-scroll {
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+.sf-table-scroll table {
+  min-width: 640px;
+}
+.sf-table-scroll th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.sf-table-scroll tbody tr:last-child td {
+  border-bottom: 0;
+}
+.sf-menu-btn,
+.sf-rail-item,
+.sf-side-logout {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sf-auth-page {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background:
+    radial-gradient(700px 420px at 100% 0%, rgba(37, 99, 235, 0.09), transparent 68%),
+    radial-gradient(560px 360px at 0% 100%, rgba(124, 58, 237, 0.07), transparent 70%),
+    linear-gradient(180deg, #f8faff 0%, #f3f6fc 100%);
+}
+.sf-auth-page::before {
+  position: absolute;
+  z-index: -1;
+  top: 110px;
+  left: 50%;
+  width: min(720px, 90vw);
+  height: 520px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  filter: blur(80px);
+  content: "";
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.sf-auth-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.sf-auth-main {
+  position: relative;
+  z-index: 1;
+  align-items: center !important;
+}
+.sf-auth-card {
+  overflow: hidden;
+  border-color: rgba(226, 232, 240, 0.9);
+  border-radius: 22px;
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.035),
+    0 28px 72px -42px rgba(15, 23, 42, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+.sf-auth-card h1 {
+  letter-spacing: -0.035em;
+}
+.sf-auth-card form {
+  gap: 16px !important;
+}
+.sf-auth-card label {
+  line-height: 1.45;
+}
+.sf-auth-card input:not([type="checkbox"]) {
+  font-size: 15px;
+}
+.sf-auth-card button[type="submit"],
+.sf-auth-card form > a {
+  min-height: 46px;
+}
+.sf-auth-header a {
+  border-radius: 12px;
+}
+
+@media (max-width: 1280px) {
+  .sf-grid-kpi {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .sf-grid-1-1,
+  .sf-grid-2-1 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sf-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sf-sidebar {
+    position: sticky;
+    top: 0;
+    border-right: 0 !important;
+    border-bottom: 1px solid #e4eaf3 !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    box-shadow: 0 8px 24px -22px rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .sf-sidebar > div:first-child {
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    padding: 10px 16px !important;
+  }
+  .sf-sidebar > .sf-side-badge {
+    width: 30px !important;
+    height: 30px !important;
+    margin: 0 0 0 auto !important;
+  }
+  .sf-sidebar > .sf-side-badge-label {
+    max-width: 160px !important;
+    margin: 0 12px 0 8px !important;
+    font-size: 11px !important;
+  }
+  .sf-side-rail .sf-side-nav {
+    padding: 6px 12px 9px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .sf-side-rail .sf-side-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .sf-side-rail .sf-rail-item {
+    min-height: 54px;
+    scroll-snap-align: start;
+  }
+  .sf-side-rail .sf-rail-active {
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+  }
+  .sf-side-logout {
+    align-self: flex-end;
+  }
+  .sf-main {
+    max-width: none !important;
+  }
+}
+@media (max-width: 640px) {
+  .sf-main {
+    padding: 18px 16px calc(28px + env(safe-area-inset-bottom));
+  }
+  .sf-grid-kpi,
+  .sf-grid-1-1,
+  .sf-grid-2-1,
+  .sf-grid-3 {
+    gap: 12px;
+  }
+  .sf-grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sf-auth-header {
+    padding: 12px 20px !important;
+  }
+  .sf-auth-main {
+    align-items: flex-start !important;
+    padding: 24px 16px calc(32px + env(safe-area-inset-bottom)) !important;
+  }
+  .sf-auth-card {
+    padding: 24px !important;
+    border-radius: 18px;
+  }
+  .sf-auth-card h1 {
+    font-size: clamp(24px, 7vw, 29px) !important;
+  }
+  .sf-auth-card form {
+    gap: 15px !important;
+  }
+  .sf-input,
+  .sf-select,
+  .sf-btn {
+    min-height: 46px;
+  }
+  .sf-table-scroll {
+    border-radius: 12px;
+  }
+  .sf-split {
+    gap: 12px;
+  }
+}
+@media (max-width: 380px) {
+  .sf-grid-kpi {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sf-auth-main {
+    padding-right: 12px !important;
+    padding-left: 12px !important;
+  }
+  .sf-auth-card {
+    padding: 20px !important;
+  }
+  .sf-main {
+    padding-right: 12px;
+    padding-left: 12px;
   }
 }

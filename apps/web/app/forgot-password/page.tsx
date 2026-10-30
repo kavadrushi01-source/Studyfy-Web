@@ -44,15 +44,15 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div style={{ fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh", background: "transparent", display: "flex", flexDirection: "column" }}>
-      <header style={{ padding: "16px 32px", maxWidth: 1120, margin: "0 auto", width: "100%" }}>
+    <div className="sf-auth-page" style={{ fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <header className="sf-auth-header" style={{ padding: "16px 32px", maxWidth: 1120, margin: "0 auto", width: "100%" }}>
         <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 9, textDecoration: "none" }}>
           <LogoMark />
           <span style={{ fontWeight: 700, fontSize: 18, color: colors.ink, letterSpacing: "-0.02em" }}>Studyfy</span>
         </Link>
       </header>
-      <main style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 24px 64px" }}>
-        <div className="sf-card" style={{ padding: 32, width: 440, maxWidth: "100%" }}>
+      <main className="sf-auth-main" style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 24px 64px" }}>
+        <div className="sf-card sf-auth-card" style={{ padding: 32, width: 440, maxWidth: "100%" }}>
           <h1 style={{ ...h1Style, margin: "0 0 4px" }}>Forgot password?</h1>
           <p style={{ ...mutedStyle, margin: "0 0 20px" }}>
             Enter your account email — if it exists, a single-use reset link is on its way.
