@@ -2,7 +2,14 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 12 COMPLETE — commit `02b4bd6` pushed: every demo student now has a PAYABLE Term 2 invoice (all parents can test payments); local DB reseeded; prod picks it up on next API deploy + demo-reset
+## STATUS: SESSION 13 COMPLETE — commit `db54c16` pushed: full-site functional audit done; 100/106 passed in one run, the 6 auth-flow stragglers fixed and verified solo (owner+admin 12/12); passwords synced (owner `ownership@123456`, demo `Demo@1234`)
+
+### Session 13 — whole-site functional audit (founder ask: "test everything")
+
+Founder changed auth themselves (login redirect straight to board, logout lands on landing, new owner password). Ran the FULL suite: **100 passed + 6 failed**; all 6 traced to the founder's auth-flow changes (commits `037c163`/`e97e4e5`), not app bugs:
+1. **owner.spec ×5**: specs clicked "Open my board" after owner login — the founder's redirect now lands the owner straight on /dashboard/owner, so the card never renders. Fixed: click is conditional (`if (await boardLink.count())`).
+2. **admin.spec ×1**: expected "Welcome back" heading immediately after logout — logout now lands on "/" (landing). Fixed: navigate to /login and assert the fresh form.
+3. **Owner password**: local DB owner hash reset to `ownership@123456` via `npx tsx ../../prisma/seed.ts --reset-demo-passwords` with `$env:DEMO_PASSWORD='Demo@1234'` + `$env:OWNER_PASSWORD='ownership@123456'`; `e2e/helpers.ts` OWNER_PASSWORD synced. Verified: owner+admin specs **12/12**. Everything else (API, DB, all dashboards, buttons, flows) passed in the 12-minute full run.
 
 ### Session 12 — parent payment testing inventory (founder ask)
 
