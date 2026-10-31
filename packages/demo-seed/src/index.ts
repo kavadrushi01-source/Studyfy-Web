@@ -637,6 +637,49 @@ async function seedFees(
       }
     }
   }
+  // Term 2: EVERY student carries a PENDING invoice, so every parent has a
+  // real amount to pay when exercising the payment flow (idempotent — the
+  // nightly demo reset re-runs this safely).
+  for (const entry of classIds) {
+    const [className, classId] = entry;
+    const amount = feeByClass[className];
+    if (amount === undefined) {
+      continue;
+    }
+    await db.feeStructure.upsert({
+      where: { classId_name: { classId, name: "Term 2 Tuition" } },
+      update: { amount, term: "Term 2", category: "TUITION" },
+      create: { schoolId, classId, academicYearId, name: "Term 2 Tuition", amount, term: "Term 2", category: "TUITION" },
+    });
+  }
+  for (const student of students) {
+    const classId = classIds.get(student.className);
+    if (!classId) {
+      continue;
+    }
+    const term2 = await db.feeStructure.findUnique({
+      where: { classId_name: { classId, name: "Term 2 Tuition" } },
+    });
+    if (!term2) {
+      continue;
+    }
+    const hasTerm2 = await db.feeInvoice.findFirst({
+      where: { schoolId, studentId: student.studentId, structureId: term2.id },
+    });
+    if (!hasTerm2) {
+      await db.feeInvoice.create({
+        data: {
+          schoolId,
+          studentId: student.studentId,
+          structureId: term2.id,
+          amount: term2.amount,
+          amountPaid: 0,
+          status: "PENDING",
+          dueDate: new Date(Date.now() + 20 * day),
+        },
+      });
+    }
+  }
 }
 
 async function seedExam(
