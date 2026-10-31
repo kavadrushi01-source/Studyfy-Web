@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { ZipArchive } from "archiver";
+import { Readable } from "node:stream";
 import { Router, type Request, type Response } from "express";
+import { ZipFile } from "yazl";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
@@ -15,9 +16,15 @@ function zipFilename(slug: string): string {
   return `studyfy-export-${slug}-${day}.zip`;
 }
 
+function appendZipFile(archive: ZipFile, name: string, content: string): void {
+  archive.addReadStreamLazy(name, { compressionLevel: 9 }, (callback) => {
+    callback(null, Readable.from([Buffer.from(content)]));
+  });
+}
+
 // POST /schools/:schoolId/exports — a School Admin exports their OWN
 // school (§13.10): rate-limited (1/hour/school), always audited, streamed
-// as a zip (archiver pipes chunks — the archive is never buffered whole,
+// as a zip (the stream pipes chunks — the archive is never buffered whole,
 // per the 512MB-instance warning). The audit row lands BEFORE streaming
 // starts, so even a dropped connection leaves an attempt on the books.
 exportsRouter.post(
@@ -69,15 +76,17 @@ export function streamZip(
   res.status(200);
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  const archive = new ZipArchive({ zlib: { level: 9 } });
-  archive.on("error", (err: unknown) => {
+  const archive = new ZipFile();
+  const handleStreamError = (err: Error) => {
     console.error("Export zip streaming failed:", err);
-    res.destroy(err instanceof Error ? err : undefined);
-  });
-  archive.pipe(res);
+    res.destroy(err);
+  };
+  archive.on("error", handleStreamError);
+  archive.outputStream.on("error", handleStreamError);
+  archive.outputStream.pipe(res);
   for (const [name, content] of Object.entries(files)) {
-    archive.append(content, { name });
+    appendZipFile(archive, name, content);
   }
-  archive.append(JSON.stringify(manifest, null, 2), { name: "manifest.json" });
-  void archive.finalize();
+  appendZipFile(archive, "manifest.json", JSON.stringify(manifest, null, 2));
+  archive.end();
 }

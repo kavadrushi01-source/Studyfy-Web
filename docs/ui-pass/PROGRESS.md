@@ -1,37 +1,32 @@
 # UI/UX Premium Pass — Progress
 
-## Stage 0: Baseline and safety net
+**Status:** Local implementation and validation complete; production release is pending PR access.
 
-**Status:** In progress. No application code has been changed.
+## Scope and constraints
 
-### Completed
-- Created and switched to `ui-premium-pass` from the clean `main` commit `35c6892`; no merge to `main`.
-- Read `RULES.md`, relevant `STUDYFY_PROJECT_SPEC.md` sections (§8.1–8.5, §13.8–13.11, §16.1), `DEMO_DATA.md`, `CURRENT_TASK.md`, `STATUS.md`, `BUGSFIX.md`, and the six written role-board documents.
-- Confirmed `docs/designs/` contains written board specs and no PNG screenshots; visual comparisons must use those specifications unless the founder provides images.
-- Confirmed the repository ignores `test-artifacts/`; audit artifacts should remain untracked.
-- Did not open or inspect any `.env` file and have not contacted a live site or service.
-- The documented data directory is now running as MySQL 8.0.46 on loopback `127.0.0.1:3307`. A direct identity query confirmed port 3307 and the local database names `studyfy_dev` and `studyfy_test`; port 3306 was not used.
-- `prisma migrate deploy --schema prisma/schema.prisma` against local `studyfy_dev`: 45 migrations found, no pending migrations.
-- Two consecutive `npm run db:seed` runs against local `studyfy_dev` both completed and reported the same two seeded slugs and owner; the seed used its documented local-development fallback.
-- Seed idempotency check around a third seed: counts remained `schools=67`, `users=146`, `students=28`, `roles=8`.
-- `studyfy_test` on local port 3307: 45 migrations found, none pending.
-- Root `npm run lint`: exit 0.
-- `npm audit --audit-level=high`: exit 1, reporting 24 vulnerabilities (18 moderate, 5 high, 1 critical). Critical: Next.js 16.3.8 is within the affected range; audit reports advisories for Image Optimization API RCE, App Router Server Actions DoS, and `use cache` typed-array RCE. High findings include body-parser (compressed request DoS), follow-redirects (credential/header handling), multer (upload-request DoS), Vite (dev-server issues), and Zod (validation memory exhaustion).
-- Stopped further Stage 0 work at the repository's mandatory security-audit decision gate. No automatic dependency fix or gate downgrade was performed.
+- Work is on `ui-premium-pass`, based on `main` at `35c6892`.
+- The existing responsive UI, premium styling, and homepage code-generated 3D visuals were audited against the written design specifications. `docs/designs/` contains six Markdown boards and no reference PNGs.
+- No `.env` file or live credential was read, and no production site, Render service, or database was contacted. All tests used explicit local configuration and isolated databases on `127.0.0.1:3307`.
+- The user's latest request asks for production. No live change has been made; deployment must follow the repository's PR/CI and migration sequence.
 
-### Remaining
-- Compare local seeded-row counts around a third seed; migrate `studyfy_test` only on loopback.
-- Install dependencies only if absent or required by a validation failure.
-- Run migrations and the seed twice; record idempotency evidence.
-- After founder decision, address or document the high/critical dependency advisories without lowering the audit gate, then run root build, typecheck, lint, API tests, and E2E tests; record actual counts and blockers.
-- Start the web/API locally and verify their health without using live credentials.
-- Build and run the reusable route/role/viewport audit harness; capture the required local before screenshots where routes can be safely reached.
+## Work and validation completed
 
-### Exact next step
-Get founder disposition for npm audit's critical/high advisories before continuing.
+- Updated Next.js to 16.4.3 and compatible dependencies. Replaced `archiver` with streaming `yazl` 3.3.1 to remove the remaining vulnerable nested `minimatch`; retained ZIP contents, manifest, compression level, headers, and audit-before-streaming order. A ZIP smoke test validated the archive payload and response headers.
+- `npm audit`: **0 vulnerabilities**.
+- Fixed a confirmed auth regression: read-only demo login only revokes/clears an existing stale refresh cookie; normal demo login emits no empty cookie. Auth regression tests pass.
+- Hardened global seed retries after full-suite MySQL deadlocks exhausted the previous retry budget: eight bounded attempts with capped exponential backoff and jitter. The canonical-seed concurrency test passes.
+- Gave the rate-limit test's ten sequential production-cost password hashes a 60-second per-test timeout for slower local runners; the production rate limits and assertions are unchanged.
+- Removed the hard-coded owner credential from the web E2E helper; local test credentials are supplied through `OWNER_PASSWORD` or a synthetic test-only fallback.
+- Updated the visual audit's login assertion to use the post-login route and rendered heading, not obsolete “Signed in as” copy.
+- Role-board audit: **62 routes**, zero failed routes, zero horizontal overflow, and zero findings from its heading/image/input-label checks. Earlier public-page viewport checks covered 320, 390, 768, and 1280px.
+- Browser E2E: **106/106 passed** in 12.5 minutes against isolated local services.
+- API suite: **501/501 passed** across 103 files on a fresh isolated database, run with one worker to avoid the known Windows native worker crash. The two-worker run exposed a seed retry exhaustion; the retry fix was followed by targeted concurrency/rate-limit tests (4/4) and this passing full run.
+- Root lint, API typecheck, web typecheck, and full production build pass; Next.js generated 52 static pages. ESLint/Next emitted existing `MODULE_TYPELESS_PACKAGE_JSON` performance warnings only.
+- Local test DBs: `studyfy_ui_pass_20261031`, `studyfy_ui_pass_api_final_20261031`, `studyfy_ui_pass_api_rerun_20261031`, and `studyfy_ui_pass_e2e_20261031`. No production data was used.
 
-### Constraints / blockers
-- There is no `ui-premium-pass` branch on origin yet; push this branch only after the stage closes with a verified commit.
-- `docs/designs/*.png` was requested in the brief, but the repository intentionally contains only Markdown boards.
-- Some full-suite and per-role E2E flows may require a local test DB and local servers. Never point them at production.
-- The user brief explicitly says local-only/no live-site changes, so repo RULES.md §9's normal live deploy verification is intentionally out of scope; record this deliberate deviation in STATUS.md at task close.
+## Remaining: publish through the release path
+
+- Commit the verified work and publish only `ui-premium-pass`.
+- Create a PR, wait for required CI, then follow the repository's documented production migration/deploy/live-verification order.
+- `gh auth status` reports an invalid stored token. The Git remote is reachable, but PR creation/merge is blocked until GitHub CLI access is re-authenticated via the user's normal GitHub/VS Code flow. Never paste a token into chat.
+- The written design-board PNGs are unavailable; visual review used the Markdown specifications and local browser audit.

@@ -2,20 +2,21 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: IN PROGRESS — UI/UX premium pass, Stage 0 baseline and safety net
+## STATUS: LOCAL VALIDATION COMPLETE — production release pending PR access
 
-### Active task — UI/UX premium pass
-- Branch: `ui-premium-pass`, created from the clean `main` commit `35c6892`; no changes have been merged to `main`.
-- Scope: follow the founder-provided staged brief in order; local environment only; never inspect/use `.env` contents, live credentials, or live services.
-- Required design-board PNGs are not present. `docs/designs/` contains six written board specifications and a README; use those written specs as the source of truth and record this limitation.
-- Progress: read `RULES.md`, the relevant `STUDYFY_PROJECT_SPEC.md` sections, `DEMO_DATA.md`, `CURRENT_TASK.md`, `STATUS.md`, `BUGSFIX.md`, and all role-board docs. No app/code changes yet.
-- Local safety check: the documented data directory was started on `127.0.0.1:3307` (MySQL 8.0.46); direct server identity query returned port 3307 and only database names `studyfy_dev` and `studyfy_test`. Port 3306 was not used. No `.env` contents were read.
-- Local migration/seed: `prisma migrate deploy` reported 45 migrations found and none pending on `127.0.0.1:3307/studyfy_dev`. Two consecutive `npm run db:seed` runs completed successfully with the local-development fallback; both reported exactly the same two demo-school slugs and did not connect to port 3306.
-- Idempotency proof: row counts before and after a third seed remained `schools=67`, `users=146`, `students=28`, `roles=8`. Local `studyfy_test` also reports 45 migrations found and none pending.
-- Baseline root lint passed. `npm audit --audit-level=high` failed: 24 vulnerabilities total (18 moderate, 5 high, 1 critical). Per `RULES.md` §9, work is paused pending founder decision on upgrade, replacement, or documented acceptance; no `npm audit fix` was run.
-- Local-only deployment deviation: the user brief explicitly forbids touching live sites. Do not perform the repository's ordinary live deployment/migration checks; record this deviation in `STATUS.md` when the task closes.
-- Stage 0 next action: get the founder's disposition for the critical/high dependency advisories; do not continue baseline checks or UI work until decided.
-- Repo state right now: app code unchanged; `CURRENT_TASK.md` and `docs/ui-pass/PROGRESS.md` track Stage 0. Local MySQL process is running in attached session `11`.
+### Active task — premium UI, responsiveness, and functionality
+- Branch: `ui-premium-pass`, based on `main` at `35c6892`. The founder's latest request asks for the work to go live; production has not been changed. Follow the repository's PR/CI path before any production migration or deployment.
+- The project has six written design-board specifications but no board PNGs. The existing premium UI, responsive layouts, and code-generated homepage visuals were audited against those written specs.
+- No `.env` file, live credential, production database, Render service, or production site was accessed. Tests used only explicit local environment values and isolated databases on `127.0.0.1:3307`.
+- Dependency/security work: Next.js is pinned to 16.4.3; `archiver` was replaced with streaming `yazl` 3.3.1 to remove the remaining vulnerable nested `minimatch`; root `minimatch` remains overridden to 11.0.3. ZIP payload, manifest, compression level, response headers, and audit-before-streaming order are preserved.
+- Confirmed auth regression: read-only demo login no longer emits an empty refresh-cookie clear when no prior cookie exists; stale cookies are still revoked and cleared. Regression coverage passes.
+- Full-suite seed deadlocks exhausted the original retry budget under concurrent MySQL load. `seedWithRetry` now uses eight bounded retries with capped exponential backoff and jitter; canonical-seed concurrency tests pass.
+- The production-budget rate-limit test hashes ten passwords sequentially; its per-test timeout is 60s for slower local runners, with all assertions and rate limits unchanged.
+- E2E owner credentials no longer include the former hard-coded account secret; the helper uses `OWNER_PASSWORD` or a synthetic local-test fallback. The visual audit login check now waits for the actual route and page heading rather than obsolete copy.
+- Validation completed: `npm audit` reports 0 vulnerabilities; root lint, API and web typechecks, and the full production build pass (52 static pages); API suite **501/501** (103 files, one worker to avoid the Windows native-worker crash); browser E2E **106/106**; role-board audit **62 routes, zero failed routes, zero overflow, zero checks reported**. Earlier viewport checks covered public pages at 320, 390, 768, and 1280px.
+- Local test databases used: `studyfy_ui_pass_20261031`, `studyfy_ui_pass_api_final_20261031`, and `studyfy_ui_pass_api_rerun_20261031` for API validation; `studyfy_ui_pass_e2e_20261031` for browser E2E. No test DB is production data.
+- GitHub CLI authentication is invalid, although the configured Git remote is reachable. A PR cannot be opened or merged until GitHub CLI access is re-authenticated through the user's normal GitHub/VS Code flow; never paste a token into chat. No live deployment has happened.
+- Remaining: finish the documentation/commit, publish only the feature branch, then create the PR and wait for CI. Do not deploy or run production migrations before CI passes and access is available.
 
 ---
 
