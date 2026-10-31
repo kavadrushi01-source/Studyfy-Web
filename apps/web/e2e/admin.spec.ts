@@ -162,6 +162,9 @@ test.describe("SOS admin full circuit", () => {
     await page.goto("/profile");
     await expect(page.getByText("Kavita Rao")).toBeVisible({ timeout: 15000 });
     await logout(page);
+    // Logout lands on the landing page now; confirm the session is really
+    // gone by loading the login page fresh (form, not the signed-in card).
+    await page.goto("/login");
     await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
   });
 

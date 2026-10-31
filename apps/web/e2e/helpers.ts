@@ -3,7 +3,7 @@ import { expect, type Page } from "@playwright/test";
 export const SOS_SLUG = "school-of-science";
 export const RK_SLUG = "ramakrishna-school";
 export const PASSWORD = "Demo@1234";
-export const OWNER_PASSWORD = "Local-Test-Owner-Password-123!";
+export const OWNER_PASSWORD = "ownership@123456";
 
 export const ACCOUNTS = {
   sosAdmin: "kavita.rao@schoolofscience.demo",

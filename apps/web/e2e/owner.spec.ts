@@ -10,7 +10,12 @@ const API = process.env.E2E_API_URL ?? "http://localhost:4001";
 test.describe("super admin panel", () => {
   test("nav exposes the pages; platform analytics stays Soon", async ({ page }) => {
     await login(page, ACCOUNTS.owner, null);
-    await page.getByRole("link", { name: /open my board/i }).click();
+    // The founder's auth update lands the owner straight on the board;
+    // only accounts without a board path see the "Open my board" card.
+    const boardLink = page.getByRole("link", { name: /open my board/i });
+    if (await boardLink.count()) {
+      await boardLink.click();
+    }
     for (const label of ["Schools", "Subscriptions & Billing", "Users Management", "Audit Logs", "Settings"]) {
       await expect(page.getByRole("link", { name: label })).toBeVisible();
     }
@@ -30,7 +35,12 @@ test.describe("super admin panel", () => {
 
   test("settings shows config status with no secrets", async ({ page }) => {
     await login(page, ACCOUNTS.owner, null);
-    await page.getByRole("link", { name: /open my board/i }).click();
+    // The founder's auth update lands the owner straight on the board;
+    // only accounts without a board path see the "Open my board" card.
+    const boardLink = page.getByRole("link", { name: /open my board/i });
+    if (await boardLink.count()) {
+      await boardLink.click();
+    }
     await page.getByRole("link", { name: "Settings" }).click();
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible({ timeout: 20000 });
     await expect(page.getByText("Plan matrix").first()).toBeVisible();
@@ -73,7 +83,12 @@ test.describe("super admin panel", () => {
     const ownerToken = ((await ownerLogin.json()) as { data: { accessToken: string } }).data.accessToken;
 
     await login(page, ACCOUNTS.owner, null);
-    await page.getByRole("link", { name: /open my board/i }).click();
+    // The founder's auth update lands the owner straight on the board;
+    // only accounts without a board path see the "Open my board" card.
+    const boardLink = page.getByRole("link", { name: /open my board/i });
+    if (await boardLink.count()) {
+      await boardLink.click();
+    }
     await page.getByRole("link", { name: "Schools" }).click();
     await page.getByLabel(/search schools/i).fill(`Owner Panel School ${stamp}`);
     await expect(page.getByText(`Owner Panel School ${stamp}`).first()).toBeVisible({ timeout: 20000 });
@@ -128,7 +143,12 @@ test.describe("super admin panel", () => {
     const schoolName = `Owner Billing School ${stamp}`;
 
     await login(page, ACCOUNTS.owner, null);
-    await page.getByRole("link", { name: /open my board/i }).click();
+    // The founder's auth update lands the owner straight on the board;
+    // only accounts without a board path see the "Open my board" card.
+    const boardLink = page.getByRole("link", { name: /open my board/i });
+    if (await boardLink.count()) {
+      await boardLink.click();
+    }
     await page.getByRole("link", { name: "Subscriptions & Billing" }).click();
     await page.getByLabel(/^school$/i).selectOption({ label: schoolName });
     await page.getByLabel(/^plan$/i).selectOption("BASIC");
@@ -182,7 +202,12 @@ test.describe("super admin panel", () => {
     expect(invite.ok()).toBe(true);
 
     await login(page, ACCOUNTS.owner, null);
-    await page.getByRole("link", { name: /open my board/i }).click();
+    // The founder's auth update lands the owner straight on the board;
+    // only accounts without a board path see the "Open my board" card.
+    const boardLink = page.getByRole("link", { name: /open my board/i });
+    if (await boardLink.count()) {
+      await boardLink.click();
+    }
     await page.getByRole("link", { name: "Users Management" }).click();
     await page.getByLabel(/school filter/i).fill(regBody.data.school.id);
     await page.getByRole("button", { name: /^apply$/i }).click();
