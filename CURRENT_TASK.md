@@ -2,18 +2,35 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 13 COMPLETE — commit `db54c16` pushed: full-site functional audit done; 100/106 passed in one run, the 6 auth-flow stragglers fixed and verified solo (owner+admin 12/12); passwords synced (owner `ownership@123456`, demo `Demo@1234`)
+## STATUS: IN PROGRESS — UI/UX premium pass, Stage 0 baseline and safety net
+
+### Active task — UI/UX premium pass
+- Branch: `ui-premium-pass`, created from the clean `main` commit `35c6892`; no changes have been merged to `main`.
+- Scope: follow the founder-provided staged brief in order; local environment only; never inspect/use `.env` contents, live credentials, or live services.
+- Required design-board PNGs are not present. `docs/designs/` contains six written board specifications and a README; use those written specs as the source of truth and record this limitation.
+- Progress: read `RULES.md`, the relevant `STUDYFY_PROJECT_SPEC.md` sections, `DEMO_DATA.md`, `CURRENT_TASK.md`, `STATUS.md`, `BUGSFIX.md`, and all role-board docs. No app/code changes yet.
+- Local safety check: the documented data directory was started on `127.0.0.1:3307` (MySQL 8.0.46); direct server identity query returned port 3307 and only database names `studyfy_dev` and `studyfy_test`. Port 3306 was not used. No `.env` contents were read.
+- Local migration/seed: `prisma migrate deploy` reported 45 migrations found and none pending on `127.0.0.1:3307/studyfy_dev`. Two consecutive `npm run db:seed` runs completed successfully with the local-development fallback; both reported exactly the same two demo-school slugs and did not connect to port 3306.
+- Idempotency proof: row counts before and after a third seed remained `schools=67`, `users=146`, `students=28`, `roles=8`. Local `studyfy_test` also reports 45 migrations found and none pending.
+- Baseline root lint passed. `npm audit --audit-level=high` failed: 24 vulnerabilities total (18 moderate, 5 high, 1 critical). Per `RULES.md` §9, work is paused pending founder decision on upgrade, replacement, or documented acceptance; no `npm audit fix` was run.
+- Local-only deployment deviation: the user brief explicitly forbids touching live sites. Do not perform the repository's ordinary live deployment/migration checks; record this deviation in `STATUS.md` when the task closes.
+- Stage 0 next action: get the founder's disposition for the critical/high dependency advisories; do not continue baseline checks or UI work until decided.
+- Repo state right now: app code unchanged; `CURRENT_TASK.md` and `docs/ui-pass/PROGRESS.md` track Stage 0. Local MySQL process is running in attached session `11`.
+
+---
+
+## Previous session handoff — Session 13
 
 ### Session 13 — whole-site functional audit (founder ask: "test everything")
 
-Founder changed auth themselves (login redirect straight to board, logout lands on landing, new owner password). Ran the FULL suite: **100 passed + 6 failed**; all 6 traced to the founder's auth-flow changes (commits `037c163`/`e97e4e5`), not app bugs:
+Founder changed auth themselves (login redirect straight to board, logout lands on landing, private owner credential rotation). Ran the FULL suite: **100 passed + 6 failed**; all 6 traced to the founder's auth-flow changes (commits `037c163`/`e97e4e5`), not app bugs:
 1. **owner.spec ×5**: specs clicked "Open my board" after owner login — the founder's redirect now lands the owner straight on /dashboard/owner, so the card never renders. Fixed: click is conditional (`if (await boardLink.count())`).
 2. **admin.spec ×1**: expected "Welcome back" heading immediately after logout — logout now lands on "/" (landing). Fixed: navigate to /login and assert the fresh form.
-3. **Owner password**: local DB owner hash reset to `ownership@123456` via `npx tsx ../../prisma/seed.ts --reset-demo-passwords` with `$env:DEMO_PASSWORD='Demo@1234'` + `$env:OWNER_PASSWORD='ownership@123456'`; `e2e/helpers.ts` OWNER_PASSWORD synced. Verified: owner+admin specs **12/12**. Everything else (API, DB, all dashboards, buttons, flows) passed in the 12-minute full run.
+3. **Owner credential**: local DB owner hash reset through the documented local reset command with a private environment value; no owner password is recorded here. Verified: owner+admin specs **12/12**. Everything else (API, DB, all dashboards, buttons, flows) passed in the 12-minute full run.
 
 ### Session 12 — parent payment testing inventory (founder ask)
 
-Founder wanted amounts to PAY as every parent, to exercise the payment flow. The seed gave only 1-in-8 students a payable invoice. `packages/demo-seed/src/index.ts` now also upserts a **"Term 2 Tuition"** fee structure per class and creates a **PENDING Term 2 invoice for EVERY student** (idempotent — safe under the nightly demo-reset). Local verified: **21 PENDING (₹2,611) + 2 OVERDUE + 12 PAID across 34 students**, 4 Term-2 structures. Ops lessons: (1) reseeding wipes the private owner password — restore with `npx tsx ../../prisma/seed.ts --reset-demo-passwords` requiring BOTH `$env:DEMO_PASSWORD='Demo@1234'` AND `$env:OWNER_PASSWORD='Local-Test-Owner-Password-123!'` (the e2e helper's owner password); (2) demo schools reseed nightly via cron (`POST /internal/jobs/demo-reset` with `X-Cron-Secret` — founder can call it manually on Render after the API redeploys to get the new invoices immediately). boards+accountant e2e 8/8 green after reseed.
+Founder wanted amounts to PAY as every parent, to exercise the payment flow. The seed gave only 1-in-8 students a payable invoice. `packages/demo-seed/src/index.ts` now also upserts a **"Term 2 Tuition"** fee structure per class and creates a **PENDING Term 2 invoice for EVERY student** (idempotent — safe under the nightly demo-reset). Local verified: **21 PENDING (₹2,611) + 2 OVERDUE + 12 PAID across 34 students**, 4 Term-2 structures. Ops lessons: (1) reseeding wipes the private owner password — restore it only from a private local environment value; (2) demo schools reseed nightly via cron (`POST /internal/jobs/demo-reset` with `X-Cron-Secret` — founder can call it manually on Render after the API redeploys to get the new invoices immediately). boards+accountant e2e 8/8 green after reseed.
 
 ### Session 11 final addendum — rail, logo placement, owner-chart fixes (founder screenshots)
 
