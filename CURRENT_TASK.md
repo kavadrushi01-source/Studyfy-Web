@@ -2,7 +2,11 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 11 COMPLETE — latest `899025a` pushed: rail/logo/chart polish; prod verified 2/2; nothing left but org chores
+## STATUS: SESSION 12 COMPLETE — commit `02b4bd6` pushed: every demo student now has a PAYABLE Term 2 invoice (all parents can test payments); local DB reseeded; prod picks it up on next API deploy + demo-reset
+
+### Session 12 — parent payment testing inventory (founder ask)
+
+Founder wanted amounts to PAY as every parent, to exercise the payment flow. The seed gave only 1-in-8 students a payable invoice. `packages/demo-seed/src/index.ts` now also upserts a **"Term 2 Tuition"** fee structure per class and creates a **PENDING Term 2 invoice for EVERY student** (idempotent — safe under the nightly demo-reset). Local verified: **21 PENDING (₹2,611) + 2 OVERDUE + 12 PAID across 34 students**, 4 Term-2 structures. Ops lessons: (1) reseeding wipes the private owner password — restore with `npx tsx ../../prisma/seed.ts --reset-demo-passwords` requiring BOTH `$env:DEMO_PASSWORD='Demo@1234'` AND `$env:OWNER_PASSWORD='Local-Test-Owner-Password-123!'` (the e2e helper's owner password); (2) demo schools reseed nightly via cron (`POST /internal/jobs/demo-reset` with `X-Cron-Secret` — founder can call it manually on Render after the API redeploys to get the new invoices immediately). boards+accountant e2e 8/8 green after reseed.
 
 ### Session 11 final addendum — rail, logo placement, owner-chart fixes (founder screenshots)
 
