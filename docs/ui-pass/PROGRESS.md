@@ -26,7 +26,7 @@
 
 ## Remaining: publish through the release path
 
-- Commit the verified work and publish only `ui-premium-pass`.
+- The verified work is committed and pushed to `ui-premium-pass`.
 - Create a PR, wait for required CI, then follow the repository's documented production migration/deploy/live-verification order.
 - `gh auth status` reports an invalid stored token. The Git remote is reachable, but PR creation/merge is blocked until GitHub CLI access is re-authenticated via the user's normal GitHub/VS Code flow. Never paste a token into chat.
 - The written design-board PNGs are unavailable; visual review used the Markdown specifications and local browser audit.
