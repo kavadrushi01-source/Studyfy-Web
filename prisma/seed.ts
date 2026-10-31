@@ -29,7 +29,7 @@ import bcrypt from "bcryptjs";
 //   two codes; anything else throws immediately, never masked.
 async function seedWithRetry<T>(fn: () => Promise<T>): Promise<T> {
   let lastError: unknown = null;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
     try {
       return await fn();
     } catch (err) {
@@ -38,7 +38,9 @@ async function seedWithRetry<T>(fn: () => Promise<T>): Promise<T> {
         (err.code === "P2002" || err.code === "P2034")
       ) {
         lastError = err;
-        await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+        const backoffMs = Math.min(800, 50 * 2 ** attempt);
+        const jitterMs = Math.floor(Math.random() * 50);
+        await new Promise((resolve) => setTimeout(resolve, backoffMs + jitterMs));
         continue;
       }
       throw err;

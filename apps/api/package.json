@@ -12,14 +12,14 @@
     "pretest": "npm run build --workspace=@studyfy/shared-types && npm run build --workspace=@studyfy/demo-seed",
     "test": "vitest run",
     "lint": "eslint src --max-warnings=0",
+    "predb:seed": "npm run build --workspace=@studyfy/shared-types && npm run build --workspace=@studyfy/demo-seed",
     "db:seed": "tsx ../../prisma/seed.ts",
     "db:reset-demo-passwords": "tsx ../../prisma/seed.ts --reset-demo-passwords"
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",
-    "@studyfy/shared-types": "0.1.0",
     "@studyfy/demo-seed": "0.1.0",
-    "archiver": "8.0.0",
+    "@studyfy/shared-types": "0.1.0",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
@@ -34,10 +34,10 @@
     "pdfkit": "^0.20.2",
     "razorpay": "^2.9.8",
     "socket.io": "^4.8.3",
+    "yazl": "^3.3.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/archiver": "8.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
@@ -48,6 +48,7 @@
     "@types/nodemailer": "^8.0.2",
     "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^6.0.2",
+    "@types/yazl": "^3.3.1",
     "jszip": "3.10.2",
     "socket.io-client": "^4.8.3",
     "supertest": "^7.0.0",

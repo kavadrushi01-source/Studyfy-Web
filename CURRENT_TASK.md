@@ -2,18 +2,36 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: SESSION 13 COMPLETE — commit `db54c16` pushed: full-site functional audit done; 100/106 passed in one run, the 6 auth-flow stragglers fixed and verified solo (owner+admin 12/12); passwords synced (owner `ownership@123456`, demo `Demo@1234`)
+## STATUS: LOCAL VALIDATION COMPLETE — production release pending PR access
+
+### Active task — premium UI, responsiveness, and functionality
+- Branch: `ui-premium-pass`, based on `main` at `35c6892`. The founder's latest request asks for the work to go live; production has not been changed. Follow the repository's PR/CI path before any production migration or deployment.
+- The project has six written design-board specifications but no board PNGs. The existing premium UI, responsive layouts, and code-generated homepage visuals were audited against those written specs.
+- No `.env` file, live credential, production database, Render service, or production site was accessed. Tests used only explicit local environment values and isolated databases on `127.0.0.1:3307`.
+- Dependency/security work: Next.js is pinned to 16.4.3; `archiver` was replaced with streaming `yazl` 3.3.1 to remove the remaining vulnerable nested `minimatch`; root `minimatch` remains overridden to 11.0.3. ZIP payload, manifest, compression level, response headers, and audit-before-streaming order are preserved.
+- Confirmed auth regression: read-only demo login no longer emits an empty refresh-cookie clear when no prior cookie exists; stale cookies are still revoked and cleared. Regression coverage passes.
+- Full-suite seed deadlocks exhausted the original retry budget under concurrent MySQL load. `seedWithRetry` now uses eight bounded retries with capped exponential backoff and jitter; canonical-seed concurrency tests pass.
+- The production-budget rate-limit test hashes ten passwords sequentially; its per-test timeout is 60s for slower local runners, with all assertions and rate limits unchanged.
+- E2E owner credentials no longer include the former hard-coded account secret; the helper uses `OWNER_PASSWORD` or a synthetic local-test fallback. The visual audit login check now waits for the actual route and page heading rather than obsolete copy.
+- Validation completed: `npm audit` reports 0 vulnerabilities; root lint, API and web typechecks, and the full production build pass (52 static pages); API suite **501/501** (103 files, one worker to avoid the Windows native-worker crash); browser E2E **106/106**; role-board audit **62 routes, zero failed routes, zero overflow, zero checks reported**. Earlier viewport checks covered public pages at 320, 390, 768, and 1280px.
+- Local test databases used: `studyfy_ui_pass_20261031`, `studyfy_ui_pass_api_final_20261031`, and `studyfy_ui_pass_api_rerun_20261031` for API validation; `studyfy_ui_pass_e2e_20261031` for browser E2E. No test DB is production data.
+- PR #1 is open: https://github.com/kavadrushi01-source/Studyfy-Web/pull/1. GitHub login is valid and the Vercel preview check passed, but all GitHub Actions jobs were blocked before starting because GitHub reports failed recent account payments or a spending limit. This is a runner/billing access block, not a code test result.
+- Remaining: the repository/account owner must resolve the GitHub Actions billing or spending-limit issue in GitHub Settings → Billing & plans. Then rerun the PR checks and wait for CI to pass. Do not merge, run production migrations, or deploy before CI passes.
+
+---
+
+## Previous session handoff — Session 13
 
 ### Session 13 — whole-site functional audit (founder ask: "test everything")
 
-Founder changed auth themselves (login redirect straight to board, logout lands on landing, new owner password). Ran the FULL suite: **100 passed + 6 failed**; all 6 traced to the founder's auth-flow changes (commits `037c163`/`e97e4e5`), not app bugs:
+Founder changed auth themselves (login redirect straight to board, logout lands on landing, private owner credential rotation). Ran the FULL suite: **100 passed + 6 failed**; all 6 traced to the founder's auth-flow changes (commits `037c163`/`e97e4e5`), not app bugs:
 1. **owner.spec ×5**: specs clicked "Open my board" after owner login — the founder's redirect now lands the owner straight on /dashboard/owner, so the card never renders. Fixed: click is conditional (`if (await boardLink.count())`).
 2. **admin.spec ×1**: expected "Welcome back" heading immediately after logout — logout now lands on "/" (landing). Fixed: navigate to /login and assert the fresh form.
-3. **Owner password**: local DB owner hash reset to `ownership@123456` via `npx tsx ../../prisma/seed.ts --reset-demo-passwords` with `$env:DEMO_PASSWORD='Demo@1234'` + `$env:OWNER_PASSWORD='ownership@123456'`; `e2e/helpers.ts` OWNER_PASSWORD synced. Verified: owner+admin specs **12/12**. Everything else (API, DB, all dashboards, buttons, flows) passed in the 12-minute full run.
+3. **Owner credential**: local DB owner hash reset through the documented local reset command with a private environment value; no owner password is recorded here. Verified: owner+admin specs **12/12**. Everything else (API, DB, all dashboards, buttons, flows) passed in the 12-minute full run.
 
 ### Session 12 — parent payment testing inventory (founder ask)
 
-Founder wanted amounts to PAY as every parent, to exercise the payment flow. The seed gave only 1-in-8 students a payable invoice. `packages/demo-seed/src/index.ts` now also upserts a **"Term 2 Tuition"** fee structure per class and creates a **PENDING Term 2 invoice for EVERY student** (idempotent — safe under the nightly demo-reset). Local verified: **21 PENDING (₹2,611) + 2 OVERDUE + 12 PAID across 34 students**, 4 Term-2 structures. Ops lessons: (1) reseeding wipes the private owner password — restore with `npx tsx ../../prisma/seed.ts --reset-demo-passwords` requiring BOTH `$env:DEMO_PASSWORD='Demo@1234'` AND `$env:OWNER_PASSWORD='Local-Test-Owner-Password-123!'` (the e2e helper's owner password); (2) demo schools reseed nightly via cron (`POST /internal/jobs/demo-reset` with `X-Cron-Secret` — founder can call it manually on Render after the API redeploys to get the new invoices immediately). boards+accountant e2e 8/8 green after reseed.
+Founder wanted amounts to PAY as every parent, to exercise the payment flow. The seed gave only 1-in-8 students a payable invoice. `packages/demo-seed/src/index.ts` now also upserts a **"Term 2 Tuition"** fee structure per class and creates a **PENDING Term 2 invoice for EVERY student** (idempotent — safe under the nightly demo-reset). Local verified: **21 PENDING (₹2,611) + 2 OVERDUE + 12 PAID across 34 students**, 4 Term-2 structures. Ops lessons: (1) reseeding wipes the private owner password — restore it only from a private local environment value; (2) demo schools reseed nightly via cron (`POST /internal/jobs/demo-reset` with `X-Cron-Secret` — founder can call it manually on Render after the API redeploys to get the new invoices immediately). boards+accountant e2e 8/8 green after reseed.
 
 ### Session 11 final addendum — rail, logo placement, owner-chart fixes (founder screenshots)
 

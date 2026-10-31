@@ -44,6 +44,7 @@ function uid(): string {
 }
 
 describe("register/forgot shared bucket (§13.5)", () => {
+  // Ten sequential registrations each pay the production bcrypt cost.
   it("fills the 10/hour register budget, then refuses register AND forgot-password", async () => {
     for (let i = 0; i < 10; i += 1) {
       await request(app)
@@ -74,5 +75,5 @@ describe("register/forgot shared bucket (§13.5)", () => {
       .send({ email: `nobody-${uid()}@example.com` });
     expect(forgot.status).toBe(429);
     expect(forgot.body.error.code).toBe("RATE_LIMITED");
-  });
+  }, 60000);
 });

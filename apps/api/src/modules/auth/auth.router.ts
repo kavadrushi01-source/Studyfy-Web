@@ -143,8 +143,10 @@ authRouter.post(
         response.cookie(REFRESH_COOKIE, result.refreshToken, refreshCookieOptions());
       } else if (result.readOnlyDemo) {
         const previousToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
-        await logout(previousToken);
-        response.clearCookie(REFRESH_COOKIE, { path: "/api/v1/auth" });
+        if (previousToken) {
+          await logout(previousToken);
+          response.clearCookie(REFRESH_COOKIE, { path: "/api/v1/auth" });
+        }
       }
       response.json({
         success: true,

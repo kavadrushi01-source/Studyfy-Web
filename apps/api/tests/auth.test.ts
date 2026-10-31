@@ -125,7 +125,7 @@ describe("POST /api/v1/auth/login", () => {
   });
 
   it("makes production demo logins read-only and omits the refresh cookie", async () => {
-    const { body } = await registerSchool(`Read Only Demo ${uid()}`);
+    const { body, cookie } = await registerSchool(`Read Only Demo ${uid()}`);
     const schoolId = body.user.schoolId;
     if (!schoolId) {
       throw new Error("Registered demo fixture has no school id.");
@@ -149,6 +149,14 @@ describe("POST /api/v1/auth/login", () => {
         .send({});
       expect(write.status).toBe(403);
       expect(write.body.error.code).toBe("READ_ONLY_SESSION");
+
+      const staleSessionLogin = await request(app)
+        .post("/api/v1/auth/login")
+        .set("Cookie", cookie)
+        .send({ email: body.user.email, password: "password-123", schoolSlug: body.school.slug })
+        .expect(200);
+      expect(refreshPair(staleSessionLogin)).toBe(`${REFRESH_COOKIE}=`);
+      expect(await prisma.refreshToken.count({ where: { userId: body.user.id } })).toBe(0);
     } finally {
       if (originalNodeEnv === undefined) {
         delete process.env.NODE_ENV;

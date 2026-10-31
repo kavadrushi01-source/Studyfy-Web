@@ -1,5 +1,5 @@
 // Stage 5 UI/UX/a11y verification — local only, against running local
-// servers (E2E_WEB_URL, E2E_API_URL; E2E_PASSWORD defaults Demo@1234).
+// servers (E2E_WEB_URL, E2E_API_URL; OWNER_PASSWORD can override the test default).
 // Compares rendered boards against docs/designs/*.md (written spec,
 // §8.2–§8.4) and takes screenshots as local evidence.
 import { chromium } from "playwright";
@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const WEB = globalThis.process.env.E2E_WEB_URL ?? "http://localhost:3000";
 const PASSWORD = globalThis.process.env.E2E_PASSWORD ?? "Demo@1234";
+const OWNER_PASSWORD = globalThis.process.env.OWNER_PASSWORD ?? "Local-Test-Owner-Password-123!";
 const SHOTS = fileURLToPath(new globalThis.URL("../e2e/shots/stage5", import.meta.url));
 globalThis.console.log("DEBUG SHOTS:", SHOTS);
 mkdirSync(SHOTS, { recursive: true });
@@ -20,15 +21,16 @@ function shotName(role, page, viewport) {
     .replace(/\?.*$/, "") || "index"}.png`);
 }
 
-async function loginAs(page, email, slug) {
+async function loginAs(page, email, slug, password = PASSWORD) {
   await page.goto(`${WEB}/login`);
   if (slug) {
     await page.getByLabel(/school slug/i).fill(slug);
   }
   await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/^password/i).fill(PASSWORD);
+  await page.getByLabel(/^password/i).fill(password);
   await page.getByRole("button", { name: /^login$/i }).click();
-  await page.getByText(/signed in as/i).waitFor({ state: "visible", timeout: 20000 });
+  await page.waitForURL((url) => url.pathname !== "/login", { timeout: 20000 });
+  await page.getByRole("heading", { level: 1 }).waitFor({ state: "visible", timeout: 20000 });
 }
 
 async function a11yCheck(page, label) {
@@ -161,7 +163,7 @@ async function main() {
   // ---- Platform Owner ----
   {
     const page = await browser.newPage({ viewport: desktop });
-    await loginAs(page, "owner@studyfy.dev", null);
+    await loginAs(page, "owner@studyfy.dev", null, OWNER_PASSWORD);
     const views = [
       "/dashboard/owner",
       "/owner/schools",

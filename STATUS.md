@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** 2026-09-16 | **Last updated:** 2026-10-09
+**Started:** 2026-09-16 | **Last updated:** 2026-10-31
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -43,6 +43,7 @@
 - `studyfy_dev` = seeded demo data (`npm run db:seed`); `studyfy_test` = test DB (migrated, roles/permissions seeded by test setup). Tests force `TEST_DATABASE_URL` — dev DB never touched.
 - Prisma pinned at 6.12.0 (6.13+ pulls a HIGH audit failure via `@prisma/config`→`deepmerge-ts`).
 - 2026-10-21 (Layer 4): full local suite **499 tests / 103 files green first-try** (teacher-scope fixes landed); the historic Windows worker-crash flake (exit 3221226505) did not appear in the final run but remains a known environment quirk, never seen on CI Linux.
+- 2026-10-31 (UI/UX pass): local role-board audit **62 routes** (no route failures, horizontal overflow, or scoped accessibility findings); browser E2E **106/106**; API **501/501**; lint, API/web typechecks, and production build pass; `npm audit` reports 0 vulnerabilities. PR #1 is open and Vercel preview passed; GitHub Actions did not start because of an account billing/spending-limit block. Production remains unchanged pending green CI; see `CURRENT_TASK.md`.
 
 ## Phase 1 — MVP Modules
 | Module | API | Web | Matches design board? |
