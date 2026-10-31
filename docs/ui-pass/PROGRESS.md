@@ -1,6 +1,6 @@
 # UI/UX Premium Pass — Progress
 
-**Status:** Local implementation and validation complete; production release is pending PR access.
+**Status:** Local implementation and validation complete; production release is pending CI runner access.
 
 ## Scope and constraints
 
@@ -27,6 +27,6 @@
 ## Remaining: publish through the release path
 
 - The verified work is committed and pushed to `ui-premium-pass`.
-- Create a PR, wait for required CI, then follow the repository's documented production migration/deploy/live-verification order.
-- `gh auth status` reports an invalid stored token. The Git remote is reachable, but PR creation/merge is blocked until GitHub CLI access is re-authenticated via the user's normal GitHub/VS Code flow. Never paste a token into chat.
+- PR #1 is open: https://github.com/kavadrushi01-source/Studyfy-Web/pull/1. GitHub login is valid and the Vercel preview passed, but Actions jobs were blocked before startup because GitHub reports failed recent account payments or a spending limit; CI has not run.
+- The repository/account owner must resolve the GitHub Actions billing or spending-limit issue in GitHub Settings → Billing & plans. Then rerun checks, wait for CI to pass, and follow the documented production migration/deploy/live-verification order.
 - The written design-board PNGs are unavailable; visual review used the Markdown specifications and local browser audit.

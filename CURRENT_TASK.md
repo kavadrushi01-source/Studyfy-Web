@@ -15,8 +15,8 @@
 - E2E owner credentials no longer include the former hard-coded account secret; the helper uses `OWNER_PASSWORD` or a synthetic local-test fallback. The visual audit login check now waits for the actual route and page heading rather than obsolete copy.
 - Validation completed: `npm audit` reports 0 vulnerabilities; root lint, API and web typechecks, and the full production build pass (52 static pages); API suite **501/501** (103 files, one worker to avoid the Windows native-worker crash); browser E2E **106/106**; role-board audit **62 routes, zero failed routes, zero overflow, zero checks reported**. Earlier viewport checks covered public pages at 320, 390, 768, and 1280px.
 - Local test databases used: `studyfy_ui_pass_20261031`, `studyfy_ui_pass_api_final_20261031`, and `studyfy_ui_pass_api_rerun_20261031` for API validation; `studyfy_ui_pass_e2e_20261031` for browser E2E. No test DB is production data.
-- The verified work is committed and pushed to `ui-premium-pass`; the worktree is clean. GitHub CLI authentication is invalid, although the configured Git remote is reachable. A PR cannot be opened or merged until GitHub CLI access is re-authenticated through the user's normal GitHub/VS Code flow; never paste a token into chat. No live deployment has happened.
-- Remaining: re-authenticate GitHub CLI, create the PR, and wait for CI. Do not deploy or run production migrations before CI passes and access is available.
+- PR #1 is open: https://github.com/kavadrushi01-source/Studyfy-Web/pull/1. GitHub login is valid and the Vercel preview check passed, but all GitHub Actions jobs were blocked before starting because GitHub reports failed recent account payments or a spending limit. This is a runner/billing access block, not a code test result.
+- Remaining: the repository/account owner must resolve the GitHub Actions billing or spending-limit issue in GitHub Settings → Billing & plans. Then rerun the PR checks and wait for CI to pass. Do not merge, run production migrations, or deploy before CI passes.
 
 ---
 
