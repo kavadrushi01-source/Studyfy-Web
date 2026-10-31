@@ -12,6 +12,7 @@
     "pretest": "npm run build --workspace=@studyfy/shared-types && npm run build --workspace=@studyfy/demo-seed",
     "test": "vitest run",
     "lint": "eslint src --max-warnings=0",
+    "predb:seed": "npm run build --workspace=@studyfy/shared-types && npm run build --workspace=@studyfy/demo-seed",
     "db:seed": "tsx ../../prisma/seed.ts",
     "db:reset-demo-passwords": "tsx ../../prisma/seed.ts --reset-demo-passwords"
   },
