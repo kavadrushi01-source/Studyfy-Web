@@ -4,7 +4,7 @@ Studyfy is a multi-tenant School Management System (School ERP). One deployment 
 
 ---
 
-## Quick Test Logins (for CEO / CTO / managers)
+## Quick Test Logins
 
 Site: https://studyfy-web.vercel.app (local: localhost:3000). Go to `/login`, fill the three fields below, click Login — you land straight on that role's board.
 
