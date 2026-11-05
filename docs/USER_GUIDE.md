@@ -403,43 +403,7 @@ The Platform Owner has `school_id = NULL` (global access).
 
 ## Emails & Credentials
 
-### Demo Login Credentials (all working logins)
-
-All demo logins below are provisioned by the seed and work on the local setup and the live demo. School slugs are URL identifiers (not secrets); the passwords below are the ones the owner chose for the demo.
-
-**Super Admin / Platform Owner — password `ownership@123456` (leave the School slug EMPTY on the login form):**
-
-| Field | Value |
-|-------|-------|
-| Platform Owner Email | `owner@studyfy.dev` |
-| Platform Owner Password | `ownership@123456` |
-| School Slug for Owner | leave EMPTY |
-| Demo Password (all school accounts) | `Demo@1234` |
-| SMTP Host | `smtp-relay.brevo.com` |
-| SMTP Port | `587` |
-| SMTP From | The verified sender address configured by the deployment owner |
-
-**School of Science — slug `school-of-science` (PREMIUM plan) — password `Demo@1234`:**
-
-| Role | Email |
-|-------|-------|
-| School Admin | `kavita.rao@schoolofscience.demo` |
-| Teacher | `arjun.mehta@schoolofscience.demo` |
-| Accountant | `vikram.solanki@schoolofscience.demo` |
-| Librarian | `lata.nair@schoolofscience.demo` |
-| Transport Manager | `ravi.nair@schoolofscience.demo` |
-| Student (pupil login) | `aditya.sharma@schoolofscience.demo` |
-
-**Ramakrishna School — slug `ramakrishna-school` (STANDARD plan, shows upgrade gating) — password `Demo@1234`:**
-
-| Role | Email |
-|-------|-------|
-| School Admin | `s.venkataraman@ramakrishnaschool.demo` |
-| Teacher | `anjali.kulkarni@ramakrishnaschool.demo` |
-| Student (pupil login) | `krishna.murthy@ramakrishnaschool.demo` |
-
-> Note: pupil accounts normally sign in with one-time passwords issued by their school; the seeded pupil emails above also accept `Demo@1234` in the demo setup.
-> Security: this file lives in the private repo today — if the repo is ever made public, rotate `ownership@123456` first (see "Updating Demo + Owner Passwords" below).
+All login credentials (super admin, every teacher/student/parent email for both schools, slugs, passwords) live in the single **"Quick Test Logins"** section at the top of this guide — that is the one source of truth; it is not repeated here.
 
 ### How Emails Work
 
