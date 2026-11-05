@@ -47,6 +47,33 @@ Password for all: **`Demo@1234`**
 
 Parent payment testing: any parent sees the pending **Term 2 Tuition** invoice (₹ amounts ready to pay).
 
+### Full account directory — every seeded login (password `Demo@1234`)
+
+Emails follow the pattern `first.last@<domain>` (no dots/spaces in names).
+
+**School of Science — domain `@schoolofscience.demo` (slug `school-of-science`):**
+
+| Role | Emails |
+|---|---|
+| Admin | `kavita.rao@schoolofscience.demo` |
+| Accountant | `vikram.solanki@schoolofscience.demo` |
+| Teachers | `arjun.mehta@`, `sneha.iyer@`, `rohit.deshmukh@`, `fatima.shaikh@`, `karan.mistry@` |
+| Librarian / Transport | `lata.nair@`, `ravi.nair@` |
+| Students | `aditya.sharma@`, `ishita.choudhary@`, `yash.gupta@`, `ananya.joshi@`, `rahul.verma@`, `priya.patel@`, `aarav.nair@`, `meera.pillai@` |
+| Parents | `suresh.sharma@` (father of Aditya — main parent test login), `kavita.sharma@`, `ramesh.choudhary@`, `anita.gupta@`, `prakash.joshi@`, `sunita.verma@`, `nilesh.patel@`, `deepa.nair@`, `suresh.pillai@` |
+
+**Ramakrishna School — domain `@ramakrishnaschool.demo` (slug `ramakrishna-school`):**
+
+| Role | Emails |
+|---|---|
+| Admin | `s.venkataraman@ramakrishnaschool.demo` |
+| Accountant | `ramesh.iyer@ramakrishnaschool.demo` |
+| Teachers | `anjali.kulkarni@`, `deepak.chandran@`, `radha.krishnan@`, `michael.dsouza@`, `priyanka.bose@` |
+| Students | `krishna.murthy@`, `sanjana.rao@`, `vivek.pillai@`, `divya.menon@`, `arjun.reddy@`, `lakshmi.narayan@`, `rohan.kamath@`, `neha.bhatt@` |
+| Parents | `sunita.murthy@`, `geeta.rao@`, `anand.pillai@`, `ravi.menon@`, `lakshmi.reddy@`, `suresh.narayan@`, `meena.kamath@` |
+
+All addresses in the tables end with the domain shown in the table header. **Super Admin (Platform Owner): `owner@studyfy.dev` / password `ownership@123456`, slug left empty.**
+
 > Security: this file lives in the private repo today — if the repo is ever made public, rotate the owner password first (see "Updating Demo + Owner Passwords").
 
 ---
