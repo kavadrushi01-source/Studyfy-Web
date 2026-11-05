@@ -108,13 +108,13 @@ SMTP_HOST=smtp-relay.brevo.com
 SMTP_PORT=587
 SMTP_USER=<brevo-login>
 SMTP_PASS=<brevo-smtp-key>
-SMTP_FROM=kavadrushi01@gmail.com
+SMTP_FROM=<verified-sender-address>
 GROQ_API_KEY=<groq-key-for-ai-features>
 RAZORPAY_KEY_ID=<razorpay-test-key-id>
 RAZORPAY_KEY_SECRET=<razorpay-test-key-secret>
 RAZORPAY_WEBHOOK_SECRET=<webhook-secret>
 CRON_SECRET=<32+-char-random-string>
-DEMO_PASSWORD=Demo@1234
+DEMO_PASSWORD=<private-demo-password>
 OWNER_PASSWORD=<private-16+-char-password>
 PLATFORM_GSTIN=<optional>
 PLATFORM_STATE=Gujarat
@@ -329,17 +329,17 @@ The Platform Owner has `school_id = NULL` (global access).
 
 ## Emails & Credentials
 
-### Demo Login Credentials (Public)
+### Demo Login Credentials
 
-These are shared demo credentials for the seeded demo schools. **Do not use for real data.**
+School slugs are public URL identifiers, not credentials. Login email addresses and passwords are provisioned for authorized users and must be shared through a private channel, not committed to this guide or other public files. Do not use demo accounts for real data.
 
 | Field | Value |
 |-------|-------|
-| Demo Password | `Demo@1234` (set via `DEMO_PASSWORD` env var) |
-| Owner Password | `OWNER_PASSWORD` (private, 16+ chars, set via env var) |
+| Demo Password | Set privately via the `DEMO_PASSWORD` environment variable |
+| Platform Owner Password | Set privately via the `OWNER_PASSWORD` environment variable (use a unique, randomly generated password of 16+ characters) |
 | SMTP Host | `smtp-relay.brevo.com` |
 | SMTP Port | `587` |
-| SMTP From | `kavadrushi01@gmail.com` |
+| SMTP From | The verified sender address configured by the deployment owner |
 
 ### How Emails Work
 
@@ -355,9 +355,9 @@ Run from the API directory with `DATABASE_URL` pointing at the live database:
 npm run db:reset-demo-passwords --workspace=@studyfy/api
 ```
 
-Environment variables needed:
+Set these environment variables privately; do not commit their values:
 
-- `DEMO_PASSWORD=Demo@1234`
+- `DEMO_PASSWORD=<private-demo-password>`
 - `OWNER_PASSWORD=<your-private-16+-char-password>`
 
 This rewrites only `passwordHash` rows inside `isDemo` schools and the seeded owner's hash.
@@ -810,8 +810,7 @@ For deployment issues:
 4. Check Vercel dashboard for web deployment logs
 
 **Demo Credentials:**
-- Demo Password: `Demo@1234` (set via `DEMO_PASSWORD` env var)
-- Owner Password: Set via `OWNER_PASSWORD` env var (private, 16+ characters)
+- Demo account emails and passwords are provided privately to authorized users.
+- Platform Owner password is set via `OWNER_PASSWORD` (private, unique, randomly generated, 16+ characters).
 
 **Important:** Demo data is fictional and for portfolio/walkthrough use only. Never present seeded schools as real usage statistics.
-
