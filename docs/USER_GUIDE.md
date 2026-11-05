@@ -4,6 +4,53 @@ Studyfy is a multi-tenant School Management System (School ERP). One deployment 
 
 ---
 
+## Quick Test Logins (for CEO / CTO / managers)
+
+Site: https://studyfy-web.vercel.app (local: localhost:3000). Go to `/login`, fill the three fields below, click Login — you land straight on that role's board.
+
+### 1. SUPER ADMIN (Platform Owner) — sees everything: both schools, billing, users, support
+| Field | Value |
+|---|---|
+| Email | `owner@studyfy.dev` |
+| Password | **`ownership@123456`** |
+| School slug | **leave EMPTY** |
+
+Lands on the owner console: Total Schools, Revenue trend, Subscriptions & Billing, Users Management, Support & Impersonation, Audit Logs, Settings.
+
+### 2. SCHOOL OF SCIENCE — slug: `school-of-science` (PREMIUM plan = all modules unlocked)
+Password for all: **`Demo@1234`**
+
+| Role | Email | What to check |
+|---|---|---|
+| School Admin | `kavita.rao@schoolofscience.demo` | Dashboard, Students, Teachers, Fees, Notices, Analytics, Exams |
+| Teacher | `arjun.mehta@schoolofscience.demo` | Attendance marking, homework, marks entry |
+| Accountant | `vikram.solanki@schoolofscience.demo` | Fee invoices, payments, revenue trend |
+| Librarian | `lata.nair@schoolofscience.demo` | Library books, issues |
+| Transport Manager | `ravi.nair@schoolofscience.demo` | Transport module |
+| Student (pupil) | `aditya.sharma@schoolofscience.demo` | Pupil board (normally one-time password login, but `Demo@1234` works on demo) |
+
+### 3. RAMAKRISHNA SCHOOL — slug: `ramakrishna-school` (STANDARD plan = Phase-3 features gated with upgrade prompt)
+Password for all: **`Demo@1234`**
+
+| Role | Email |
+|---|---|
+| School Admin | `s.venkataraman@ramakrishnaschool.demo` |
+| Teacher | `anjali.kulkarni@ramakrishnaschool.demo` |
+| Student (pupil) | `krishna.murthy@ramakrishnaschool.demo` |
+
+### How to log in
+1. Go to `/login`
+2. **School slug** — type the slug (`school-of-science` or `ramakrishna-school`); leave empty ONLY for the owner
+3. **Email** — pick from the tables above
+4. **Password** — `ownership@123456` for owner, `Demo@1234` for everyone else
+5. Click **Login** — you land straight on that role's board
+
+Parent payment testing: any parent sees the pending **Term 2 Tuition** invoice (₹ amounts ready to pay).
+
+> Security: this file lives in the private repo today — if the repo is ever made public, rotate the owner password first (see "Updating Demo + Owner Passwords").
+
+---
+
 ## Table of Contents
 
 1. [What is Studyfy](#what-is-studyfy)
