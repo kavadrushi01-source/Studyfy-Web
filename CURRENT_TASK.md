@@ -2,7 +2,19 @@
 
 > **Read this file FIRST, before anything else — even before `AGENT_START_HERE.md`.** This file is updated continuously *during* work. If the laptop shuts off or a fresh session starts with zero memory, reading this file must be enough to resume exactly where the last session stopped.
 
-## STATUS: LOCAL VALIDATION COMPLETE — production release pending PR access
+## Current task override — 2026-11-08
+
+The prior UI/security pass is merged to `main` as of commit `9540abb`; PR #1 passed CI. The live web `/login` responds HTTP 200, but `/health` and auth calls to the Render API timed out repeatedly. Render's Free plan warns cold starts can take 50 seconds or more. `.github/workflows/keep-warm.yml` allowed only 30 seconds and masked curl failures as successful runs; this is a confirmed reliability defect, but is not proven to be the sole cause of the continuing API outage. The current branch `fix/render-api-cold-start` raises the request timeout to 120 seconds and makes ping failures visible.
+
+A Render dashboard restart was attempted with user authorization, but did not restore API availability. No API rebuild, production migration, database change, or environment-variable change has been performed. PR #2 is open; next: wait for all required CI checks, merge only if green, then verify the scheduled warm-up and live `/health` before testing login. If health still fails, obtain fresh Render deployment/runtime logs before claiming the outage is resolved. No `.env`, Render environment values, database password, or live user credentials were opened or used.
+
+The first PR CI run passed lint/typecheck and security audit, but two dashboard tests used hard-coded exam dates that had expired. Their fixtures now compute dates relative to the test run; CI must pass on the updated commit before any merge.
+
+**Public-repository warning:** the repo is now public, and an older commit contains a hard-coded owner credential that is absent from current code. If it could still be valid or reused, rotate it immediately in its provider. Coordinate a careful history rewrite and secret scan before keeping the repository public; never paste replacement credentials into chat.
+
+---
+
+## Historical status (2026-10-31; superseded by the current-task override above)
 
 ### Active task — premium UI, responsiveness, and functionality
 - Branch: `ui-premium-pass`, based on `main` at `35c6892`. The founder's latest request asks for the work to go live; production has not been changed. Follow the repository's PR/CI path before any production migration or deployment.

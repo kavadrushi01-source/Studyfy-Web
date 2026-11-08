@@ -12,6 +12,10 @@ function uid(): string {
   return randomUUID().slice(0, 8);
 }
 
+function dateAfterDays(days: number): string {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 async function registerSchool(): Promise<{ schoolId: string; slug: string; adminToken: string }> {
   const res = await request(app)
     .post("/api/v1/auth/register")
@@ -84,6 +88,8 @@ describe("GET /api/v1/schools/:schoolId/dashboard/teacher (§8.3)", () => {
       const math = await prisma.subject.create({ data: { schoolId, name: `Subject ${uid()}`, group: "Core" } });
       const teacher = await makeTeacher(schoolId, slug, section.id, [math.id]);
       const pupil = await makeStudent(schoolId, slug, section.id);
+      const examStartDate = dateAfterDays(7);
+      const examEndDate = dateAfterDays(11);
 
       // A slot for TODAY's school weekday, so the timetable panel is live.
       const weekday = schoolWeekday("Asia/Kolkata", new Date());
@@ -99,7 +105,7 @@ describe("GET /api/v1/schools/:schoolId/dashboard/teacher (§8.3)", () => {
       await request(app)
         .post(`/api/v1/schools/${schoolId}/exams`)
         .set("Authorization", `Bearer ${adminToken}`)
-        .send({ name: "Board Unit Test", startDate: "2026-11-01", endDate: "2026-11-05", subjects: [{ subjectId: math.id, maxMarks: 50 }] })
+        .send({ name: "Board Unit Test", startDate: examStartDate, endDate: examEndDate, subjects: [{ subjectId: math.id, maxMarks: 50 }] })
         .expect(201);
       // One submission to grade + one unread message.
       await request(app)

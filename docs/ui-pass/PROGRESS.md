@@ -1,6 +1,6 @@
 # UI/UX Premium Pass — Progress
 
-**Status:** Local implementation and validation complete; production release is pending CI runner access.
+**Status:** Local implementation and validation complete. This was the status before PR #1 merged; the UI pass is now live. See `CURRENT_TASK.md` for the separate Render API outage.
 
 ## Scope and constraints
 

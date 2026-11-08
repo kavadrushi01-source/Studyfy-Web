@@ -12,6 +12,10 @@ function uid(): string {
   return randomUUID().slice(0, 8);
 }
 
+function dateAfterDays(days: number): string {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 async function registerSchool(): Promise<{ schoolId: string; slug: string; adminToken: string }> {
   const res = await request(app)
     .post("/api/v1/auth/register")
@@ -86,6 +90,8 @@ describe("GET /api/v1/schools/:schoolId/dashboard/student (§8.3)", () => {
     async () => {
       const school = await setupSchool();
       const day = schoolDay("Asia/Kolkata", new Date());
+      const examStartDate = dateAfterDays(7);
+      const examEndDate = dateAfterDays(11);
 
       // Attendance: one PRESENT → 100%.
       await request(app)
@@ -98,7 +104,7 @@ describe("GET /api/v1/schools/:schoolId/dashboard/student (§8.3)", () => {
       const exam = await request(app)
         .post(`/api/v1/schools/${school.schoolId}/exams`)
         .set("Authorization", `Bearer ${school.adminToken}`)
-        .send({ name: "Board Unit Test", startDate: "2026-11-01", endDate: "2026-11-05", subjects: [{ subjectId: school.subjectId, maxMarks: 50 }] })
+        .send({ name: "Board Unit Test", startDate: examStartDate, endDate: examEndDate, subjects: [{ subjectId: school.subjectId, maxMarks: 50 }] })
         .expect(201);
       const examSubjectId = exam.body.data.exam.examSubjects[0].id as string;
       await request(app)
@@ -144,7 +150,7 @@ describe("GET /api/v1/schools/:schoolId/dashboard/student (§8.3)", () => {
       expect(board.attendancePercent).toBe(100);
       expect(board.overallMarks).toBe(80);
       expect(board.feesDue).toBe("7000.00");
-      expect(board.nextExam).toMatchObject({ title: "Board Unit Test", date: "2026-11-01" });
+      expect(board.nextExam).toMatchObject({ title: "Board Unit Test", date: examStartDate });
       expect(board.todayTimetable).toHaveLength(1);
       expect(board.recentMarks).toHaveLength(1);
       expect(board.recentMarks[0]).toMatchObject({ obtained: "40.00", percent: 80 });
