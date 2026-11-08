@@ -7,7 +7,7 @@
 - Work is on `ui-premium-pass`, based on `main` at `35c6892`.
 - The existing responsive UI, premium styling, and homepage code-generated 3D visuals were audited against the written design specifications. `docs/designs/` contains six Markdown boards and no reference PNGs.
 - No `.env` file or live credential was read, and no production site, Render service, or database was contacted. All tests used explicit local configuration and isolated databases on `127.0.0.1:3307`.
-- The user's latest request asks for production. No live change has been made; deployment must follow the repository's PR/CI and migration sequence.
+- The UI pass was merged in PR #1 and is live. A subsequent Render API keep-warm fix was merged in PR #2 and live behavior is verified; see `CURRENT_TASK.md`.
 
 ## Work and validation completed
 
