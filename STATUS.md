@@ -1,6 +1,6 @@
 # Studyfy — Build Status
 
-**Started:** 2026-09-16 | **Last updated:** 2026-10-31
+**Started:** 2026-09-16 | **Last updated:** 2026-11-09
 
 > Fresh tracker for a from-scratch build — no prior project's status carries
 > forward. A row only moves to `DONE` when every box in the Definition of
@@ -45,6 +45,7 @@
 - 2026-10-21 (Layer 4): full local suite **499 tests / 103 files green first-try** (teacher-scope fixes landed); the historic Windows worker-crash flake (exit 3221226505) did not appear in the final run but remains a known environment quirk, never seen on CI Linux.
 - 2026-10-31 (UI/UX pass): local role-board audit **62 routes** (no route failures, horizontal overflow, or scoped accessibility findings); browser E2E **106/106**; API **501/501**; lint, API/web typechecks, and production build pass; `npm audit` reports 0 vulnerabilities. PR #1 later merged after green CI and the UI pass is live.
 - 2026-11-08 (Render API reliability): PR #2 merged after lint/typecheck, security audit, API test suite, build, and E2E all passed. Keep-warm requests now wait up to 120 seconds and report failures. Render auto-deployed the merge; verified `/health` 200, warm-up workflow success, web `/login` 200, and synthetic invalid-credentials login 401. No production DB or environment settings were changed.
+- 2026-11-09 (whole-site functionality audit): live GET smoke checks covered **49/49 static web routes** with no 404/5xx responses; public landing/login/signup/password-help/enquiry pages returned 200; `/health` returned 200 and a synthetic invalid-login probe returned expected 401. Homepage tour keyboard navigation works when focused. Root lint, API/web typechecks, full build, and `npm audit --audit-level=high` pass (0 vulnerabilities); latest isolated CI suite passes **501 API tests + 106 E2E tests**. No live write operations or production data changes were performed; see `CURRENT_TASK.md` for scope and limits.
 
 ## Phase 1 — MVP Modules
 | Module | API | Web | Matches design board? |

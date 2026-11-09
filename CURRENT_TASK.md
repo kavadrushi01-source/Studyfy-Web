@@ -4,6 +4,16 @@
 
 ## Current task override — 2026-11-08
 
+## Current task — comprehensive functionality audit (completed 2026-11-09)
+
+- Live smoke-tested all **49 static web routes** with read-only GET requests: no 404 or 5xx responses. Six dynamic page templates were not probed without valid record IDs/session; role-based record flows are exercised by the isolated CI E2E suite.
+- Live public routes `/`, `/login`, `/signup`, `/forgot-password`, `/reset-password`, and `/enquiry` returned HTTP 200. API `/health` returned HTTP 200; one synthetic invalid-login probe returned the expected 401. No real account credentials were used.
+- Checked the homepage product-tour keyboard interaction (after focusing its documented region); ArrowRight changed the screen. The current CI public E2E tests also cover mobile navigation, signup wizard, enquiry/password-help flows, login, and role boards.
+- Validation today: root lint, API and web typechecks, complete API/web production build, and `npm audit --audit-level=high` all pass; audit reports zero vulnerabilities.
+- Latest complete CI run on the audit code: API **501/501**, browser E2E **106/106**, build, lint/typecheck, and security audit all pass.
+- No confirmed live defect was reproduced, so no website code change was warranted. The local MySQL/API test services were not listening; the write-heavy API/E2E suites were not run against production and were instead verified from the passing isolated CI run. Live tests made no account, school, fee, payment, enquiry, messaging, or other data changes.
+- Keep this limitation explicit: this is broad route and regression-journey coverage, not a claim that every authenticated production button or every possible input was manually exercised.
+
 The UI/security pass (PR #1) and the Render keep-warm reliability fix (PR #2) are merged. PR #2's full CI passed: lint/typecheck, security audit, API tests, build, and E2E. Render auto-deployed merge commit `4e2750c` and marks it Live.
 
 The original API outage is verified recovered: after Render completed deployment, live `/health` returned HTTP 200 with `{"success":true,"data":{"ok":true},...}`; the warm-up workflow succeeded; the public `/login` page returned HTTP 200; and a synthetic invalid-credentials probe to `/api/v1/auth/login` returned the expected HTTP 401 (no real user credentials were used). The first manual warm-up attempt timed out while Render was still deploying; the second run, after deploy completion, passed.
@@ -11,8 +21,6 @@ The original API outage is verified recovered: after Render completed deployment
 Fix in `.github/workflows/keep-warm.yml`: health pings now wait up to 120 seconds and curl errors fail the run rather than being hidden as success. The dashboard-test exam dates are relative to the test run, preventing date-expiry CI failures. No API source code, production migration, database, or environment settings were changed.
 
 No `.env`, Render environment values, database password, or live login credentials were opened or used. Public-repository warning: an older commit contains a hard-coded owner credential that is absent from current code. If it could still be valid/reused, rotate it privately with its provider, then coordinate a careful history rewrite and secret scan. A database password was also pasted into chat in an earlier turn; rotate it privately if still active. Never paste replacement credentials into chat.
-
-**Public-repository warning:** the repo is now public, and an older commit contains a hard-coded owner credential that is absent from current code. If it could still be valid or reused, rotate it immediately in its provider. Coordinate a careful history rewrite and secret scan before keeping the repository public; never paste replacement credentials into chat.
 
 ---
 
