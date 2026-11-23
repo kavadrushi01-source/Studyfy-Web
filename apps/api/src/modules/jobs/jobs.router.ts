@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { catchAsync } from "../../lib/async.js";
 import { prisma } from "../../lib/prisma.js";
 import { cronAuthMiddleware } from "../../middleware/cron-auth.js";
+import { seedSchoolOfScienceOnlinePaymentFee } from "@studyfy/demo-seed";
 import { runBillingCycleJob, runDemoResetJob, runFeeRemindersJob } from "./jobs.service.js";
 
 export const jobsRouter = Router();
@@ -17,6 +18,7 @@ const JOBS = {
   "fee-reminders": runFeeRemindersJob,
   "billing-cycle": runBillingCycleJob,
   "demo-reset": (db: PrismaClient) => runDemoResetJob(db),
+  "sos-payment-demo": (db: PrismaClient) => seedSchoolOfScienceOnlinePaymentFee(db),
 } as const;
 
 type JobName = keyof typeof JOBS;

@@ -1,0 +1,14 @@
+name: seed-sos-payment-demo
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Seed School of Science demo payment invoices
+        run: |
+          curl --fail-with-body --show-error --silent -X POST \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.API_URL }}/api/v1/internal/jobs/sos-payment-demo"
