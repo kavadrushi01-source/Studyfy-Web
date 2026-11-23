@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
-import { createRazorpayOrder, razorpayKeys } from "../src/lib/razorpay.js";
+import { createRazorpayOrder, fetchOrderPayments, razorpayKeys } from "../src/lib/razorpay.js";
 
 // Mock ONLY the gateway call — the real key guard (missing/live keys)
 // stays live via importOriginal so the guard tests exercise actual code.
@@ -20,11 +20,13 @@ vi.mock("../src/lib/razorpay.js", async (importOriginal) => {
       status: "created",
       keyId: "rzp_test_fake",
     })),
+    fetchOrderPayments: vi.fn(async () => []),
   };
 });
 
 const app = createApp();
 const mockedOrder = vi.mocked(createRazorpayOrder);
+const mockedFetchPayments = vi.mocked(fetchOrderPayments);
 
 function uid(): string {
   return randomUUID().slice(0, 8);
@@ -239,6 +241,47 @@ describe("POST pay-order (online initiation, §13.8)", () => {
         delete process.env.RAZORPAY_KEY_SECRET;
       } else {
         process.env.RAZORPAY_KEY_SECRET = savedSecret;
+      }
+    }
+  });
+
+  it("allows only parent test checkout and verification in production demo sessions", async () => {
+    const { schoolId, slug } = await registerSchool();
+    const invoice = await makeInvoice(schoolId, "Demo Parent Child");
+    await prisma.school.update({ where: { id: schoolId }, data: { isDemo: true } });
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const parentToken = await linkGuardian(schoolId, slug, invoice.studentId);
+      mockedOrder.mockClear();
+      mockedFetchPayments.mockClear();
+
+      const order = await request(app)
+        .post(`/api/v1/schools/${schoolId}/fees/invoices/${invoice.invoiceId}/pay-order`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({})
+        .expect(201);
+      expect(mockedOrder).toHaveBeenCalledOnce();
+
+      const verification = await request(app)
+        .post(`/api/v1/schools/${schoolId}/fees/pay-verify`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({ orderId: order.body.data.orderId })
+        .expect(200);
+      expect(verification.body.data.status).toBe("PENDING");
+      expect(mockedFetchPayments).toHaveBeenCalledOnce();
+
+      const otherWrite = await request(app)
+        .post(`/api/v1/schools/${schoolId}/students`)
+        .set("Authorization", `Bearer ${parentToken}`)
+        .send({});
+      expect(otherWrite.status).toBe(403);
+      expect(otherWrite.body.error.code).toBe("READ_ONLY_SESSION");
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalNodeEnv;
       }
     }
   });

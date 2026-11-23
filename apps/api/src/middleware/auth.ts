@@ -12,6 +12,8 @@ export interface AuthUser {
   readOnly?: boolean;
   // Present only on demo tokens and only permits the message-send route.
   demoMessaging?: boolean;
+  // Present only on demo tokens and only permits test-mode fee payment routes.
+  demoPayments?: boolean;
 }
 
 interface AccessJwt {
@@ -22,6 +24,7 @@ interface AccessJwt {
   impersonatedBy?: unknown;
   readOnly?: unknown;
   demoMessaging?: unknown;
+  demoPayments?: unknown;
 }
 
 function accessSecret(): string {
@@ -61,6 +64,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
       // Strict boolean only — truthy strings never count (§13.11).
       ...(payload.readOnly === true ? { readOnly: true } : {}),
       ...(payload.demoMessaging === true ? { demoMessaging: true } : {}),
+      ...(payload.demoPayments === true ? { demoPayments: true } : {}),
     };
     next();
   } catch {

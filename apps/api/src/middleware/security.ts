@@ -239,6 +239,25 @@ export const demoMessageLimiter = () =>
     },
   });
 
+// Demo payment accounts are shared; limit creation of test checkout orders
+// to keep the payment ledger from filling up with abandoned attempts.
+export const demoPaymentLimiter = () =>
+  maybeLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 10,
+    standardHeaders: false,
+    legacyHeaders: false,
+    skip: (req) => (req as { user?: { demoPayments?: unknown } }).user?.demoPayments !== true,
+    keyGenerator: (req) => {
+      const userId = (req as { user?: { userId?: unknown } }).user?.userId;
+      return typeof userId === "string" && userId ? userId : "no-user";
+    },
+    handler: (_req, res) => {
+      const body = limited("Too many demo payment attempts. Try again later.");
+      res.status(body.statusCode).type("application/json").send(body.message);
+    },
+  });
+
 export const enquiryLimiter = () =>
   maybeLimit({
     windowMs: 15 * 60 * 1000,

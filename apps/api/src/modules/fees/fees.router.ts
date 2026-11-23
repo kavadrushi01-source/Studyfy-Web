@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
+import { demoPaymentLimiter } from "../../middleware/security.js";
 import { studentSelfScope } from "../../middleware/selfscope.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
@@ -227,6 +228,7 @@ feesRouter.post(
   tenantMiddleware,
   requirePermission("fees.read"),
   studentSelfScope,
+  demoPaymentLimiter(),
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma || !req.user) {
       res.status(500).json({

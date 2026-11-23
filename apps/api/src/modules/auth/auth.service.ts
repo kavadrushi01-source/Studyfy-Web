@@ -162,7 +162,14 @@ async function loginUser(user: UserWithRole, password: string, readOnlyDemo = fa
     const publicUser = toPublicUser(user);
     return {
       accessToken: signAccessToken(
-        { sub: publicUser.id, schoolId: publicUser.schoolId, role: publicUser.role, readOnly: true, demoMessaging: true },
+        {
+          sub: publicUser.id,
+          schoolId: publicUser.schoolId,
+          role: publicUser.role,
+          readOnly: true,
+          demoMessaging: true,
+          demoPayments: true,
+        },
         "30m",
       ),
       readOnlyDemo: true,
