@@ -10,6 +10,8 @@ export interface AuthUser {
   impersonatedBy?: string;
   // True only on read-only demo sessions (§13.11). Same guard as above.
   readOnly?: boolean;
+  // Present only on demo tokens and only permits the message-send route.
+  demoMessaging?: boolean;
 }
 
 interface AccessJwt {
@@ -19,6 +21,7 @@ interface AccessJwt {
   type: string;
   impersonatedBy?: unknown;
   readOnly?: unknown;
+  demoMessaging?: unknown;
 }
 
 function accessSecret(): string {
@@ -57,6 +60,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
       ...(typeof payload.impersonatedBy === "string" && payload.impersonatedBy ? { impersonatedBy: payload.impersonatedBy } : {}),
       // Strict boolean only — truthy strings never count (§13.11).
       ...(payload.readOnly === true ? { readOnly: true } : {}),
+      ...(payload.demoMessaging === true ? { demoMessaging: true } : {}),
     };
     next();
   } catch {

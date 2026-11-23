@@ -10,6 +10,7 @@ interface AccessJwt {
   type: string;
   impersonatedBy?: unknown;
   readOnly?: unknown;
+  demoMessaging?: unknown;
 }
 
 function accessSecret(): string {
@@ -29,14 +30,20 @@ function verifyHandshakeToken(raw: unknown): AuthUser {
   if (payload.type !== "access" || typeof payload.sub !== "string") {
     throw new Error("Not an access token.");
   }
-  // HTTP verbs are not the only way to write (§13.9): an impersonation
-  // token on the socket could send messages as a teacher to a child, so
-  // it dies in the handshake like every other refusal here. Read-only
-  // demo sessions (§13.11) die the same way, same reason.
-  if ((typeof payload.impersonatedBy === "string" && payload.impersonatedBy) || payload.readOnly === true) {
+  // HTTP verbs are not the only way to write (§13.9): impersonation tokens
+  // always die here. Demo tokens may connect only for content-free message
+  // notifications emitted to their school room.
+  const impersonated = typeof payload.impersonatedBy === "string" && Boolean(payload.impersonatedBy);
+  const demoMessaging = payload.readOnly === true && payload.demoMessaging === true;
+  if (impersonated || (payload.readOnly === true && !demoMessaging)) {
     throw new Error("READ_ONLY_SESSION");
   }
-  return { userId: payload.sub, schoolId: payload.schoolId ?? null, role: payload.role };
+  return {
+    userId: payload.sub,
+    schoolId: payload.schoolId ?? null,
+    role: payload.role,
+    ...(demoMessaging ? { demoMessaging: true } : {}),
+  };
 }
 
 // Realtime server (spec §12.5): namespaces look like `/school-<schoolId>`,

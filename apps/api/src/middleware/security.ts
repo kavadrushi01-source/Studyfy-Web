@@ -219,6 +219,26 @@ export const ticketCreateLimiter = () =>
       res.status(body.statusCode).type("application/json").send(body.message);
     },
   });
+
+// Public demo credentials are shared. Cap their message writes per account
+// so the narrowly enabled demo route cannot be used to flood inboxes.
+export const demoMessageLimiter = () =>
+  maybeLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 20,
+    standardHeaders: false,
+    legacyHeaders: false,
+    skip: (req) => (req as { user?: { demoMessaging?: unknown } }).user?.demoMessaging !== true,
+    keyGenerator: (req) => {
+      const userId = (req as { user?: { userId?: unknown } }).user?.userId;
+      return typeof userId === "string" && userId ? userId : "no-user";
+    },
+    handler: (_req, res) => {
+      const body = limited("Too many demo messages. Try again later.");
+      res.status(body.statusCode).type("application/json").send(body.message);
+    },
+  });
+
 export const enquiryLimiter = () =>
   maybeLimit({
     windowMs: 15 * 60 * 1000,

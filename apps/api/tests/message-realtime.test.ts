@@ -51,7 +51,7 @@ async function makeUser(
   schoolId: string,
   slug: string,
   roleName: string,
-): Promise<{ token: string; userId: string }> {
+): Promise<{ token: string; userId: string; email: string }> {
   const email = `live-${roleName.toLowerCase()}-${uid()}@example.com`;
   const password = "user-pass-123";
   const role = await prisma.role.findUnique({ where: { name: roleName } });
@@ -62,7 +62,7 @@ async function makeUser(
     data: { schoolId, roleId: role.id, email, passwordHash: await bcrypt.hash(password, 4), name: `${roleName} User` },
   });
   const login = await request(app).post("/api/v1/auth/login").send({ email, password, schoolSlug: slug }).expect(200);
-  return { token: login.body.data.accessToken as string, userId: user.id };
+  return { token: login.body.data.accessToken as string, userId: user.id, email };
 }
 
 function connect(namespace: string, token: string): Promise<ClientSocket> {
@@ -140,6 +140,48 @@ describe("live message:new delivery (§12.5 + §13.7)", () => {
     } finally {
       socket.disconnect();
       outsiderSocket.disconnect();
+    }
+  }, 30000);
+
+  it("delivers message notifications to production demo sessions", async () => {
+    const { schoolId, slug } = await registerSchool();
+    const cls = await prisma.class.create({ data: { schoolId, name: `Class ${uid()}` } });
+    const section = await prisma.section.create({ data: { schoolId, classId: cls.id, name: "A" } });
+    const subject = await prisma.subject.create({ data: { schoolId, name: `Subject ${uid()}`, group: "Core" } });
+    const teacher = await makeUser(schoolId, slug, "TEACHER");
+    const staff = await prisma.staff.create({ data: { schoolId, userId: teacher.userId, designation: "Teacher" } });
+    await prisma.section.update({ where: { id: section.id }, data: { classTeacherId: staff.id } });
+    await prisma.teacherSubject.create({ data: { schoolId, staffId: staff.id, subjectId: subject.id } });
+    const pupil = await makeUser(schoolId, slug, "STUDENT");
+    await prisma.student.create({ data: { schoolId, userId: pupil.userId, sectionId: section.id } });
+
+    await prisma.school.update({ where: { id: schoolId }, data: { isDemo: true } });
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    let teacherSocket: ClientSocket | undefined;
+    try {
+      const loginDemo = async (email: string) =>
+        request(app)
+          .post("/api/v1/auth/login")
+          .send({ email, password: "user-pass-123", schoolSlug: slug })
+          .expect(200);
+      const [teacherLogin, pupilLogin] = await Promise.all([loginDemo(teacher.email), loginDemo(pupil.email)]);
+      teacherSocket = await connect(schoolNamespaceOf(schoolId), teacherLogin.body.data.accessToken as string);
+
+      const notification = waitForMessageNew(teacherSocket);
+      const sent = await request(app)
+        .post(`/api/v1/schools/${schoolId}/messages`)
+        .set("Authorization", `Bearer ${pupilLogin.body.data.accessToken as string}`)
+        .send({ receiverId: teacher.userId, body: "Demo realtime check." })
+        .expect(201);
+      expect((await notification).threadId).toBe(sent.body.data.message.threadId as string);
+    } finally {
+      teacherSocket?.disconnect();
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalNodeEnv;
+      }
     }
   }, 30000);
 });

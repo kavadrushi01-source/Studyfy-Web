@@ -7,10 +7,12 @@ export interface AccessTokenPayload {
   // Set ONLY on impersonation sessions (§13.9): the Platform Owner behind
   // the wheel. Absent on every normal login — the guard keys on presence.
   impersonatedBy?: string;
-  // Set ONLY on read-only demo sessions (§13.11): a Platform Owner token
-  // the read-only guard refuses for every write. Strict boolean — the
-  // middleware only honors `true`, never truthy strings.
+  // Set only on production demo sessions. Writes stay blocked except for the
+  // separately scoped demoMessaging capability. Strict boolean only.
   readOnly?: boolean;
+  // Set only for production demo accounts. It permits the narrowly scoped
+  // academic messaging exception while all other demo writes remain blocked.
+  demoMessaging?: boolean;
 }
 
 function accessSecret(): string {
