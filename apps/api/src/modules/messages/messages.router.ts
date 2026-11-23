@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { catchAsync } from "../../lib/async.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/rbac.js";
+import { demoMessageLimiter } from "../../middleware/security.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { AuthError } from "../auth/auth.service.js";
 import { sendMessageSchema, threadQuerySchema } from "./messages.schemas.js";
@@ -26,6 +27,7 @@ messagesRouter.post(
   authMiddleware,
   tenantMiddleware,
   requirePermission("messages.send"),
+  demoMessageLimiter(),
   catchAsync(async (req: Request, res: Response) => {
     if (!req.prisma || !req.user) {
       res.status(500).json({

@@ -611,14 +611,14 @@ Studyfy is a full-featured School Management System (SaaS ERP). Below is every m
 ### 21. Audit & Security Logging
 - **Audit logs** — append-only, allowlist-redacted fields (never passwordHash/tokens)
 - **School-level + platform-level** — nullable `school_id` means platform action
-- **Read-only sessions** — impersonation and demo accounts skip write operations
-- **Socket.io handshake** — rejects read-only session claims
+- **Read-only sessions** — impersonation cannot write; demo accounts can send only relationship-authorized academic messages, and all demo data resets nightly
+- **Socket.io handshake** — rejects impersonation and platform read-only claims; demo accounts connect only for content-free message notifications
 - **Request logger** — method/path/status/ms/user/imp on every line
 
 ### 22. Rate Limiting & Security Headers
 - **`helmet`** — security headers (nosniff, etc.)
 - **CORS lock** — evil origins get no `Access-Control-Allow-Origin`
-- **Rate limiting** — on auth, public enquiry, export, ticket creation
+- **Rate limiting** — on auth, public enquiry, export, ticket creation, and demo message sends (20 per account per hour)
 - **Shared budget stores** — register/forgot/reset share one bucket (not separate)
 - **Graceful shutdown** — on SIGTERM/SIGINT
 
@@ -813,7 +813,7 @@ Studyfy is built with security as a foundational principle, not an afterthought.
 - **RBAC middleware** — fail-closed, table-driven permission checks
 - **Platform-only middleware** — separate from tenant middleware, owner routes never go through tenant scoping
 - **Student/Parent row-level self-scope** — can only see own data or children's data
-- **Read-only sessions** — impersonation and demo accounts blocked from writes at middleware level + socket handshake
+- **Read-only sessions** — impersonation is fully blocked; demo accounts are blocked from writes except relationship-authorized messaging, which is cleared by the nightly demo reset
 
 ### Audit & Logging
 - **Audit logs** — append-only, allowlist-redacted (never `passwordHash`, never tokens)

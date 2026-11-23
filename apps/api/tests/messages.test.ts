@@ -62,7 +62,7 @@ async function makeTeacher(
   slug: string,
   subjects: string[],
   classTeacherOf: string | null,
-): Promise<{ token: string; userId: string }> {
+): Promise<{ token: string; userId: string; email: string }> {
   const teacher = await makeUser(schoolId, slug, "TEACHER");
   const staff = await prisma.staff.create({ data: { schoolId, userId: teacher.userId, designation: "Teacher" } });
   if (classTeacherOf) {
@@ -78,10 +78,10 @@ async function makeStudent(
   schoolId: string,
   slug: string,
   sectionId: string,
-): Promise<{ token: string; userId: string; studentId: string }> {
+): Promise<{ token: string; userId: string; email: string; studentId: string }> {
   const student = await makeUser(schoolId, slug, "STUDENT");
   const profile = await prisma.student.create({ data: { schoolId, userId: student.userId, sectionId } });
-  return { token: student.token, userId: student.userId, studentId: profile.id };
+  return { token: student.token, userId: student.userId, email: student.email, studentId: profile.id };
 }
 
 async function makeParent(
@@ -222,6 +222,63 @@ describe("1:1 academic messaging (§13.7)", () => {
       .send({ receiverId: pupilA.userId, body: "Intruder." })
       .expect(403);
     expect(cross.body.error.code).toBe("TENANT_MISMATCH");
+  });
+
+  it("allows linked messages in production demo accounts while keeping other writes read-only", async () => {
+    const { schoolId, slug } = await registerSchool();
+    const sectionId = await makeSection(schoolId, "A");
+    const subjectId = await makeSubject(schoolId);
+    const teacher = await makeTeacher(schoolId, slug, [subjectId], sectionId);
+    const pupil = await makeStudent(schoolId, slug, sectionId);
+    const unrelatedPupil = await makeStudent(schoolId, slug, sectionId);
+    await prisma.school.update({ where: { id: schoolId }, data: { isDemo: true } });
+
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const loginDemo = async (email: string) =>
+        request(app)
+          .post("/api/v1/auth/login")
+          .send({ email, password: "user-pass-123", schoolSlug: slug })
+          .expect(200);
+      const [teacherLogin, pupilLogin] = await Promise.all([loginDemo(teacher.email), loginDemo(pupil.email)]);
+      expect(teacherLogin.body.data.readOnlyDemo).toBe(true);
+
+      const sent = await request(app)
+        .post(`/api/v1/schools/${schoolId}/messages`)
+        .set("Authorization", `Bearer ${teacherLogin.body.data.accessToken as string}`)
+        .send({ receiverId: pupil.userId, body: "Demo message check." })
+        .expect(201);
+      expect(sent.body.data.message.body).toBe("Demo message check.");
+
+      const disallowed = await request(app)
+        .post(`/api/v1/schools/${schoolId}/messages`)
+        .set("Authorization", `Bearer ${pupilLogin.body.data.accessToken as string}`)
+        .send({ receiverId: unrelatedPupil.userId, body: "This stays disallowed." });
+      expect(disallowed.status).toBe(403);
+      expect(disallowed.body.error.code).toBe("MESSAGING_NOT_ALLOWED");
+
+      const readBack = await request(app)
+        .get(`/api/v1/schools/${schoolId}/messages?with=${teacher.userId}`)
+        .set("Authorization", `Bearer ${pupilLogin.body.data.accessToken as string}`)
+        .expect(200);
+      expect((readBack.body.data.messages as { body: string }[]).map((message) => message.body)).toContain(
+        "Demo message check.",
+      );
+
+      const otherWrite = await request(app)
+        .post(`/api/v1/schools/${schoolId}/students`)
+        .set("Authorization", `Bearer ${teacherLogin.body.data.accessToken as string}`)
+        .send({});
+      expect(otherWrite.status).toBe(403);
+      expect(otherWrite.body.error.code).toBe("READ_ONLY_SESSION");
+    } finally {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalNodeEnv;
+      }
+    }
   });
 });
 
