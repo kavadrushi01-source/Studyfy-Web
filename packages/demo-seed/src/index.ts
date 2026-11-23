@@ -552,6 +552,9 @@ async function seedSchool(db: PrismaClient, spec: DemoSchool, roles: Map<string,
   }
 
   await seedFees(db, school.id, year.id, classIds, seeded, spec.feeByClass, accountantUserId);
+  if (spec.slug === "school-of-science") {
+    await seedSchoolOfScienceOnlinePaymentFee(db);
+  }
   await seedExam(db, school.id, year.id, seeded);
   await seedRemarks(db, school.id, seeded);
   const marker = teacherStaffIds[0];
@@ -680,6 +683,99 @@ async function seedFees(
       });
     }
   }
+}
+
+export async function seedSchoolOfScienceOnlinePaymentFee(
+  db: PrismaClient,
+): Promise<{ studentCount: number; invoicesCreated: number }> {
+  return db.$transaction(async (tx) => {
+    const school = await tx.school.findUnique({
+      where: { slug: "school-of-science" },
+      select: { id: true, isDemo: true },
+    });
+    if (!school?.isDemo) {
+      throw new Error("Refusing to add demo payment fees outside the School of Science demo tenant.");
+    }
+
+    const academicYear = await tx.academicYear.findFirst({
+      where: { schoolId: school.id, isCurrent: true },
+      select: { id: true },
+    });
+    if (!academicYear) {
+      throw new Error("School of Science has no current academic year.");
+    }
+
+    const classes = await tx.class.findMany({
+      where: { schoolId: school.id, academicYearId: academicYear.id, name: { in: ["Grade 9", "Grade 10"] } },
+      select: { id: true, name: true },
+    });
+    const students = await tx.student.findMany({
+      where: { schoolId: school.id },
+      select: { id: true, section: { select: { classId: true } } },
+    });
+    if (classes.length !== 2 || students.length === 0) {
+      throw new Error("School of Science demo roster is incomplete; no payment fees were added.");
+    }
+
+    const classIds = new Set(classes.map((classRow) => classRow.id));
+    if (students.some((student) => !classIds.has(student.section.classId))) {
+      throw new Error("School of Science contains students outside the expected demo grades.");
+    }
+
+    const day = 24 * 60 * 60 * 1000;
+    const dueDate = new Date(Date.now() + 20 * day);
+    const structures = new Map<string, string>();
+    for (const classRow of classes) {
+      const structure = await tx.feeStructure.upsert({
+        where: { classId_name: { classId: classRow.id, name: "Online Payment Demo Fee" } },
+        update: {
+          amount: "100.00",
+          term: "Online payment demo",
+          category: "OTHER",
+          description: "Razorpay test-mode walkthrough; no real charge.",
+        },
+        create: {
+          schoolId: school.id,
+          classId: classRow.id,
+          academicYearId: academicYear.id,
+          name: "Online Payment Demo Fee",
+          amount: "100.00",
+          term: "Online payment demo",
+          category: "OTHER",
+          description: "Razorpay test-mode walkthrough; no real charge.",
+        },
+        select: { id: true },
+      });
+      structures.set(classRow.id, structure.id);
+    }
+
+    let invoicesCreated = 0;
+    for (const student of students) {
+      const structureId = structures.get(student.section.classId);
+      if (!structureId) {
+        throw new Error("Missing demo payment fee structure for a School of Science student.");
+      }
+      const existing = await tx.feeInvoice.findFirst({
+        where: { schoolId: school.id, studentId: student.id, structureId },
+        select: { id: true },
+      });
+      if (!existing) {
+        await tx.feeInvoice.create({
+          data: {
+            schoolId: school.id,
+            studentId: student.id,
+            structureId,
+            amount: "100.00",
+            amountPaid: 0,
+            status: "PENDING",
+            dueDate,
+          },
+        });
+        invoicesCreated += 1;
+      }
+    }
+    return { studentCount: students.length, invoicesCreated };
+  });
 }
 
 async function seedExam(

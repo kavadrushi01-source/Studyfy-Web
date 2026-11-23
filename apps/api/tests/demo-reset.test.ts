@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
+import { seedSchoolOfScienceOnlinePaymentFee } from "@studyfy/demo-seed";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
 import { runDemoResetJob } from "../src/modules/jobs/jobs.service.js";
@@ -278,5 +279,65 @@ describe("nightly demo reset (§13.11)", () => {
       prisma.user.deleteMany({ where: { schoolId: demo.schoolId } }),
       prisma.school.delete({ where: { id: demo.schoolId } }),
     ]);
+  });
+
+  it("creates one pending ₹100 payment-demo invoice per School of Science student and is safe to rerun", async () => {
+    const sos = await makeSchool("school-of-science", true);
+    try {
+      const academicYear = await prisma.academicYear.create({
+        data: {
+          schoolId: sos.schoolId,
+          name: "2026-27",
+          startDate: new Date("2026-04-01T00:00:00Z"),
+          endDate: new Date("2027-03-31T00:00:00Z"),
+          isCurrent: true,
+        },
+      });
+      const studentRole = await prisma.role.findUniqueOrThrow({ where: { name: "STUDENT" } });
+      const students: string[] = [];
+
+      for (const [grade, count] of [["Grade 9", 2], ["Grade 10", 1]] as const) {
+        const classRow = await prisma.class.create({
+          data: { schoolId: sos.schoolId, academicYearId: academicYear.id, name: grade },
+        });
+        const section = await prisma.section.create({
+          data: { schoolId: sos.schoolId, classId: classRow.id, name: "A" },
+        });
+        for (let index = 0; index < count; index += 1) {
+          const user = await prisma.user.create({
+            data: {
+              schoolId: sos.schoolId,
+              roleId: studentRole.id,
+              email: `demo-fee-student-${uid()}@example.com`,
+              passwordHash: "unused-test-hash",
+              name: `Demo Fee Student ${index}`,
+            },
+          });
+          const student = await prisma.student.create({
+            data: { schoolId: sos.schoolId, userId: user.id, sectionId: section.id },
+          });
+          students.push(student.id);
+        }
+      }
+
+      expect(await seedSchoolOfScienceOnlinePaymentFee(prisma)).toEqual({ studentCount: 3, invoicesCreated: 3 });
+      const invoices = await prisma.feeInvoice.findMany({
+        where: { schoolId: sos.schoolId, studentId: { in: students } },
+        include: { structure: true },
+      });
+      expect(invoices).toHaveLength(3);
+      expect(
+        invoices.every(
+          (invoice) =>
+            invoice.status === "PENDING" &&
+            invoice.amount.toFixed(2) === "100.00" &&
+            invoice.structure?.name === "Online Payment Demo Fee",
+        ),
+      ).toBe(true);
+      expect(await seedSchoolOfScienceOnlinePaymentFee(prisma)).toEqual({ studentCount: 3, invoicesCreated: 0 });
+      expect(await prisma.feeInvoice.count({ where: { schoolId: sos.schoolId, studentId: { in: students } } })).toBe(3);
+    } finally {
+      await runDemoResetJob(prisma, { reseed: async () => undefined });
+    }
   });
 });

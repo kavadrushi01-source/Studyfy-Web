@@ -507,6 +507,7 @@ Studyfy is a full-featured School Management System (SaaS ERP). Below is every m
 ### 6. Fees & Payments (Razorpay Test Mode)
 - **Fee structures** — per class, per term (e.g., "Term 2 Tuition")
 - **Fee invoices** — one per student per term, statuses: Paid / Pending / Overdue
+- **School of Science recruiter demo** — an extra ₹100 pending invoice per student for the online checkout walkthrough; due 20 days after seeding
 - **Fee payments** — record manual payments
 - **Receipts** — downloadable payment receipt PDFs
 - **Razorpay Test Mode** — parents can pay pending invoices using test card `4111 1111 1111 1111` (zero real money)
@@ -611,7 +612,7 @@ Studyfy is a full-featured School Management System (SaaS ERP). Below is every m
 ### 21. Audit & Security Logging
 - **Audit logs** — append-only, allowlist-redacted fields (never passwordHash/tokens)
 - **School-level + platform-level** — nullable `school_id` means platform action
-- **Read-only sessions** — impersonation cannot write; demo accounts can send only relationship-authorized academic messages, and all demo data resets nightly
+- **Read-only sessions** — impersonation cannot write; demo accounts can send relationship-authorized academic messages and parents can use test-mode checkout/verification only; all demo data resets nightly
 - **Socket.io handshake** — rejects impersonation and platform read-only claims; demo accounts connect only for content-free message notifications
 - **Request logger** — method/path/status/ms/user/imp on every line
 
@@ -813,7 +814,7 @@ Studyfy is built with security as a foundational principle, not an afterthought.
 - **RBAC middleware** — fail-closed, table-driven permission checks
 - **Platform-only middleware** — separate from tenant middleware, owner routes never go through tenant scoping
 - **Student/Parent row-level self-scope** — can only see own data or children's data
-- **Read-only sessions** — impersonation is fully blocked; demo accounts are blocked from writes except relationship-authorized messaging, which is cleared by the nightly demo reset
+- **Read-only sessions** — impersonation is fully blocked; demo accounts are blocked from writes except relationship-authorized messaging and parent test-mode fee checkout/verification, which are cleared by the nightly demo reset
 
 ### Audit & Logging
 - **Audit logs** — append-only, allowlist-redacted (never `passwordHash`, never tokens)

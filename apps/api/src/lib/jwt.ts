@@ -11,8 +11,9 @@ export interface AccessTokenPayload {
   // separately scoped demoMessaging capability. Strict boolean only.
   readOnly?: boolean;
   // Set only for production demo accounts. It permits the narrowly scoped
-  // academic messaging exception while all other demo writes remain blocked.
+  // messaging and test-payment exceptions while all other demo writes remain blocked.
   demoMessaging?: boolean;
+  demoPayments?: boolean;
 }
 
 function accessSecret(): string {
