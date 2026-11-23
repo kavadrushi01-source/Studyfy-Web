@@ -76,10 +76,15 @@ export default function LoginPage() {
     setError("");
     try {
       const slug = schoolSlug.trim();
-      const signedInUser = await login({ email, password, ...(slug.length > 0 ? { schoolSlug: slug } : {}) });
+      const normalizedEmail = email.trim();
+      const signedInUser = await login({
+        email: normalizedEmail,
+        password,
+        ...(slug.length > 0 ? { schoolSlug: slug } : {}),
+      });
       if (remember && typeof window !== "undefined") {
         try {
-          window.localStorage.setItem("studyfy-login-email", email);
+          window.localStorage.setItem("studyfy-login-email", normalizedEmail);
         } catch {
           // Remembering an email is optional; it must not block sign-in.
         }

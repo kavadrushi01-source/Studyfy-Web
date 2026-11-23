@@ -110,6 +110,32 @@ test.describe("public site + login", () => {
     await expect(page.getByText("Cannot read properties")).toHaveCount(0);
   });
 
+  test("login trims email and school slug but preserves password spaces", async ({ page }) => {
+    let submitted: Record<string, unknown> | undefined;
+    await page.addInitScript(() => {
+      localStorage.setItem("studyfy-login-email", "  demo@example.com  ");
+    });
+    await page.route("**/api/v1/auth/login", async (route) => {
+      submitted = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { message: "Expected test rejection." } }),
+      });
+    });
+
+    await page.goto("/login");
+    await page.getByLabel(/school slug/i).fill("  school-of-science  ");
+    await page.getByLabel(/^password/i).fill("  password with spaces  ");
+    await page.getByRole("button", { name: /^login$/i }).click();
+    await expect(page.getByText("Expected test rejection.")).toBeVisible();
+    expect(submitted).toEqual({
+      email: "demo@example.com",
+      password: "  password with spaces  ",
+      schoolSlug: "school-of-science",
+    });
+  });
+
   test("signup wizard completes and shows slug + school ID", async ({ page }) => {
     const stamp = Date.now().toString(36);
     await page.goto("/signup");
