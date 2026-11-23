@@ -320,7 +320,11 @@ describe("nightly demo reset (§13.11)", () => {
         }
       }
 
-      expect(await seedSchoolOfScienceOnlinePaymentFee(prisma)).toEqual({ studentCount: 3, invoicesCreated: 3 });
+      const seedResponse = await request(app)
+        .post("/api/v1/internal/jobs/sos-payment-demo")
+        .set("X-Cron-Secret", TEST_CRON_SECRET)
+        .expect(200);
+      expect(seedResponse.body.data).toEqual({ studentCount: 3, invoicesCreated: 3 });
       const invoices = await prisma.feeInvoice.findMany({
         where: { schoolId: sos.schoolId, studentId: { in: students } },
         include: { structure: true },

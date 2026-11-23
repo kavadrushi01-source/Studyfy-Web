@@ -606,6 +606,7 @@ Studyfy is a full-featured School Management System (SaaS ERP). Below is every m
 - **Fee reminders** — hourly, per school
 - **Billing cycle** — hourly, subscription transitions
 - **Demo reset** — nightly (02:30 UTC), wipe and reseed demo schools
+- **School of Science payment demo fee** — manually seed pending demo invoices without wiping demo data
 - **Cron secret** — `X-Cron-Secret` header, constant-time comparison
 - **503 if unset** — never "open" when misconfigured
 
