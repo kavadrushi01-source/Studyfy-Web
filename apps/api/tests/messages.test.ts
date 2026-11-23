@@ -241,11 +241,7 @@ describe("1:1 academic messaging (§13.7)", () => {
           .post("/api/v1/auth/login")
           .send({ email, password: "user-pass-123", schoolSlug: slug })
           .expect(200);
-      const [teacherLogin, pupilLogin, unrelatedPupilLogin] = await Promise.all([
-        loginDemo(teacher.email),
-        loginDemo(pupil.email),
-        loginDemo(unrelatedPupil.email),
-      ]);
+      const [teacherLogin, pupilLogin] = await Promise.all([loginDemo(teacher.email), loginDemo(pupil.email)]);
       expect(teacherLogin.body.data.readOnlyDemo).toBe(true);
 
       const sent = await request(app)
