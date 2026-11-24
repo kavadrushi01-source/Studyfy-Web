@@ -266,12 +266,74 @@ describe("1:1 academic messaging (§13.7)", () => {
         "Demo message check.",
       );
 
+      const teacherAuth = { Authorization: `Bearer ${teacherLogin.body.data.accessToken as string}` };
+      const pupilAuth = { Authorization: `Bearer ${pupilLogin.body.data.accessToken as string}` };
+
+      const marked = await request(app)
+        .post(`/api/v1/schools/${schoolId}/attendance`)
+        .set(teacherAuth)
+        .send({
+          sectionId,
+          date: "2026-10-15",
+          records: [{ studentId: pupil.studentId, status: "PRESENT" }],
+        })
+        .expect(200);
+      expect(marked.body.data.marked).toBe(1);
+
+      const assignment = await request(app)
+        .post(`/api/v1/schools/${schoolId}/homework`)
+        .set(teacherAuth)
+        .send({
+          sectionId,
+          subjectId,
+          title: "Demo practice",
+          description: "Complete this short practice task for the demo.",
+          dueDate: "2026-12-01",
+        })
+        .expect(201);
+      const submitted = await request(app)
+        .post(`/api/v1/schools/${schoolId}/homework/${assignment.body.data.homework.id as string}/submissions`)
+        .set(pupilAuth)
+        .field("content", "My completed demo practice.")
+        .expect(201);
+      await request(app)
+        .post(`/api/v1/schools/${schoolId}/submissions/${submitted.body.data.submission.id as string}/grade`)
+        .set(teacherAuth)
+        .expect(200);
+
+      const published = await request(app)
+        .post(`/api/v1/schools/${schoolId}/notices`)
+        .set(teacherAuth)
+        .send({ title: "Demo notice", body: "This notice is for the public demo only." })
+        .expect(201);
+      const noticeId = published.body.data.id as string;
+      await request(app)
+        .patch(`/api/v1/schools/${schoolId}/notices/${noticeId}`)
+        .set(teacherAuth)
+        .send({ title: "Updated demo notice" })
+        .expect(200);
+      await request(app)
+        .delete(`/api/v1/schools/${schoolId}/notices/${noticeId}`)
+        .set(teacherAuth)
+        .expect(200);
+
       const otherWrite = await request(app)
         .post(`/api/v1/schools/${schoolId}/students`)
-        .set("Authorization", `Bearer ${teacherLogin.body.data.accessToken as string}`)
+        .set(teacherAuth)
         .send({});
       expect(otherWrite.status).toBe(403);
       expect(otherWrite.body.error.code).toBe("READ_ONLY_SESSION");
+
+      const studentAttendance = await request(app)
+        .post(`/api/v1/schools/${schoolId}/attendance`)
+        .set(pupilAuth)
+        .send({
+          sectionId,
+          date: "2026-10-15",
+          records: [{ studentId: pupil.studentId, status: "ABSENT" }],
+        });
+      expect(studentAttendance.status).toBe(403);
+      expect(studentAttendance.body.error.code).toBe("PERMISSION_DENIED");
     } finally {
       if (originalNodeEnv === undefined) {
         delete process.env.NODE_ENV;

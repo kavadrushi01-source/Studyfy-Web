@@ -4,7 +4,7 @@ A school management platform built with **Next.js, React, TypeScript, Express, P
 
 Studyfy provides role-specific workflows for school administrators, teachers, accountants, students, parents, and transport managers, with additional librarian and platform-owner access.
 
-> **Demo data:** The seeded schools and accounts are fictional. Public demo-school accounts are read-only; do not enter real student or payment data.
+> **Demo data:** The seeded schools and accounts are fictional. Public demo accounts allow a small set of classroom actions (attendance, homework, notices, messaging, and test payments); other writes are blocked. Never enter real student or payment data.
 
 ---
 
@@ -29,7 +29,7 @@ Open the [login page](https://studyfy-web.vercel.app/login), enter the school sl
 | School of Science | `school-of-science` | `kavita.rao@schoolofscience.demo` | `Demo@1234` |
 | Ramakrishna School | `ramakrishna-school` | `s.venkataraman@ramakrishnaschool.demo` | `Demo@1234` |
 
-These are synthetic demo accounts. Live demo sessions are read-only and expire after 30 minutes. The platform-owner account is intentionally not published.
+These are synthetic demo accounts. Live demo sessions expire after 30 minutes and allow only scoped classroom actions (attendance marking, homework posting/submission/grading, and notice publishing/editing/withdrawal), demo messaging, and test payments; other writes remain blocked. Demo data is reset periodically. The platform-owner account is intentionally not published.
 
 ### Why two schools?
 
@@ -121,7 +121,7 @@ Permissions are enforced by the API. Student and parent access is further scoped
 - Authentication uses short-lived access tokens, refresh-token rotation, and secure cookies.
 - Password reset tokens are single-use; public authentication and enquiry routes are rate-limited.
 - Inputs are validated, security headers are enabled, and cross-origin access is allow-listed.
-- Seeded demo data is synthetic. Demo-school logins are read-only in the public deployment.
+- Seeded demo data is synthetic. Demo-school logins allow only scoped classroom actions, demo messaging, and test payments; other writes are blocked.
 - Use unique credentials and private environment secrets for real deployments. Never commit `.env` files or live payment credentials.
 
 ---

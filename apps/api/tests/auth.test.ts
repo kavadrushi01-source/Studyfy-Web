@@ -142,6 +142,7 @@ describe("POST /api/v1/auth/login", () => {
       expect(refreshPair(login)).toBeUndefined();
       const decoded = jwt.verify(login.body.data.accessToken as string, accessSecret()) as Record<string, unknown>;
       expect(decoded.readOnly).toBe(true);
+      expect(decoded.demoAcademicWrites).toBe(true);
       expect(decoded.demoMessaging).toBe(true);
 
       const write = await request(app)

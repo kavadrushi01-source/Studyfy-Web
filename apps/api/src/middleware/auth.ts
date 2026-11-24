@@ -10,6 +10,8 @@ export interface AuthUser {
   impersonatedBy?: string;
   // True only on read-only demo sessions (§13.11). Same guard as above.
   readOnly?: boolean;
+  // Present only on demo tokens; permits specific classroom demo actions.
+  demoAcademicWrites?: boolean;
   // Present only on demo tokens and only permits the message-send route.
   demoMessaging?: boolean;
   // Present only on demo tokens and only permits test-mode fee payment routes.
@@ -23,6 +25,7 @@ interface AccessJwt {
   type: string;
   impersonatedBy?: unknown;
   readOnly?: unknown;
+  demoAcademicWrites?: unknown;
   demoMessaging?: unknown;
   demoPayments?: unknown;
 }
@@ -63,6 +66,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
       ...(typeof payload.impersonatedBy === "string" && payload.impersonatedBy ? { impersonatedBy: payload.impersonatedBy } : {}),
       // Strict boolean only — truthy strings never count (§13.11).
       ...(payload.readOnly === true ? { readOnly: true } : {}),
+      ...(payload.demoAcademicWrites === true ? { demoAcademicWrites: true } : {}),
       ...(payload.demoMessaging === true ? { demoMessaging: true } : {}),
       ...(payload.demoPayments === true ? { demoPayments: true } : {}),
     };

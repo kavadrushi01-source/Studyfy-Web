@@ -7,11 +7,12 @@ export interface AccessTokenPayload {
   // Set ONLY on impersonation sessions (§13.9): the Platform Owner behind
   // the wheel. Absent on every normal login — the guard keys on presence.
   impersonatedBy?: string;
-  // Set only on production demo sessions. Writes stay blocked except for the
-  // separately scoped demoMessaging capability. Strict boolean only.
+  // Set only on production demo sessions. Writes are blocked by default;
+  // narrowly scoped demo capabilities below are the only exceptions.
   readOnly?: boolean;
-  // Set only for production demo accounts. It permits the narrowly scoped
-  // messaging and test-payment exceptions while all other demo writes remain blocked.
+  // Set only on production demo accounts. It permits scoped demo classroom
+  // actions; all other writes remain blocked.
+  demoAcademicWrites?: boolean;
   demoMessaging?: boolean;
   demoPayments?: boolean;
 }

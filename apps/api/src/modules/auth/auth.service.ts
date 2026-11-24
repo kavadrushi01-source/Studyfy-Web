@@ -167,6 +167,7 @@ async function loginUser(user: UserWithRole, password: string, readOnlyDemo = fa
           schoolId: publicUser.schoolId,
           role: publicUser.role,
           readOnly: true,
+          demoAcademicWrites: true,
           demoMessaging: true,
           demoPayments: true,
         },
